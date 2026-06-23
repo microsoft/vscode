@@ -594,6 +594,7 @@ suite('Workbench - TerminalInstance', () => {
 			cwd?: string;
 			remoteAuthority?: string;
 			fileExists?: boolean;
+			fileServiceCanHandle?: boolean;
 		}): Pick<ITerminalInstance, 'getCwdResource' | 'capabilities' | 'remoteAuthority'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 
@@ -606,6 +607,7 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Mock file service
 			mockFileService = {
+				canHandleResource: async (_resource: URI) => options.fileServiceCanHandle !== false,
 				exists: async (resource: URI) => options.fileExists !== false
 			};
 
@@ -632,6 +634,9 @@ suite('Workbench - TerminalInstance', () => {
 						resource = await mockPathService.fileURI(cwd);
 					} else {
 						resource = URI.file(cwd);
+					}
+					if (!await mockFileService.canHandleResource(resource)) {
+						return undefined;
 					}
 					if (await mockFileService.exists(resource)) {
 						return resource;
@@ -701,6 +706,21 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should handle empty cwd string', async () => {
 			const instance = createMockTerminalInstance({ cwd: '' });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined when fileService cannot handle the resource (VS Code web ENOPRO scenario)', async () => {
+			// Simulates server-linux-x64-web where remoteAuthority is falsy from the
+			// terminal's perspective, so URI.file() is produced but the browser
+			// FileService has no file:// provider registered.
+			const testCwd = '/workspace/my-project';
+			const instance = createMockTerminalInstance({
+				cwd: testCwd,
+				fileExists: true,
+				fileServiceCanHandle: false  // file:// provider absent
+			});
 
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);

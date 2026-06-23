@@ -15,7 +15,12 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
 ├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
+├── aiCustomizationItemsModel.ts                # IAICustomizationItemsModel: aggregated item model + section counts
 ├── aiCustomizationItemSource.ts                # Item pipeline: ICustomizationItem → IAICustomizationListItem view model
+├── aiCustomizationWelcomePage.ts               # Welcome page host (AICustomizationWelcomePage + implementation interface)
+├── aiCustomizationWelcomePagePromptLaunchers.ts # Welcome page implementation: prompt launchers
+├── embeddedMcpServerDetail.ts                  # Inline MCP server detail panel
+├── embeddedAgentPluginDetail.ts                # Inline agent plugin detail panel
 ├── promptsServiceCustomizationItemProvider.ts  # Adapts IPromptsService → ICustomizationItemProvider
 ├── aiCustomizationListWidgetUtils.ts           # List item helpers (truncation, etc.)
 ├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
@@ -58,6 +63,12 @@ src/vs/sessions/contrib/sessions/browser/
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
+### Management Editor Shell
+
+The management editor opens as a compact modal editor. The modal title and welcome page heading use `Agent Customizations for {harness label}` so the active harness is visible throughout the overview experience. If no harness descriptor is available yet, the UI falls back to `Local`.
+
+The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
@@ -99,6 +110,8 @@ Remote agent hosts can also register **external harnesses** dynamically. Each re
 - `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install-from-source action. The create action remains a separate toolbar button.
 
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
+
+Local plugin discovery is aggregated by `IAgentPluginService` from priority-ordered discovery providers: configured paths, VS Code marketplace installs, extension-contributed plugins, and Copilot CLI installs. Each provider reports `undefined` until its initial scan completes; the service waits for every provider to complete before exposing plugins. Once ready, plugins are canonicalized into collision groups so the same plugin discovered from multiple install roots (for example a VS Code marketplace install and a Copilot CLI direct install) remains visible but only the highest-priority copy is enabled by default. Enabling one copy disables the other copies in the same collision group.
 
 ### IHarnessDescriptor
 
@@ -245,6 +258,8 @@ Provider-supplied customization rows that include an explicit storage origin are
 ### Sidebar Entrypoint Mode
 
 The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+
+When the harness selector dropdown is disabled in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
 
 ### Item Badges
 

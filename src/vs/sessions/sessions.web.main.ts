@@ -103,6 +103,8 @@ import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgen
 import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
+import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemoteAgentHost.js';
+import { NullWSLRemoteAgentHostService } from '../platform/agentHost/browser/nullWslRemoteAgentHostService.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
@@ -127,6 +129,7 @@ registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtract
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
 registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
@@ -147,6 +150,9 @@ import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.co
 
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// WSL agent host — reconciles cached WSL distros into session providers
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
@@ -191,6 +197,7 @@ import '../workbench/contrib/terminal/browser/terminalInstanceService.js';
 import '../workbench/contrib/tasks/browser/taskService.js';
 import '../workbench/contrib/tags/browser/workspaceTagsService.js';
 import '../workbench/contrib/issue/browser/issue.contribution.js';
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';

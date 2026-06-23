@@ -122,7 +122,8 @@ export class AgentCustomizationContentExpander {
 	/**
 	 * Emits one item per markdown file for agent/rules/command folders.
 	 * Agents and instructions read frontmatter name/description, and
-	 * agents additionally surface userInvocable.
+	 * agents additionally surface userInvocable. Instruction (rules)
+	 * folders additionally accept `.mdc` files per the Open Plugins spec.
 	 */
 	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
@@ -131,7 +132,11 @@ export class AgentCustomizationContentExpander {
 			if (child.name.startsWith('.')) {
 				continue;
 			}
-			if (child.isDirectory || extname(child.name) !== '.md') {
+			if (child.isDirectory) {
+				continue;
+			}
+			const ext = extname(child.name);
+			if (ext !== '.md' && !(promptType === PromptsType.instructions && ext === '.mdc')) {
 				continue;
 			}
 			eligible.push(child);

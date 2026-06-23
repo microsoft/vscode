@@ -13,7 +13,24 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbe
 import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { localize } from '../../../../../nls.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[LocalAgentHostDefaultProviderSettingId]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#{0}#`.", AgentHostEnabledSettingId),
+		},
+	},
+});
 
 /**
  * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider

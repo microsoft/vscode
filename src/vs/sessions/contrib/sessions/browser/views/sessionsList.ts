@@ -6,58 +6,78 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
-import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ChatSessionProviderIdContext, ChatSessionSupportsDeleteContext, ChatSessionSupportsRenameContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { Separator } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, Separator } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
+// =============================================================================
+// TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
+// -----------------------------------------------------------------------------
+// `IAgentSessionsService` is a Copilot-provider internal and must normally only
+// be consumed by the Copilot chat sessions provider — the rest of the Agents
+// window stays provider-agnostic (see SESSIONS.md). This single, deliberate
+// exception lets the sessions list trigger lazy resolution of expensive session
+// properties (e.g. changes) for rows that scroll into view, until Don
+// re-implements it the right way (driven from inside the Copilot provider, or
+// via a provider-agnostic visibility signal on the shared services).
+// DO NOT add further usages of this import in the sessions workbench, and DO NOT
+// copy this suppression elsewhere.
+// =============================================================================
+// eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ISessionsListModelService } from './sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
 
+const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
+
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
-export const SessionItemContextMenuId = new MenuId('SessionItemContextMenu');
+export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
-export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
-export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
@@ -72,6 +92,13 @@ export enum SessionsSorting {
 	Created = 'created',
 	Updated = 'updated',
 }
+
+function sortingToMode(sorting: SessionsSorting): SessionSortMode {
+	return sorting === SessionsSorting.Updated ? 'updated' : 'created';
+}
+
+/** Fallback spacing (ms) used when assigning synthetic sort keys past an open boundary. */
+const SORT_FALLBACK_STEP_MS = 60_000;
 
 export interface ISessionSection {
 	readonly id: string;
@@ -159,9 +186,30 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 //#region Session Item Renderer
 
+/**
+ * Resolves the inline toolbar action context to the current multi-selection so
+ * that session item actions (e.g. Restore) operate on all selected sessions
+ * when the clicked session is part of the selection, and on just the clicked
+ * session otherwise.
+ */
+class SessionItemActionRunner extends ActionRunner {
+
+	constructor(private readonly getMultiSelectedSessions: (session: ISession) => ISession[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		if (context && !Array.isArray(context)) {
+			await super.runAction(action, this.getMultiSelectedSessions(context as ISession));
+			return;
+		}
+		await super.runAction(action, context);
+	}
+}
+
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
-	readonly iconContainer: HTMLElement;
+	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
@@ -171,8 +219,6 @@ interface ISessionItemTemplate {
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	/** Tracks the current icon CSS selector to avoid rebuilding the DOM (and restarting CSS animations) when the icon hasn't changed. */
-	currentIconSelector: string | undefined;
 }
 
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
@@ -191,20 +237,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _onDidChangeItemHeight = new Emitter<ISession>();
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
-	private readonly _motionReducedSignal;
-
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
-		private readonly agentSessionsService: IAgentSessionsService,
-		private readonly accessibilityService: IAccessibilityService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
+		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
+		private readonly agentSessionsService: IAgentSessionsService,
 	) {
-		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this.accessibilityService.onDidChangeReducedMotion);
 	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -214,6 +257,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		container.classList.add('session-item');
 
 		const iconContainer = DOM.append(container, $('.session-icon'));
+		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
@@ -237,11 +281,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			actionRunner,
 		}));
 
-		return { container, iconContainer, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables, currentIconSelector: undefined };
+		return { container, statusIcon, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -255,10 +301,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 
-		// Trigger lazy resolve for expensive session properties (e.g. changes)
-		// so that providers which populate them on demand deliver fresh data
-		// by the time the row renders. Only fires for sessions that become
-		// visible in the viewport (O(visible rows), not O(all sessions)).
+		// TEMPORARY (#320480): trigger lazy resolve of expensive session
+		// properties (e.g. changes) for rows that scroll into view, so providers
+		// that populate them on demand deliver fresh data by the time the row
+		// renders. This reaches into a Copilot-provider internal and must be
+		// moved into the provider — see the note on the import above.
 		this.agentSessionsService.model.observeSession(element.resource);
 
 		// Rich hover on the row showing folder, branch, diff stats and provider.
@@ -276,8 +323,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
-		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
-		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
+		SessionIsArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
+		SessionIsReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
 		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
@@ -286,6 +333,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('archived', isArchived);
 			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
+		}));
+
+		// Sticky styling — reactive on the wrapper's sticky observable
+		template.elementDisposables.add(autorun(reader => {
+			const wrapper = this.options.visibleSessions.read(reader).find(s => s?.sessionId === element.sessionId);
+			const isSticky = wrapper ? wrapper.sticky.read(reader) : false;
+			template.container.classList.toggle('sticky', isSticky);
 		}));
 
 		// Icon — reactive based on status, read state, PR, and motion preference.
@@ -300,45 +354,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			this._motionReducedSignal.read(reader);
 
-			// In-progress sessions get the shared pixel-art spinner (when motion is allowed)
-			// instead of the codicon `loading~spin`. Use a sentinel selector key so subsequent
-			// renders with the same state skip rebuilding the DOM and don't restart the animation.
-			const isPixelSpinner = sessionStatus === SessionStatus.InProgress && !this.accessibilityService.isMotionReduced();
-			if (isPixelSpinner) {
-				const pixelSpinnerKey = '__pixel_spinner__';
-				const iconColor = asCssVariable('textLink.foreground');
-				if (template.currentIconSelector !== pixelSpinnerKey) {
-					template.currentIconSelector = pixelSpinnerKey;
-					DOM.clearNode(template.iconContainer);
-					const spinner = createPixelSpinner(template.iconContainer);
-					spinner.style.color = iconColor;
-				} else {
-					const spinner = template.iconContainer.firstElementChild as HTMLElement | null;
-					if (spinner) {
-						spinner.style.color = iconColor;
-					}
-				}
-			} else {
-				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
-				const iconSelector = ThemeIcon.asCSSSelector(icon);
-				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
-
-				if (iconSelector !== template.currentIconSelector) {
-					template.currentIconSelector = iconSelector;
-					DOM.clearNode(template.iconContainer);
-					const iconSpan = DOM.append(template.iconContainer, $(`span${iconSelector}`));
-					iconSpan.style.color = iconColor;
-				} else {
-					const iconSpan = template.iconContainer.firstElementChild as HTMLElement | null;
-					if (iconSpan) {
-						iconSpan.style.color = iconColor;
-					}
-				}
-			}
-			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
+			// The status icon (spinner vs. codicon, cross-fade, reduced-motion) is fully
+			// owned by the SessionStatusIcon widget; here we just feed it the latest state.
+			// Row recycling re-feeds the widget, which cross-fades to the new session's icon.
+			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
+			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 		}));
 
 		// Title — reactive
@@ -353,6 +376,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
+			const changesSummary = element.changesSummary?.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			let timeDate: Date | undefined;
@@ -371,7 +395,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -394,13 +418,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (!hideDetails && changes.length > 0) {
-				let insertions = 0;
-				let deletions = 0;
-				for (const change of changes) {
-					insertions += change.insertions;
-					deletions += change.deletions;
+			if (!hideDetails && (changesSummary || changes.length > 0)) {
+				let insertions = 0, deletions = 0;
+
+				if (changesSummary) {
+					insertions = changesSummary.additions;
+					deletions = changesSummary.deletions;
+				} else if (changes.length > 0) {
+					for (const change of changes) {
+						insertions += change.insertions;
+						deletions += change.deletions;
+					}
 				}
+
 				if (insertions > 0 || deletions > 0) {
 					if (parts.length > 0) {
 						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -543,26 +573,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
-		switch (status) {
-			case SessionStatus.InProgress:
-				// When motion is allowed, the pixel spinner is rendered directly in renderSession
-				// and this method is not consulted; here we only provide the reduced-motion fallback.
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-			default:
-				if (pullRequestIcon) {
-					return pullRequestIcon;
-				}
-
-				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-		}
-	}
-
 	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
 		// For GitHub remote sessions, extract owner/name from the repository URI path
 		const folder = workspace.folders[0];
@@ -596,6 +606,7 @@ interface ISessionSectionTemplate {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
+	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -603,6 +614,8 @@ interface ISessionSectionTemplate {
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
+
+	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -617,6 +630,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
+		const chevron = DOM.append(container, $('span.session-section-chevron'));
+		chevron.setAttribute('aria-hidden', 'true');
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -624,7 +639,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, contextKeyService, disposables };
+		return { container, label, count, toolbar, chevron, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -632,6 +647,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		if (!isSessionSection(element)) {
 			return;
 		}
+		this.templatesByElement.set(element, template);
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
 			template.count.textContent = '';
@@ -641,10 +657,39 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.style.display = '';
 		}
 
+		this.updateChevron(template, node.collapsible, node.collapsed);
+
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		template.toolbar.context = element;
+	}
+
+	/**
+	 * Updates the expand/collapse chevron for an already-rendered section. The
+	 * tree only re-invokes `renderTwistie` (not `renderElement`) when a section's
+	 * collapse state toggles, so the owning list forwards collapse changes here.
+	 */
+	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
+		const template = this.templatesByElement.get(element);
+		if (template) {
+			this.updateChevron(template, true, collapsed);
+		}
+	}
+
+	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+		template.chevron.className = 'session-section-chevron';
+		if (collapsible) {
+			template.chevron.classList.add('collapsible');
+			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
+		}
+	}
+
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
+		if (isSessionSection(node.element)) {
+			this.templatesByElement.delete(node.element);
+		}
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
@@ -679,8 +724,8 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		} else {
 			template.textContent = element.kind === 'folders'
 				? element.remainingCount === 1
-					? localize('showMoreWorkspaceCompact', "+{0} workspace", element.remainingCount)
-					: localize('showMoreWorkspacesCompact', "+{0} workspaces", element.remainingCount)
+					? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
+					: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
 				: localize('showMoreCompact', "+{0} more", element.remainingCount);
 		}
 	}
@@ -719,6 +764,129 @@ class SessionsAccessibilityProvider {
 
 //#endregion
 
+//#region Drag and Drop
+
+/**
+ * Callbacks the sessions list provides to its drag-and-drop controller so the
+ * controller can validate and apply manual reordering without owning the list
+ * model itself.
+ */
+interface ISessionsListDndDelegate {
+	/** Whether a session may participate in reordering (regular, non-pinned, non-archived). */
+	isReorderable(session: ISession): boolean;
+	/** Whether the dragged sessions may be reordered relative to the given target. */
+	canDropOn(dragged: ISession[], target: ISession): boolean;
+	/** Apply the reorder, placing the dragged sessions before/after the target. */
+	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
+}
+
+class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
+
+	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+
+	constructor(private readonly delegate: ISessionsListDndDelegate) {
+		super();
+	}
+
+	getDragURI(element: SessionListItem): string | null {
+		if (isSessionSection(element) || isSessionShowMore(element)) {
+			return null;
+		}
+		return element.resource.toString();
+	}
+
+	getDragLabel(elements: SessionListItem[]): string | undefined {
+		const sessions = this.toSessions(elements);
+		if (sessions.length === 0) {
+			return undefined;
+		}
+		if (sessions.length === 1) {
+			return sessions[0].title.get();
+		}
+		return localize('sessions.dragLabel', "{0} sessions", sessions.length);
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const sessions = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		if (sessions.length === 0) {
+			return;
+		}
+
+		const identifiers = sessions.map(s => new DraggedSessionIdentifier(s.sessionId, s.resource));
+		this._transfer.setData(identifiers, DraggedSessionIdentifier.prototype);
+
+		if (originalEvent.dataTransfer) {
+			// Expose the first dragged session as a typed payload as well so external
+			// drop handlers can read it without using the local transfer.
+			const payload = JSON.stringify({ sessionId: sessions[0].sessionId, resource: sessions[0].resource.toString() });
+			originalEvent.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+		}
+	}
+
+	onDragEnd(): void {
+		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (!target) {
+			return false;
+		}
+		const position = sectorToPosition(targetSector);
+		return {
+			accept: true,
+			effect: {
+				type: ListDragOverEffectType.Move,
+				position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
+			},
+		};
+	}
+
+	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (!target) {
+			return;
+		}
+		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		this.delegate.reorder(dragged, target, sectorToPosition(targetSector));
+	}
+
+	/**
+	 * Resolve the session the drop should be positioned against, or `undefined`
+	 * if the current drag is not a valid in-list reorder.
+	 */
+	private resolveReorderTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): ISession | undefined {
+		if (!targetElement || isSessionSection(targetElement) || isSessionShowMore(targetElement)) {
+			return undefined;
+		}
+		const target = targetElement;
+		if (!this.delegate.isReorderable(target)) {
+			return undefined;
+		}
+		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		if (dragged.length === 0 || dragged.some(s => s.sessionId === target.sessionId)) {
+			return undefined;
+		}
+		if (dragged.some(s => !this.delegate.isReorderable(s))) {
+			return undefined;
+		}
+		if (!this.delegate.canDropOn(dragged, target)) {
+			return undefined;
+		}
+		return target;
+	}
+
+	private toSessions(elements: SessionListItem[]): ISession[] {
+		return elements.filter((e): e is ISession => !isSessionSection(e) && !isSessionShowMore(e));
+	}
+}
+
+function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
+	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+//#endregion
+
 //#region Sessions List Control
 
 export interface ISessionsListControlOptions {
@@ -726,7 +894,7 @@ export interface ISessionsListControlOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly findWidgetContainer?: HTMLElement;
-	onSessionOpen(resource: URI, preserveFocus: boolean): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 }
 
 /**
@@ -780,7 +948,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
-	private static readonly WORKSPACE_GROUP_LIMIT = 5;
+	private static readonly DEFAULT_WORKSPACE_GROUP_LIMIT = 5;
+
+	/**
+	 * Experiment treatment that overrides how many sessions are shown per
+	 * workspace group before the "show more" affordance appears. Falls back to
+	 * {@link DEFAULT_WORKSPACE_GROUP_LIMIT} when the treatment is not set.
+	 */
+	private static readonly WORKSPACE_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -791,6 +966,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
+
+	/**
+	 * Maximum number of sessions shown per workspace group before "show more"
+	 * is rendered. Backed by an experiment treatment (see
+	 * {@link WORKSPACE_GROUP_LIMIT_TREATMENT}) and refreshed whenever the
+	 * assignment service refetches its treatments.
+	 */
+	private readonly workspaceGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT);
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
@@ -809,6 +992,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -817,6 +1001,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -832,26 +1018,32 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
+		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
+			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}));
+		this._register(DOM.addDisposableListener(this.listContainer.ownerDocument, DOM.EventType.KEY_DOWN, () => {
+			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		}, true));
 
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
-		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
+		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
+		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
-			agentSessionsService,
-			accessibilityService,
 			sessionsProvidersService,
+			agentSessionsService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
 		// observe the workbench's value rather than shadowing it with a fresh
@@ -866,11 +1058,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			delegate,
 			[
 				sessionRenderer,
-				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
+				sectionRenderer,
 				showMoreRenderer,
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
+				dnd: this._register(new SessionsListDragAndDrop({
+					isReorderable: session => this.isReorderable(session),
+					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
+					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
+				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
 						if (isSessionSection(element)) {
@@ -880,6 +1077,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
+					},
+					getGroupId: (element: SessionListItem) => {
+						if (isSessionSection(element)) {
+							return NotSelectableGroupId;
+						}
+						if (isSessionShowMore(element)) {
+							return NotSelectableGroupId;
+						}
+						// Use a distinct group for archived (done) sessions so that
+						// multi-selection cannot span the workspace and done sections.
+						return element.isArchived.get() ? 2 : 1;
 					}
 				},
 				horizontalScrolling: false,
@@ -932,7 +1140,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (!isSessionSection(element)) {
 				this.markRead(element);
-				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
+				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false, e.sideBySide);
 			}
 		}));
 
@@ -964,12 +1172,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeCollapseState(e => {
-			if (this.suspendCollapseStatePersistence) {
-				return;
-			}
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
-				this.saveSectionCollapseState(element.id, e.node.collapsed);
+				sectionRenderer.updateCollapseState(element, e.node.collapsed);
+				if (!this.suspendCollapseStatePersistence) {
+					this.saveSectionCollapseState(element.id, e.node.collapsed);
+				}
 			}
 		}));
 
@@ -1020,7 +1228,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// session becomes visible while active and hides again when unselected.
 		// Also mark the newly active session as read.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (activeSession) {
 				this._sessionsListModelService.markRead(activeSession);
 			}
@@ -1029,7 +1237,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		// Resolve the per-workspace session limit from the experiment service and
+		// keep it current when treatments are refetched. The async fetch is
+		// confined to `updateWorkspaceGroupLimit`; the rest of the list reads the
+		// resolved value synchronously off `workspaceGroupLimit`. The autorun runs
+		// immediately for the initial fetch and again whenever treatments refetch.
+		const assignmentRefetchSignal = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
+		this._register(autorun(reader => {
+			assignmentRefetchSignal.read(reader);
+			this.updateWorkspaceGroupLimit();
+		}));
+
 		this.refresh();
+	}
+
+	/**
+	 * Fetches the workspace group limit treatment and updates the backing
+	 * observable. Invalid or unset treatments fall back to the default limit.
+	 */
+	private updateWorkspaceGroupLimit(): void {
+		this.assignmentService.getTreatment<number>(SessionsList.WORKSPACE_GROUP_LIMIT_TREATMENT).then(value => {
+			const limit = typeof value === 'number' && Number.isInteger(value) && value > 0
+				? value
+				: SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT;
+			this.workspaceGroupLimit.set(limit, undefined);
+		});
 	}
 
 	refresh(): void {
@@ -1038,7 +1270,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 
 		// Filter by session type and status
 		let filtered = this.sessions;
@@ -1069,7 +1301,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const grouping = this.options.grouping();
-		const sections = groupSessionsForList(filtered, grouping, this.options.sorting(), session => this.isSessionPinned(session));
+		const sections = groupSessionsForList(filtered, grouping, this.options.sorting(), session => this.isSessionPinned(session), (s, sorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(sorting)));
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
@@ -1123,19 +1355,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
+		const workspaceGroupLimit = this.workspaceGroupLimit.get();
+
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const exceedsLimit = isWorkspaceGroup
 				&& !this.hasFindPattern
-				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
+				&& section.sessions.length > workspaceGroupLimit;
 			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
 			const isCapped = exceedsLimit && !isExpanded;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
-				const visible = section.sessions.slice(0, SessionsList.WORKSPACE_GROUP_LIMIT);
-				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
+				const visible = section.sessions.slice(0, workspaceGroupLimit);
+				const remainingCount = section.sessions.length - workspaceGroupLimit;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
 					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
@@ -1294,28 +1528,127 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// Context menu
 
+	/**
+	 * Resolves the sessions an action should operate on for a given clicked
+	 * session: when the clicked session is part of the current multi-selection
+	 * the full selection is returned (clicked session first), otherwise just the
+	 * clicked session.
+	 */
+	/**
+	 * Whether a session may participate in manual reordering. Only regular
+	 * sessions reorder — pinned and archived (Done) sessions keep their fixed
+	 * sections.
+	 */
+	private isReorderable(session: ISession): boolean {
+		return !session.isArchived.get() && !this.isSessionPinned(session);
+	}
+
+	/**
+	 * Whether the dragged sessions can be reordered relative to the target.
+	 * When grouping by workspace, reordering is restricted to within the same
+	 * workspace group.
+	 */
+	private canReorderOnto(dragged: ISession[], target: ISession): boolean {
+		if (this.options.grouping() === SessionsGrouping.Workspace) {
+			const targetLabel = sessionWorkspaceLabel(target);
+			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
+		}
+		return true;
+	}
+
+	/**
+	 * Reorder the dragged sessions so they land as a contiguous block before or
+	 * after the target session, persisting a synthetic sort key (the midpoint of
+	 * the surrounding sessions' keys). When the dragged sessions' natural
+	 * timestamps already sort them into the dropped slot, any stored override is
+	 * dropped instead so the list falls back to natural ordering.
+	 */
+	private reorderSessions(dragged: ISession[], target: ISession, position: 'before' | 'after'): void {
+		const mode = sortingToMode(this.options.sorting());
+		const grouping = this.options.grouping();
+		const getKey = (s: ISession) => this._sessionsListModelService.getSortKey(s, mode);
+
+		// Derive neighbours from the actual visible display order (which already
+		// respects filtering and grouping) so the drop slot matches what the user
+		// sees. For workspace grouping only the target's workspace participates;
+		// for date grouping the regular list is one continuous sequence.
+		let scope = this.getVisibleSessions().filter(s => this.isReorderable(s));
+		if (grouping === SessionsGrouping.Workspace) {
+			const targetLabel = sessionWorkspaceLabel(target);
+			scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
+		}
+
+		const draggedIds = new Set(dragged.map(s => s.sessionId));
+		const draggedOrdered = scope.filter(s => draggedIds.has(s.sessionId));
+		if (draggedOrdered.length === 0) {
+			return;
+		}
+		const remaining = scope.filter(s => !draggedIds.has(s.sessionId));
+
+		const targetIndex = remaining.findIndex(s => s.sessionId === target.sessionId);
+		if (targetIndex === -1) {
+			return;
+		}
+
+		const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+		const above = remaining[insertIndex - 1];
+		const below = remaining[insertIndex];
+
+		const { set, clear } = computeReorderSortChanges({
+			draggedIds: draggedOrdered.map(s => s.sessionId),
+			naturalKeys: draggedOrdered.map(s => this._sessionsListModelService.getNaturalSortKey(s, mode)),
+			aboveKey: above ? getKey(above) : undefined,
+			belowKey: below ? getKey(below) : undefined,
+			now: Date.now(),
+			fallbackStep: SORT_FALLBACK_STEP_MS,
+		});
+		this._sessionsListModelService.applySortChanges(mode, set, clear);
+	}
+
+	private getMultiSelectedSessions(session: ISession): ISession[] {
+		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
+		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
 		if (!element || isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
 
-		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
-		const selectedSessions = selection.includes(element) ? [element, ...selection.filter(s => s !== element)] : [element];
+		const selectedSessions = this.getMultiSelectedSessions(element);
 
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
-			[IsSessionArchivedContext.key, element.isArchived.get()],
-			[IsSessionReadContext.key, this.isSessionRead(element)],
+			[SessionIsArchivedContext.key, element.isArchived.get()],
+			[SessionIsReadContext.key, this.isSessionRead(element)],
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
-			['chatSessionType', element.sessionType],
+			[ChatSessionTypeContext.key, element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
+			[ChatSessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
+			[ChatSessionSupportsDeleteContext.key, element.capabilities.supportsDelete ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession[].
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: element.resource },
+			sessions: selectedSessions.map(s => ({ resource: s.resource })),
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 		});
@@ -1589,13 +1922,78 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 
 //#region Sorting & Grouping Helpers
 
-export function sortSessions(sessions: ISession[], sorting: SessionsSorting): ISession[] {
-	return [...sessions].sort((a, b) => {
-		if (sorting === SessionsSorting.Updated) {
-			return b.updatedAt.get().getTime() - a.updatedAt.get().getTime();
+export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
+	const key = getSortKey ?? defaultSortKey;
+	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function defaultSortKey(session: ISession, sorting: SessionsSorting): number {
+	if (sorting === SessionsSorting.Updated) {
+		return session.updatedAt.get().getTime();
+	}
+	return session.createdAt.getTime();
+}
+
+export interface IReorderSortInput {
+	/** Dragged session ids in display (descending-key) order. */
+	readonly draggedIds: readonly string[];
+	/** Natural sort key per dragged session (same order as {@link draggedIds}). */
+	readonly naturalKeys: readonly number[];
+	/** Effective key of the neighbour above the drop point (higher), if any. */
+	readonly aboveKey: number | undefined;
+	/** Effective key of the neighbour below the drop point (lower), if any. */
+	readonly belowKey: number | undefined;
+	/** Current time, used when dropping above the first session. */
+	readonly now: number;
+	/** Spacing used when stepping past an open boundary. */
+	readonly fallbackStep: number;
+}
+
+/**
+ * Compute the manual sort-override changes for a reorder drop. Assigns the
+ * dragged block strictly-descending synthetic keys spread between the
+ * surrounding neighbours, except when the sessions' natural keys already sort
+ * them into the dropped slot — in which case any existing override is dropped.
+ */
+export function computeReorderSortChanges(input: IReorderSortInput): { set: Map<string, number>; clear: string[] } {
+	const { draggedIds, naturalKeys, aboveKey, belowKey, now, fallbackStep } = input;
+	const count = draggedIds.length;
+
+	// "Drop the fake value": when every dragged session's natural key already
+	// lands strictly inside the surrounding gap (and in descending display
+	// order), clear overrides instead of storing synthetic keys.
+	const upperFit = aboveKey ?? Number.POSITIVE_INFINITY;
+	const lowerFit = belowKey ?? Number.NEGATIVE_INFINITY;
+	let naturalFits = true;
+	for (let i = 0; i < count; i++) {
+		if (!(naturalKeys[i] < upperFit && naturalKeys[i] > lowerFit)) {
+			naturalFits = false;
+			break;
 		}
-		return b.createdAt.getTime() - a.createdAt.getTime();
-	});
+		if (i > 0 && !(naturalKeys[i] < naturalKeys[i - 1])) {
+			naturalFits = false;
+			break;
+		}
+	}
+
+	const set = new Map<string, number>();
+	const clear: string[] = [];
+	if (naturalFits) {
+		for (const id of draggedIds) {
+			clear.push(id);
+		}
+	} else {
+		// Spread `count` strictly-descending synthetic keys across the gap. An
+		// open top boundary uses the current time so the block sorts to the very
+		// top; an open bottom boundary steps below the last key.
+		const upper = aboveKey ?? now;
+		const lower = belowKey ?? (upper - (count + 1) * fallbackStep);
+		const step = (upper - lower) / (count + 1);
+		for (let i = 0; i < count; i++) {
+			set.set(draggedIds[i], upper - (i + 1) * step);
+		}
+	}
+	return { set, clear };
 }
 
 export function groupSessionsForList(
@@ -1603,8 +2001,9 @@ export function groupSessionsForList(
 	grouping: SessionsGrouping,
 	sorting: SessionsSorting,
 	isSessionPinned: (session: ISession) => boolean,
+	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions, sorting);
+	const sorted = sortSessions(sessions, sorting, getSortKey);
 
 	// Archived always wins over pinned so done sessions stay grouped together.
 	const pinned: ISession[] = [];
@@ -1627,7 +2026,7 @@ export function groupSessionsForList(
 
 	sections.push(...(grouping === SessionsGrouping.Workspace
 		? groupByWorkspace(regular)
-		: groupByDate(regular, sorting)));
+		: groupByDate(regular, sorting, getSortKey)));
 
 	if (archived.length > 0) {
 		sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
@@ -1636,11 +2035,15 @@ export function groupSessionsForList(
 	return sections;
 }
 
+/** The workspace group label a session belongs to (matches {@link groupByWorkspace}). */
+function sessionWorkspaceLabel(session: ISession): string {
+	return session.workspace.get()?.label || localize('unknown', "Unknown");
+}
+
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
-		const workspace = session.workspace.get();
-		const label = workspace?.label || localize('unknown', "Unknown");
+		const label = sessionWorkspaceLabel(session);
 		let group = groups.get(label);
 		if (!group) {
 			group = [];
@@ -1669,7 +2072,8 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
-export function groupByDate(sessions: ISession[], sorting: SessionsSorting): ISessionSection[] {
+export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
+	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfYesterday = startOfToday - 86_400_000;
@@ -1681,9 +2085,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting): ISe
 	const older: ISession[] = [];
 
 	for (const session of sessions) {
-		const time = sorting === SessionsSorting.Updated
-			? session.updatedAt.get().getTime()
-			: session.createdAt.getTime();
+		const time = key(session, sorting);
 
 		if (time >= startOfToday) {
 			today.push(session);

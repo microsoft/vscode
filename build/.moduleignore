@@ -225,11 +225,17 @@ zone.js/dist/**
 @github/copilot/sharp/**
 @github/copilot/**/keytar.node
 
+# os-theme is pulled in by @github/copilot but the CLI does not use its native addon.
+# See https://github.com/microsoft/vscode-engineering/issues/3087.
+@os-theme/**
+
 # @github/copilot platform binaries - not needed
 @github/copilot-darwin-arm64/**
 @github/copilot-darwin-x64/**
 @github/copilot-linux-arm64/**
 @github/copilot-linux-x64/**
+@github/copilot-linuxmusl-arm64/**
+@github/copilot-linuxmusl-x64/**
 @github/copilot-win32-arm64/**
 @github/copilot-win32-x64/**
 
@@ -240,6 +246,8 @@ zone.js/dist/**
 @github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
 @github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-x64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-x64/**
 

@@ -438,16 +438,20 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getCustomAgents', () => {
-		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => ({
-			uri: URI.parse(path),
-			name,
-			target: Target.GitHubCopilot,
-			visibility: { userInvocable: true, agentInvocable: true },
-			agentInstructions: { content: '', toolReferences: [] },
-			source: { storage: PromptsStorage.local },
-			sessionTypes,
-			enabled,
-		});
+		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => {
+			const uri = URI.parse(path);
+			return {
+				id: uri.toString(),
+				uri,
+				name,
+				target: Target.GitHubCopilot,
+				visibility: { userInvocable: true, agentInvocable: true },
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				sessionTypes,
+				enabled,
+			};
+		};
 
 		test('falls back to promptsService and filters by session type', async () => {
 			const promptsService = new MockPromptsService();

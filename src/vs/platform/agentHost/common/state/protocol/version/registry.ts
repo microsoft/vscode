@@ -16,7 +16,29 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.2.0';
+export const PROTOCOL_VERSION = '0.5.0';
+
+/**
+ * Every protocol version a client built from this source tree is willing
+ * to negotiate via the `initialize` handshake. Ordered **most preferred
+ * first** so a server picking the first acceptable entry honors the
+ * client's preference (see [versioning](../../docs/specification/versioning.md)).
+ *
+ * The first entry MUST equal {@link PROTOCOL_VERSION} — the version
+ * "new code speaks" is by definition the most preferred one. Older
+ * versions may be appended if a client retains the ability to fall back
+ * to them; today only one version is advertised.
+ *
+ * Every generated client (Rust, Kotlin, Swift) re-exports this constant
+ * verbatim. The TypeScript client consumes it directly. The per-client
+ * `release-metadata.json` files are validated against this list by
+ * `scripts/verify-release-metadata.ts`.
+ */
+export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+	'0.5.0',
+	'0.4.0',
+	'0.3.0',
+]);
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
 
@@ -60,48 +82,61 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.RootActiveSessionsChanged]: '0.1.0',
 	[ActionType.SessionReady]: '0.1.0',
 	[ActionType.SessionCreationFailed]: '0.1.0',
-	[ActionType.SessionTurnStarted]: '0.1.0',
-	[ActionType.SessionDelta]: '0.1.0',
-	[ActionType.SessionResponsePart]: '0.1.0',
-	[ActionType.SessionToolCallStart]: '0.1.0',
-	[ActionType.SessionToolCallDelta]: '0.1.0',
-	[ActionType.SessionToolCallReady]: '0.1.0',
-	[ActionType.SessionToolCallConfirmed]: '0.1.0',
-	[ActionType.SessionToolCallComplete]: '0.1.0',
-	[ActionType.SessionToolCallResultConfirmed]: '0.1.0',
-	[ActionType.SessionToolCallContentChanged]: '0.1.0',
-	[ActionType.SessionTurnComplete]: '0.1.0',
-	[ActionType.SessionTurnCancelled]: '0.1.0',
-	[ActionType.SessionError]: '0.1.0',
+	[ActionType.SessionChatAdded]: '0.4.0',
+	[ActionType.SessionChatRemoved]: '0.4.0',
+	[ActionType.SessionChatUpdated]: '0.4.0',
+	[ActionType.SessionDefaultChatChanged]: '0.4.0',
 	[ActionType.SessionTitleChanged]: '0.1.0',
-	[ActionType.SessionUsage]: '0.1.0',
-	[ActionType.SessionReasoning]: '0.1.0',
 	[ActionType.SessionModelChanged]: '0.1.0',
 	[ActionType.SessionAgentChanged]: '0.2.0',
 	[ActionType.SessionServerToolsChanged]: '0.1.0',
 	[ActionType.SessionActiveClientChanged]: '0.1.0',
 	[ActionType.SessionActiveClientToolsChanged]: '0.1.0',
-	[ActionType.SessionPendingMessageSet]: '0.1.0',
-	[ActionType.SessionPendingMessageRemoved]: '0.1.0',
-	[ActionType.SessionQueuedMessagesReordered]: '0.1.0',
-	[ActionType.SessionInputRequested]: '0.1.0',
-	[ActionType.SessionInputAnswerChanged]: '0.1.0',
-	[ActionType.SessionInputCompleted]: '0.1.0',
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
 	[ActionType.SessionCustomizationToggled]: '0.1.0',
 	[ActionType.SessionCustomizationUpdated]: '0.1.0',
-	[ActionType.SessionTruncated]: '0.1.0',
+	[ActionType.SessionCustomizationRemoved]: '0.2.0',
+	[ActionType.SessionMcpServerStateChanged]: '0.3.0',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',
 	[ActionType.SessionActivityChanged]: '0.1.0',
 	[ActionType.SessionChangesetsChanged]: '0.2.0',
 	[ActionType.SessionConfigChanged]: '0.1.0',
 	[ActionType.SessionMetaChanged]: '0.1.0',
+	[ActionType.ChatTurnStarted]: '0.4.0',
+	[ActionType.ChatDelta]: '0.4.0',
+	[ActionType.ChatResponsePart]: '0.4.0',
+	[ActionType.ChatToolCallStart]: '0.4.0',
+	[ActionType.ChatToolCallDelta]: '0.4.0',
+	[ActionType.ChatToolCallReady]: '0.4.0',
+	[ActionType.ChatToolCallConfirmed]: '0.4.0',
+	[ActionType.ChatToolCallComplete]: '0.4.0',
+	[ActionType.ChatToolCallResultConfirmed]: '0.4.0',
+	[ActionType.ChatToolCallContentChanged]: '0.4.0',
+	[ActionType.ChatTurnComplete]: '0.4.0',
+	[ActionType.ChatTurnCancelled]: '0.4.0',
+	[ActionType.ChatError]: '0.4.0',
+	[ActionType.ChatUsage]: '0.4.0',
+	[ActionType.ChatReasoning]: '0.4.0',
+	[ActionType.ChatPendingMessageSet]: '0.4.0',
+	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
+	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
+	[ActionType.ChatInputRequested]: '0.4.0',
+	[ActionType.ChatInputAnswerChanged]: '0.4.0',
+	[ActionType.ChatInputCompleted]: '0.4.0',
+	[ActionType.ChatTruncated]: '0.4.0',
 	[ActionType.ChangesetStatusChanged]: '0.2.0',
 	[ActionType.ChangesetFileSet]: '0.2.0',
 	[ActionType.ChangesetFileRemoved]: '0.2.0',
+	[ActionType.ChangesetContentChanged]: '0.4.0',
 	[ActionType.ChangesetOperationsChanged]: '0.2.0',
+	[ActionType.ChangesetOperationStatusChanged]: '0.3.0',
 	[ActionType.ChangesetCleared]: '0.2.0',
+	[ActionType.AnnotationsSet]: '0.3.0',
+	[ActionType.AnnotationsUpdated]: '0.4.0',
+	[ActionType.AnnotationsRemoved]: '0.3.0',
+	[ActionType.AnnotationsEntrySet]: '0.3.0',
+	[ActionType.AnnotationsEntryRemoved]: '0.3.0',
 	[ActionType.RootTerminalsChanged]: '0.1.0',
 	[ActionType.RootConfigChanged]: '0.1.0',
 	[ActionType.TerminalData]: '0.1.0',
@@ -115,6 +150,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandDetectionAvailable]: '0.1.0',
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
+	[ActionType.ResourceWatchChanged]: '0.2.0',
 };
 
 /**

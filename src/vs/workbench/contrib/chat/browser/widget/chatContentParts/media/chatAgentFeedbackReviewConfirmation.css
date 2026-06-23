@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-agent-feedback-review-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-agent-feedback-review-empty {
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size40) 0;
+}
+
+.chat-agent-feedback-review-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-agent-feedback-review-row .monaco-checkbox {
+	margin-top: var(--vscode-spacing-size20);
+	flex: 0 0 auto;
+}
+
+.chat-agent-feedback-review-main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.chat-agent-feedback-review-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-feedback-review-kind {
+	flex: 0 0 auto;
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: color-mix(in srgb, var(--vscode-charts-purple) 22%, var(--vscode-editorWidget-background));
+	color: var(--vscode-charts-purple);
+	font-size: var(--vscode-bodyFontSize-xSmall);
+	text-transform: uppercase;
+}
+
+.chat-agent-feedback-review-file {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+.chat-agent-feedback-review-text-container {
+	position: relative;
+}
+
+.chat-agent-feedback-review-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.chat-agent-feedback-review-text-container.collapsed .chat-agent-feedback-review-text {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* Fade affordance shown only when the comment is collapsed and overflowing, making it clear there is more text below the two visible lines. */
+.chat-agent-feedback-review-text-container.collapsed.overflowing::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 1.4em;
+	pointer-events: none;
+	background: linear-gradient(to bottom, transparent, var(--vscode-chat-requestBackground));
+}
+
+.chat-agent-feedback-review-expand-toggle {
+	display: none;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	z-index: 1;
+}
+
+.chat-agent-feedback-review-text-container.overflowing .chat-agent-feedback-review-expand-toggle {
+	display: flex;
+}
+
+.chat-agent-feedback-review-expand-toggle:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-agent-feedback-review-expand-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-agent-feedback-review-actions {
+	flex: 0 0 auto;
+}
+
+.chat-agent-feedback-review-actions .monaco-action-bar .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-confirmation-widget2 .chat-confirmation-widget-message:has(.chat-agent-feedback-review-list) {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
+}

@@ -67,8 +67,9 @@ function createPicker(
 		},
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	instantiationService.stub(ISessionsManagementService, {
-		activeSession: observableValue<IActiveSession | undefined>('activeSession', activeSession),
+		activeSession: sessionObs,
 	} as unknown as ISessionsManagementService);
 	instantiationService.stub(ISessionsProvidersService, {
 		onDidChangeProviders: Event.None,
@@ -77,7 +78,7 @@ function createPicker(
 	} as unknown as ISessionsProvidersService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-	return disposables.add(instantiationService.createInstance(IsolationPicker));
+	return disposables.add(instantiationService.createInstance(IsolationPicker, sessionObs));
 }
 
 suite('IsolationPicker', () => {

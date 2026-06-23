@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
@@ -354,6 +355,53 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				authorization: undefined,
 				dashedApiKey: undefined,
 			});
+		});
+
+		// Regression for https://github.com/microsoft/vscode/issues/312746
+		// Custom endpoints pointed at DeepSeek / Kimi / Moonshot / Minimax must emit
+		// `reasoning_content` on assistant tool-call messages so the next request after
+		// a tool call is not rejected with HTTP 400.
+		it('issue #312746: emits reasoning_content on assistant tool-call message for custom Chat Completions endpoints (DeepSeek/Kimi/Moonshot)', () => {
+			const thinkingMetadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				capabilities: {
+					...makeMetadata(undefined).capabilities,
+					supports: {
+						...makeMetadata(undefined).capabilities.supports,
+						thinking: true,
+					},
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				thinkingMetadata,
+				'test-api-key',
+				'https://api.deepseek.com/v1/chat/completions');
+
+			const thinkingMessage: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: 'thinking',
+						thinking: {
+							id: 'reasoning-custom-1',
+							text: 'I should read the README before answering.'
+						}
+					}
+				}]
+			};
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [thinkingMessage],
+				requestId: 'test-req-custom-deepseek',
+				postOptions: {},
+				finishedCb: undefined,
+				location: undefined as any,
+			});
+			const messages = body.messages as any[];
+			expect(messages[0].reasoning_content).toBe('I should read the README before answering.');
+			expect(messages[0].reasoning).toBe('I should read the README before answering.');
+			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
 	});
 });

@@ -64,7 +64,7 @@ export class ForkConversationAction extends Action2 {
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
 			if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
-				return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, chatWidgetService);
+				return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService);
 			}
 
 			const chatModel = chatService.getSession(sourceSessionResource);
@@ -163,7 +163,7 @@ export class ForkConversationAction extends Action2 {
 					}
 				}
 			}
-			return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, chatWidgetService);
+			return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService);
 		}
 
 		const chatModel = chatService.getSession(sessionResource);
@@ -241,35 +241,33 @@ export class ForkConversationAction extends Action2 {
 
 	private pendingFork = new Map<string, Promise<void>>();
 
-	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, chatWidgetService: IChatWidgetService) {
+	private async forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService) {
 		const pendingKey = `${sourceSessionResource.toString()}@${request?.id ?? 'full'}`;
 		const pending = this.pendingFork.get(pendingKey);
 		if (pending) {
 			return pending;
 		}
 
-		const forkPromise = forkContributedChatSession(sourceSessionResource, request, openForkedSessionImmediately, chatSessionsService, chatWidgetService);
+		const forkPromise = (async () => {
+			const cts = new CancellationTokenSource();
+			try {
+				const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
+				const open = () => this._openForkedSession(instantiationService, sourceSessionResource, forkedItem.resource);
+				if (openForkedSessionImmediately) {
+					await open();
+				} else {
+					setTimeout(open, 0);
+				}
+			} finally {
+				cts.dispose();
+			}
+		})();
+
 		this.pendingFork.set(pendingKey, forkPromise);
 		try {
 			await forkPromise;
 		} finally {
 			this.pendingFork.delete(pendingKey);
 		}
-	}
-}
-
-async function forkContributedChatSession(sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, openForkedSessionImmediately: boolean, chatSessionsService: IChatSessionsService, chatWidgetService: IChatWidgetService) {
-	const cts = new CancellationTokenSource();
-	try {
-		const forkedItem = await chatSessionsService.forkChatSession(sourceSessionResource, request, cts.token);
-		if (openForkedSessionImmediately) {
-			await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
-		} else {
-			setTimeout(async () => {
-				await chatWidgetService.openSession(forkedItem.resource, ChatViewPaneTarget);
-			}, 0);
-		}
-	} finally {
-		cts.dispose();
 	}
 }

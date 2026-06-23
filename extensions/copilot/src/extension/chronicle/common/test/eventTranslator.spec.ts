@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ICompletedSpanData } from '../../../../platform/otel/common/otelService';
 import type { IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
-import { createSessionTranslationState, deriveTitleFromUserMessage, makeIdleEvent, makeShutdownEvent, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import { createSessionTranslationState, deriveTitleFromUserMessage, isTerminalFlushEvent, makeIdleEvent, makeShutdownEvent, STREAMING_EVENT_TYPES, TERMINAL_FLUSH_EVENT_TYPES, translateDebugLogEntry, translateSpan } from '../eventTranslator';
+import type { SessionEvent } from '../cloudSessionTypes';
 
 function makeSpan(overrides: Partial<ICompletedSpanData> = {}): ICompletedSpanData {
 	return {
@@ -642,5 +643,49 @@ describe('deriveTitleFromUserMessage', () => {
 
 	it('returns undefined for empty content', () => {
 		expect(deriveTitleFromUserMessage('')).toBeUndefined();
+	});
+});
+describe('terminal / streaming event classification', () => {
+	function makeEvent(type: string): SessionEvent {
+		return { id: 'e', timestamp: '2024-01-01T00:00:00.000Z', parentId: null, type, data: {} };
+	}
+
+	it('marks the documented terminal flush event types', () => {
+		expect(TERMINAL_FLUSH_EVENT_TYPES).toEqual(new Set([
+			'assistant.message',
+			'tool.execution_complete',
+			'session.idle',
+			'session.shutdown',
+			'session.error',
+		]));
+	});
+
+	it('marks the documented streaming delta event types', () => {
+		expect(STREAMING_EVENT_TYPES).toEqual(new Set([
+			'assistant.streaming_delta',
+			'assistant.reasoning_delta',
+			'assistant.message_delta',
+			'tool.execution_partial_result',
+		]));
+	});
+
+	it('terminal and streaming sets are disjoint', () => {
+		for (const t of TERMINAL_FLUSH_EVENT_TYPES) {
+			expect(STREAMING_EVENT_TYPES.has(t)).toBe(false);
+		}
+	});
+
+	it('isTerminalFlushEvent recognizes terminal events', () => {
+		expect(isTerminalFlushEvent(makeEvent('assistant.message'))).toBe(true);
+		expect(isTerminalFlushEvent(makeEvent('tool.execution_complete'))).toBe(true);
+		expect(isTerminalFlushEvent(makeEvent('session.shutdown'))).toBe(true);
+	});
+
+	it('isTerminalFlushEvent returns false for non-terminal events', () => {
+		expect(isTerminalFlushEvent(makeEvent('session.start'))).toBe(false);
+		expect(isTerminalFlushEvent(makeEvent('user.message'))).toBe(false);
+		expect(isTerminalFlushEvent(makeEvent('assistant.usage'))).toBe(false);
+		expect(isTerminalFlushEvent(makeEvent('tool.execution_start'))).toBe(false);
+		expect(isTerminalFlushEvent(makeEvent('assistant.streaming_delta'))).toBe(false);
 	});
 });

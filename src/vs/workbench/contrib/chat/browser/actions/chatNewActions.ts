@@ -17,13 +17,14 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 export interface INewEditSessionActionContext {
 
@@ -315,6 +316,7 @@ async function runNewChatAction(
 	const accessibilityService = accessor.get(IAccessibilityService);
 	const viewsService = accessor.get(IViewsService);
 	const configurationService = accessor.get(IConfigurationService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
 
 	const { editingSession, chatWidget: widget } = context ?? {};
 	if (!widget) {
@@ -331,7 +333,7 @@ async function runNewChatAction(
 	await editingSession?.stop();
 
 	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType);
+	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService, chatSessionsService);
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();
@@ -344,7 +346,7 @@ async function runNewChatAction(
 
 	if (typeof executeCommandContext.agentMode === 'boolean') {
 		widget.input.setChatMode(executeCommandContext.agentMode ? ChatModeKind.Agent : ChatModeKind.Edit);
-	} else if (widget.input.currentModeKind === ChatModeKind.Edit && configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden)) {
+	} else if (widget.input.currentModeKind === ChatModeKind.Edit) {
 		widget.input.setChatMode(ChatModeKind.Agent);
 	}
 

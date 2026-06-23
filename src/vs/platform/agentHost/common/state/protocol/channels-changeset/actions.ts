@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo } from '../common/state.js';
-import { ChangesetStatus, type ChangesetFile, type ChangesetOperation } from './state.js';
+import { ChangesetStatus, type ChangesetFile, type ChangesetOperation, type ChangesetOperationStatus } from './state.js';
 
 // ─── Changeset Actions ───────────────────────────────────────────────────────
 
@@ -57,6 +57,28 @@ export interface ChangesetFileRemovedAction {
 }
 
 /**
+ * The changeset's full content changed. Full replacement semantics: `files`
+ * replaces the previous file list, and `operations`, when present, replaces
+ * the previous operation list.
+ *
+ * Producers SHOULD use this action for initial snapshots and bulk refreshes;
+ * use {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and
+ * {@link ChangesetOperationsChangedAction} for incremental updates.
+ *
+ * @category Changeset Actions
+ * @version 4
+ */
+export interface ChangesetContentChangedAction {
+	type: ActionType.ChangesetContentChanged;
+	/** Full replacement file list. */
+	files: ChangesetFile[];
+	/** Full replacement operation list. Omit when operations are unchanged. */
+	operations?: ChangesetOperation[];
+	/** Error information, if the changeset content change failed. */
+	error?: ErrorInfo;
+}
+
+/**
  * The set of operations available on this changeset changed. Full
  * replacement semantics: `operations` replaces the previous list (or
  * removes it entirely when `operations` is `undefined`).
@@ -68,6 +90,31 @@ export interface ChangesetOperationsChangedAction {
 	type: ActionType.ChangesetOperationsChanged;
 	/** Updated operation list. Pass `undefined` to clear all operations. */
 	operations: ChangesetOperation[] | undefined;
+}
+
+/**
+ * The {@link ChangesetOperation.status} for a single operation transitioned
+ * (e.g. `idle → running → idle`, or `running → error`). The error payload
+ * is set together with `status` whenever it transitions to
+ * {@link ChangesetOperationStatus.Error | Error}, and cleared on any other
+ * transition.
+ *
+ * Targets one operation by its {@link ChangesetOperation.id}. If no
+ * operation with that id is currently present in the changeset, the action
+ * is a no-op. Use {@link ChangesetOperationsChangedAction} to add, remove,
+ * or otherwise replace the operation list itself.
+ *
+ * @category Changeset Actions
+ * @version 3
+ */
+export interface ChangesetOperationStatusChangedAction {
+	type: ActionType.ChangesetOperationStatusChanged;
+	/** The {@link ChangesetOperation.id} whose status changed. */
+	operationId: string;
+	/** New execution status. */
+	status: ChangesetOperationStatus;
+	/** Cause when `status === ChangesetOperationStatus.Error`; otherwise omitted. */
+	error?: ErrorInfo;
 }
 
 /**
