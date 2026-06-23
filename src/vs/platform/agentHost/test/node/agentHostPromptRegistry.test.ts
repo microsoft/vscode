@@ -10,6 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../node/copilot/prompts/allPrompts.js';
 
@@ -131,17 +132,46 @@ suite('AgentHostPromptRegistry', () => {
 	});
 
 	suite('universal tool instructions wiring', () => {
-		// No tool-instruction lines are registered yet (concrete tool hookups land
-		// in follow-up changes), so the universal layer is currently a no-op. These
-		// guard the wiring; the composition/gating itself is covered in
-		// toolInstructions.test.ts.
+		// The browser line is the registered universal tool-instruction (see
+		// toolInstructions.ts). These guard that the registry layers it end-to-end;
+		// the composition/gating itself is covered in toolInstructions.test.ts.
+		const BROWSER_LINE = 'Use the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.';
+		const browserTools = [BrowserChatToolReferenceName.OpenBrowserPage, BrowserChatToolReferenceName.ReadPage];
 
-		test('is a no-op while no tool-instruction lines are registered', () => {
+		test('is a no-op when the session exposes no matching tools', () => {
 			const registry = new AgentHostPromptRegistry();
 			assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'])), COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
 		});
 
-		test('leaves a per-model tool_instructions override untouched', () => {
+		test('layers the browser tool_instructions onto the default config when browser tools are present', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, browserTools)),
+				{
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\n${BROWSER_LINE}` },
+					},
+				}
+			);
+		});
+
+		test('composes the browser line with a per-model tool_instructions override', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['claude'];
+				resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+					return { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } };
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, browserTools)),
+				{ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${BROWSER_LINE}` } } }
+			);
+		});
+
+		test('leaves a per-model tool_instructions override untouched when no browser tools are present', () => {
 			const registry = new AgentHostPromptRegistry();
 			registry.registerPrompt(class {
 				static readonly familyPrefixes = ['claude'];

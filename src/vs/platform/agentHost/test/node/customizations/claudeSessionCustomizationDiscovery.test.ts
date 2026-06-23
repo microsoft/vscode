@@ -208,33 +208,45 @@ suite('claudeSessionCustomizationDiscovery', () => {
 	});
 
 	suite('ClaudeCustomizationWatcher', () => {
+		// Debounce wide enough that a burst of edits reliably lands in a single
+		// window even on a loaded CI machine; `settle` then waits a clear
+		// multiple of it so the one debounced fire is always counted before we
+		// assert. The burst itself is issued concurrently so the change events
+		// cluster inside one window rather than racing the debounce.
+		const debounceMs = 20;
+		const settle = () => timeout(debounceMs * 6);
+
 		test('fires once (debounced) for changes under watched roots and ignores unrelated edits', async () => {
-			const watcher = disposables.add(new ClaudeCustomizationWatcher(workspace, userHome, fileService, new NullLogService(), 5));
+			const watcher = disposables.add(new ClaudeCustomizationWatcher(workspace, userHome, fileService, new NullLogService(), debounceMs));
 			let fires = 0;
 			disposables.add(watcher.onDidChange(() => { fires++; }));
 
 			// An unrelated edit in the workspace root must NOT trigger a refresh.
 			await seed('/workspace/unrelated.txt', 'x');
-			await timeout(40);
+			await settle();
 			assert.strictEqual(fires, 0);
 
 			// A burst of edits across the watched roots collapses to a single fire:
 			// a user-scope agent, a project-scope skill, and the sibling `.mcp.json`.
-			await seed('/home/.claude/agents/a.md', 'a');
-			await seed('/workspace/.claude/skills/s/SKILL.md', 's');
-			await seed('/workspace/.mcp.json', '{}');
-			await timeout(40);
+			await Promise.all([
+				seed('/home/.claude/agents/a.md', 'a'),
+				seed('/workspace/.claude/skills/s/SKILL.md', 's'),
+				seed('/workspace/.mcp.json', '{}'),
+			]);
+			await settle();
 			assert.strictEqual(fires, 1);
 		});
 
 		test('fires for a root-level CLAUDE.md / CLAUDE.local.md edit', async () => {
-			const watcher = disposables.add(new ClaudeCustomizationWatcher(workspace, userHome, fileService, new NullLogService(), 5));
+			const watcher = disposables.add(new ClaudeCustomizationWatcher(workspace, userHome, fileService, new NullLogService(), debounceMs));
 			let fires = 0;
 			disposables.add(watcher.onDidChange(() => { fires++; }));
 
-			await seed('/workspace/CLAUDE.md', '# memory');
-			await seed('/workspace/CLAUDE.local.md', '# personal');
-			await timeout(40);
+			await Promise.all([
+				seed('/workspace/CLAUDE.md', '# memory'),
+				seed('/workspace/CLAUDE.local.md', '# personal'),
+			]);
+			await settle();
 			assert.strictEqual(fires, 1);
 		});
 	});

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITunnelHostInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const ITunnelHostService = createDecorator<ITunnelHostService>('tunnelHostService');
 

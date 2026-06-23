@@ -198,13 +198,15 @@
 	height: 100%;
 }
 
-.chat-composite-bar-meta-diff {
+.chat-composite-bar-meta-diff,
+.chat-composite-bar-meta-pr {
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
 }
 
-.chat-composite-bar-meta-diff .action-label {
+.chat-composite-bar-meta-diff .action-label,
+.chat-composite-bar-meta-pr .action-label {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -216,12 +218,14 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.chat-composite-bar-meta-diff .action-label:hover {
+.chat-composite-bar-meta-diff .action-label:hover,
+.chat-composite-bar-meta-pr .action-label:hover {
 	color: inherit;
 	text-decoration: none;
 }
 
-.chat-composite-bar-meta-diff .action-label:focus-visible {
+.chat-composite-bar-meta-diff .action-label:focus-visible,
+.chat-composite-bar-meta-pr .action-label:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
