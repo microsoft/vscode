@@ -28,6 +28,18 @@ suite('copilot', () => {
 		assertNoBundledOptionalCopilotNativeDependencies(files);
 	});
 
+	test('uses the .exe package executable for windows builds', () => {
+		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'x64'), [
+			'node_modules/@github/copilot-win32-x64/package.json',
+			'node_modules/@github/copilot-win32-x64/copilot.exe',
+		]);
+
+		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'arm64'), [
+			'node_modules/@github/copilot-win32-arm64/package.json',
+			'node_modules/@github/copilot-win32-arm64/copilot.exe',
+		]);
+	});
+
 	test('strips all copilot platform packages for unsupported armhf builds', () => {
 		assert.deepStrictEqual(
 			getCopilotExcludeFilter('linux', 'armhf'),

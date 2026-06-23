@@ -86,6 +86,10 @@ function toCopilotPackagePlatformArch(platform: string, arch: string): string {
 	return `${nodePlatform}-${nodeArch}`;
 }
 
+function getCopilotPackageExecutableName(platform: string): string {
+	return platform === 'win32' ? 'copilot.exe' : 'copilot';
+}
+
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
  * for architectures other than the build target.
@@ -142,10 +146,11 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const copilotPlatformPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
+	const copilotPackageExecutableName = getCopilotPackageExecutableName(platform);
 
 	return [
 		path.posix.join(copilotPlatformPackageDir, 'package.json'),
-		path.posix.join(copilotPlatformPackageDir, 'copilot'),
+		path.posix.join(copilotPlatformPackageDir, copilotPackageExecutableName),
 	];
 }
 
