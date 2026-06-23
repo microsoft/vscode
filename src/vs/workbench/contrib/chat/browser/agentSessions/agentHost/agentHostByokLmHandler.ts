@@ -10,6 +10,7 @@ import {
 	IByokLmChatMessage,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmModelInfo,
 	IByokLmToolCall,
 } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -88,6 +89,24 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			this._logService.warn(`[AgentHostByokLmHandler] chat request failed for ${request.vendor}/${request.modelId}: ${message}`);
 			return { content: '', error: message };
 		}
+	}
+
+	async listModels(_token: CancellationToken): Promise<IByokLmModelInfo[]> {
+		const models: IByokLmModelInfo[] = [];
+		for (const identifier of this._languageModelsService.getLanguageModelIds()) {
+			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
+			// Only genuine renderer BYOK models — exclude agent-host copies, which
+			// carry a `targetChatSessionType` and would otherwise re-enter the bridge.
+			if (metadata?.isBYOK && !metadata.targetChatSessionType) {
+				models.push({
+					vendor: metadata.vendor,
+					id: metadata.id,
+					name: metadata.name,
+					maxContextWindowTokens: metadata.maxInputTokens,
+				});
+			}
+		}
+		return models;
 	}
 
 	/**

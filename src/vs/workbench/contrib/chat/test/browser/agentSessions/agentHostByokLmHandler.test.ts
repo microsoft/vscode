@@ -84,6 +84,24 @@ suite('AgentHostByokLmHandler', () => {
 		return store.add(new AgentHostByokLmHandler(service, new NullLogService()));
 	}
 
+	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				['id-acme', byokModel('acme', 'claude')],
+				['id-copy', { ...byokModel('acme', 'claude'), targetChatSessionType: 'copilotcli' }],
+				['id-capi', { ...byokModel('copilot', 'gpt-4'), isBYOK: false }],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models, [
+			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 1000 },
+		]);
+	});
+
 	test('resolves the BYOK model and buffers text + tool calls', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),

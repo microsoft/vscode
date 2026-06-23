@@ -29,7 +29,7 @@ suite('ByokLmProxyService', () => {
 		run: (handle: IByokLmProxyHandle) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat });
+		const registration = registry.register('client-1', { chat, listModels: async () => [] });
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
@@ -226,7 +226,7 @@ suite('ByokLmProxyService', () => {
 
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat: async () => ({ content: 'ok' }) });
+		const registration = registry.register('client-1', { chat: async () => ({ content: 'ok' }), listModels: async () => [] });
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const first = await service.start();
 		const firstNonce = first.nonce;

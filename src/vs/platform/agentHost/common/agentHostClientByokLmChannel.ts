@@ -11,6 +11,7 @@ import {
 	IByokLmBridgeConnection,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmModelInfo,
 } from './agentHostByokLm.js';
 
 /**
@@ -34,6 +35,7 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
+		listModels: () => channel.call('listModels') as Promise<IByokLmModelInfo[]>,
 	};
 }
 
@@ -57,6 +59,10 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 			case 'chat': {
 				const result = await this._handler.chat(arg as IByokLmChatRequest, CancellationToken.None);
 				return result as T;
+			}
+			case 'listModels': {
+				const models = await this._handler.listModels(CancellationToken.None);
+				return models as T;
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientByokLmChannel`);

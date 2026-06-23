@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, ExitPlanModeRequest, ExitPlanModeResult, PermissionRequestResult, ResumeSessionConfig, SessionConfig, Tool } from '@github/copilot-sdk';
+import type { CopilotClient, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, Tool } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,6 +14,9 @@ import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHos
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
+import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import type { IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ActiveClientState } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -195,11 +198,15 @@ export function getCopilotContextTier(model: ModelSelection | undefined): Sessio
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
+	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
+
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
+		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -298,8 +305,60 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
+	/**
+	 * Synthesize SDK provider/model config for the renderer's BYOK models so the
+	 * runtime issues their inference against the node-side loopback proxy (which
+	 * bridges back to the renderer LM API). Returns empty when BYOK is gated off
+	 * (no active bridge), the renderer reports no BYOK models, or enumeration
+	 * fails — in each case the session simply launches without BYOK models.
+	 *
+	 * Each provider points at `proxy.providerBaseUrl(vendor)` and authenticates
+	 * with the session-scoped `Bearer <nonce>.<sessionId>`; each model surfaces
+	 * under the provider-qualified selection id `vendor/id`, matching what the
+	 * renderer's `AgentHostByokLmHandler` resolves.
+	 */
+	private async _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+		const connection = this._byokLmBridgeRegistry.getActive();
+		if (!connection) {
+			return {};
+		}
+		let byokModels: IByokLmModelInfo[];
+		try {
+			byokModels = await connection.listModels();
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridge`, err);
+			return {};
+		}
+		if (byokModels.length === 0) {
+			return {};
+		}
+		if (!this._byokProxyHandle) {
+			this._byokProxyHandle = this._byokLmProxyService.start();
+		}
+		const handle = await this._byokProxyHandle;
+		const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
+			name: vendor,
+			type: 'openai',
+			wireApi: 'completions',
+			baseUrl: handle.providerBaseUrl(vendor),
+			bearerToken: `${handle.nonce}.${sessionId}`,
+		}));
+		const models: ProviderModelConfig[] = byokModels.map(m => ({
+			id: m.id,
+			provider: m.vendor,
+			...(m.name !== undefined ? { name: m.name } : {}),
+			...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+		}));
+		this._logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
+		return { providers, models };
+	}
+
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
+		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
+		// renderer reports no BYOK models). Merged into the returned config so both
+		// createSession and resumeSession advertise the models to the runtime.
+		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -335,6 +394,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
 		}
 		return {
+			...byok,
 			clientName: 'vscode',
 			enableMcpApps: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),

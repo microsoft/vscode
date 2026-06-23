@@ -7,15 +7,18 @@ import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function handlerOf(impl: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>): IAgentHostByokLmHandler {
-		return { _serviceBrand: undefined, chat: (request) => impl(request) };
+	function handlerOf(
+		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
+		listModels: () => Promise<IByokLmModelInfo[]> = async () => [],
+	): IAgentHostByokLmHandler {
+		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels() };
 	}
 
 	/**
@@ -54,6 +57,12 @@ suite('agentHostClientByokLmChannel', () => {
 		const connection = bridge(handlerOf(async () => ({ content: '', error: 'no model' })));
 		const result = await connection.chat({ vendor: 'v', modelId: 'm', messages: [] });
 		assert.strictEqual(result.error, 'no model');
+	});
+
+	test('round-trips listModels to the handler', async () => {
+		const models: IByokLmModelInfo[] = [{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 128000 }];
+		const connection = bridge(handlerOf(async () => ({ content: '' }), async () => models));
+		assert.deepStrictEqual(await connection.listModels(), models);
 	});
 
 	test('rejects unknown channel commands', async () => {

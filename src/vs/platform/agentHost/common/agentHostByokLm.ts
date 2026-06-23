@@ -75,6 +75,21 @@ export interface IByokLmChatResult {
 	readonly error?: string;
 }
 
+/**
+ * Metadata for a renderer BYOK model, enumerated over the bridge so the node
+ * agent host can advertise it to the SDK runtime without any host-side config.
+ */
+export interface IByokLmModelInfo {
+	/** Provider/vendor name (the LM API vendor that registered the model). */
+	readonly vendor: string;
+	/** Provider-local model id. */
+	readonly id: string;
+	/** Display name, when the provider supplies one. */
+	readonly name?: string;
+	/** Maximum context window tokens, when known. */
+	readonly maxContextWindowTokens?: number;
+}
+
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');
 
 /**
@@ -92,6 +107,13 @@ export interface IAgentHostByokLmHandler {
 	 * {@link IByokLmChatResult.error}) when no such model is available.
 	 */
 	chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult>;
+
+	/**
+	 * Enumerate the renderer's BYOK models (vendor `isBYOK`, excluding
+	 * session-scoped agent-host copies) so the node agent host can synthesize
+	 * provider/model config for the SDK runtime.
+	 */
+	listModels(token: CancellationToken): Promise<IByokLmModelInfo[]>;
 }
 
 /**
@@ -100,4 +122,5 @@ export interface IAgentHostByokLmHandler {
  */
 export interface IByokLmBridgeConnection {
 	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
+	listModels(): Promise<IByokLmModelInfo[]>;
 }

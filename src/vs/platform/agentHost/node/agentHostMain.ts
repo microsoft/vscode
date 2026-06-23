@@ -179,16 +179,15 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
-		// BYOK language-model proxy + bridge registry, gated behind
-		// `chat.agentHost.byokModels.enabled`. The registry is populated per
-		// renderer connection below; the proxy lazily binds when the session
-		// launcher starts it for a session that selected a forwarded BYOK model.
-		if (byokLmEnabled) {
-			const byokLmBridgeRegistry = new ByokLmBridgeRegistry();
-			diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
-			const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
-			diServices.set(IByokLmProxyService, byokLmProxyService);
-		}
+		// BYOK language-model proxy + bridge registry. Always registered so the
+		// session launcher can inject them, but BYOK *use* is gated: the
+		// per-connection bridge below (and the renderer's server channel) are only
+		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
+		// stays empty and the proxy never binds when the feature is off.
+		const byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
+		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
+		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
@@ -235,7 +234,7 @@ async function startAgentHost(): Promise<void> {
 	// in-process renderer-to-utility-process MessagePort transport).
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
-	const byokLmBridgeRegistry = byokLmEnabled ? instantiationService.invokeFunction(accessor => accessor.get(IByokLmBridgeRegistry)) : undefined;
+	const byokLmBridgeRegistry = instantiationService.invokeFunction(accessor => accessor.get(IByokLmBridgeRegistry));
 
 	// Wire reverse-RPC for in-process renderer connections. The renderer's
 	// `MessagePortClient` ctx is its `clientId`, and it exposes the
@@ -255,7 +254,10 @@ async function startAgentHost(): Promise<void> {
 				clientId,
 				channelName => server.getChannel(channelName, c => c.ctx === clientId),
 				clientFileSystemProvider,
-				byokLmBridgeRegistry,
+				// BYOK bridge is gated: only wire it when the feature is enabled, so
+				// the registry stays empty (and the launcher synthesizes no BYOK
+				// providers/models) when `chat.agentHost.byokModels.enabled` is off.
+				byokLmEnabled ? byokLmBridgeRegistry : undefined,
 			));
 		};
 		disposables.add(server.onDidAddConnection(registerConnection));
