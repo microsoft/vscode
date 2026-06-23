@@ -132,23 +132,24 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (!target) {
 			return;
 		}
-		const hoverContent = this._getHoverContents();
-		if (typeof hoverContent === 'string' && hoverContent) {
-			this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
-				getDefaultHoverDelegate('mouse'),
-				target,
-				hoverContent
-			);
-		} else {
-			this._managedHover.clear();
-		}
+		// Use a content factory so the hover reflects the current state each time
+		// it is shown — in particular the Restricted Mode message, which depends
+		// on workspace trust changing without this item being re-rendered.
+		this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			target,
+			() => this._getHoverContents()
+		);
 	}
 
-	private _getHoverContents(): IManagedHoverContent | undefined {
+	private _getHoverContents(): IManagedHoverContent {
 		let label = localize('chat.modelPicker.label', "Pick Model");
 		const keybindingLabel = this.keybindingService.lookupKeybinding(this._action.id, this._contextKeyService)?.getLabel();
 		if (keybindingLabel) {
 			label += ` (${keybindingLabel})`;
+		}
+		if (this._pickerWidget.isRestrictedMode()) {
+			return localize('chat.modelPicker.restrictedHover', "{0} • Models are unavailable in Restricted Mode. Trust the workspace to choose a model.", label);
 		}
 		const { statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
 		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;

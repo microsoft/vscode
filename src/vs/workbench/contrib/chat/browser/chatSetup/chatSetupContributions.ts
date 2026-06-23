@@ -370,6 +370,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
+							ChatContextKeys.Setup.untrusted.negate(), // sign-in is not the blocker in an untrusted workspace — trust is
 							ChatContextKeys.Setup.completed.negate(),
 							ChatContextKeys.Entitlement.signedOut
 						)
@@ -402,6 +403,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
+							ChatContextKeys.Setup.untrusted.negate(), // sign-in is not the blocker in an untrusted workspace — trust is
 							ChatEntitlementContextKeys.hasByokModels.negate(),
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),

@@ -38,6 +38,7 @@ import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerAc
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -450,6 +451,10 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  *      Compatible" group and an "AWS Bedrock" group both registered to
  *      the `customoai` vendor) renders as distinct sections.
  * 4. Optional "Manage Models..." action shown in Other Models after a separator
+ *
+ * When `restrictedMode` is set (untrusted workspace), a disabled "Models
+ * Unavailable in Restricted Mode" header and a "Trust Workspace..." action
+ * (invoking `onRequestTrust`) replace all of the above.
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -473,8 +478,49 @@ export function buildModelPickerItems(
 	isUBB?: boolean,
 	showAutoModel: boolean = false,
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
+	restrictedMode: boolean = false,
+	onRequestTrust?: () => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
+	if (restrictedMode) {
+		// Untrusted workspace: providers are disabled, so any `models` here are
+		// stale machine-cached entries. Surface a Trust action (mirroring the
+		// send-message trust prompt) instead of a misleading lone "Auto". Checked
+		// before the empty-list branch since cached entries can make `models`
+		// non-empty.
+		items.push({
+			item: {
+				id: 'restrictedModeInfo',
+				enabled: false,
+				checked: false,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.restrictedMode.tooltip', "Models are unavailable in Restricted Mode."),
+				label: localize('chat.modelPicker.restrictedMode', "Models Unavailable in Restricted Mode"),
+				run: () => { }
+			},
+			kind: ActionListItemKind.Action,
+			label: localize('chat.modelPicker.restrictedMode', "Models Unavailable in Restricted Mode"),
+			group: { title: '', icon: ThemeIcon.fromId(Codicon.workspaceUntrusted.id) },
+			disabled: true,
+			hideIcon: false,
+		});
+		items.push({
+			item: {
+				id: 'restrictedModeTrust',
+				enabled: true,
+				checked: false,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.restrictedMode.trustTooltip', "Trust the workspace to enable AI models."),
+				label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace..."),
+				run: () => onRequestTrust?.()
+			},
+			kind: ActionListItemKind.Action,
+			label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace..."),
+			group: { title: '', icon: ThemeIcon.fromId(Codicon.workspaceTrusted.id) },
+			hideIcon: false,
+		});
+		return items;
+	}
 	if (models.length === 0) {
 		if (!showAutoModel) {
 			// Auto is not available for this session type (e.g. the Claude agent
@@ -951,6 +997,7 @@ export class ModelPickerWidget extends Disposable {
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
+	private _workspaceTrustInitialized = false;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -981,11 +1028,28 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
 		}));
+
+		// Reflect Restricted Mode immediately when trust changes.
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(() => {
+			this._renderLabel();
+		}));
+
+		// Trust reads as untrusted until initialization resolves; gate on it so a
+		// trusted workspace doesn't briefly render as restricted at startup.
+		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._workspaceTrustInitialized = true;
+			this._renderLabel();
+		});
 
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
@@ -1027,6 +1091,30 @@ export class ModelPickerWidget extends Disposable {
 	setBadge(badge: ModelPickerBadge | undefined): void {
 		this._badge = badge;
 		this._updateBadge();
+	}
+
+	/**
+	 * Whether the picker is empty specifically because the workspace is untrusted
+	 * (Restricted Mode disables the chat model providers). Uses the *live* model
+	 * registry, not the delegate's list, which can include machine-cached models
+	 * from a previous trusted session. `isWorkspaceTrusted()` is `true` when trust
+	 * is disabled entirely, and is only authoritative once
+	 * `workspaceTrustInitialized` resolves.
+	 */
+	isRestrictedMode(): boolean {
+		return this._workspaceTrustInitialized
+			&& !this._workspaceTrustManagementService.isWorkspaceTrusted()
+			&& this._languageModelsService.getLanguageModelIds().length === 0;
+	}
+
+	/**
+	 * Prompts the user to trust the workspace. On grant, providers register their
+	 * models and `onDidChangeLanguageModels` refreshes the picker.
+	 */
+	private async _requestWorkspaceTrust(): Promise<void> {
+		await this._workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('chat.modelPicker.trustMessage', "Trusting this workspace enables AI models and chat features.")
+		});
 	}
 
 	render(container: HTMLElement): void {
@@ -1165,6 +1253,8 @@ export class ModelPickerWidget extends Disposable {
 			isUBB,
 			this._delegate.showAutoModel?.() ?? false,
 			onConfigure,
+			this.isRestrictedMode(),
+			() => { void this._requestWorkspaceTrust(); },
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1256,21 +1346,28 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
-		// When Auto is unavailable for this session and there are no models to
-		// pick, surface the empty state on the button itself — overriding any
-		// stale/carried-over selection (e.g. an "Auto" model from another
-		// session type) so the label matches the dropdown's "No models
-		// available" entry.
-		const noModelsAvailable = !(this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0;
+		// Untrusted workspace: present a normal "Pick Model" placeholder (no badge)
+		// rather than a dead-end label; the hover and dropdown carry the Restricted
+		// Mode explanation and the Trust Workspace action.
+		const restrictedMode = this.isRestrictedMode();
+
+		// Generic empty state (e.g. an agent-host session with no Auto fallback);
+		// not evaluated while restricted, which takes precedence.
+		const genericNoModels = !restrictedMode
+			&& !(this._delegate.showAutoModel?.() ?? false)
+			&& this._delegate.getModels().length === 0;
+		const noModelsAvailable = restrictedMode || genericNoModels;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = noModelsAvailable
-			? localize('chat.modelPicker.noModels', "No models available")
-			: (name ?? localize('chat.modelPicker.auto', "Auto"));
+		const modelLabel = restrictedMode
+			? localize('chat.modelPicker.label', "Pick Model")
+			: genericNoModels
+				? localize('chat.modelPicker.noModels', "No models available")
+				: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const configDescription = !isUBB && this._selectedModel && !noModelsAvailable
@@ -1320,7 +1417,9 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		// Aria
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
+		this._domNode.ariaLabel = restrictedMode
+			? localize('chat.modelPicker.ariaLabelRestricted', "Pick Model, models are unavailable in Restricted Mode")
+			: localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 
 	/**

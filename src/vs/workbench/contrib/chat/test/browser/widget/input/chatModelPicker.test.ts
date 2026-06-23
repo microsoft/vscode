@@ -114,6 +114,8 @@ function callBuild(
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
 		showAutoModel?: boolean;
+		restrictedMode?: boolean;
+		onRequestTrust?: () => void;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -142,6 +144,9 @@ function callBuild(
 		undefined,
 		opts.isUBB,
 		opts.showAutoModel ?? true,
+		undefined,
+		opts.restrictedMode ?? false,
+		opts.onRequestTrust,
 	);
 }
 
@@ -235,6 +240,45 @@ suite('buildModelPickerItems', () => {
 		const actions = getActionItems(items);
 		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
 		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
+	});
+
+	test('restrictedMode shows an explanatory entry and a Trust Workspace action instead of auto', () => {
+		const items = callBuild([], { restrictedMode: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.length, 2);
+		assert.strictEqual(actions[0].item?.id, 'restrictedModeInfo');
+		assert.strictEqual(actions[0].item?.enabled, false);
+		assert.strictEqual(actions[1].item?.id, 'restrictedModeTrust');
+		assert.strictEqual(actions[1].item?.enabled, true);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+	});
+
+	test('restrictedMode takes precedence over showAutoModel', () => {
+		const items = callBuild([], { restrictedMode: true, showAutoModel: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'restrictedModeTrust'), true);
+	});
+
+	test('restrictedMode Trust action invokes the trust callback', () => {
+		let trustRequested = 0;
+		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { trustRequested++; } });
+		const trustAction = getActionItems(items).find(a => a.item?.id === 'restrictedModeTrust');
+		assert.ok(trustAction, 'expected a Trust Workspace action');
+		trustAction!.item!.run();
+		assert.strictEqual(trustRequested, 1);
+	});
+
+	test('restrictedMode takes precedence even over cached models', () => {
+		// In Restricted Mode the picker may still receive machine-cached models
+		// from a previous trusted session; the restricted state must suppress
+		// them rather than present stale, unusable models.
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { restrictedMode: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'restrictedModeTrust'), true);
 	});
 
 	test('only auto model produces auto and manage models with separator', () => {
