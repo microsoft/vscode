@@ -1639,27 +1639,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 
 		// compare by id as toolset instances may be different (e.g. ToolSetForModel)
-		const eneabledToolSetIds = new Set<string>();
-		const eneabledToolIds = new Set<string>();
+		const enabledToolSetIds = new Set<string>();
+		const enabledToolIds = new Set<string>();
 		for (const [tool, enabled] of map) {
 			if (enabled) {
 				if (isToolSet(tool)) {
-					eneabledToolSetIds.add(tool.id);
+					enabledToolSetIds.add(tool.id);
 				} else {
-					eneabledToolIds.add(tool.id);
+					enabledToolIds.add(tool.id);
 				}
 			}
 		}
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (isToolSet(tool)) {
-				if (eneabledToolSetIds.has(tool.id)) {
+				if (enabledToolSetIds.has(tool.id)) {
 					result.push(fullReferenceName);
 					for (const memberTool of tool.getTools()) {
 						toolsCoveredByEnabledToolSet.add(memberTool);
 					}
 				}
 			} else {
-				if (eneabledToolIds.has(tool.id) && !toolsCoveredByEnabledToolSet.has(tool)) {
+				if (enabledToolIds.has(tool.id) && !toolsCoveredByEnabledToolSet.has(tool)) {
 					result.push(fullReferenceName);
 				}
 			}
