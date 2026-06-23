@@ -227,7 +227,7 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 }
 
 function packCopilotPlatformPackage(packageName: string, version: string, tempDir: string): string {
-	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe' });
+	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
 
 	const tarball = fs.readdirSync(tempDir).find(name => name.endsWith('.tgz'));
 	if (!tarball) {
