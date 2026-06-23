@@ -46,7 +46,7 @@
 	position: absolute;
 	left: 0;
 	right: 0;
-	min-height: 3px;
+	min-height: 4px;
 	border-radius: 0;
 	background-color: var(--vscode-scrollbarSlider-background);
 	opacity: 0.85;
@@ -2616,8 +2616,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 
 	/* clamp to max 3 lines */
-	display: -webkit-box;
-	display: block;
+	display: block;        /* fallback */
+	display: -webkit-box;  /* enhancement — overrides block in supporting browsers */
 	-webkit-line-clamp: 3;
 	line-clamp: 3;
 	-webkit-box-orient: vertical;
@@ -4405,8 +4405,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex: 1 1 auto;
 	min-width: 12px;
 	height: 0;
-	border-bottom: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
+	border-bottom: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);	opacity: 0.5;
 }
 
 /* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
@@ -4423,8 +4422,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	left: 0;
 	right: 0;
 	top: 50%;
-	border-top: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);	opacity: 0.5;
 }
 
 .chat-model-hover-cost-value.subheader::before,
