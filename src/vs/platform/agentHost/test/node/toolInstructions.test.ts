@@ -28,9 +28,24 @@ suite('toolInstructions', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('a', 'c'), [lineFor('a'), lineFor('b'), lineFor('c')]), 'use a\nuse c');
 		});
 
-		test('returns undefined when no line applies (including the empty registry)', () => {
+		test('returns undefined when no line applies (including the default registry when its lines do not apply)', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
 			assert.strictEqual(universalToolInstructions(hasTools('a')), undefined);
+		});
+
+		test('renders the registered browser line from the default registry only when openBrowserPage + an agentic browser tool are present', () => {
+			assert.deepStrictEqual(
+				[
+					universalToolInstructions(hasTools('openBrowserPage', 'readPage')),
+					universalToolInstructions(hasTools('openBrowserPage')),
+					universalToolInstructions(hasTools('readPage')),
+				],
+				[
+					'Use the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.',
+					undefined,
+					undefined,
+				]
+			);
 		});
 	});
 
@@ -76,7 +91,7 @@ suite('toolInstructions', () => {
 	});
 
 	suite('appendUniversalToolInstructions', () => {
-		test('returns the prompt unchanged while no lines apply (empty registry)', () => {
+		test('returns the prompt unchanged while no lines apply (default registry, no matching tools)', () => {
 			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a')), 'FULL PROMPT');
 		});
 

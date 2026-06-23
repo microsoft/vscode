@@ -198,9 +198,7 @@ export class AgentHostPromptRegistry {
 		if (!toolInstructions) {
 			return config;
 		}
-		// Spread into a fresh object so the shared `COPILOT_AGENT_HOST_SYSTEM_MESSAGE`
-		// constant (returned by the fallback paths above) is never mutated.
-		return sectionOverrides({ ...config.sections, tool_instructions: toolInstructions });
+		return { ...config, sections: { ...config.sections, tool_instructions: toolInstructions } };
 	}
 }
 
