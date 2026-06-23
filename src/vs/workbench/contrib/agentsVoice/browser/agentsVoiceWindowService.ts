@@ -55,14 +55,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	 * Calls setWindowAlwaysOnTop via a registered command (Electron only).
 	 * Avoids importing INativeHostService in the browser layer.
 	 */
-	private async trySetWindowAlwaysOnTop(alwaysOnTop: boolean, targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.setWindowAlwaysOnTop', alwaysOnTop, targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
 	constructor(
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -101,13 +93,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		mainWindow.addEventListener('beforeunload', onBeforeUnload);
 		this._register({ dispose: () => mainWindow.removeEventListener('beforeunload', onBeforeUnload) });
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agents.voice.alwaysOnTop') && this._window) {
-				const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
-				this.trySetWindowAlwaysOnTop(alwaysOnTop, this._window.window.vscodeWindowId);
-			}
-		}));
-
 		const wasOpen = this.storageService.getBoolean(AgentsVoiceStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
 		if (wasOpen) {
 			// Clear the stored state so it doesn't try to reopen in the future
@@ -121,11 +106,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}
 
 		const bounds = this.loadBounds();
-		const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
-			alwaysOnTop,
+			alwaysOnTop: true,
 			frameless: true,
 			transparent: false,
 			disableFullscreen: true,

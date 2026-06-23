@@ -2194,7 +2194,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.toString() ?? '';
+		// Use only the markdown prose of the reply for narration. ``toString()``
+		// also folds in tool-invocation text (e.g. ``manageTodoList`` updates),
+		// which caused voice to constantly narrate todo-list changes the user
+		// never asked to hear. ``getMarkdown()`` keeps just what the agent said.
+		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 
