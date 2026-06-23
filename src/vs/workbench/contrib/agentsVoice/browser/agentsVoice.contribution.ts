@@ -426,8 +426,6 @@ registerAction2(class extends Action2 {
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
 		const allAudioInputs = devices.filter(d => d.kind === 'audioinput');
-		const defaultDevice = allAudioInputs.find(d => d.deviceId === 'default');
-		const defaultDeviceLabel = defaultDevice?.label?.replace(/^Default - /, '') || '';
 		const audioInputs = allAudioInputs.filter(d => d.deviceId !== 'default');
 
 		if (audioInputs.length === 0) {
@@ -437,32 +435,31 @@ registerAction2(class extends Action2 {
 
 		const currentDeviceId = configurationService.getValue<string>('agents.voice.microphoneDevice') || '';
 
-		const items = audioInputs.map(d => {
-			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			const isSystemDefault = label === defaultDeviceLabel;
-			const isSelected = currentDeviceId === '' ? isSystemDefault : d.deviceId === currentDeviceId;
+		type DevicePickItem = { label: string; description?: string; deviceId: string };
+		const items: DevicePickItem[] = [];
 
-			const parts: string[] = [];
-			if (isSystemDefault) {
-				parts.push(nls.localize('systemDefault', "System Default"));
-			}
-			if (isSelected) {
-				parts.push(nls.localize('current', "(current)"));
-			}
-
-			return {
-				label,
-				description: parts.length > 0 ? parts.join(' ') : undefined,
-				deviceId: d.deviceId,
-			};
+		// "System Default" entry — clears the setting so the OS default is always used
+		items.push({
+			label: nls.localize('systemDefault', "System Default"),
+			description: currentDeviceId === '' ? nls.localize('current', "(current)") : undefined,
+			deviceId: '',
 		});
+
+		for (const d of audioInputs) {
+			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
+			items.push({
+				label,
+				description: d.deviceId === currentDeviceId ? nls.localize('current', "(current)") : undefined,
+				deviceId: d.deviceId,
+			});
+		}
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
 		});
 
 		if (picked) {
-			const selection = picked as typeof items[number];
+			const selection = picked as DevicePickItem;
 			await configurationService.updateValue('agents.voice.microphoneDevice', selection.deviceId);
 		}
 	}

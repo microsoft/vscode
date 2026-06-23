@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
 
@@ -127,6 +128,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -302,9 +304,23 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			audioConstraints.deviceId = { exact: deviceId };
 		}
 
-		const micStream = await window.navigator.mediaDevices.getUserMedia({
-			audio: audioConstraints,
-		});
+		let micStream: MediaStream;
+		try {
+			micStream = await window.navigator.mediaDevices.getUserMedia({
+				audio: audioConstraints,
+			});
+		} catch (err) {
+			if (deviceId) {
+				// Stored device may be unavailable — fall back to system default
+				this.logService.warn(`[mic] Preferred device ${deviceId} unavailable, falling back to default`, err);
+				delete audioConstraints.deviceId;
+				micStream = await window.navigator.mediaDevices.getUserMedia({
+					audio: audioConstraints,
+				});
+			} else {
+				throw err;
+			}
+		}
 		this._micStream = micStream;
 
 		if (!this._micCtx) {
