@@ -601,15 +601,15 @@ export class ChatListWidget extends Disposable {
 			}),
 		);
 
-		// Always construct the controller so it can be toggled live via
-		// setScrollbarPromptMarkersEnabled when the setting changes.
-		this._scrollbarPromptMarkerController = this._register(
-			new ChatScrollbarPromptMarkerController(
-				this,
-				this.configurationService,
-			),
-		);
-		this._scrollbarPromptMarkerController.setEnabled(options.scrollbarPromptMarkersEnabled ?? false);
+		this._scrollbarPromptMarkerController =
+			options.scrollbarPromptMarkersEnabled
+				? this._register(
+					new ChatScrollbarPromptMarkerController(
+						this,
+						this.configurationService,
+					),
+				)
+				: undefined;
 	}
 
 	//#region Internal event handlers
@@ -1040,14 +1040,6 @@ export class ChatListWidget extends Disposable {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
 		this._scrollbarPromptMarkerController?.setVisible(visible);
-	}
-
-	/**
-	 * Enable or disable the scrollbar prompt marker overlay at runtime.
-	 * Called when the `chat.scrollbarPromptMarkers.enabled` setting changes.
-	 */
-	setScrollbarPromptMarkersEnabled(enabled: boolean): void {
-		this._scrollbarPromptMarkerController?.setEnabled(enabled);
 	}
 
 	/**
