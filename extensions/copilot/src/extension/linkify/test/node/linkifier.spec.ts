@@ -430,7 +430,7 @@ suite('Stateful Linkifier', () => {
 		]);
 	});
 
-	test(`Should linkify multi-token inline code when the whole path exists`, async () => {
+	test(`Should linkify inline code when the whole path exists`, async () => {
 		const linkifier = createTestLinkifierService(
 			'src/vs/editor/test/common/model.test.ts',
 		).createLinkifier(emptyContext);
