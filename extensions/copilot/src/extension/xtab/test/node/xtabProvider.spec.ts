@@ -40,6 +40,7 @@ import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../../common/systemMessages';
+import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import {
 	computeAreaAroundEditWindowLinesRange,
@@ -1135,6 +1136,65 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 	// Group 4: Filter Pipeline
 	// ========================================================================
+
+	describe('global budget', () => {
+
+		/** Drives the provider once and returns the captured user-message text. */
+		async function captureUserPrompt(provider: XtabProvider, request: StatelessNextEditRequest): Promise<string> {
+			streamingFetcher.setStreamingLines(['x']);
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+			// Guard against silently comparing a stale capture: the run must have fetched.
+			expect(streamingFetcher.capturedOptions.length).toBeGreaterThan(capturesBefore);
+			const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+			const userMessage = messages?.find(m => m.role === Raw.ChatRole.User);
+			expect(userMessage).toBeDefined();
+			return getMessageText(userMessage!);
+		}
+
+		/** Number of lines in the `<|current_file_content|>` region of the prompt. */
+		function currentFileRegionLineCount(prompt: string): number {
+			const start = prompt.indexOf(PromptTags.CURRENT_FILE.start);
+			const end = prompt.indexOf(PromptTags.CURRENT_FILE.end);
+			expect(start).toBeGreaterThanOrEqual(0);
+			expect(end).toBeGreaterThan(start);
+			return prompt.slice(start, end).split('\n').length;
+		}
+
+		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
+
+		// Regression guard at the provider layer: enabling the experiment with the
+		// default total budget must reproduce the legacy current-file region exactly
+		// (currentFile's pool budget floor(8000 * 2/8) = 2000 equals its legacy cap).
+		it('reproduces the legacy current-file region when enabled at the default total budget', async () => {
+			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, true);
+			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			const legacyStart = legacy.indexOf(PromptTags.CURRENT_FILE.start);
+			const legacyRegion = legacy.slice(legacyStart, legacy.indexOf(PromptTags.CURRENT_FILE.end));
+			const enabledStart = enabledAtDefault.indexOf(PromptTags.CURRENT_FILE.start);
+			const enabledRegion = enabledAtDefault.slice(enabledStart, enabledAtDefault.indexOf(PromptTags.CURRENT_FILE.end));
+			expect(enabledRegion).toBe(legacyRegion);
+		});
+
+		// New behavior: under a global budget the current file is clipped to its pool
+		// share (floor(totalTokens * 2/8)), so a larger total budget keeps more of the
+		// file. A generous budget fits the whole file; the default budget clips it.
+		it('keeps more of the current file as the total budget grows', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, true);
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, 20000);
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, 8000);
+			const defaultBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			expect(currentFileRegionLineCount(defaultBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+		});
+	});
 
 	describe('filter pipeline', () => {
 		it('filters out import-only changes', async () => {

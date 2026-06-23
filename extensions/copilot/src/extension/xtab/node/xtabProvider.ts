@@ -310,11 +310,25 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const doesIncludeCursorTag = editWindowLines.some(line => line.includes(PromptTags.CURSOR));
 		const shouldRemoveCursorTagFromResponse = !doesIncludeCursorTag; // we'd like to remove the tag only if the original edit-window didn't include the tag
 
+		// Under a global budget, the current file draws its clip budget from the shared
+		// pool (its share of `totalTokens`) instead of its own `currentFile.maxTokens`,
+		// and donates whatever it doesn't use to the cascade as the initial surplus.
+		const globalBudget = promptOptions.globalBudget;
+		if (globalBudget !== undefined) {
+			xtabPromptOptions.GlobalBudgetOptions.validate(globalBudget);
+		}
+		const currentFileBudget = globalBudget !== undefined
+			? xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget)
+			: undefined;
+		const currentFilePromptOptions = currentFileBudget !== undefined
+			? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens: currentFileBudget } }
+			: promptOptions;
+
 		const taggedCurrentFileContentResult = constructTaggedFile(
 			currentDocument,
 			editWindowLinesRange,
 			areaAroundEditWindowLinesRange,
-			promptOptions,
+			currentFilePromptOptions,
 			XtabProvider.computeTokens,
 			{
 				includeLineNumbers: {
@@ -329,6 +343,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}
 
 		const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
+
+		const currentFileBudgetSurplus = currentFileBudget !== undefined
+			? Math.max(0, currentFileBudget - countTokensForLines(clippedTaggedCurrentDoc.lines, XtabProvider.computeTokens))
+			: 0;
 
 		telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
 
@@ -388,6 +406,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			XtabProvider.computeTokens,
 			promptOptions,
 			neighborSnippets,
+			currentFileBudgetSurplus,
 		);
 
 		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);

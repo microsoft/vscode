@@ -82,8 +82,12 @@ export type DiffHistoryOptions = {
 };
 
 /**
- * Parts that participate in the global-budget cascade. `currentFile` and lint
- * output are intentionally excluded and continue to use their own per-part caps.
+ * Parts that are rendered by the global-budget cascade and listed in `order`.
+ * Lint output is intentionally excluded and keeps its own per-part shape.
+ *
+ * `currentFile` is NOT in this set: it is clipped outside the cascade (around the
+ * cursor) but still draws an allocation from the pool via {@link GlobalBudgetSharePart}
+ * and donates its unused tokens to the cascade as the initial surplus.
  */
 export type GlobalBudgetPart =
 	| 'recentlyViewedDocuments'
@@ -92,29 +96,41 @@ export type GlobalBudgetPart =
 	| 'diffHistory';
 
 /**
+ * Parts that receive a `shares` allocation from the pool: every rendered
+ * {@link GlobalBudgetPart} plus `currentFile`, which is sized from the pool but
+ * clipped externally (see {@link GlobalBudgetOptions.currentFileBudget}).
+ */
+export type GlobalBudgetSharePart = GlobalBudgetPart | 'currentFile';
+
+/**
  * Opt-in global-budget allocation modelled after the cascade in
  * `CascadingPromptFactory` (completions-core): every participating part gets a
- * percentage share of a single `totalTokens` pool, parts are rendered in
- * `order`, and any unused tokens in one part cascade as surplus to the next.
+ * percentage share of a single `totalTokens` pool, the rendered parts are emitted
+ * in `order`, and any unused tokens in one part cascade as surplus to the next.
+ *
+ * `currentFile` participates through `shares` only: it is clipped to its share of
+ * the pool before the cascade runs, and its leftover seeds the cascade's initial
+ * surplus (so it donates to the first part in `order`).
  *
  * When `undefined` (the default), each part uses its own `maxTokens` cap as
  * before and no cross-part budget reuse happens.
  */
 export type GlobalBudgetOptions = {
 	readonly totalTokens: number;
-	/** Cascade order. Earlier parts get budget first; their surplus flows to later parts. */
+	/** Cascade render order. Earlier parts get budget first; their surplus flows to later parts. `currentFile` is not listed here. */
 	readonly order: readonly GlobalBudgetPart[];
-	/** Share of `totalTokens` allocated to each part. Must sum to 1 across `order`. */
-	readonly shares: Readonly<Record<GlobalBudgetPart, number>>;
+	/** Share of `totalTokens` allocated to each part. Must sum to ~1 across `order` plus `currentFile`. */
+	readonly shares: Readonly<Record<GlobalBudgetSharePart, number>>;
 };
 
 export namespace GlobalBudgetOptions {
 	/**
-	 * Default cascade: language context donates first (often disabled), then
-	 * recently-viewed documents (always-on, accepts most of the surplus), then
-	 * neighbor files (must run after recently-viewed because it consults
-	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
-	 * diff history.
+	 * Default render order: language context first (often disabled, donates its
+	 * share onward), then recently-viewed documents (always-on, accepts most of
+	 * the surplus), then neighbor files (must run after recently-viewed because it
+	 * consults `docsInPrompt` to avoid duplicating recently-viewed documents),
+	 * then diff history. `currentFile` is sized from the pool but clipped before
+	 * the cascade, so it is not part of this order.
 	 */
 	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
 		'languageContext',
@@ -123,15 +139,64 @@ export namespace GlobalBudgetOptions {
 		'diffHistory',
 	];
 
-	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). */
-	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetPart, number>> = {
-		recentlyViewedDocuments: 2 / 6,
-		languageContext: 2 / 6,
-		neighborFiles: 1 / 6,
-		diffHistory: 1 / 6,
+	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). Sum to 1 across all parts. */
+	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetSharePart, number>> = {
+		currentFile: 2 / 8,
+		recentlyViewedDocuments: 2 / 8,
+		languageContext: 2 / 8,
+		neighborFiles: 1 / 8,
+		diffHistory: 1 / 8,
 	};
 
-	export const DEFAULT_TOTAL_TOKENS = 6000;
+	export const DEFAULT_TOTAL_TOKENS = 8000;
+
+	/**
+	 * The token budget allotted to `currentFile` from the pool: `floor(totalTokens
+	 * * shares.currentFile)`. Used to override the per-part `currentFile.maxTokens`
+	 * cap when clipping the current file under a global budget.
+	 */
+	export function currentFileBudget(globalBudget: GlobalBudgetOptions): number {
+		return Math.max(0, Math.floor(globalBudget.totalTokens * (globalBudget.shares.currentFile ?? 0)));
+	}
+
+	/**
+	 * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
+	 * (e.g. via experiments). Catches misconfigurations that would otherwise
+	 * cause silent, hard-to-debug behavior:
+	 *  - duplicate parts in `order` (would render the same part twice)
+	 *  - missing share for any part in `order` or for `currentFile`
+	 *  - shares not summing to ~1 across `order` plus `currentFile` (would over/under-allocate)
+	 *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
+	 *    consults `docsInPrompt` populated by the latter)
+	 */
+	export function validate(globalBudget: GlobalBudgetOptions): void {
+		const seen = new Set<string>();
+		for (const part of globalBudget.order) {
+			if (seen.has(part)) {
+				throw new Error(`globalBudget.order contains duplicate part '${part}'`);
+			}
+			seen.add(part);
+			if (typeof globalBudget.shares[part] !== 'number') {
+				throw new Error(`globalBudget.shares is missing entry for '${part}'`);
+			}
+		}
+
+		if (typeof globalBudget.shares.currentFile !== 'number') {
+			throw new Error(`globalBudget.shares is missing entry for 'currentFile'`);
+		}
+
+		const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
+		const neighborIdx = globalBudget.order.indexOf('neighborFiles');
+		if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
+			throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
+		}
+
+		const sharesSum = globalBudget.order.reduce((sum, part) => sum + globalBudget.shares[part], 0) + globalBudget.shares.currentFile;
+		const epsilon = 1e-3;
+		if (Math.abs(sharesSum - 1) > epsilon) {
+			throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
+		}
+	}
 }
 
 export type PagedClipping = { pageSize: number };

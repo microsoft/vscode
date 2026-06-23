@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -100,5 +100,90 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	it('rejects an invalid allowImportChanges value', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: 'sometimes' as ImportChanges }));
 		expect(result.error).toBeDefined();
+	});
+});
+
+describe('GlobalBudgetOptions', () => {
+
+	function gb(overrides: Partial<GlobalBudgetOptions> = {}): GlobalBudgetOptions {
+		return {
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+			...overrides,
+		};
+	}
+
+	describe('volume-neutral defaults', () => {
+		// Guards the core no-regression promise: enabling the global budget with the
+		// default total + shares must reproduce today's per-part `maxTokens` caps
+		// exactly. If anyone changes DEFAULT_SHARES or DEFAULT_TOTAL_TOKENS in a way
+		// that shifts a part's budget, this fails loudly instead of silently
+		// shrinking/growing prompts in the experiment arm.
+		it('reproduce the legacy per-part caps', () => {
+			const total = GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS;
+			const shares = GlobalBudgetOptions.DEFAULT_SHARES;
+			const computed = {
+				currentFile: Math.floor(total * shares.currentFile),
+				recentlyViewedDocuments: Math.floor(total * shares.recentlyViewedDocuments),
+				languageContext: Math.floor(total * shares.languageContext),
+				neighborFiles: Math.floor(total * shares.neighborFiles),
+				diffHistory: Math.floor(total * shares.diffHistory),
+			};
+			expect(computed).toEqual({
+				currentFile: DEFAULT_OPTIONS.currentFile.maxTokens,
+				recentlyViewedDocuments: DEFAULT_OPTIONS.recentlyViewedDocuments.maxTokens,
+				languageContext: DEFAULT_OPTIONS.languageContext.maxTokens,
+				neighborFiles: DEFAULT_OPTIONS.neighborFiles.maxTokens,
+				diffHistory: DEFAULT_OPTIONS.diffHistory.maxTokens,
+			});
+		});
+
+		it('shares sum to exactly 1', () => {
+			const shares = GlobalBudgetOptions.DEFAULT_SHARES;
+			const sum = shares.currentFile + shares.recentlyViewedDocuments + shares.languageContext + shares.neighborFiles + shares.diffHistory;
+			expect(sum).toBe(1);
+		});
+	});
+
+	describe('currentFileBudget', () => {
+		it('floors totalTokens * shares.currentFile', () => {
+			expect(GlobalBudgetOptions.currentFileBudget(gb({ totalTokens: 8000, shares: { ...GlobalBudgetOptions.DEFAULT_SHARES, currentFile: 2 / 8 } }))).toBe(2000);
+			expect(GlobalBudgetOptions.currentFileBudget(gb({ totalTokens: 999, shares: { ...GlobalBudgetOptions.DEFAULT_SHARES, currentFile: 1 / 3 } }))).toBe(333);
+		});
+
+		it('clamps at 0 for a zero share', () => {
+			expect(GlobalBudgetOptions.currentFileBudget(gb({ totalTokens: 8000, shares: { ...GlobalBudgetOptions.DEFAULT_SHARES, currentFile: 0 } }))).toBe(0);
+		});
+	});
+
+	describe('validate', () => {
+		it('accepts the defaults', () => {
+			expect(() => GlobalBudgetOptions.validate(gb())).not.toThrow();
+		});
+
+		it('throws on a duplicate part in order', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({
+				order: ['languageContext', 'languageContext', 'recentlyViewedDocuments', 'neighborFiles', 'diffHistory'],
+			}))).toThrow(/duplicate part 'languageContext'/);
+		});
+
+		it('throws when shares omit currentFile', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({
+				shares: { languageContext: 0.25, recentlyViewedDocuments: 0.25, neighborFiles: 0.25, diffHistory: 0.25 } as GlobalBudgetOptions['shares'],
+			}))).toThrow(/missing entry for 'currentFile'/);
+		});
+
+		it('throws when shares do not sum to ~1 across order plus currentFile', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({
+				shares: { ...GlobalBudgetOptions.DEFAULT_SHARES, currentFile: 0.9 },
+			}))).toThrow(/shares across order must sum to ~1/);
+		});
+
+		it('throws when neighborFiles is ordered before recentlyViewedDocuments', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({
+				order: ['languageContext', 'neighborFiles', 'recentlyViewedDocuments', 'diffHistory'],
+			}))).toThrow(/must place 'recentlyViewedDocuments' before 'neighborFiles'/);
+		});
 	});
 });

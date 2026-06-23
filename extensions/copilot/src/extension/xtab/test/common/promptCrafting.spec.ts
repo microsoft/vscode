@@ -8,6 +8,8 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
@@ -16,6 +18,7 @@ import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringE
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { Uri } from '../../../../vscodeTypes';
 import { LintErrors } from '../../common/lintErrors';
 import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces } from '../../common/promptCrafting';
 import { PromptTags } from '../../common/tags';
@@ -839,7 +842,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		return { activeDoc, currentDocument, currentDocLines };
 	}
 
-	function makePieces(globalBudget: PromptOptions['globalBudget']): PromptPieces {
+	function makePieces(globalBudget: PromptOptions['globalBudget'], extra?: { langCtx?: LanguageContextResponse; currentFileBudgetSurplus?: number }): PromptPieces {
 		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
@@ -854,12 +857,26 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			[],
 			currentDocLines,
 			'<area>some code</area>',
-			undefined,
+			extra?.langCtx,
 			AggressivenessLevel.Medium,
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			undefined,
+			extra?.currentFileBudgetSurplus ?? 0,
 		);
+	}
+
+	function makeLangCtxWithSnippet(value: string): LanguageContextResponse {
+		return {
+			start: 0,
+			end: 0,
+			items: [{
+				context: { kind: ContextKind.Snippet, priority: 1, uri: Uri.parse('file:///test/ctx.ts'), value },
+				timeStamp: 0,
+				onTimeout: false,
+			}],
+		};
 	}
 
 	test('produces the same prompt as legacy path when budgets are large', () => {
@@ -898,6 +915,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			totalTokens: 1000,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: {
+				currentFile: 0.5,
 				recentlyViewedDocuments: 0.5,
 				languageContext: 0.5,
 				neighborFiles: 0.5,
@@ -913,11 +931,46 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			// missing 'diffHistory'
 			shares: {
+				currentFile: 0.2,
 				languageContext: 0.4,
-				recentlyViewedDocuments: 0.4,
+				recentlyViewedDocuments: 0.2,
 				neighborFiles: 0.2,
-			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
 		});
 		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
+	});
+
+	test('throws when shares is missing an entry for currentFile', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'currentFile'
+			shares: {
+				languageContext: 0.25,
+				recentlyViewedDocuments: 0.25,
+				neighborFiles: 0.25,
+				diffHistory: 0.25,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'currentFile'/);
+	});
+
+	test('currentFile budget surplus donates to the first cascade part', () => {
+		// languageContext is first in DEFAULT_ORDER. With totalTokens 8 its base
+		// budget is floor(8 * 2/8) = 2 tokens — too small for the snippet (7 tokens).
+		// The current file's leftover budget seeds the cascade's initial surplus, so
+		// only the surplus run has enough budget to include the snippet.
+		const snippet = 'const ctxSnippetMarker = 123;';
+		const globalBudget: PromptOptions['globalBudget'] = {
+			totalTokens: 8,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+
+		const withoutSurplus = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) }));
+		const withSurplus = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet), currentFileBudgetSurplus: 50 }));
+
+		expect(withoutSurplus.prompt).not.toContain('ctxSnippetMarker');
+		expect(withSurplus.prompt).toContain('ctxSnippetMarker');
 	});
 });

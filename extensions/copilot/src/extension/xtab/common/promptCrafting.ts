@@ -38,6 +38,14 @@ export class PromptPieces {
 		public readonly computeTokens: (s: string) => number,
 		public readonly opts: PromptOptions,
 		public readonly neighborSnippets?: readonly INeighborFileSnippet[],
+		/**
+		 * Leftover tokens from clipping `currentFile` to its share of the global
+		 * budget pool. Seeds the cascade's initial surplus so the current file
+		 * donates its unused budget to the first part in `order`. `0` (the default)
+		 * when no global budget governs the current file (e.g. the legacy path or
+		 * the next-cursor predictor, which keeps its own current-file cap).
+		 */
+		public readonly currentFileBudgetSurplus: number = 0,
 	) {
 	}
 }
@@ -51,7 +59,7 @@ export interface UserPromptResult {
 
 export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
-	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts, neighborSnippets } = promptPieces;
+	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts, neighborSnippets, currentFileBudgetSurplus } = promptPieces;
 	const currentFileContent = taggedCurrentDocLines.join('\n');
 
 	let recentlyViewedCodeSnippets: string;
@@ -62,7 +70,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	let diffTokensInPrompt: number;
 
 	if (opts.globalBudget !== undefined) {
-		const cascade = runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget);
+		const cascade = runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget, currentFileBudgetSurplus);
 		recentlyViewedCodeSnippets = cascade.codeSnippets;
 		docsInPrompt = cascade.documents;
 		neighborSnippetsResult = cascade.neighborSnippetsResult;
@@ -174,15 +182,18 @@ interface CascadeResult {
  * `surplus + totalTokens * shares[part]` and run that sub-builder with the override.
  * Unspent budget cascades to the next part.
  *
- * Sub-builders are invoked using existing helpers so behavior of each individual
- * part is unchanged. `currentFile` and `lintOptions` are intentionally excluded
- * and continue using their own per-part caps.
+ * The cascade is seeded with `initialSurplus`, the leftover from clipping
+ * `currentFile` to its share of the pool (computed by the caller). This lets the
+ * current file donate its unused budget to the first part in `order`. `currentFile`
+ * is otherwise not rendered here, and `lintOptions` is excluded entirely; both
+ * keep their own per-part caps for clipping.
  *
- * Each sub-builder reports `tokensConsumed` using the same internal accounting
- * it uses to make budget decisions (paged-clipping line cost, raw-snippet cost
- * for appenders, diff-entry cost for history). The cascade uses that reported
- * value to compute `surplus`, which keeps the cascade aligned with how each
- * part actually charges against its budget.
+ * Sub-builders are invoked using existing helpers so behavior of each individual
+ * part is unchanged. Each sub-builder reports `tokensConsumed` using the same
+ * internal accounting it uses to make budget decisions (paged-clipping line cost,
+ * raw-snippet cost for appenders, diff-entry cost for history). The cascade uses
+ * that reported value to compute `surplus`, which keeps the cascade aligned with
+ * how each part actually charges against its budget.
  */
 function runGlobalBudgetCascade(
 	activeDoc: StatelessNextEditDocument,
@@ -192,8 +203,9 @@ function runGlobalBudgetCascade(
 	opts: PromptOptions,
 	neighborSnippets: readonly INeighborFileSnippet[] | undefined,
 	globalBudget: GlobalBudgetOptions,
+	initialSurplus: number,
 ): CascadeResult {
-	validateGlobalBudget(globalBudget);
+	GlobalBudgetOptions.validate(globalBudget);
 
 	const recentlyViewedSnippets: string[] = [];
 	const langCtxSnippets: string[] = [];
@@ -208,7 +220,7 @@ function runGlobalBudgetCascade(
 
 	const preparedRecent = prepareRecentCodeSnippets(activeDoc, xtabHistory, opts);
 
-	let surplus = 0;
+	let surplus = Math.max(0, initialSurplus);
 	for (const part of globalBudget.order) {
 		const share = globalBudget.shares[part] ?? 0;
 		const budget = Math.max(0, Math.floor(surplus + globalBudget.totalTokens * share));
@@ -263,41 +275,6 @@ function runGlobalBudgetCascade(
 		nDiffsInPrompt,
 		diffTokensInPrompt,
 	};
-}
-
-/**
- * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
- * (e.g. via experiments). Catches misconfigurations that would otherwise
- * cause silent, hard-to-debug behavior:
- *  - duplicate parts in `order` (would render the same part twice)
- *  - missing share for any part in `order`
- *  - shares not summing to ~1 across `order` (would over/under-allocate)
- *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
- *    consults `docsInPrompt` populated by the latter)
- */
-function validateGlobalBudget(globalBudget: GlobalBudgetOptions): void {
-	const seen = new Set<string>();
-	for (const part of globalBudget.order) {
-		if (seen.has(part)) {
-			throw new Error(`globalBudget.order contains duplicate part '${part}'`);
-		}
-		seen.add(part);
-		if (typeof globalBudget.shares[part] !== 'number') {
-			throw new Error(`globalBudget.shares is missing entry for '${part}'`);
-		}
-	}
-
-	const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
-	const neighborIdx = globalBudget.order.indexOf('neighborFiles');
-	if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
-		throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
-	}
-
-	const sharesSum = globalBudget.order.reduce((sum, part) => sum + globalBudget.shares[part], 0);
-	const epsilon = 1e-3;
-	if (Math.abs(sharesSum - 1) > epsilon) {
-		throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
-	}
 }
 
 function wrapInBackticks(content: string) {
