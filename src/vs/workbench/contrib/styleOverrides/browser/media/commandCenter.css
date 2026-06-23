@@ -13,7 +13,7 @@
  * rest and only reveal the command-center active background/border on hover,
  * instead of carrying a solid fill the whole time.
  *
- * All rules are gated behind the `.style-override-commandCenter` class, which
+ * All rules are gated behind the `.style-override` class, which
  * the StyleOverridesContribution toggles onto the workbench container(s) when
  * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  */
@@ -23,7 +23,7 @@
  * transparent at rest; the base stylesheet's `:hover` rule (titlebarpart.css)
  * still reveals the active background/border on hover.
  */
-.style-override-commandCenter.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+.style-override.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
 	background-color: transparent !important;
 }
 
@@ -33,8 +33,8 @@
  * `:hover` rules already reveal the active background, and the connected
  * `session-mode` pill keeps its active fill (excluded below).
  */
-.style-override-commandCenter .agent-status-pill:not(.session-mode),
-.style-override-commandCenter .agent-status-pill .agent-status-input-area {
+.style-override .agent-status-pill:not(.session-mode),
+.style-override .agent-status-pill .agent-status-input-area {
 	background-color: transparent !important;
 }
 
@@ -45,7 +45,7 @@
  * rule still reveals the active background, and the `filtered` state keeps its
  * own active fill (excluded below).
  */
-.style-override-commandCenter .agent-status-badge-section:not(.filtered),
-.style-override-commandCenter .agent-status-command-center-toolbar {
+.style-override .agent-status-badge-section:not(.filtered),
+.style-override .agent-status-command-center-toolbar {
 	background-color: transparent !important;
 }
