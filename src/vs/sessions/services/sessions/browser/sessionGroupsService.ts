@@ -66,7 +66,7 @@ export interface ISessionGroupsService {
 	getGroup(groupId: string): ISessionGroup | undefined;
 
 	/**
-	 * Create a new group with an optional name. Returns the created group. When
+	 * Create a new group with the given name. Returns the created group. When
 	 * `memberSessionIds` are given they are added to the new group.
 	 */
 	createGroup(name: string, memberSessionIds?: Iterable<string>): ISessionGroup;
@@ -142,9 +142,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				}
 			}
 			if (changed.size > 0) {
-				this.evictExcessEmptyGroups();
+				const evicted = this.evictExcessEmptyGroups();
 				this.save();
-				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
+				this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: changed });
 			}
 		}));
 	}
@@ -205,18 +205,18 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		const membershipChanged = new Set<string>();
 		this.setMembership(sessionId, groupId, membershipChanged);
-		this.evictExcessEmptyGroups();
+		const evicted = this.evictExcessEmptyGroups();
 		this.save();
-		this._onDidChange.fire({ groupsChanged: false, membershipChanged });
+		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged });
 	}
 
 	removeFromGroup(sessionId: string): void {
 		if (!this._membership.delete(sessionId)) {
 			return;
 		}
-		this.evictExcessEmptyGroups();
+		const evicted = this.evictExcessEmptyGroups();
 		this.save();
-		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
+		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: new Set([sessionId]) });
 	}
 
 	getGroupOfSession(sessionId: string): string | undefined {
@@ -263,15 +263,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	/**
 	 * Keep at most {@link MAX_EMPTY_GROUPS} groups with no members, evicting the
-	 * oldest empty groups (by `createdAt`) beyond that cap.
+	 * oldest empty groups (by `createdAt`) beyond that cap. Returns whether any
+	 * group was deleted.
 	 */
-	private evictExcessEmptyGroups(): void {
+	private evictExcessEmptyGroups(): boolean {
 		const empty = [...this._groups.values()]
 			.filter(group => !this.hasMembers(group.id))
 			.sort((a, b) => a.createdAt - b.createdAt);
+		let deleted = false;
 		for (let i = 0; i < empty.length - SessionGroupsService.MAX_EMPTY_GROUPS; i++) {
 			this._groups.delete(empty[i].id);
+			deleted = true;
 		}
+		return deleted;
 	}
 
 	/**

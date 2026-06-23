@@ -81,8 +81,6 @@ export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
-/** Submenu listing the existing groups a session can be added/moved to. */
-export const SessionAddToGroupSubmenuId = new MenuId('SessionAddToGroupSubmenu');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 /** Whether the focused session item currently belongs to a user group. */
@@ -2035,11 +2033,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Groups --
 
-	/** Create a new group containing the given sessions and start renaming it. */
+	/**
+	 * Create a new group containing the given sessions and start renaming it.
+	 * All selected sessions become members — pinned and archived (Done) sessions
+	 * keep their membership and continue to render in their own sections, but
+	 * return to the group once unpinned/restored.
+	 */
 	createGroupFromSessions(sessions: ISession[]): void {
-		const reorderable = sessions.filter(s => this.isReorderable(s));
-		const members = reorderable.length > 0 ? reorderable : sessions;
-		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), members.map(s => s.sessionId));
+		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), sessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
 	}

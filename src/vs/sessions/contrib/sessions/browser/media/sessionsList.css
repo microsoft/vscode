@@ -437,8 +437,8 @@
 	}
 }
 
-/* Session groups: render like sections, with an inline name editor and a
-   whole-group highlight while a session is dragged into the group. */
+/* Session groups: render like sections, with an inline name editor and a */
+/* whole-group highlight while a session is dragged into the group. */
 .session-group {
 	.session-group-input {
 		flex: 1 1 auto;
@@ -462,9 +462,9 @@
 	display: block;
 }
 
-/* While dragging a session into a group, the tree applies `.drop-target` to the
-   group header and every member row (subtree feedback). Highlight them as one
-   block without an insertion line. */
+/* While dragging a session into a group, the tree applies `.drop-target` to the */
+/* group header and every member row (subtree feedback). Highlight them as one */
+/* block without an insertion line. */
 .sessions-list-control .monaco-list-row.drop-target {
 	background-color: var(--vscode-list-dropBackground) !important;
 }
