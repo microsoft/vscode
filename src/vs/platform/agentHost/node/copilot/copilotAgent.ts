@@ -955,6 +955,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
 			// no fixed context window — surface them with maxContextWindow undefined.
 			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+			maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
+			maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,

@@ -103,6 +103,13 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
 	private _currentModelId: string | undefined;
+	/**
+	 * The model the user currently has selected in the picker. When set it
+	 * overrides the last request's model for computing the context-window
+	 * denominator, so switching models updates the widget before the next
+	 * request is sent. The usage numerator still comes from the last response.
+	 */
+	private _selectedModelId: string | undefined;
 	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
@@ -299,21 +306,42 @@ export class ChatContextUsageWidget extends Disposable {
 	): void {
 		this._modelConfigurationResolver = resolver;
 		this._modelConfigurationListener.value = onDidChange(modelId => {
-			if (this._currentResponse && this._currentModelId === modelId) {
-				this.updateFromResponse(this._currentResponse, modelId);
+			if (this._currentResponse && this._currentModelId && (this._currentModelId === modelId || this._selectedModelId === modelId)) {
+				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}
 		});
 	}
 
+	/**
+	 * Sets the model the user currently has selected in the picker. The
+	 * context-window denominator then reflects this model immediately, even
+	 * before a request is sent with it. The usage numerator still comes from the
+	 * last completed response.
+	 */
+	setSelectedModel(modelId: string | undefined): void {
+		if (this._selectedModelId === modelId) {
+			return;
+		}
+		this._selectedModelId = modelId;
+		if (this._currentResponse && this._currentModelId) {
+			this.updateFromResponse(this._currentResponse, this._currentModelId);
+		}
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		// The denominator (context window) follows the currently selected model so
+		// switching models updates the widget immediately; the numerator (usage)
+		// still comes from the last response.
+		const denominatorModelId = this._selectedModelId ?? modelId;
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
+		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+
 		if (!usage || totalContextWindow <= 0) {
 			if (!this.currentData) {
 				this.hide();

@@ -816,6 +816,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(autorun(reader => {
 			const lm = this._currentLanguageModel.read(reader);
 			this.chatModelIdKey.set(lm?.metadata.id.toLowerCase() ?? '');
+			this.contextUsageWidget?.setSelectedModel(lm?.identifier);
 			if (lm?.metadata.name) {
 				this.accessibilityService.alert(lm.metadata.name);
 			}
@@ -2705,6 +2706,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
 		this.contextUsageWidget.setChatWidget(widget);
+		this.contextUsageWidget.setSelectedModel(this._currentLanguageModel.get()?.identifier);
 		this.contextUsageWidget.setModelConfigurationResolver(
 			modelId => this.getModelConfiguration(modelId),
 			this._modelConfigStore.onDidChange,

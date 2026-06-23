@@ -102,6 +102,8 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		id: m.id,
 		name: m.name,
 		maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+		maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
+		maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
 		supportsVision: !!supports?.vision,
 		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
