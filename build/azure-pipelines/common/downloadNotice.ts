@@ -44,9 +44,10 @@ const QUALITY_JOB_NAMES = ['Quality Checks', 'Quality'];
 const SHIPPING_NOTICE_NAME = 'ThirdPartyNotices.new.txt';
 const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 
-// Short poll budget: 10 attempts x 30s = 5 minutes. Deliberately far below the
-// copilot 30min so a never-produced artifact degrades to fallback quickly.
-const POLL_ATTEMPTS = 10;
+// Short poll budget: 15 attempts x 30s = 7.5 minutes. Deliberately far below the
+// copilot 30min so a never-produced artifact degrades to fallback quickly, but
+// long enough to outlast the parallel Quality stage (CG + scan + merge).
+const POLL_ATTEMPTS = 15;
 const POLL_INTERVAL_MS = 30_000;
 
 function log(message: string): void {
@@ -182,16 +183,22 @@ async function waitForArtifact(): Promise<Artifact | undefined> {
 
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
 			if (artifact) {
-				log(`  * ${ARTIFACT_NAME} artifact found`);
-				return artifact;
-			}
-
-			if (qualityJob && qualityJob.state === 'completed' && !artifact) {
+				// IMPORTANT: the notice_output artifact is populated in TWO phases by
+				// two different Quality-stage steps -- first generated.txt + meta, then
+				// (seconds later) the shipping ThirdPartyNotices.new.txt. The artifact
+				// NAME appears after phase 1, so we must NOT accept it until the Quality
+				// job has COMPLETED, otherwise we race and download before .new.txt lands.
+				if (qualityJob && qualityJob.state === 'completed') {
+					log('  * notice_output artifact found and Quality job completed');
+					return artifact;
+				}
+				log('  * notice_output found but Quality job still running (uploads may be incomplete); waiting...');
+			} else if (qualityJob && qualityJob.state === 'completed') {
 				log('  * Quality job completed but no notice_output artifact; giving up.');
 				return undefined;
 			}
 
-			log(`  * Not found yet, waiting ${POLL_INTERVAL_MS / 1000}s...`);
+			log(`  * Not ready yet, waiting ${POLL_INTERVAL_MS / 1000}s...`);
 		} catch (err) {
 			console.error(`[notice-elite] WARNING: poll attempt failed: ${err}`);
 		}
