@@ -63,12 +63,10 @@ export interface ConnectionTypeRequest {
 
 export interface ErrorMessage {
 	type: 'error';
-	/** Human-readable diagnostic. Always populated for backward compatibility with older/forked clients. */
+	/** Human-readable diagnostic (description plus any detail). Always populated for older/forked clients. */
 	reason: string;
 	/** Stable machine-readable code. Newer servers always populate this; control flow (e.g. recovery decisions) matches on it. */
 	reasonCode?: ConnectionRejectionReason;
-	/** Optional runtime context appended to the code's default description. */
-	detail?: string;
 }
 
 /** Stable machine-readable rejection codes. Values must remain unchanged. */
@@ -827,7 +825,7 @@ export class ManagementPersistentConnection extends PersistentConnection {
 		// On a stale-token recovery the protocol session is wiped and the new server expects the init
 		// context as msg #1; do it (and replay subscriptions) synchronously while _isReconnecting so they
 		// replay in order on the next endAcceptReconnection.
-		this._register(protocol.onDidResetSession(() => this.client.resendInitialContextAndReplay()));
+		this._register(protocol.onDidResetSession(() => this.client.reinitialize()));
 	}
 
 	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
@@ -868,11 +866,8 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 
 function getErrorFromMessage(msg: any): Error | null {
 	if (msg && msg.type === 'error') {
-		const rawReason: string | undefined = msg.reason;
-		const reasonCode: ConnectionRejectionReason | undefined = msg.reasonCode ?? inferReasonCodeFromLegacyReason(rawReason);
-		const detail: string | undefined = msg.detail;
-		const baseReason = rawReason ?? (reasonCode ? describeConnectionRejection(reasonCode) : 'unknown');
-		const reason = detail ? `${baseReason}: ${detail}` : baseReason;
+		const reasonCode: ConnectionRejectionReason | undefined = msg.reasonCode ?? inferReasonCodeFromLegacyReason(msg.reason);
+		const reason: string = msg.reason ?? (reasonCode ? describeConnectionRejection(reasonCode) : 'unknown');
 		const error = new Error(`Connection error: ${reason}`);
 		// eslint-disable-next-line local/code-no-any-casts
 		(<any>error).code = 'VSCODE_CONNECTION_ERROR';
@@ -887,6 +882,9 @@ function getErrorFromMessage(msg: any): Error | null {
  * Best-effort map from a legacy `reason: string` to a {@link ConnectionRejectionReason}
  * when talking to an older/forked server that doesn't populate {@link ErrorMessage.reasonCode}.
  * Only covers the codes that recovery logic acts on; everything else stays undefined.
+ *
+ * The literals below are the fixed strings older servers send; do not replace them with
+ * describeConnectionRejection, whose wording can change.
  */
 function inferReasonCodeFromLegacyReason(reason: string | undefined): ConnectionRejectionReason | undefined {
 	if (!reason) {

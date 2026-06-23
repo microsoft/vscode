@@ -239,13 +239,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private async _rejectWebSocketConnection(logPrefix: string, protocol: PersistentProtocol, reasonCode: ConnectionRejectionReason, detail?: string): Promise<void> {
 		const socket = protocol.getSocket();
-		const reason = describeConnectionRejection(reasonCode);
-		this._logService.error(`${logPrefix} ${detail ? `${reason}: ${detail}` : reason}.`);
+		const description = describeConnectionRejection(reasonCode);
+		const reason = detail ? `${description}: ${detail}` : description;
+		this._logService.error(`${logPrefix} ${reason}.`);
 		const errMessage: ErrorMessage = {
 			type: 'error',
 			reason: reason,
-			reasonCode: reasonCode,
-			detail: detail
+			reasonCode: reasonCode
 		};
 		protocol.sendControl(VSBuffer.fromString(JSON.stringify(errMessage)));
 		protocol.dispose();
