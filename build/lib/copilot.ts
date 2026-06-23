@@ -159,10 +159,9 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  * app/remote packaging for the target platform.
  *
  * .moduleignore strips all @github/copilot-* platform packages globally.
- * Re-add the selected runtime package so @github/copilot/npm-loader.js can
- * launch the platform executable and the CLI can load its signed runtime
- * prebuilds from the product instead of extracting them to the user cache.
- * Keep optional native payload trees out of the product build.
+ * Re-add the selected runtime package so Agent Host can launch its index.js
+ * entrypoint and load runtime prebuilds. Keep the standalone SEA executable
+ * and optional native payload trees out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -170,6 +169,8 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 
 	return [
 		path.posix.join(copilotPlatformPackageDir, '**'),
+		`!${path.posix.join(copilotPlatformPackageDir, 'copilot')}`,
+		`!${path.posix.join(copilotPlatformPackageDir, 'copilot.exe')}`,
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
 		...getCopilotOptionalNativePayloadFiles(platform).map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
 	];

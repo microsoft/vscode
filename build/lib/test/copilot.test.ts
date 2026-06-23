@@ -17,6 +17,8 @@ suite('copilot', () => {
 
 		assert.deepStrictEqual(files, [
 			'node_modules/@github/copilot-linux-x64/**',
+			'!node_modules/@github/copilot-linux-x64/copilot',
+			'!node_modules/@github/copilot-linux-x64/copilot.exe',
 			'!node_modules/@github/copilot-linux-x64/clipboard/**',
 			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
@@ -26,10 +28,12 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linux-x64', [
-			'copilot',
+			'index.js',
+			'app.js',
 			'prebuilds/linux-x64/runtime.node',
 			'prebuilds/linux-x64/pty.node',
 		]);
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linux-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linux-x64');
 	});
 
@@ -38,6 +42,8 @@ suite('copilot', () => {
 
 		assert.deepStrictEqual(files, [
 			'node_modules/@github/copilot-linuxmusl-x64/**',
+			'!node_modules/@github/copilot-linuxmusl-x64/copilot',
+			'!node_modules/@github/copilot-linuxmusl-x64/copilot.exe',
 			'!node_modules/@github/copilot-linuxmusl-x64/clipboard/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
@@ -47,15 +53,19 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/cli-native.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linuxmusl-x64', [
-			'copilot',
+			'index.js',
+			'app.js',
 			'prebuilds/linuxmusl-x64/runtime.node',
 		]);
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 	});
 
 	test('uses the .exe package runtime for windows builds', () => {
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'x64'), [
 			'node_modules/@github/copilot-win32-x64/**',
+			'!node_modules/@github/copilot-win32-x64/copilot',
+			'!node_modules/@github/copilot-win32-x64/copilot.exe',
 			'!node_modules/@github/copilot-win32-x64/clipboard/**',
 			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
@@ -64,7 +74,8 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/keytar.node',
 		]);
 		assertCopilotPlatformPackageIncludes(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64', [
-			'copilot.exe',
+			'index.js',
+			'app.js',
 			'prebuilds/win32-x64/cli-native.node',
 			'prebuilds/win32-x64/runtime.node',
 			'prebuilds/win32-x64/conpty.node',
@@ -72,9 +83,12 @@ suite('copilot', () => {
 			'prebuilds/win32-x64/conpty/OpenConsole.exe',
 			'prebuilds/win32-x64/conpty/conpty.dll',
 		]);
+		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'arm64'), [
 			'node_modules/@github/copilot-win32-arm64/**',
+			'!node_modules/@github/copilot-win32-arm64/copilot',
+			'!node_modules/@github/copilot-win32-arm64/copilot.exe',
 			'!node_modules/@github/copilot-win32-arm64/clipboard/**',
 			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
@@ -83,13 +97,13 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/keytar.node',
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
+		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
 	});
 
 	test('keeps macOS runtime prebuilds in the selected platform package', () => {
 		const files = getCopilotRuntimePrebuildFiles('darwin', 'arm64');
 
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-darwin-arm64', [
-			'copilot',
 			'index.js',
 			'app.js',
 			'sea-loader.js',
@@ -97,6 +111,7 @@ suite('copilot', () => {
 			'prebuilds/darwin-arm64/pty.node',
 			'prebuilds/darwin-arm64/spawn-helper',
 		]);
+		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 	});
 
@@ -117,7 +132,7 @@ suite('copilot', () => {
 				packPackage: (_packageName, _version, tempDir) => {
 					const packageRoot = path.join(tempDir, 'package');
 					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
-					fs.writeFileSync(path.join(packageRoot, 'copilot'), '');
+					fs.writeFileSync(path.join(packageRoot, 'index.js'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
 					const tarball = path.join(tempDir, 'copilot-darwin-x64.tgz');
 					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
@@ -125,7 +140,7 @@ suite('copilot', () => {
 				}
 			});
 
-			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'copilot')));
+			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'index.js')));
 			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')));
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -180,6 +195,13 @@ function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: st
 	assert(patterns.includes(`${packageDir}/**`));
 	for (const relativeFile of relativeFiles) {
 		assert(matchesGlob(`${packageDir}/${relativeFile}`, patterns), relativeFile);
+	}
+}
+
+function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDir: string): void {
+	for (const executable of ['copilot', 'copilot.exe']) {
+		assert(patterns.includes(`!${packageDir}/${executable}`), executable);
+		assert(!matchesGlob(`${packageDir}/${executable}`, patterns), executable);
 	}
 }
 

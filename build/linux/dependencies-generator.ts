@@ -46,15 +46,7 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	// Get the files for which we want to find dependencies.
 	const canAsar = false; // TODO@esm ASAR disabled in ESM
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
-	const findResult = spawnSync('find', [
-		nativeModulesPath,
-		'-type', 'f',
-		'(',
-		'-name', '*.node',
-		'-o',
-		'-path', path.join(nativeModulesPath, '@github', 'copilot-*', 'copilot'),
-		')'
-	]);
+	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
 	if (findResult.status) {
 		console.error('Error finding files:');
 		console.error(findResult.stderr.toString());

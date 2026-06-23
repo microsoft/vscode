@@ -77,10 +77,6 @@ function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOption
 	}
 }
 
-interface ICopilotPackageJson {
-	bin?: { copilot?: string };
-}
-
 async function fileExists(filePath: string): Promise<boolean> {
 	try {
 		await fs.access(filePath);
@@ -90,37 +86,42 @@ async function fileExists(filePath: string): Promise<boolean> {
 	}
 }
 
-async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
-	const copilotPackageUri = URI.joinPath(nodeModulesUri, '@github', 'copilot');
-	const packageJsonPath = URI.joinPath(copilotPackageUri, 'package.json').fsPath;
-	const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8')) as ICopilotPackageJson;
-	const bin = packageJson.bin?.copilot;
-	if (typeof bin !== 'string' || bin.length === 0) {
-		throw new Error(`Unable to resolve @github/copilot CLI path. Missing package.json bin.copilot in ${packageJsonPath}`);
+function isLinuxMuslRuntime(): boolean {
+	if (process.platform !== 'linux') {
+		return false;
 	}
 
-	const binPath = join(copilotPackageUri.fsPath, bin);
-	if (await fileExists(binPath)) {
-		return binPath;
-	}
-
-	throw new Error(`Unable to resolve @github/copilot CLI path. package.json bin.copilot points to missing file ${binPath}`);
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	return !report?.header?.glibcVersionRuntime;
 }
 
-async function resolveCopilotCliDistDir(nodeModulesUri: URI): Promise<string | undefined> {
+function getCopilotPlatformPackageCandidates(): string[] {
 	const platformArch = `${process.platform}-${process.arch}`;
-	const candidatePlatformPackages = process.platform === 'linux'
-		? [`copilot-${platformArch}`, `copilot-linuxmusl-${process.arch}`]
-		: [`copilot-${platformArch}`];
+	if (process.platform !== 'linux') {
+		return [platformArch];
+	}
 
-	for (const packageName of candidatePlatformPackages) {
-		const packageDir = URI.joinPath(nodeModulesUri, '@github', packageName).fsPath;
-		if (await fileExists(join(packageDir, 'index.js'))) {
-			return packageDir;
+	const linuxCandidates = [`linux-${process.arch}`, `linuxmusl-${process.arch}`];
+	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
+}
+
+async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+	const tried: string[] = [];
+	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
+		tried.push(cliPath);
+		if (await fileExists(cliPath)) {
+			return cliPath;
 		}
 	}
 
-	return undefined;
+	const oldTopLevelPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+	tried.push(oldTopLevelPath);
+	if (await fileExists(oldTopLevelPath)) {
+		return oldTopLevelPath;
+	}
+
+	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
 interface ICreatedWorktree {
@@ -734,10 +735,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
 			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
-			const cliDistDir = await resolveCopilotCliDistDir(nodeModulesUri);
-			if (cliDistDir) {
-				env['COPILOT_CLI_DIST_DIR'] = cliDistDir;
-			}
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
