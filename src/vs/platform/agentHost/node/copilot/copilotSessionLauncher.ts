@@ -23,6 +23,7 @@ import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfi
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
+import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
@@ -62,6 +63,16 @@ export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
 	readonly mcpServers: AgentHostMcpServers;
+}
+
+/**
+ * The set of client-tool names the agent sees for a snapshot — each tool's
+ * `ToolDefinition.name` (the camelCase `toolReferenceName`). Used both to gate
+ * tool-specific prompt sections at launch and to route client tool calls during
+ * the session, so the two stay derived from one definition.
+ */
+export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): ReadonlySet<string> {
+	return new Set(snapshot.tools.map(tool => tool.name));
 }
 
 export interface ICopilotSessionRuntime {
@@ -306,9 +317,19 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
+		// Client tools (browser tools, tasks, etc.) are addressed by the name the
+		// agent sees them under; used to gate tool-specific prompt sections.
+		const clientToolNames = clientToolNamesFromSnapshot(plan.snapshot);
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
+			hasTool: name => clientToolNames.has(name),
 		};
+		// Resolved once per (re)launch — the SDK has no mid-session system-message
+		// update, so this reflects the model/tools/settings at launch time. Log a
+		// summary at info for prompt observability; the full config at trace.
+		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext);
+		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
+		this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
 		return {
 			clientName: 'vscode',
 			enableMcpApps: true,
@@ -325,7 +346,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			customAgents,
 			skillDirectories,
 			instructionDirectories,
-			systemMessage: agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext),
+			systemMessage,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

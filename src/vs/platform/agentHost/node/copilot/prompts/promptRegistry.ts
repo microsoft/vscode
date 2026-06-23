@@ -8,6 +8,7 @@ import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCus
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
+import { resolveToolInstructionsOverride } from './toolInstructions.js';
 
 type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
 
@@ -27,6 +28,15 @@ export interface IAgentHostPromptContext {
 	 * {@link agentHostCustomizationConfigSchema}.
 	 */
 	getSetting<K extends keyof CustomizationConfigDefinition & string>(key: K): SchemaValue<CustomizationConfigDefinition[K]> | undefined;
+
+	/**
+	 * Returns whether a tool is available in the session, addressed by the name
+	 * the agent sees it under (client tools use their camelCase
+	 * `toolReferenceName`). The agent-host equivalent of the Copilot extension
+	 * inspecting its available tool set, used to gate tool-specific instructions
+	 * on the tool actually being present.
+	 */
+	hasTool(name: string): boolean;
 }
 
 /**
@@ -109,7 +119,24 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Resolves the {@link SystemMessageConfig} for a session's model.
+	 * Resolves the {@link SystemMessageConfig} for a session's model: the
+	 * per-model (or default) config from {@link _resolveModelConfig}, with the
+	 * model-agnostic section overrides from {@link _withUniversalSections}
+	 * layered on top.
+	 *
+	 * Lifetime: the SDK accepts a system message only at session create/resume
+	 * (there is no mid-session update), so this is resolved once per (re)launch
+	 * and any tool-gated content reflects the tool set at that moment. A change
+	 * to the session's tools/plugins is part of the launcher's restart-detection
+	 * snapshot, so it re-launches the session and recomputes this; an in-flight
+	 * turn keeps the prompt it launched with.
+	 */
+	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
+		return this._withUniversalSections(this._resolveModelConfig(model, context), context);
+	}
+
+	/**
+	 * Resolves the per-model config, before universal sections are layered on.
 	 *
 	 * Falls back to {@link COPILOT_AGENT_HOST_SYSTEM_MESSAGE} when the model is
 	 * unknown (e.g. server-side "Auto" selection where no model is chosen at
@@ -117,7 +144,7 @@ export class AgentHostPromptRegistry {
 	 * contributor opts out for the current {@link context} (e.g. a setting that
 	 * gates it is disabled).
 	 */
-	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
+	private _resolveModelConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (!model) {
 			return COPILOT_AGENT_HOST_SYSTEM_MESSAGE;
 		}
@@ -138,6 +165,35 @@ export class AgentHostPromptRegistry {
 			return sectionOverrides(sections);
 		}
 		return COPILOT_AGENT_HOST_SYSTEM_MESSAGE;
+	}
+
+	/**
+	 * Layers section overrides that apply to EVERY model on top of the per-model
+	 * (or default) config. Currently this is only the `tool_instructions` section
+	 * (see {@link resolveToolInstructionsOverride}), which the agent host wants
+	 * for all models rather than gating per-model like the Opus prompt.
+	 *
+	 * Only `customize`-mode configs carry section overrides, so this is a no-op
+	 * for a contributor's full `replace` prompt (which owns the entire system
+	 * message and intentionally drops the SDK foundation) and for `append` mode.
+	 * A `replace` contributor that wants the universal guidance embeds it itself
+	 * via {@link universalToolInstructions}, mirroring how the extension's
+	 * full-prompt models inline the same lines.
+	 *
+	 * A per-model `tool_instructions` override is composed with — not overwritten
+	 * by — the universal lines (see {@link resolveToolInstructionsOverride}).
+	 */
+	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+		if (config.mode !== 'customize') {
+			return config;
+		}
+		const toolInstructions = resolveToolInstructionsOverride(name => context.hasTool(name), config.sections?.tool_instructions);
+		if (!toolInstructions) {
+			return config;
+		}
+		// Spread into a fresh object so the shared `COPILOT_AGENT_HOST_SYSTEM_MESSAGE`
+		// constant (returned by the fallback paths above) is never mutated.
+		return sectionOverrides({ ...config.sections, tool_instructions: toolInstructions });
 	}
 }
 
