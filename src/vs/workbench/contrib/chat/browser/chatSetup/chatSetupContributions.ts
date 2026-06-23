@@ -42,6 +42,7 @@ import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, Ch
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } from '../../../../services/extensions/browser/extensionUrlHandler.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { CONTEXT_DEFAULT_ACCOUNT_STATE, DefaultAccountStatus } from '../../../../services/accounts/browser/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
@@ -98,7 +99,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerGrowthSession(chatEntitlementService);
 		this.registerActions(context, requests, controller);
 		this.registerSignInTitleBarEntry(actionViewItemService);
-		this.registerActivatingContext();
 		this.registerUrlLinkHandler();
 		this.checkExtensionInstallation(context);
 	}
@@ -371,8 +371,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ChatContextKeys.Setup.untrusted.negate(), // sign-in is not the blocker in an untrusted workspace — trust is
-							ChatContextKeys.Setup.activating.negate(), // wait until the extension is up before claiming "signed out"
+							CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable), // only when actually signed out (resolves even in untrusted workspaces, no auth prompt)
 							ChatContextKeys.Setup.completed.negate(),
 							ChatContextKeys.Entitlement.signedOut
 						)
@@ -405,8 +404,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
-							ChatContextKeys.Setup.untrusted.negate(), // sign-in is not the blocker in an untrusted workspace — trust is
-							ChatContextKeys.Setup.activating.negate(), // wait until the extension is up before claiming "signed out"
+							CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable), // only when actually signed out (resolves even in untrusted workspaces, no auth prompt)
 							ChatEntitlementContextKeys.hasByokModels.negate(),
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
@@ -659,35 +657,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			SIGN_IN_TITLE_BAR_ACTION_ID,
 			(action, options) => new SignInTitleBarEntry(action, options)
 		));
-	}
-
-	/**
-	 * Tracks whether the default chat extension is still activating, so sign-in
-	 * affordances can be suppressed until the entitlement can actually be resolved
-	 * (it reads as "signed out" until the extension is up). This relies only on the
-	 * extension lifecycle and never touches the user's authentication session.
-	 *
-	 * Important: once activation completes (`activationTimes` set) — or fails
-	 * (`runtimeErrors`) — this returns `false`, so a signed-out user with an
-	 * activated extension still sees the Sign In button.
-	 */
-	private registerActivatingContext(): void {
-		const activatingContextKey = ChatContextKeys.Setup.activating.bindTo(this.contextKeyService);
-		const update = () => activatingContextKey.set(this.isChatExtensionActivating());
-		this._register(this.extensionService.onDidChangeExtensionsStatus(() => update()));
-		this._register(this.extensionService.onDidChangeExtensions(() => update()));
-		update();
-	}
-
-	private isChatExtensionActivating(): boolean {
-		const status = this.extensionService.getExtensionsStatus();
-		for (const id of Object.keys(status)) {
-			if (ExtensionIdentifier.equals(id, defaultChat.chatExtensionId)) {
-				// Registered (enabled) but activation has neither completed nor failed.
-				return status[id].activationTimes === undefined && status[id].runtimeErrors.length === 0;
-			}
-		}
-		return false;
 	}
 
 	private registerUrlLinkHandler(): void {
