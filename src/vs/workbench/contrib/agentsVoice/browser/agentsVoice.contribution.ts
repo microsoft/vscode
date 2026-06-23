@@ -313,7 +313,7 @@ registerAction2(class extends Action2 {
 		// In auto-send mode, toggling voice mode off disconnects entirely.
 		// The auto-listen loop means there's no natural "idle" state to return to.
 		const configService = accessor.get(IConfigurationService);
-		const autoSendDelay = configService.getValue<number>('agents.voice.autoSendDelay') ?? 1000;
+		const autoSendDelay = configService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
 		if (autoSendDelay >= 0) {
 			voiceController.disconnect();
 		} else {
@@ -523,7 +523,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.autoSendDelay': {
 			type: 'number',
 			description: nls.localize('agents.voice.autoSendDelay', "In toggle voice mode (short tap), automatically finish recording after this many milliseconds of silence. Set to -1 to disable."),
-			default: 1000,
+			default: 500,
 			minimum: -1,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
