@@ -365,7 +365,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			tooltip: localize('quota.trajectory.tryAutoTooltip', "Try Auto"),
 		}) : undefined;
 		const learnMoreLink = createMarkdownCommandLink({
-			text: localize('quota.trajectory.learnMore', "learn about optimizing usage"),
+			text: shouldShowTryAuto
+				? localize('quota.trajectory.learnMore', "learn about optimizing usage")
+				: localize('quota.trajectory.learnMoreStandalone', "Learn about optimizing usage"),
 			id: TRAJECTORY_NUDGE_SPEC.learnMoreCommandId,
 			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn about optimizing usage"),
 		});

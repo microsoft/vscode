@@ -790,7 +790,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(notification);
 			const message = notification.message;
 			const learnMoreLink = createMarkdownCommandLink({
-				text: 'learn about optimizing usage',
+				text: 'Learn about optimizing usage',
 				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
 				tooltip: 'Learn about optimizing usage',
 			});
@@ -827,7 +827,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				enrollmentTelemetry: telemetryService.events[0],
 			}, {
 				message: `You're likely to exhaust your AI credits before your billing period. ${createMarkdownCommandLink({
-					text: 'learn about optimizing usage',
+					text: 'Learn about optimizing usage',
 					id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
 					tooltip: 'Learn about optimizing usage',
 				})}`,
