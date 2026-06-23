@@ -5,10 +5,11 @@
 
 import { $, reset } from '../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -21,6 +22,9 @@ import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IGitHubPullRequest } from '../common/types.js';
+import { IGitHubService } from './githubService.js';
+import { createPullRequestHoverElement } from './pullRequestHover.js';
 
 // --- Open Pull Request action
 
@@ -79,23 +83,41 @@ function getPullRequestUri(session: IActiveSession | undefined): URI | undefined
  */
 export class OpenPullRequestActionViewItem extends ActionViewItem {
 
-	private readonly _pullRequestNumberObs: IObservable<number | undefined>;
+	private readonly _pullRequestIdentityObs: IObservable<{ readonly owner: string; readonly repo: string; readonly number: number } | undefined>;
+	private readonly _pullRequestObs: IObservable<IGitHubPullRequest | undefined>;
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: true });
 
-		this._pullRequestNumberObs = derivedOpts<number | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+		this._pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly number: number } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
-			return workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.number;
+			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			if (!gitHubInfo?.pullRequest) {
+				return undefined;
+			}
+			return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, number: gitHubInfo.pullRequest.number };
+		});
+
+		this._pullRequestObs = derived(reader => {
+			const identity = this._pullRequestIdentityObs.read(reader);
+			if (!identity) {
+				return undefined;
+			}
+
+			const reference = reader.store.add(this._gitHubService.createPullRequestModelReference(identity.owner, identity.repo, identity.number));
+			return reference.object.pullRequest.read(reader);
 		});
 
 		this._register(autorun(reader => {
-			this._pullRequestNumberObs.read(reader);
+			this._pullRequestIdentityObs.read(reader);
+			this._pullRequestObs.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
 		}));
@@ -110,18 +132,40 @@ export class OpenPullRequestActionViewItem extends ActionViewItem {
 		if (!this.label) {
 			return;
 		}
-		const number = this._pullRequestNumberObs.get();
+		const number = this._pullRequestIdentityObs.get()?.number;
 		reset(
 			this.label,
 			$('span.chat-composite-bar-meta-pr-label', undefined, number !== undefined ? `#${number}` : ''),
 		);
 	}
 
+	protected override getHoverContents(): IManagedHoverContent | undefined {
+		const identity = this._pullRequestIdentityObs.get();
+		if (!identity) {
+			return this.getTooltip();
+		}
+
+		return {
+			element: () => createPullRequestHoverElement({
+				owner: identity.owner,
+				repo: identity.repo,
+				number: identity.number,
+				repositoryHref: this._getRepositoryUri(identity).toString(true),
+				pullRequest: this._pullRequestObs.get(),
+				onDidClickRepository: () => this._openerService.open(this._getRepositoryUri(identity), { openExternal: true }),
+			}),
+		};
+	}
+
 	protected override getTooltip(): string {
-		const number = this._pullRequestNumberObs.get();
+		const number = this._pullRequestIdentityObs.get()?.number;
 		return number !== undefined
 			? localize('agentSessions.openPullRequest.tooltipWithNumber', "Open Pull Request #{0}", number)
 			: localize('agentSessions.openPullRequest.tooltip', "Open Pull Request");
+	}
+
+	private _getRepositoryUri(identity: { readonly owner: string; readonly repo: string }): URI {
+		return URI.parse(`https://github.com/${identity.owner}/${identity.repo}`);
 	}
 }
 
