@@ -238,15 +238,15 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 
 ## 10. Per-Session Layout State
 
-`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, auto-reveal, persistence, and invariants).
+`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, persistence, and invariants).
 
 ### Auxiliary Bar
 
 Each session independently remembers whether the auxiliary bar is visible and which view container is active. When switching to a session, the saved state is restored. When switching away, the current state is captured.
 
-**Auto-reveal on changes:** When a chat turn completes and new file changes appeared (changes count was zero when the turn was submitted, non-zero when it ends), the auxiliary bar is automatically revealed to show the Changes view. This lets the user see what the agent modified without manual intervention. On mobile the auto-reveal is suppressed to avoid disruptive layout shifts.
+**The side pane never opens automatically for existing sessions.** It is only shown when the user opens it; the controller never auto-reveals it on session switch or when a chat turn produces new file changes. A session with no explicit "visible" choice (including one that just converted from the new-session view to an existing session) keeps the side pane hidden until the user opens it.
 
-**Default view on new sessions:** An untitled session always opens the Files view. A session with a workspace but no changes defaults to the Files view; once changes exist it defaults to the Changes view.
+**Default view on new sessions:** An untitled (new-session) session opens the side pane by default — the Files view, or the Changes view once it has changes — and that choice sticks until the user changes it. When the session converts to an existing session the side pane is closed.
 
 ### Panel
 
