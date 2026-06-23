@@ -183,7 +183,11 @@ suite('SpotlightOverlay', () => {
 		// With the link focused, Shift+Tab should cycle to the last button (Next),
 		// proving the link participates in the trap rather than being skipped.
 		link!.focus();
-		callout.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 9 /* Tab */, shiftKey: true, bubbles: true, cancelable: true } as KeyboardEventInit));
+		const event = new KeyboardEvent('keydown', { shiftKey: true, bubbles: true, cancelable: true });
+		// The KeyboardEvent constructor does not honor `keyCode` from the init dict
+		// in all engines, so set it explicitly (StandardKeyboardEvent reads keyCode).
+		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
+		callout.dispatchEvent(event);
 
 		assert.strictEqual(mainWindow.document.activeElement, getButtons(container).at(-1));
 	});
