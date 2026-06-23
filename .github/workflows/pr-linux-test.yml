@@ -372,21 +372,6 @@ jobs:
         env:
           DISPLAY: ":10"
 
-      # TEMPORARY: loop the Codex smoke test to confirm it is not flaky.
-      # Remove this step (and the matching ones in pr-darwin-test.yml /
-      # pr-win32-test.yml) before merging PR #322366.
-      - name: 🧪 Codex smoke flakiness probe (TEMPORARY)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 90
-        run: |
-          for i in $(seq 1 20); do
-            echo "::group::Codex smoke probe run $i/20"
-            npm run smoketest-no-compile -- --tracing -g "Test Codex session" || { echo "::error::Codex smoke test failed on run $i/20"; exit 1; }
-            echo "::endgroup::"
-          done
-        env:
-          DISPLAY: ":10"
-
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20

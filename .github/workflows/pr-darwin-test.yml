@@ -192,23 +192,20 @@ jobs:
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
 
-      # TEMPORARY: loop the Codex smoke test to confirm it is not flaky.
-      # Remove this step (and the matching ones in pr-linux-test.yml /
-      # pr-win32-test.yml) before merging PR #322366.
-      - name: 🧪 Codex smoke flakiness probe (TEMPORARY)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 90
-        run: |
-          for i in $(seq 1 20); do
-            echo "::group::Codex smoke probe run $i/20"
-            npm run smoketest-no-compile -- --tracing -g "Test Codex session" || { echo "::error::Codex smoke test failed on run $i/20"; exit 1; }
-            echo "::endgroup::"
-          done
-
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
+
+      - name: 🧪 Run smoke tests (Remote)
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        timeout-minutes: 20
+        run: npm run smoketest-no-compile -- --remote --tracing
+
+      - name: Diagnostics after smoke test run
+        if: ${{ inputs.smoke_tests && always() }}
+        run: ps -ef
+        continue-on-error: true
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7
