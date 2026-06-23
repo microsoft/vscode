@@ -132,7 +132,7 @@ suite('AgentHostSessionTaskRunner', () => {
 				resolverCalls.push(String(value));
 				return Promise.resolve(
 					typeof value === 'string' && folder
-						? value.replaceAll('${workspaceFolder}', folder.uri.fsPath)
+						? value.replaceAll('${workspaceFolder}', folder.uri.path)
 						: value
 				);
 			}
@@ -263,7 +263,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		(await runner.runTask(task, session))?.dispose();
 
 		assert.deepStrictEqual(sentText, [{
-			text: `./scripts/code.sh --user-data-dir=${cwd.fsPath}/.profile-oss`,
+			text: `./scripts/code.sh --user-data-dir=${cwd.path}/.profile-oss`,
 			shouldExecute: true,
 		}]);
 		assert.deepStrictEqual(resolverCalls, ['./scripts/code.sh', '--user-data-dir=${workspaceFolder}/.profile-oss']);
