@@ -251,6 +251,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			voicePlaybackService: this.voicePlaybackService,
 			environmentService: this.environmentService,
 			chatService: this.chatService,
+			configurationService: this.configurationService,
 		}));
 
 		// Poll for session updates
