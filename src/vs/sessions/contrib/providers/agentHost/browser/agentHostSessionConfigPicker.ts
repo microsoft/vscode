@@ -477,8 +477,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		return (schema.enum ?? []).map((value, index) => ({
-			value,
-			label: schema.enumLabels?.[index] ?? value,
+			value: String(value),
+			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
 		}));
 	}

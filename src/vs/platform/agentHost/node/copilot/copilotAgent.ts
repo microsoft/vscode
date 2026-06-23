@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
@@ -14,6 +14,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
@@ -51,7 +52,7 @@ import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, isContextTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
@@ -112,7 +113,7 @@ interface IProvisionalSession {
 	 */
 	readonly workingDirectory: URI;
 	/** Most recent model selection. Updated by `changeModel` while provisional. */
-	model: ResolvedModelSelection | undefined;
+	model: ModelSelection | undefined;
 	/** Most recent custom agent selection. Updated by `changeAgent` while provisional. */
 	agent: AgentSelection | undefined;
 	/** Project info eagerly resolved at create time so the summary renders. */
@@ -122,34 +123,6 @@ interface IProvisionalSession {
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
 
 type ModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['models'][number];
-
-declare const resolvedModelSelectionBrand: unique symbol;
-/**
- * A {@link ModelSelection} that has passed through {@link CopilotAgent._resolveModelSelection}: its
- * numeric `maxContextWindow` has been resolved into `config.contextTier` (and dropped). The brand is
- * compiler-enforced — every field that stores, persists, or launches a model requires it — so a raw
- * client selection cannot be used without first being resolved, removing the risk of forgetting the
- * conversion at a new call site.
- */
-type ResolvedModelSelection = Omit<ModelSelection, 'maxContextWindow'> & { readonly [resolvedModelSelectionBrand]: true };
-
-/**
- * Maps a user-selected context-window size (in tokens) to the SDK's two-valued
- * {@link SessionConfig.contextTier}. The model offers two windows — the default-tier window and the
- * larger long-context window. A selection only opts into `long_context` when it reaches the model's
- * long-context window: anything smaller (including a value nudged just above the default window)
- * stays on the default tier, so a client cannot accidentally request long context by rounding a
- * number up.
- *
- * Returns `undefined` when no size was selected or the long-context window is unknown, leaving the
- * SDK on its default tier.
- */
-export function mapContextSizeToContextTier(selectedWindow: number | undefined, longContextWindow: number | undefined): SessionConfig['contextTier'] {
-	if (typeof selectedWindow !== 'number' || typeof longContextWindow !== 'number') {
-		return undefined;
-	}
-	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
-}
 
 interface ISerializedModelSelection {
 	id?: unknown;
@@ -163,7 +136,7 @@ interface ISerializedModelSelection {
  */
 interface IPersistedChat {
 	readonly sdkSessionId: string;
-	readonly model?: ResolvedModelSelection;
+	readonly model?: ModelSelection;
 }
 
 /**
@@ -725,67 +698,76 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Computes the context-window sizes (in tokens) a model recommends as user-selectable options when
-	 * it exposes a `long_context` pricing tier whose context-max is strictly larger than its default
-	 * tier: `[defaultMax, longContextMax]`, smallest first. Returns `undefined` when the model has no
-	 * such distinction (so no picker is offered). Surfaced on {@link IAgentModelInfo.recommendedContextWindows};
-	 * the chosen value flows back via {@link ModelSelection.maxContextWindow} and is mapped to the SDK's
-	 * `contextTier` by {@link _resolveModelSelection}. Mirrors `getContextSizeOptions` in
+	 * Synthesize a `contextTier` config property when the model exposes a `long_context` pricing tier with a distinct
+	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
 	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
+	 *
+	 * The `enum` values are the two context-window sizes (in tokens), smallest first, so the numeric token counts
+	 * flow to the client; the chosen value is mapped back to the SDK's two-valued `contextTier` by
+	 * {@link _resolveContextTier} when the selection returns.
 	 *
 	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
 	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
 	 */
-	private _getRecommendedContextWindows(billing: ModelInfo['billing'] | undefined): number[] | undefined {
+	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
 		const tokenPrices = billing?.tokenPrices;
 		const defaultMax = tokenPrices?.contextMax;
 		const longContextMax = tokenPrices?.longContext?.contextMax;
 		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
 			return undefined;
 		}
-		return [defaultMax, longContextMax];
+
+		const hasLongContextSurcharge = typeof tokenPrices?.longContext?.inputPrice === 'number'
+			|| typeof tokenPrices?.longContext?.outputPrice === 'number';
+
+		return {
+			type: 'number',
+			title: localize('copilot.modelContextTier.title', "Context Size"),
+			description: localize('copilot.modelContextTier.description', "Selects the context window size for this model."),
+			default: defaultMax,
+			enum: [defaultMax, longContextMax],
+			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
+			enumDescriptions: [
+				localize('copilot.modelContextTier.default', "Default"),
+				hasLongContextSurcharge
+					? localize('copilot.modelContextTier.longerSessions', "Longer sessions")
+					: localize('copilot.modelContextTier.longerSessionsNoCompaction', "Longer sessions without compaction"),
+			],
+		};
 	}
 
 	/**
-	 * Normalizes a model selection received from a client by resolving its numeric
-	 * {@link ModelSelection.maxContextWindow} into the SDK context tier and folding it into
-	 * {@link ModelSelection.config} (under `contextTier`), then dropping the numeric field. After this,
-	 * the tier travels with the model alongside `reasoningEffort` and is persisted with the session, so
-	 * the launcher and the resume path read it directly via `getCopilotContextTier` without needing the
-	 * model list again.
+	 * Maps a model selection received from a client back onto the SDK's two-valued `contextTier`. The
+	 * "Context Size" picker exposes numeric token-count {@link ConfigPropertySchema.enum} values (see
+	 * {@link _createContextTierConfigSchemaProperty}), so the selection arrives in `config[contextTier]`
+	 * as a token count rather than a tier name. This rewrites it to `'default'` / `'long_context'` so
+	 * {@link getCopilotContextTier} and the launcher can consume it unchanged, and so the persisted form
+	 * stays the tier string.
 	 *
-	 * The chosen window must be one of the model's {@link IAgentModelInfo.recommendedContextWindows};
-	 * reaching the largest recommended window selects `long_context`, otherwise the default tier. A
-	 * value the model does not recommend is rejected (no tier is set), so a stale or out-of-range client
-	 * selection cannot silently request an unsupported window. Resolving here — when the selection
-	 * arrives and the model list is freshly loaded — is more reliable than at launch/resume time.
-	 *
-	 * The branded {@link ResolvedModelSelection} return type makes this the only producer of a storable
-	 * model, so the compiler rejects persisting or launching a raw client selection that skipped it.
+	 * The long-context threshold is read from the model's own config-schema enum — the same numbers the
+	 * client picked from — so no model billing needs to be retained. A value the model does not offer (or
+	 * a model without a context-size picker) leaves `config` untouched; an already-resolved tier string
+	 * (e.g. a persisted older selection) is passed through.
 	 */
-	private _resolveModelSelection(model: ModelSelection): ResolvedModelSelection;
-	private _resolveModelSelection(model: ModelSelection | undefined): ResolvedModelSelection | undefined;
-	private _resolveModelSelection(model: ModelSelection | undefined): ResolvedModelSelection | undefined {
-		if (!model) {
-			return undefined;
+	private _resolveContextTier(model: ModelSelection): ModelSelection;
+	private _resolveContextTier(model: ModelSelection | undefined): ModelSelection | undefined;
+	private _resolveContextTier(model: ModelSelection | undefined): ModelSelection | undefined {
+		const raw = model?.config?.[ContextTierConfigKey];
+		if (raw === undefined || isContextTier(raw)) {
+			return model;
 		}
-		const { maxContextWindow, ...rest } = model;
-		if (typeof maxContextWindow !== 'number') {
-			return rest as ResolvedModelSelection;
+		const selectedWindow = Number(raw);
+		const windows = this._models.get().find(m => m.id === model!.id)?.configSchema?.properties?.[ContextTierConfigKey]?.enum;
+		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
+		if (!Number.isFinite(selectedWindow) || !numericWindows || numericWindows.length === 0) {
+			// Unknown / out-of-range size (e.g. a stale client selection): drop it so the SDK keeps its default tier.
+			this._logService.warn(`[Copilot] Ignoring unresolvable context size '${raw}' for model '${model!.id}'`);
+			const config = { ...model!.config };
+			delete config[ContextTierConfigKey];
+			return { ...model!, config: Object.keys(config).length > 0 ? config : undefined };
 		}
-		const windows = this._models.get().find(m => m.id === model.id)?.recommendedContextWindows;
-		if (!windows || windows.length === 0 || !windows.includes(maxContextWindow)) {
-			if (windows && windows.length > 0) {
-				this._logService.warn(`[Copilot] Ignoring unsupported context window ${maxContextWindow} for model '${model.id}'; expected one of [${windows.join(', ')}]`);
-			}
-			return rest as ResolvedModelSelection;
-		}
-		const contextTier = mapContextSizeToContextTier(maxContextWindow, Math.max(...windows));
-		if (!contextTier) {
-			return rest as ResolvedModelSelection;
-		}
-		const resolved: ModelSelection = { ...rest, config: { ...rest.config, [ContextTierConfigKey]: contextTier } };
-		return resolved as ResolvedModelSelection;
+		const contextTier = selectedWindow >= Math.max(...numericWindows) ? 'long_context' : 'default';
+		return { ...model!, config: { ...model!.config, [ContextTierConfigKey]: contextTier } };
 	}
 
 	/**
@@ -826,6 +808,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
+		const contextTier = this._createContextTierConfigSchemaProperty(m.billing);
+		if (contextTier) {
+			properties[ContextTierConfigKey] = contextTier;
+		}
 		if (Object.keys(properties).length === 0) {
 			return undefined;
 		}
@@ -836,7 +822,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return JSON.stringify(model);
 	}
 
-	private _parseModelSelection(raw: string | undefined): ResolvedModelSelection | undefined {
+	private _parseModelSelection(raw: string | undefined): ModelSelection | undefined {
 		if (!raw) {
 			return undefined;
 		}
@@ -856,16 +842,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 						modelSelection.config = config;
 					}
 				}
-				// Persisted selections were already resolved (and stripped of `maxContextWindow`) before
-				// they were written, so the parsed result is a resolved model.
-				return modelSelection as ResolvedModelSelection;
+				return modelSelection;
 			}
 		} catch {
 			// Older session metadata stored the raw model id as a plain string.
 		}
 
-		const fallback: ModelSelection = { id: raw };
-		return fallback as ResolvedModelSelection;
+		return { id: raw };
 	}
 
 	private _serializeAgentSelection(agent: AgentSelection): string {
@@ -989,7 +972,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
 			// no fixed context window — surface them with maxContextWindow undefined.
 			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-			recommendedContextWindows: this._getRecommendedContextWindows(m.billing),
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
@@ -1016,7 +998,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const sessionConfig = { ...(config ?? {}), model: this._resolveModelSelection(config?.model) };
+		const sessionConfig = { ...(config ?? {}), model: this._resolveContextTier(config?.model) };
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
@@ -1671,7 +1653,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._chatSessions.has(chatKey)) {
 				return;
 			}
-			const model = this._resolveModelSelection(options?.model);
+			const model = this._resolveContextTier(options?.model);
 			// Resolve the owning session so the new chat inherits its working
 			// directory scope. The parent may be provisional (no SDK session
 			// yet); in that case use its provisional working directory.
@@ -1865,7 +1847,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
-		const resolved = this._resolveModelSelection(model);
+		const resolved = this._resolveContextTier(model);
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`; apply the change there and
 		// skip the session-level metadata store (peer chats are not persisted
@@ -2249,7 +2231,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
 					continue;
 				}
-				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ResolvedModelSelection } : {}) });
+				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ModelSelection } : {}) });
 			}
 			return result;
 		} catch (err) {
@@ -2317,7 +2299,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _storeSessionMetadata(session: URI, model: ResolvedModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -2344,7 +2326,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ResolvedModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return {};
@@ -2367,7 +2349,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ResolvedModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;

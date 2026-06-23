@@ -33,7 +33,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -42,11 +42,11 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot, mapContextSizeToContextTier } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
-import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -846,7 +846,6 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				maxContextWindow: 128000,
-				recommendedContextWindows: undefined,
 				supportsVision: true,
 				configSchema: undefined,
 				policyState: undefined,
@@ -912,18 +911,18 @@ suite('CopilotAgent', () => {
 			const schema = models[0].configSchema;
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
-			assert.strictEqual(schema?.properties.contextSize, undefined);
+			assert.strictEqual(schema?.properties.contextTier, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('models advertise recommendedContextWindows when long_context tier exceeds default', async () => {
+	test('configSchema emits a numeric contextTier property when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
 				name: 'Claude Sonnet',
-				capabilities: { limits: { max_context_window_tokens: 1_000_000 } },
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
 				billing: {
 					multiplier: 1,
 					tokenPrices: {
@@ -937,17 +936,17 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			// The selectable windows ride on the models list, not a numeric config property; the true
-			// (long) maximum stays on `maxContextWindow`.
-			assert.deepStrictEqual(models[0].recommendedContextWindows, [200_000, 1_000_000]);
-			assert.strictEqual(models[0].maxContextWindow, 1_000_000);
-			assert.strictEqual(models[0].configSchema?.properties.contextSize, undefined);
+			const contextTier = models[0].configSchema?.properties.contextTier;
+			assert.strictEqual(contextTier?.type, 'number');
+			assert.deepStrictEqual(contextTier?.enum, [200_000, 1_000_000]);
+			assert.strictEqual(contextTier?.default, 200_000);
+			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('models omit recommendedContextWindows when long_context tier is missing or not larger', async () => {
+	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [
 				{
@@ -969,37 +968,77 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			assert.strictEqual(models[0].recommendedContextWindows, undefined);
-			assert.strictEqual(models[1].recommendedContextWindows, undefined);
+			assert.strictEqual(models[0].configSchema, undefined);
+			assert.strictEqual(models[1].configSchema, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('mapContextSizeToContextTier only selects long context when the long window is reached', () => {
-		const defaultWindow = 200_000;
-		const longWindow = 1_000_000;
-		assert.deepStrictEqual(
-			{
-				unset: mapContextSizeToContextTier(undefined, longWindow),
-				noWindow: mapContextSizeToContextTier(longWindow, undefined),
-				exactDefault: mapContextSizeToContextTier(defaultWindow, longWindow),
-				// A value nudged just above the default must NOT round up into long context.
-				roundedUpDefault: mapContextSizeToContextTier(defaultWindow + 1, longWindow),
-				justBelowLong: mapContextSizeToContextTier(longWindow - 1, longWindow),
-				exactLong: mapContextSizeToContextTier(longWindow, longWindow),
-				aboveLong: mapContextSizeToContextTier(longWindow + 1, longWindow),
+	suite('contextTier resolution', () => {
+		const longContextModel: ITestCopilotModelInfo = {
+			id: 'claude-sonnet',
+			name: 'Claude Sonnet',
+			capabilities: { limits: { max_context_window_tokens: 200_000 } },
+			billing: {
+				multiplier: 1,
+				tokenPrices: {
+					contextMax: 200_000,
+					longContext: { contextMax: 1_000_000, inputPrice: 2 },
+				},
 			},
-			{
-				unset: undefined,
-				noWindow: undefined,
-				exactDefault: 'default',
-				roundedUpDefault: 'default',
-				justBelowLong: 'default',
-				exactLong: 'long_context',
-				aboveLong: 'long_context',
-			},
-		);
+		};
+
+		async function captureSessionConfig(model: ModelSelection | undefined, models: readonly ITestCopilotModelInfo[]): Promise<CopilotCreateSessionOptions | undefined> {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], models);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'ctx-session'),
+					workingDirectory: URI.file('/workspace'),
+					...(model ? { model } : {}),
+				});
+				await agent.sendMessage(result.session, 'hello');
+				return capturedConfig;
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+
+		test('maps the largest numeric context window to long_context', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: '1000000' } }, [longContextModel]);
+			assert.ok(config, 'SDK createSession should be called during materialization');
+			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('maps the default numeric context window to default', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: '200000' } }, [longContextModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, 'default');
+		});
+
+		test('drops a numeric context window the model does not offer', async () => {
+			const config = await captureSessionConfig(
+				{ id: 'no-context-picker', config: { contextTier: '1000000' } },
+				[{ id: 'no-context-picker', name: 'No Picker' }],
+			);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, undefined);
+		});
+
+		test('passes through an already-resolved tier string', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: 'long_context' } }, [longContextModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, 'long_context');
+		});
 	});
 
 	test('agent-created sessions can resolve session-state paths via INativeEnvironmentService', async () => {
@@ -1672,56 +1711,6 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
-		});
-
-		test('materialization maps the selected context window to the SDK context tier', async () => {
-			const longContextModel: ITestCopilotModelInfo = {
-				id: 'claude-sonnet',
-				name: 'Claude Sonnet',
-				capabilities: { limits: { max_context_window_tokens: 1_000_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000, inputPrice: 2 },
-					},
-				},
-			};
-
-			const materializeWithSelectedWindow = async (selectedWindow: number | undefined): Promise<string | undefined> => {
-				const sessionDataService = disposables.add(new TestSessionDataService());
-				const client = new TestCopilotClient([], [longContextModel]);
-				let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
-				client.createSession = async config => {
-					capturedConfig = config;
-					return new MockCopilotSession() as unknown as CopilotSession;
-				};
-
-				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
-				try {
-					await agent.authenticate('https://api.github.com', 'token');
-					await waitForState(agent.models, models => models.length > 0);
-
-					const result = await agent.createSession({
-						session: AgentSession.uri('copilotcli', `ctx-${selectedWindow ?? 'none'}`),
-						workingDirectory: URI.file('/workspace'),
-						model: { id: 'claude-sonnet', ...(selectedWindow !== undefined ? { maxContextWindow: selectedWindow } : {}) },
-					});
-					await agent.sendMessage(result.session, 'hello');
-					return capturedConfig?.contextTier ?? undefined;
-				} finally {
-					await disposeAgent(agent);
-				}
-			};
-
-			assert.deepStrictEqual(
-				{
-					long: await materializeWithSelectedWindow(1_000_000),
-					default: await materializeWithSelectedWindow(200_000),
-					unset: await materializeWithSelectedWindow(undefined),
-				},
-				{ long: 'long_context', default: 'default', unset: undefined },
-			);
 		});
 
 		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {

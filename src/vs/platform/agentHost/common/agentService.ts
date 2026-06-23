@@ -673,7 +673,6 @@ export interface IAgentModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly maxContextWindow?: number;
-	readonly recommendedContextWindows?: readonly number[];
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;

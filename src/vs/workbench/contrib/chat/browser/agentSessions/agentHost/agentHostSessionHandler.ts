@@ -2960,40 +2960,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 
-		// The model's configuration schema marks its context-window property with the `tokens`
-		// group. That selection is a real token count, so it is carried as the typed
-		// `maxContextWindow` field rather than stuffed into the string `config` bag; the rest of the
-		// (string) configuration flows through `config` as before.
-		const schemaProperties = languageModelIdentifier
-			? this._languageModelsService.lookupLanguageModel(languageModelIdentifier)?.configurationSchema?.properties
-			: undefined;
-
 		const config: Record<string, string> = {};
-		let maxContextWindow: number | undefined;
 		for (const [key, value] of Object.entries(modelConfiguration ?? {})) {
-			if (typeof value === 'number') {
-				if (schemaProperties?.[key]?.group === 'tokens') {
-					maxContextWindow = value;
-				}
-				continue;
-			}
 			if (typeof value === 'string') {
 				config[key] = value;
 			}
 		}
 
-		const selection: ModelSelection = { id: rawModelId };
-		if (Object.keys(config).length > 0) {
-			selection.config = config;
-		}
-		if (maxContextWindow !== undefined) {
-			selection.maxContextWindow = maxContextWindow;
-		}
-		return selection;
+		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
 	}
 
 	private _modelSelectionsEqual(a: ModelSelection | undefined, b: ModelSelection | undefined): boolean {
-		if (a?.id !== b?.id || a?.maxContextWindow !== b?.maxContextWindow) {
+		if (a?.id !== b?.id) {
 			return false;
 		}
 

@@ -718,7 +718,6 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				name: 'mock Model',
 				maxContextWindow: 128000,
-				recommendedContextWindows: undefined,
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,
