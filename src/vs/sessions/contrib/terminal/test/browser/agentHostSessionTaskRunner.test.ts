@@ -21,6 +21,8 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
+import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
@@ -123,6 +125,15 @@ suite('AgentHostSessionTaskRunner', () => {
 		});
 
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
+			override resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): any {
+				return Promise.resolve(
+					typeof value === 'string' && folder
+						? value.replaceAll('${workspaceFolder}', folder.uri.fsPath)
+						: value
+				);
+			}
+		});
 
 		runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
 		// Reference unused imports to keep them in the bundle and silence linters.
@@ -234,5 +245,23 @@ suite('AgentHostSessionTaskRunner', () => {
 
 		const expectedCommand = osToTaskTargetOS(OS) === 'windows' ? '.\\scripts\\code.bat' : './scripts/code.sh';
 		assert.deepStrictEqual(sentText, [{ text: `${expectedCommand} --agents`, shouldExecute: true }]);
+	});
+
+	test('expands ${workspaceFolder} to the session working directory', async () => {
+		const cwd = URI.file('/path/to/worktree');
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd });
+		const task: ITaskEntry = {
+			label: 'Run Client',
+			type: 'shell',
+			command: './scripts/code.sh',
+			args: ['--user-data-dir=${workspaceFolder}/.profile-oss'],
+		};
+
+		(await runner.runTask(task, session))?.dispose();
+
+		assert.deepStrictEqual(sentText, [{
+			text: `./scripts/code.sh --user-data-dir=${cwd.fsPath}/.profile-oss`,
+			shouldExecute: true,
+		}]);
 	});
 });

@@ -19,6 +19,9 @@ import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCom
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { basename } from '../../../../base/common/resources.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
 
@@ -43,6 +46,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
@@ -64,20 +68,21 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			byLabel.set(entry.task.label, entry.task);
 		}
 
-		const command = resolveTaskCommand(task, {
-			// The local agent host runs on the same machine as the renderer, so
-			// the renderer's OS picks the right OS-specific `command`/`args`
-			// overrides (e.g. `.bat` vs `.sh`). For remote hosts the OS is
-			// unknown here, so we fall back to the task's default command.
+		const cwd = this._getCwd(session);
+		const command = await resolveTaskCommand(task, {
+			// Local host shares the renderer's OS, so use it to pick OS-specific
+			// overrides; remote host OS is unknown, so fall back to the default.
 			targetOS: address === LOCAL_AGENT_HOST_ADDRESS ? osToTaskTargetOS(OS) : undefined,
 			lookup: label => byLabel.get(label),
+			// Pass the session folder so `${workspaceFolder}` resolves to the
+			// worktree, not the Agents window's own workspace.
+			resolveVariables: cwd ? value => this._configurationResolverService.resolveAsync(this._toFolderData(cwd), value) : undefined,
 		});
 		if (!command) {
 			this._logService.trace(`${LOG_PREFIX} Skipping task '${task.label}' — no command could be resolved.`);
 			return undefined;
 		}
 
-		const cwd = this._getCwd(session);
 		const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
 			cwd,
 			name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
@@ -110,12 +115,8 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (!cwd) {
 			return undefined;
 		}
-		// Agent-host workspaces use the `agent-host:` scheme; unwrap to the
-		// underlying file path so the host can chdir into it directly. Local
-		// agent-host sessions use file URIs as-is (the host shares the local
-		// filesystem). For any other scheme (e.g. `vscode-vfs://`) we don't
-		// know how to translate the path on the remote, so omit cwd and let
-		// the host fall back to its default working directory.
+		// Unwrap `agent-host:` URIs to a file path the host can chdir into; pass
+		// file URIs through; omit unknown schemes (no remote path mapping).
 		if (cwd.scheme === AGENT_HOST_SCHEME) {
 			return fromAgentHostUri(cwd);
 		}
@@ -123,5 +124,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return cwd;
 		}
 		return undefined;
+	}
+
+	private _toFolderData(cwd: URI): IWorkspaceFolderData {
+		return { uri: cwd, name: basename(cwd), index: 0 };
 	}
 }
