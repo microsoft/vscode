@@ -189,6 +189,7 @@ export function createSandboxLines(sandboxingOptions: ISandboxingOnOptions): str
 			: '- Commands run inside a sandbox by default. The sandbox restricts two things independently: the filesystem and the network.',
 		'- Filesystem: read-only outside the workspace and $TMPDIR, which stay read-write. Parts of $HOME are hidden for privacy, but common developer tools (git, package managers, language toolchains) still work because their $HOME config and cache paths are automatically made readable.',
 		'- Use $TMPDIR for temporary files; /tmp may not be writable. On macOS and Linux the TMPDIR env var is set to a writable path.',
+		'- If a command needs sandboxed write access to specific file paths outside workspace, pass requestFileValidationCheck with those paths. VS Code checks sandbox access before execution and returns Access Denied without running the command when access is unavailable.',
 	];
 
 	if (!isNetworkAvailable) {
@@ -253,7 +254,18 @@ export function createSandboxProperties(sandboxingOptions: ISandboxingOnOptions)
 				type: 'string',
 				description: 'A short explanation of why this sandboxed command needs unrestricted network access. Only provide this when requestAllowNetwork is true.'
 			}
-		})
+		}),
+		requestFileValidationCheck: {
+			type: 'array',
+			description: 'Sandbox write access checks to perform before running the command. Provide the file paths that the command needs to write.',
+			items: {
+				type: 'string'
+			}
+		},
+		requestFileValidationCheckReason: {
+			type: 'string',
+			description: 'A short explanation of why this sandboxed command needs these file paths. Only provide this when requestFileValidationCheck is not empty.'
+		}
 	};
 }
 
@@ -478,6 +490,8 @@ export interface IRunInTerminalInputParams {
 	requestUnsandboxedExecutionReason?: string;
 	requestAllowNetwork?: boolean;
 	requestAllowNetworkReason?: string;
+	requestFileValidationCheck?: string[];
+	requestFileValidationCheckReason?: string;
 	allowToRunUnsandboxedCommands?: boolean;
 }
 
@@ -745,10 +759,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
-	private get _autoApproveUnsandboxedCommands(): boolean {
-		return this._allowUnsandboxedCommands && this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
-	}
-
 	private get _retryWithAllowNetworkRequests(): boolean {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
 	}
@@ -780,6 +790,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize(
 			'runInTerminal.allowNetwork.disabled.result',
 			"The command was not executed because it requested unrestricted network access in the terminal sandbox, but per-command network access is disabled by chat.agent.sandbox.retryWithAllowNetworkRequests. Run the command with restricted network access instead, or enable the setting to allow network access requests."
+		);
+	}
+
+	private async _getDeniedSandboxFileAccess(paths: readonly string[] | undefined, sandboxPrecheckInputs: ITerminalSandboxPrecheckInputs | undefined): Promise<string[]> {
+		if (!paths?.length) {
+			return [];
+		}
+
+		const result = await this._terminalSandboxService.checkFileAccess('write', paths, sandboxPrecheckInputs);
+		return result.denied;
+	}
+
+	private _buildSandboxFileAccessDeniedMessage(deniedPaths: readonly string[]): string {
+		const deniedPathsMessage = deniedPaths.map(path => `write: ${path}`).join('\n');
+		return localize(
+			'runInTerminal.sandbox.fileAccessDenied',
+			"Access Denied: The command was not executed because the terminal sandbox does not allow access to the requested file paths:\n{0}",
+			deniedPathsMessage
 		);
 	}
 
@@ -1146,9 +1174,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
 		);
-		const isUnsandboxedAutoApproved = isSandboxEnabled && requiresUnsandboxConfirmation === true && this._autoApproveUnsandboxedCommands;
 		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation && this._allowSandboxAutoApprove;
-		const isFinalAutoApproved = isUnsandboxedAutoApproved || isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		const isFinalAutoApproved = isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -1383,9 +1410,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _confirmAutomaticSandboxRetry(retryKind: AutomaticSandboxRetryKind, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
-		if (retryKind === 'unsandboxed' && this._autoApproveUnsandboxedCommands) {
-			return true;
-		}
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
@@ -1890,6 +1914,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		if (didSandboxWrapCommand) {
+			const deniedAccess = await this._getDeniedSandboxFileAccess(args.requestFileValidationCheck, sandboxPrecheckInputs);
+			if (deniedAccess.length > 0) {
+				const message = this._buildSandboxFileAccessDeniedMessage(deniedAccess);
+				return {
+					toolResultError: message,
+					toolResultDetails: {
+						input: args.command,
+						output: [{ type: 'embed', isText: true, value: message }],
+						isError: true,
+					},
+					content: [{
+						kind: 'text',
+						value: message,
+					}],
+				};
+			}
 		}
 
 		let error: string | undefined;
@@ -2777,6 +2820,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!terminalsToDispose || terminalsToDispose.size === 0) {
 			return;
 		}
+		const shouldPreserveTerminalsForOutputLocation = this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal';
 
 		this._logService.debug(`RunInTerminalTool: Cleaning up ${terminalsToDispose.size} terminal(s) for ended chat session ${chatSessionResource}`);
 
@@ -2784,6 +2828,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._sessionTerminalInstances.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
+			// Only dispose if the terminal is still hidden from the user. Once
+			// the user reveals it (via the terminal panel or the outputLocation
+			// setting), it joins foregroundInstances and should persist so they
+			// can inspect/interact with it. Also preserve terminals when the user
+			// explicitly configured outputLocation=terminal, since these are
+			// intended to remain available outside of chat session lifetime.
+			if (this._terminalService.foregroundInstances.includes(terminal) || shouldPreserveTerminalsForOutputLocation) {
+				this._logService.debug(`RunInTerminalTool: Skipping disposal of preserved terminal ${terminal.instanceId} for session ${chatSessionResource}`);
+				continue;
+			}
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
 			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
 			terminal.dispose();
@@ -2793,6 +2847,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalToRemove: string[] = [];
 		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 			if (terminalsToDispose.has(execution.instance)) {
+				// Skip active executions for terminals that were preserved above.
+				if (this._terminalService.foregroundInstances.includes(execution.instance) || shouldPreserveTerminalsForOutputLocation) {
+					continue;
+				}
 				execution.dispose();
 				terminalToRemove.push(termId);
 			}

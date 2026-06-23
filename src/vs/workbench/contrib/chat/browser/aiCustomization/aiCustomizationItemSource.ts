@@ -415,6 +415,25 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	}
 }
 
+export class EmptyItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange = Event.None;
+
+	constructor(
+		readonly sessionResource: URI,
+	) {
+		super();
+	}
+
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		return Promise.resolve([]);
+	}
+}
+
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
 
 	readonly onDidAICustomizationItemsChange: Event<void>;

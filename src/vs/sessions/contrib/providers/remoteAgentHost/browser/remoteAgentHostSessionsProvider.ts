@@ -20,7 +20,8 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -216,8 +217,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
+		@IDialogService dialogService: IDialogService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -528,7 +531,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	// -- Workspaces ----------------------------------------------------------
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {

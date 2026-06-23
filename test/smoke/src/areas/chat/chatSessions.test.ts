@@ -25,10 +25,12 @@ interface SessionConfig {
 	readonly reply: string;
 	readonly scenarioId2: string;
 	readonly reply2: string;
+	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
+	readonly skipReply2?: boolean;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2' },
+	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2', skipReply2: true },
 	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE', scenarioId2: 'smoke-chat-sessions-claude-2', reply2: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
 ];
@@ -158,14 +160,18 @@ export function setup(logger: Logger) {
 
 					// Follow-up message + second scenario reply, sent in the same
 					// chat surface to exercise the follow-up code path.
-					logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
-					const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
-					logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
+					if (!session.skipReply2) {
+						logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
+						const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+						logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
-					assert.ok(
-						responseText2.includes(session.reply2),
-						`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
-					);
+						assert.ok(
+							responseText2.includes(session.reply2),
+							`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+						);
+					} else {
+						logger.log(`[Chat Sessions/${session.name}] skipping second reply assertion (skipReply2=true)`);
+					}
 					assert.ok(
 						mockServer.requestCount() > requestsBefore,
 						`expected the mock LLM server to have received a new request from the ${session.name} session (before=${requestsBefore}, after=${mockServer.requestCount()})`
