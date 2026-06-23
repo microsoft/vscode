@@ -68,8 +68,7 @@ export class LocalAgentDisabledInputTipContribution extends Disposable implement
 			}
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, this._store)(() => {
-			this._lastPostedFor = undefined;
-			this.update();
+			this.update(true);
 		}));
 		this._register(this.notificationService.onDidDismiss(id => {
 			if (id === LOCAL_AGENT_DISABLED_NOTIFICATION_ID) {
