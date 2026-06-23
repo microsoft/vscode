@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Register the Agents Voice window service singleton
-import './agentsVoiceWindowService.js';
-
 // Register voice client services
 import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
@@ -33,7 +30,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -49,7 +46,6 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 // --- Context Keys ---
 
-const AGENTS_VOICE_WINDOW_VISIBLE = new RawContextKey<boolean>('agentsVoiceWindowVisible', false);
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
@@ -59,27 +55,6 @@ const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', fals
 const AGENTS_VOICE_INITIATED_HERE = new RawContextKey<boolean>('agentsVoiceInitiatedHere', false);
 
 // --- Context Key Binding ---
-
-class AgentsVoiceContextKeyContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.agentsVoiceContextKey';
-
-	constructor(
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		const windowKey = AGENTS_VOICE_WINDOW_VISIBLE.bindTo(contextKeyService);
-		windowKey.set(this.agentsVoiceWindowService.isOpen);
-
-		this._register(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
-			windowKey.set(isOpen);
-		}));
-	}
-}
-
-registerWorkbenchContribution2(AgentsVoiceContextKeyContribution.ID, AgentsVoiceContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 // Separate contribution for voice connected state — runs later to avoid
 // forcing IVoiceSessionController instantiation too early.
