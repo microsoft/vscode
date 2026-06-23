@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionMode, Query, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -53,14 +53,68 @@ export interface IRematerializer {
  *     Re-applied to a fresh Query on rebind.
  *   • Drain the SDK message stream, dispatch each message to the
  *     {@link ClaudeSdkMessageRouter}, settle the matching entry's
- *     deferred on `result`, and emit `SessionTurnComplete` only when
+ *     deferred on `result`, and emit `ChatTurnComplete` only when
  *     the queue fully drains (intermediate results during steering
  *     preemption do NOT fire turn-complete — CONTEXT.md M10).
  *
  * Disposing the pipeline aborts the controller (terminating the SDK
  * subprocess per `sdk.d.ts:982`) and async-disposes the WarmQuery.
  */
+/**
+ * Snapshot of everything the SDK has currently resolved for this
+ * session. Returned by {@link ClaudeSdkPipeline.snapshotResolvedCustomizations}.
+ */
+export interface ISdkResolvedCustomizations {
+	readonly commands: readonly SlashCommand[];
+	readonly agents: readonly AgentInfo[];
+	readonly mcpServers: readonly McpServerStatus[];
+}
+
 export class ClaudeSdkPipeline extends Disposable {
+	/**
+	 * Phase 11 — hot-swap the SDK's plugin set in place via
+	 * `Query.reloadPlugins()`. Commands / agents / mcpServers added or
+	 * removed by the new plugin set become visible to the SDK
+	 * immediately, without a session restart. Throws if the query is
+	 * not yet bound (session not materialized).
+	 */
+	async reloadPlugins(): Promise<void> {
+		const query = await this._ensureQueryBound();
+		await query.reloadPlugins();
+	}
+
+	/**
+	 * Phase 11 — snapshot the SDK's currently-resolved customization
+	 * surface (slash commands / skills, subagents, MCP servers). This
+	 * is the SDK's view of "what does this session actually have
+	 * access to right now" — covers everything the SDK loaded itself
+	 * (`~/.claude/**`, `.claude/agents/`, `settings.json` MCP) AND
+	 * anything we fed in via `Options.plugins`. The host overlays
+	 * client-side enablement separately.
+	 */
+	async snapshotResolvedCustomizations(): Promise<ISdkResolvedCustomizations> {
+		const query = await this._ensureQueryBound();
+		const [commands, agents, mcpServers] = await Promise.all([
+			query.supportedCommands(),
+			query.supportedAgents(),
+			query.mcpServerStatus(),
+		]);
+		return { commands, agents, mcpServers };
+	}
+
+	/**
+	 * Bind the SDK Query if the previous one has unwound (e.g. after a
+	 * terminal result message). Mirrors the lazy bind in {@link send}
+	 * so pre-flight helpers can call into the SDK without first having
+	 * to issue a user prompt.
+	 */
+	private async _ensureQueryBound(): Promise<Query> {
+		if (!this._query) {
+			this._query = this._warm.query(this._queue.iterable);
+			await this._replayCurrentConfig();
+		}
+		return this._query;
+	}
 
 	private _query: Query | undefined;
 	private _warm: WarmQuery;
@@ -94,7 +148,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Single fan-out for every {@link AgentSignal} this session produces:
 	 *   • Router-mapped per-message signals (response parts, tool calls,
 	 *     pending confirmations, etc.).
-	 *   • `SessionTurnComplete` action, fired when the LAST entry in the
+	 *   • `ChatTurnComplete` action, fired when the LAST entry in the
 	 *     queue drains via `result` (intermediate results during steering
 	 *     preempt do NOT fire — CONTEXT.md M10).
 	 *   • `steering_consumed` signal, fired the moment the iterable yields
@@ -111,6 +165,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
+		clientId: string | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -129,7 +184,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents,
+			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientId,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -144,6 +199,26 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isResumed(): boolean { return this._isResumed; }
 
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
+
+	/**
+	 * Phase 10 \u2014 narrow public wrapper around the internal
+	 * {@link _rebindQuery} so {@link ClaudeAgentSession.rebindForClientTools}
+	 * can drive a yield-restart without exposing the private rebind
+	 * machinery to every collaborator.
+	 */
+	rebindForRestart(): Promise<void> {
+		return this._rebindQuery('restart');
+	}
+
+	/**
+	 * Phase 10 — update the workbench `clientId` that the stream mapper
+	 * stamps onto subsequent `ChatToolCallStart` events. Called by the
+	 * session whenever {@link SessionClientToolsModel} receives a new
+	 * clientId via `setClientTools`.
+	 */
+	setClientId(clientId: string | undefined): void {
+		this._router.setClientId(clientId);
+	}
 
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
 	attachRematerializer(rematerializer: IRematerializer): void {
@@ -187,12 +262,19 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Eagerly push an effort-level change to the SDK via
 	 * `applyFlagSettings({ effortLevel })`. Same mid-turn safety as
 	 * {@link setModel}.
+	 *
+	 * `undefined` means "clear the effort the SDK is currently applying" —
+	 * issued as `applyFlagSettings({ effortLevel: null })` (sdk.d.ts:2263:
+	 * passing `null` clears a key from the flag layer). This is what makes a
+	 * switch to a model that does not support reasoning effort (e.g. Haiku)
+	 * drop a `'high'` left over from a prior effort-capable model instead of
+	 * replaying it onto a model the API will 400 on.
 	 */
-	async setEffort(effort: ClaudeRuntimeEffortLevel): Promise<void> {
+	async setEffort(effort: ClaudeRuntimeEffortLevel | undefined): Promise<void> {
 		this._currentEffort = effort;
 		if (this._query && effort !== this._appliedEffort) {
 			try {
-				await this._query.applyFlagSettings({ effortLevel: effort });
+				await this._query.applyFlagSettings({ effortLevel: effort ?? null });
 				this._appliedEffort = effort;
 			} catch (err) {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] setEffort failed: ${err}`);
@@ -402,7 +484,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Consumer loop. Drains the SDK iterator, dispatches each message
 	 * to the {@link ClaudeSdkMessageRouter} (awaited so async file-edit
 	 * observation completes before the next message), settles the head
-	 * entry's deferred on `result`, and fires `SessionTurnComplete` only
+	 * entry's deferred on `result`, and fires `ChatTurnComplete` only
 	 * when the queue fully drains.
 	 *
 	 * On any uncaught error (cancellation, transport failure, or the
@@ -436,14 +518,13 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire SessionTurnComplete.
+					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							session: this.sessionUri,
 							action: {
-								type: ActionType.SessionTurnComplete,
-								session: this.sessionUri.toString(),
+								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
 							},
 						});

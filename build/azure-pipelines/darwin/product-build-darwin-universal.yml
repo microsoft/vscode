@@ -150,7 +150,7 @@ jobs:
         inputs:
           version: 6.x
 
-      - task: EsrpCodeSigning@5
+      - task: EsrpCodeSigning@6
         inputs:
           UseMSIAuthentication: true
           ConnectedServiceName: vscode-esrp
@@ -201,7 +201,7 @@ jobs:
           fi
           echo "Startup timers:"
           cat "$TIMERS_FILE"
-        timeoutInMinutes: 2
+        timeoutInMinutes: 5
         displayName: Verify signature
 
       - script: |

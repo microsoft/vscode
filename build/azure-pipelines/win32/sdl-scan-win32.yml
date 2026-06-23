@@ -102,6 +102,8 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
+  - template: ../common/mixin-vscode-capi.yml@self
+
   - powershell: npm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"

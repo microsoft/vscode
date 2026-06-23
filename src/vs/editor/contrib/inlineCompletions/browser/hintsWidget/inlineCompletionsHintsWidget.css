@@ -27,6 +27,7 @@
 
 .monaco-editor .inlineSuggestionsHints .keybinding {
 	display: flex;
+	align-items: center;
 	margin-left: 4px;
 	opacity: 0.6;
 }
@@ -43,5 +44,6 @@
 }
 
 .monaco-editor .inlineSuggestionStatusBarItemLabel {
+	align-items: center;
 	margin-right: 2px;
 }

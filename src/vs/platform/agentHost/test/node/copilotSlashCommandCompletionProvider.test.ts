@@ -19,15 +19,75 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/plan'), { command: 'plan', rest: '' });
 		});
 
-		test.skip('matches lone /compact', () => {
+		test('matches lone /compact', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '' });
+		});
+
+		test('matches lone /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research'), { command: 'research', rest: '' });
+		});
+
+		test('captures trailing text after a space for /research', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?' });
+		});
+
+		test('matches lone /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
+		});
+
+		test('matches lone /env', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/env'), { command: 'env', rest: '' });
+		});
+
+		test('matches lone /review', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/review'), { command: 'review', rest: '' });
+		});
+
+		test('matches lone /security-review', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review'), { command: 'security-review', rest: '' });
+		});
+
+		test('captures trailing text after a space for /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach' });
+		});
+
+		test('captures trailing text after a space for /env', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/env ignored input'), { command: 'env', rest: 'ignored input' });
+		});
+
+		test('captures trailing text after a space for /review', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/review focus on tests'), { command: 'review', rest: 'focus on tests' });
+		});
+
+		test('captures trailing text after a space for /security-review', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review focus on auth'), { command: 'security-review', rest: 'focus on auth' });
+		});
+
+		test('rejects /rubber-duck-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), undefined);
+		});
+
+		test('rejects /env-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/env-extra'), undefined);
+		});
+
+		test('rejects /review-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/review-extra'), undefined);
+		});
+
+		test('rejects /security-review-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/security-review-extra'), undefined);
+		});
+
+		test('rejects /rubber alone (incomplete command)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber'), undefined);
 		});
 
 		test('captures trailing text after a space', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/plan build a hello world'), { command: 'plan', rest: 'build a hello world' });
 		});
 
-		test.skip('captures trailing text after a space for /compact', () => {
+		test('captures trailing text after a space for /compact', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/compact some text'), { command: 'compact', rest: 'some text' });
 		});
 
@@ -39,7 +99,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.strictEqual(parseLeadingSlashCommand('/plans'), undefined);
 		});
 
-		test.skip('rejects leading whitespace', () => {
+		test('rejects leading whitespace', () => {
 			assert.strictEqual(parseLeadingSlashCommand(' /compact'), undefined);
 		});
 
@@ -49,26 +109,26 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 	});
 
 	suite('provideCompletionItems', () => {
-		const provider = new CopilotSlashCommandCompletionProvider('copilotcli');
+		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async () => true });
 		const session = 'copilotcli:/abc';
 
 		async function run(text: string, offset = text.length) {
-			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, session, text, offset }, CancellationToken.None);
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
 		}
 
 		test('returns nothing for non-copilotcli scheme', async () => {
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage,
-				session: 'claude:/abc',
+				channel: 'claude:/abc',
 				text: '/',
 				offset: 1,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(items, []);
 		});
 
-		test('returns both items for lone "/"', async () => {
+		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -76,9 +136,24 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
 		});
 
-		test.skip('filters to /compact when "/c" typed', async () => {
+		test('filters to /compact when "/c" typed', async () => {
 			const items = await run('/c');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
+		});
+
+		test('filters to /env when "/e" typed and runtime command exists', async () => {
+			const items = await run('/e');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/env']);
+		});
+
+		test('filters to /research and /rubber-duck when "/r" typed', async () => {
+			const items = await run('/r');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ', '/review ']);
+		});
+
+		test('filters to /security-review when "/s" typed', async () => {
+			const items = await run('/s');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -106,32 +181,113 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('attachment is Simple with command + description meta', async () => {
 			const items = await run('/');
-			assert.strictEqual(items[0].attachment?.type, MessageAttachmentKind.Simple);
-			assert.deepStrictEqual(items[0].attachment?._meta, {
-				command: 'plan',
-				description: 'Create an implementation plan before coding',
-			});
-			// assert.deepStrictEqual(items[1].attachment?._meta, {
-			// 	command: 'compact',
-			// 	description: 'Free up context by compacting the conversation history',
-			// });
+			assert.deepStrictEqual(items.map(item => ({ type: item.attachment?.type, meta: item.attachment?._meta })), [
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'plan',
+						description: 'Create an implementation plan before coding',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'compact',
+						description: 'Free up context by compacting the conversation history',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'research',
+						description: 'Run deep research on a topic using search and web sources',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'rubber-duck',
+						description: 'Get an independent critique of the current approach',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'env',
+						description: 'Show loaded environment details',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'review',
+						description: 'Run code review agent to analyze changes',
+					},
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'security-review',
+						description: 'Analyze staged and unstaged changes for security vulnerabilities',
+					},
+				},
+			]);
 		});
 
-		test.skip('omits /compact when session has no history', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false });
+		test('omits /compact when session has no history', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async () => true });
 			const items = await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, session, text: '/', offset: 1,
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
 		});
 
-		test.skip('passes raw session id (no scheme/slash) to hasHistory', async () => {
+		test('omits /rubber-duck when not enabled', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => false, hasRuntimeSlashCommand: async () => true });
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/env', '/review ', '/security-review ']);
+		});
+
+		test('omits /env when runtime command is unavailable', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async (_id, command) => command !== 'env' });
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/review ', '/security-review ']);
+		});
+
+		test('keeps prompt-invoked commands when runtime commands are unavailable', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async (_id, command) => command === 'env' });
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
+		});
+
+		test('passes raw session id (no scheme/slash) to hasHistory', async () => {
 			let seen: string | undefined;
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				hasHistory: (id: string) => { seen = id; return true; },
+				isRubberDuckEnabled: () => true,
+				hasRuntimeSlashCommand: async () => true,
 			});
 			await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, session: 'copilotcli:/abc', text: '/', offset: 1,
+				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.strictEqual(seen, 'abc');
+		});
+
+		test('passes raw session id to runtime command availability', async () => {
+			let seen: string | undefined;
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				hasHistory: () => true,
+				isRubberDuckEnabled: () => true,
+				hasRuntimeSlashCommand: async (id: string) => { seen = id; return true; },
+			});
+			await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/e', offset: 2,
 			}, CancellationToken.None);
 			assert.strictEqual(seen, 'abc');
 		});

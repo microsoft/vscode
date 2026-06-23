@@ -114,10 +114,16 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
+
+  - template: ../../common/mixin-vscode-capi.yml@self
 
   - script: npm run gulp core-ci
     env:
@@ -305,7 +311,7 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpCodeSigning@5
+    - task: EsrpCodeSigning@6
       inputs:
         UseMSIAuthentication: true
         ConnectedServiceName: vscode-esrp
@@ -369,7 +375,7 @@ steps:
         fi
         echo "Startup timers:"
         cat "$TIMERS_FILE"
-      timeoutInMinutes: 3
+      timeoutInMinutes: 5
       displayName: Verify signature
 
     - script: |

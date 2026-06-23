@@ -363,7 +363,7 @@ function createMockCloudClient(overrides: Partial<CloudSessionApiClient> = {}): 
 			ok: true,
 			response: { id: 'cloud-session-1', task_id: 'task-1' },
 		}),
-		submitSessionEvents: vi.fn().mockResolvedValue(true),
+		submitSessionEvents: vi.fn().mockResolvedValue({ ok: true }),
 		backfillAnalytics: vi.fn().mockResolvedValue({ ok: true, sessionsQueued: 5 }),
 		listSessions: vi.fn().mockResolvedValue([]),
 		getSession: vi.fn().mockResolvedValue(undefined),
@@ -573,8 +573,8 @@ describe('reindexCloudSessions', () => {
 		);
 
 		expect(result.created).toBe(1);
-		// 1 session_start + 10 user + 10 assistant + 1 shutdown = 22 events
-		expect(result.eventsUploaded).toBe(22);
+		// 1 session_start + 10 user + 1 session.title_changed (after first user) + 10 assistant + 1 shutdown = 23 events
+		expect(result.eventsUploaded).toBe(23);
 		expect(cloudClient.submitSessionEvents).toHaveBeenCalled();
 	});
 });

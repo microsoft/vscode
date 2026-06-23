@@ -277,7 +277,6 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		// If it has a 0x multipler, it's free so don't switch them. If it's BYOK, it's free so don't switch them.
 		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
 			return request;
@@ -285,6 +284,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		if (this._chatQuotaService.additionalUsageEnabled || !this._chatQuotaService.quotaExhausted) {
 			return request;
 		}
+		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
 		if (!baseLmModel) {
 			return request;
@@ -295,14 +295,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure budget]({1}) to keep going.',
+				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Manage Budget]({1}) to keep going.',
 				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
 			}));
 			messageString.isTrusted = { enabledCommands: ['chat.enableAdditionalUsage'] };
 		} else {
-			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. To configure budget, contact your organization admin.', baseEndpoint.name));
+			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. To manage budget, contact your organization admin.', baseEndpoint.name));
 		}
 		stream.warning(messageString);
 		return request;

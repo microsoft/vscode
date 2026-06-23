@@ -13,7 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -22,12 +22,14 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { ThinkingDisplayMode } from '../../../../common/constants.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
+import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +132,15 @@ suite('ChatThinkingContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('replace thinking phrases suppresses fun default phrases', () => {
+		mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, {
+			mode: 'replace',
+			phrases: ['Custom phrase'],
+		});
+
+		assert.strictEqual(maybePickFunWorkingMessage(mockConfigurationService, () => 0), undefined);
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {
@@ -1130,6 +1141,47 @@ suite('ChatThinkingContentPart', () => {
 				toolGeneratedTitle: 'Ran npm test',
 				label: 'Ran npm test',
 				ariaLabel: 'Ran npm test',
+			});
+		});
+
+		test('finalizeTitleIfDefault should restore cached title for a reasoning-only block keyed by thinking part id', () => {
+			const context = createMockRenderContext(true);
+			const thinkingId = 'reasoning-part-1';
+
+			// Seed the persisted title cache as if a previous session render had
+			// generated and stored a header for this reasoning-only block.
+			const storageService = instantiationService.get(IStorageService);
+			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
+			storageService.store(
+				'chat.thinkingTitleCache',
+				JSON.stringify({ [cacheKey]: { title: 'Analyzed authentication flow', storedAt: Date.now() } }),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE
+			);
+
+			const content = createThinkingPart('', thinkingId);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				generatedTitle: 'Analyzed authentication flow',
+				label: 'Analyzed authentication flow',
+				ariaLabel: 'Analyzed authentication flow',
 			});
 		});
 	});

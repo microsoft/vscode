@@ -17,6 +17,8 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -127,6 +129,7 @@ suite('ChatTipService', () => {
 		instantiationService.stub(IKeybindingService, {
 			lookupKeybinding: () => undefined,
 		} as Partial<IKeybindingService> as IKeybindingService);
+		instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	});
 
 	test('returns a welcome tip', () => {
@@ -144,6 +147,7 @@ suite('ChatTipService', () => {
 				keybindingService: {
 					lookupKeybinding: () => undefined,
 				} as Partial<IKeybindingService> as IKeybindingService,
+				experimentalTipMessages: new Map(),
 			}).value;
 
 			const commandLinkRegex = /\[[^\]]+\]\((command:[^)]+)\)/g;
@@ -1441,7 +1445,6 @@ suite('ChatTipService', () => {
 
 	for (const { tipId, settingKey } of [
 		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
-		{ tipId: 'tip.agenticBrowser', settingKey: 'workbench.browser.enableChatTools' },
 	]) {
 		test(`shows ${tipId} with correct setting link when setting is at default`, async () => {
 			const service = createService();
@@ -1466,7 +1469,6 @@ suite('ChatTipService', () => {
 
 	for (const tipId of [
 		'tip.thinkingPhrases',
-		'tip.agenticBrowser',
 	]) {
 		test(`dismisses ${tipId} after clicking its settings link`, async () => {
 			const service = createService();

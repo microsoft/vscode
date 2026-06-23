@@ -33,6 +33,7 @@ describe('FetcherService network process crash handling', () => {
 			logService,
 			{ machineId: '', sessionId: '', vscodeVersion: '', getName: () => 'test', getVersion: () => '0.0.0', getBuildType: () => 'development' as any } as any,
 			configurationService,
+			{ globalStorageUri: undefined } as any,
 		);
 		service.setExperimentationService(experimentationService);
 		// Inject the fetchers directly
@@ -215,6 +216,7 @@ describe('FetcherService network process crash handling', () => {
 				logService,
 				{ machineId: '', sessionId: '', vscodeVersion: '', getName: () => 'test', getVersion: () => '0.0.0', getBuildType: () => 'development' as any } as any,
 				configurationService,
+				{ globalStorageUri: undefined } as any,
 			);
 			(service as any)._availableFetchers = [electronFetcher, nodeFetcher];
 			// Explicitly do NOT call service.setExperimentationService()

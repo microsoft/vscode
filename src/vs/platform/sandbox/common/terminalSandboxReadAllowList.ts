@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../base/common/platform.js';
 import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
-import { gitGlobalOptionsWithValue, type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
+import { type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxReadAllowListOperation {
 	Git = 'git',
@@ -86,6 +86,10 @@ const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandbo
  */
 
 function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxReadAllowListOperation, os: OperatingSystem): readonly string[] {
+	if (os === OperatingSystem.Windows) {
+		return [];
+	}
+
 	switch (operation) {
 		case TerminalSandboxReadAllowListOperation.Git:
 			switch (os) {
@@ -94,6 +98,7 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 				default:
 					return [
 						'~/.gitconfig',
+						'~/.config/gh/config.yml',
 						'~/.config/git/config',
 						'~/.gitignore',
 						'~/.gitignore_global',
@@ -336,11 +341,10 @@ function getTerminalSandboxReadAllowListForCommandDetails(os: OperatingSystem, c
 }
 
 /**
- * Argument-aware allow-list rules. Keyword-only rules apply to a command
- * executable, while subcommand rules can skip global options before matching.
+ * Command-detail allow-list rules match parsed command executables.
  *
- * For example, `git -C repo commit -S` matches the `git`/`commit` rule below,
- * while `gpg --list-keys` matches the keyword-only `gpg` rule.
+ * For example, `git rebase main` matches the `git` rule below, while
+ * `gpg --list-keys` matches the `gpg` rule.
  */
 const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxCommandRule<TerminalSandboxReadAllowListOperation>[] = [
 	{
@@ -350,8 +354,6 @@ const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxC
 	{
 		keywords: ['git'],
 		value: TerminalSandboxReadAllowListOperation.GnuPG,
-		subcommands: ['commit'],
-		optionsWithValue: gitGlobalOptionsWithValue,
 	},
 ];
 

@@ -50,13 +50,19 @@ export class TelemetryService extends BaseTelemetryService {
 			customFetcher
 		);
 
-		// Lazy getter for the experiment flag.
-		// Uses IInstantiationService to get IExperimentationService lazily to avoid circular dependency:
-		// TelemetryService -> IExperimentationService -> ITelemetryService
-		// The flag is only evaluated on the first telemetry event, by which time both services are initialized.
-		const useNewTelemetryLibGetter = () => {
+		// The experiment flag is read lazily on the first telemetry event (to avoid the circular
+		// dependency TelemetryService -> IExperimentationService -> ITelemetryService) and then
+		// cached.
+		let cachedUseNewTelemetryLib: boolean | undefined;
+		const computeUseNewTelemetryLib = () => {
 			const expService = instantiationService.invokeFunction(accessor => accessor.get(IExperimentationService));
 			return configService.getExperimentBasedConfig(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH, expService);
+		};
+		const useNewTelemetryLibGetter = () => {
+			if (cachedUseNewTelemetryLib === undefined) {
+				cachedUseNewTelemetryLib = computeUseNewTelemetryLib();
+			}
+			return cachedUseNewTelemetryLib;
 		};
 
 		const ghTelemetrySender = new GitHubTelemetrySender(
@@ -78,6 +84,16 @@ export class TelemetryService extends BaseTelemetryService {
 			fetcherService.setTelemetryService(this);
 		}
 
+		// Refresh the cached experiment flag when ExP treatments change so a runtime treatment flip
+		// takes effect without requiring a window reload. We only recompute once
+		// the flag has been read at least once, preserving the lazy initialization above (so the
+		// experimentation service is not pulled on before the first telemetry event).
+		this._disposables.push(configService.onDidChangeConfiguration(e => {
+			if (cachedUseNewTelemetryLib !== undefined && e.affectsConfiguration(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH.fullyQualifiedId)) {
+				cachedUseNewTelemetryLib = computeUseNewTelemetryLib();
+			}
+		}));
+
 		// Subscribe to fetch telemetry events on Insiders only to track request counts and latency per call site
 		if (envService.isPreRelease()) {
 			fetcherService.onDidCompleteFetch(event => {
@@ -89,12 +105,14 @@ export class TelemetryService extends BaseTelemetryService {
 						"owner": "lramos15",
 						"comment": "Telemetry about fetch requests made by the extension, tracking request counts and latency per call site.",
 						"callSite": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The call site identifier for the fetch request." },
+						"cacheStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache outcome for callers that opted in: 'hit', 'stale-hit', 'revalidated', 'miss', 'bypass'. Empty string when caching was not requested." },
 						"latencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The latency of the fetch request in milliseconds." },
 						"statusCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The HTTP status code returned by the fetch request." }
 					}
 				*/
 				this.sendMSFTTelemetryEvent('fetchTelemetry', {
 					callSite: new TelemetryTrustedValue(event.callSite),
+					cacheStatus: event.cacheStatus ?? '',
 				}, {
 					latencyMs: event.latencyMs,
 					statusCode: event.statusCode,

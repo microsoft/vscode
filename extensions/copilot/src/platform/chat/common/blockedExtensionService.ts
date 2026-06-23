@@ -16,7 +16,7 @@ export interface IBlockedExtensionService {
 
 export class BlockedExtensionService implements IBlockedExtensionService {
 	readonly _serviceBrand: undefined;
-	private blockedExtensions: Map<string, any> = new Map();
+	private blockedExtensions: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
 	reportBlockedExtension(extensionId: string, timeout: number): void {
 		if (this.blockedExtensions.has(extensionId)) {
@@ -31,5 +31,11 @@ export class BlockedExtensionService implements IBlockedExtensionService {
 
 	isExtensionBlocked(extensionId: string): boolean {
 		return this.blockedExtensions.has(extensionId);
+	}
+
+	dispose(): void {
+		for (const timer of this.blockedExtensions.values()) {
+			clearTimeout(timer);
+		}
 	}
 }
