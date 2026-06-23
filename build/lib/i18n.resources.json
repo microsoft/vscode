@@ -709,6 +709,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/github",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/logs",
 			"project": "vscode-sessions"
 		},
