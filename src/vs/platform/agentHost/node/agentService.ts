@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseChatUri, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readChatSessionIds, readSessionGitState, withChatSessionId, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -681,12 +681,20 @@ export class AgentService extends Disposable implements IAgentService {
 		// subscribers once the chat can actually receive messages.
 		await provider.createChat(session, chat, options);
 		this._stateManager.addChat(sessionKey, chat.toString(), options?.title !== undefined ? { title: options.title } : undefined);
+		await this._publishChatSessionId(provider, session, chat);
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		this._stateManager.removeChat(sessionKey, chat.toString());
+		const parsed = parseChatUri(chat);
+		if (parsed) {
+			const current = this._stateManager.getSessionState(sessionKey)?._meta;
+			if (readChatSessionIds(current)?.[parsed.chatId] !== undefined) {
+				this._stateManager.setSessionMeta(sessionKey, withChatSessionId(current, parsed.chatId, undefined));
+			}
+		}
 		await provider?.disposeChat?.(session, chat);
 	}
 
@@ -1612,7 +1620,40 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const title = await this._readPersistedChatTitle(session, chatUri);
 			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+			await this._publishChatSessionId(agent, session, chatUri);
 		}
+	}
+
+	/**
+	 * Publishes a peer chat's backing agent-session id under the owning
+	 * session's `_meta` (keyed by AHP chat id) so clients can locate the
+	 * chat's on-disk logs. No-op for the default chat (its logs are named by
+	 * the session id, derivable from the chat resource) and for providers that
+	 * do not report a distinct per-chat id. The read-modify-write of `_meta`
+	 * is synchronous after the `getChatSessionId` await so it cannot clobber a
+	 * concurrent git-state write.
+	 */
+	private async _publishChatSessionId(agent: IAgent, session: URI, chat: URI): Promise<void> {
+		if (!agent.getChatSessionId) {
+			return;
+		}
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			return;
+		}
+		let sessionId: string | undefined;
+		try {
+			sessionId = await agent.getChatSessionId(session, chat);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to resolve chat session id for ${chat.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		if (!sessionId) {
+			return;
+		}
+		const sessionStr = session.toString();
+		const current = this._stateManager.getSessionState(sessionStr)?._meta;
+		this._stateManager.setSessionMeta(sessionStr, withChatSessionId(current, parsed.chatId, sessionId));
 	}
 
 	/** Reads a peer chat's persisted custom title, if any. */

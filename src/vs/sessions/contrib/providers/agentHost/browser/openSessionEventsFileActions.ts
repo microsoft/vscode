@@ -11,13 +11,23 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { openCopilotCliStateFile } from '../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 
 /**
  * Sessions-app variant of "Open Copilot CLI State File". Uses the Agents
- * window's `ISessionsService.activeSession` to find the active
- * Copilot CLI session, then defers to the shared workbench helper for
- * the actual resolution and editor opening.
+ * window's `ISessionsService.activeSession` to find the focused chat tab
+ * of the active Copilot CLI session, then defers to the shared workbench
+ * helper for the actual resolution and editor opening.
+ *
+ * Sessions can contain multiple chats; the state file is per-chat, so we
+ * resolve the focused chat's resource rather than the session's main chat.
+ * A peer chat's `events.jsonl` lives under a host-private backing session id
+ * that the chat resource does not encode, so we first ask the provider to map
+ * the focused chat to a session-shaped resource carrying that id (falling back
+ * to the chat resource for the default chat, whose path id already names its
+ * logs).
  *
  * The vscode workbench registers a separate action class
  * (`OpenCopilotCliStateFileAction` in
@@ -40,7 +50,18 @@ export class OpenSessionEventsFileAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
-		const sessionResource = sessionsService.activeSession.get()?.resource;
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const activeSession = sessionsService.activeSession.get();
+		const focusedChatResource = activeSession?.activeChat.get()?.resource ?? activeSession?.resource;
+
+		let sessionResource = focusedChatResource;
+		if (activeSession && focusedChatResource) {
+			const provider = sessionsProvidersService.getProvider(activeSession.providerId);
+			if (provider instanceof BaseAgentHostSessionsProvider) {
+				sessionResource = provider.getChatSdkSessionResource(focusedChatResource) ?? focusedChatResource;
+			}
+		}
+
 		await openCopilotCliStateFile(accessor, sessionResource);
 	}
 }

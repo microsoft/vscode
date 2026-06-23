@@ -1769,6 +1769,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Resolves the backing SDK session id for a chat — the id that names the
+	 * chat's `~/.copilot/session-state/<id>` directory. The default chat is
+	 * backed by the owning session's id; a peer chat is backed by a distinct
+	 * `chatSdkId` minted in {@link createChat}, looked up from the in-memory
+	 * session if live, otherwise from the persisted catalog. Returns
+	 * `undefined` when a peer chat has no backing conversation.
+	 */
+	async getChatSessionId(session: URI, chat: URI): Promise<string | undefined> {
+		if (isDefaultChatUri(chat)) {
+			return AgentSession.id(session);
+		}
+		const inMemory = this._chatSessions.get(chat.toString())?.sessionId;
+		if (inMemory) {
+			return inMemory;
+		}
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			return undefined;
+		}
+		const persisted = await this._readPersistedChats(session);
+		return persisted.get(parsed.chatId)?.sdkSessionId;
+	}
+
+	/**
 	 * Returns the SDK-backed {@link CopilotAgentSession} for an additional peer
 	 * chat, resuming its persisted SDK conversation if it is not already in
 	 * memory (e.g. after a process restart). Returns `undefined` when the chat

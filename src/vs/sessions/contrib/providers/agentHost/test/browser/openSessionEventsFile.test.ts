@@ -11,7 +11,8 @@ import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from 
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, buildSdkSessionResource, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { readChatSessionIds, withChatSessionId } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
 import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
@@ -145,5 +146,42 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 	test('missing session resource returns no-session', () => {
 		const result = resolveEventsUri(undefined, userHome, () => undefined);
 		assert.deepStrictEqual(result, { kind: 'no-session' });
+	});
+
+	test('peer chat resolves via its backing sdk session id, not the main session path id', () => {
+		// A peer chat resource carries the main session id in its path and the
+		// AHP chat id in its fragment; neither names the chat's events.jsonl.
+		const peerChat = URI.from({ scheme: 'agent-host-copilotcli', path: '/main-session', fragment: 'chat-2' });
+		const sdkResource = buildSdkSessionResource(peerChat, 'sdk-789');
+		const result = resolveEventsUri(sdkResource, userHome, () => undefined);
+		assert.deepStrictEqual(
+			{ resource: result.kind === 'ok' ? result.resource.toString() : undefined },
+			{ resource: 'file:///home/me/.copilot/session-state/sdk-789/events.jsonl' },
+		);
+	});
+
+	test('peer chat on a remote keeps the chat scheme so resolution stays remote', () => {
+		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		const peerChat = URI.from({ scheme: 'remote-localhost__4321-copilotcli', path: '/main', fragment: 'chat-2' });
+		const sdkResource = buildSdkSessionResource(peerChat, 'sdk-789');
+		const result = resolveEventsUri(sdkResource, userHome, authority => authority === 'localhost__4321' ? conn : undefined);
+		assert.deepStrictEqual(
+			{ resource: result.kind === 'ok' ? result.resource.toString() : undefined },
+			{ resource: 'vscode-agent-host://localhost__4321/home/remote/.copilot/session-state/sdk-789/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0' },
+		);
+	});
+
+	test('chat session id _meta accessors round-trip and merge per chat', () => {
+		const meta1 = withChatSessionId(undefined, 'chat-2', 'sdk-789');
+		const meta2 = withChatSessionId(meta1, 'chat-3', 'sdk-abc');
+		assert.deepStrictEqual({
+			afterFirst: readChatSessionIds(meta1),
+			afterSecond: readChatSessionIds(meta2),
+			missing: readChatSessionIds(undefined),
+		}, {
+			afterFirst: { 'chat-2': 'sdk-789' },
+			afterSecond: { 'chat-2': 'sdk-789', 'chat-3': 'sdk-abc' },
+			missing: undefined,
+		});
 	});
 });

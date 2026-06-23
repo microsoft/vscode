@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentInfo, buildChatUri, buildDefaultChatUri, DEFAULT_CHAT_ID, isDefaultChatUri, parseChatUri, readChatSessionIds, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -37,6 +37,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { buildSdkSessionResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -699,6 +700,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	/**
+	 * Resolves the backing agent-session id the host reported for one of this
+	 * session's chats (keyed by AHP chat id under `_meta`). Returns `undefined`
+	 * for the default chat or any chat the host did not report — callers fall
+	 * back to the chat resource's own id, which already names the default
+	 * chat's logs.
+	 */
+	getChatSdkSessionId(chatId: string): string | undefined {
+		return readChatSessionIds(this._meta)?.[chatId];
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -2551,6 +2563,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			return undefined;
 		}
+	}
+
+	/**
+	 * Resolves a session-shaped resource carrying the host-reported backing
+	 * session id for `chatResource`, so a specific chat's `events.jsonl` can be
+	 * resolved through the same pipeline as a top-level session. Returns
+	 * `undefined` when the chat is the default chat or the host did not report a
+	 * distinct id — callers then fall back to `chatResource`, whose own path id
+	 * already names the default chat's logs.
+	 */
+	getChatSdkSessionResource(chatResource: URI): URI | undefined {
+		const rawId = chatResource.path.startsWith('/') ? chatResource.path.substring(1) : chatResource.path;
+		if (!rawId) {
+			return undefined;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return undefined;
+		}
+		const chatId = chatResource.fragment || DEFAULT_CHAT_ID;
+		const sdkSessionId = cached.getChatSdkSessionId(chatId);
+		if (!sdkSessionId || sdkSessionId === rawId) {
+			return undefined;
+		}
+		return buildSdkSessionResource(chatResource, sdkSessionId);
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------

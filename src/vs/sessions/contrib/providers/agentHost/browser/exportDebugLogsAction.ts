@@ -44,11 +44,29 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
 		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
 
-		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents
+		// Sessions can contain multiple chats and the events file is per-chat,
+		// so prefer the focused chat tab's resource for the active session.
+		const focusedChat = activeAgentHostSession?.activeChat.get();
+		const chatResource = focusedChat?.resource ?? sessionForEvents?.resource;
+
+		// A peer chat's events.jsonl (and its shared-log lines) live under a
+		// host-private backing session id that the chat resource does not
+		// encode. Ask the provider to map the focused chat to a session-shaped
+		// resource carrying that id so the export collects the right files;
+		// fall back to the chat resource for the default chat.
+		let eventsResource = chatResource;
+		if (activeAgentHostSession && chatResource) {
+			const provider = sessionsProvidersService.getProvider(activeAgentHostSession.providerId);
+			if (provider instanceof BaseAgentHostSessionsProvider) {
+				eventsResource = provider.getChatSdkSessionResource(chatResource) ?? chatResource;
+			}
+		}
+
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents && eventsResource
 			? {
-				resource: sessionForEvents.resource,
-				title: activeAgentHostSession?.title.get(),
-				isLocal: sessionForEvents.resource.scheme.startsWith('agent-host-'),
+				resource: eventsResource,
+				title: focusedChat?.title.get() ?? activeAgentHostSession?.title.get(),
+				isLocal: eventsResource.scheme.startsWith('agent-host-'),
 			}
 			: undefined;
 
@@ -56,7 +74,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 }
 
-function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
+function isAgentHostSession<T extends ISession>(session: T | undefined, sessionsProvidersService: ISessionsProvidersService): session is T {
 	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
 }
 

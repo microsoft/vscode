@@ -101,6 +101,18 @@ export function getCopilotCliSessionRawId(sessionResource: URI | undefined): str
 	return getRawSessionId(sessionResource);
 }
 
+/**
+ * Builds a session-shaped resource that carries `rawSessionId` in its path,
+ * preserving the chat resource's scheme (local/remote authority) and dropping
+ * the chat fragment. Used to resolve a specific chat's `events.jsonl` through
+ * the same {@link resolveEventsUri} pipeline as a top-level session, by
+ * substituting the chat's host-reported backing session id for the chat
+ * resource's own path id.
+ */
+export function buildSdkSessionResource(chatResource: URI, rawSessionId: string): URI {
+	return URI.from({ scheme: chatResource.scheme, path: `/${rawSessionId}` });
+}
+
 export type ResolveEventsUriResult =
 	| { readonly kind: 'ok'; readonly resource: URI }
 	| { readonly kind: 'no-session' }
