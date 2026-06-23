@@ -10,6 +10,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { localize } from '../../../../../nls.js';
 import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
@@ -320,16 +321,16 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			if (isDeviceError) {
 				this.logService.warn(`[mic] Preferred device ${deviceId.slice(0, 8)}… unavailable, falling back to default`);
 				delete audioConstraints.deviceId;
-				micStream = await window.navigator.mediaDevices.getUserMedia({
-					audio: audioConstraints,
-				});
-			} else if (err instanceof DOMException && err.name === 'NotAllowedError') {
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: 'Microphone access was denied. Grant microphone permission in your system settings to use Voice Mode.',
-				});
-				throw err;
+				try {
+					micStream = await window.navigator.mediaDevices.getUserMedia({
+						audio: audioConstraints,
+					});
+				} catch (retryErr) {
+					this._notifyMicPermissionDenied(retryErr);
+					throw retryErr;
+				}
 			} else {
+				this._notifyMicPermissionDenied(err);
 				throw err;
 			}
 		}
@@ -410,6 +411,15 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		source.connect(processor);
 		processor.connect(ctx.destination);
 		this._isCapturing = true;
+	}
+
+	private _notifyMicPermissionDenied(err: unknown): void {
+		if (err instanceof DOMException && err.name === 'NotAllowedError') {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('mic.permissionDenied', "Microphone access was denied. Grant microphone permission in your system settings to use Voice Mode."),
+			});
+		}
 	}
 
 	stopCapture(): void {
