@@ -1889,32 +1889,6 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { thinkingLevel: 'high' } });
 		}));
 
-		test('coerces a schema-declared numeric model configuration (context size) to a string', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const languageModels = new Map<string, ILanguageModelChatMetadata>([
-				['agent-host-copilot:claude-sonnet-4-20250514', upcastPartial<ILanguageModelChatMetadata>({
-					name: 'Claude Sonnet',
-					configurationSchema: {
-						type: 'object',
-						properties: {
-							contextSize: { type: 'number', enum: [200000, 1000000], default: 200000 },
-						},
-					},
-				})],
-			]);
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
-
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				message: 'Hi',
-				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
-				modelConfiguration: { contextSize: 1000000, ignored: 1 },
-			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
-			await turnPromise;
-
-			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { contextSize: '1000000' } });
-		}));
-
 		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 

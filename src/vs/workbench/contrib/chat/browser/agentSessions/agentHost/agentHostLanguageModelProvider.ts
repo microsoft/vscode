@@ -72,13 +72,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						vendor: this._vendor,
 						version: '1.0',
 						family: m.id,
-						// `maxContextWindow` (SDK `max_context_window_tokens`) is the FULL
-						// window (prompt + output); the prompt-only budget is
-						// `maxPromptTokens` (SDK `max_prompt_tokens`). Use the prompt budget
-						// for input so input + output is close to the full window instead of
-						// double-counting output. Fall back to the full window when the
-						// prompt budget is unavailable (e.g. synthetic `auto` models).
-						maxInputTokens: m.maxPromptTokens ?? m.maxContextWindow ?? 0,
+						maxInputTokens: m.maxPromptTokens ?? 0,
 						maxOutputTokens: m.maxOutputTokens ?? 0,
 						isDefaultForLocation: {},
 						isUserSelectable: true,

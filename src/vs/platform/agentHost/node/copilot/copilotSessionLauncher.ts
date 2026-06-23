@@ -132,11 +132,11 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
-export function isContextTier(value: string | undefined): value is ContextTier {
+export function isContextTier(value: unknown): value is ContextTier {
 	return ContextTiers.some(contextTier => contextTier === value);
 }
 
