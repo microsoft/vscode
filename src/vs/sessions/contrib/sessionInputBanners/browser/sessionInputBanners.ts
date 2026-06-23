@@ -45,6 +45,8 @@ interface ICommentsBannerState {
 	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly count: number;
+	/** Whether all counted comments are PR reviews, all are agent reviews, or mixed. */
+	readonly kind: 'pr' | 'agent' | 'mixed';
 	readonly firstCommentId: string;
 }
 
@@ -105,7 +107,10 @@ export class SessionInputBanners extends Disposable {
 		if (created.length === 0) {
 			return undefined;
 		}
-		return { sessionId: session.sessionId, sessionResource: session.resource, count: created.length, firstCommentId: created[0].id };
+		const allPR = created.every(item => item.kind === AgentFeedbackKind.PRReview);
+		const allAgent = created.every(item => item.kind === AgentFeedbackKind.AgentReview);
+		const kind = allPR ? 'pr' : allAgent ? 'agent' : 'mixed';
+		return { sessionId: session.sessionId, sessionResource: session.resource, count: created.length, kind, firstCommentId: created[0].id };
 	});
 
 	constructor(
@@ -184,9 +189,7 @@ export class SessionInputBanners extends Disposable {
 			return;
 		}
 
-		const text = state.count === 1
-			? localize('comments.one', "1 comment")
-			: localize('comments.many', "{0} comments", state.count);
+		const text = this._commentsBannerText(state.kind, state.count);
 
 		this._renderBanner(this._commentsSlot, store, {
 			icon: Codicon.commentDiscussion,
@@ -212,6 +215,23 @@ export class SessionInputBanners extends Disposable {
 	private _renderBanner(container: HTMLElement, store: DisposableStore, banner: ISessionInputBanner): void {
 		const widget = store.add(this.instantiationService.createInstance(SessionInputBannerWidget, banner));
 		container.appendChild(widget.domNode);
+	}
+
+	private _commentsBannerText(kind: 'pr' | 'agent' | 'mixed', count: number): string {
+		switch (kind) {
+			case 'pr':
+				return count === 1
+					? localize('comments.pr.one', "1 PR comment")
+					: localize('comments.pr.many', "{0} PR comments", count);
+			case 'agent':
+				return count === 1
+					? localize('comments.agent.one', "1 agent comment")
+					: localize('comments.agent.many', "{0} agent comments", count);
+			case 'mixed':
+				return count === 1
+					? localize('comments.one', "1 comment")
+					: localize('comments.many', "{0} comments", count);
+		}
 	}
 
 	private _executeCommand(commandId: string): void {

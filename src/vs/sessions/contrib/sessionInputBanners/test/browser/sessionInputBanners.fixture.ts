@@ -15,12 +15,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 
 	Comments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [commentsBanner(3)]),
+		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')]),
+	}),
+
+	PRComments: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [commentsBanner(2, 'pr')]),
+	}),
+
+	AgentComments: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [commentsBanner(4, 'agent')]),
 	}),
 
 	Both: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [ciBanner(1, 4), commentsBanner(1)]),
+		render: (context) => renderBanners(context, [ciBanner(1, 4), commentsBanner(1, 'mixed')]),
 	}),
 
 	LongTextEllipsis: defineComponentFixture({
@@ -45,8 +55,9 @@ function ciBanner(failed: number, total: number): ISessionInputBanner {
 	};
 }
 
-function commentsBanner(count: number): ISessionInputBanner {
-	const text = count === 1 ? '1 comment' : `${count} comments`;
+function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISessionInputBanner {
+	const noun = kind === 'pr' ? 'PR comment' : kind === 'agent' ? 'agent comment' : 'comment';
+	const text = count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 	return {
 		icon: Codicon.commentDiscussion,
 		accent: false,
