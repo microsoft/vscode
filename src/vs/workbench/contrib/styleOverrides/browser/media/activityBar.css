@@ -83,3 +83,92 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-list-hoverBackground);
 }
+
+/*
+ * Horizontal Activity Bar — top / bottom position on the primary sidebar, panel
+ * (bottom) and auxiliary bar. When the activity bar is moved to the top or
+ * bottom of a part, its composites render in a horizontal `.composite-bar`
+ * inside the part's header/footer (`.pane-composite-part > .header-or-footer`)
+ * rather than the dedicated activity bar. By default the active item is marked
+ * with a thin top/bottom border line plus a flat, full-bleed fill. Mirror the
+ * default (side) treatment so both layouts feel consistent: drop the line and
+ * the flat fill, and paint an inset, rounded background box behind the icon for
+ * the active and hovered items.
+ *
+ * The box geometry is symmetric (centered) within the ~35px tall icon item so
+ * it reads as a soft, selected chip — the horizontal analogue of the square box
+ * used in the default position.
+ */
+
+/*
+ * Keep the icon (and its badge) above the background box. Unlike the dedicated
+ * activity bar, the composite-bar label is not promoted in the stacking order,
+ * so lift it explicitly; otherwise the indicator (appended last in the DOM)
+ * would paint over the icon.
+ */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge {
+	position: relative;
+	z-index: 1;
+}
+
+/* Drop the flat, full-bleed active fill — it is replaced by the rounded box. */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
+	background-color: transparent;
+}
+
+/*
+ * Drop the thin top/bottom active border line. It is kept while the item is
+ * keyboard focused so the focus indicator still shows.
+ */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:focus) .active-item-indicator:before {
+	display: none;
+}
+
+/* Active item: inset, rounded background box behind the icon. */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
+	z-index: 0;
+	top: 5px;
+	left: 2px;
+	width: calc(100% - 4px);
+	height: calc(100% - 10px);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+}
+
+/*
+ * Hover item: identical rounded box. Skipped on the active item (which already
+ * shows the box) and while dragging (the action-item `::before`/`::after` are
+ * reused for the drop-line indicators).
+ */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
+	z-index: 0;
+	top: 5px;
+	left: 2px;
+	width: calc(100% - 4px);
+	height: calc(100% - 10px);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/*
+ * Normalize the icon tint to match the default position: the active item uses
+ * the editor foreground and inactive items stay dimmed for hierarchy. Codicon
+ * items are tinted via `color`; image (iconUrl) items render as a tinted SVG
+ * mask, so they are tinted via `background-color` instead.
+ */
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon {
+	color: var(--vscode-foreground) !important;
+}
+
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon {
+	color: var(--vscode-descriptionForeground) !important;
+}
+
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon {
+	background-color: var(--vscode-foreground) !important;
+}
+
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.uri-icon {
+	background-color: var(--vscode-descriptionForeground) !important;
+}
