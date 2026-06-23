@@ -46,7 +46,7 @@ import { AgentCustomization, CustomizationLoadStatus, CustomizationType, Respons
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
@@ -147,6 +147,8 @@ interface ICopilotModelBilling {
 	readonly multiplier?: number;
 	/** Coarse price bucket surfaced as a tag in the model picker hover. */
 	readonly priceCategory?: string;
+	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
+	readonly discountPercent?: number;
 	readonly tokenPrices?: {
 		/** Default-tier prices, expressed as credits per 1M tokens. */
 		readonly contextMax?: number;
@@ -746,6 +748,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const billing = modelInfo?.billing;
 		const tokenPrices = billing?.tokenPrices;
 		const longContext = tokenPrices?.longContext;
+		// Narrow through ICopilotModelBilling: discountPercent may lag the installed SDK type.
+		const discountPercent = (billing as ICopilotModelBilling | undefined)?.discountPercent;
 
 		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
 			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
@@ -761,6 +765,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			longContextCacheWriteCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
 			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
 			priceCategory: typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined,
+			discountPercent: typeof discountPercent === 'number' ? discountPercent : undefined,
 		});
 	}
 

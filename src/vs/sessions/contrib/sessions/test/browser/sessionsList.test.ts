@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -185,6 +185,113 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
+		});
+	});
+
+	suite('computeReorderSortChanges', () => {
+		const NOW = 1_000_000;
+		const STEP = 60_000;
+
+		test('single drop between two neighbours uses the midpoint', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [10],
+				aboveKey: 100,
+				belowKey: 50,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], [['x', 75]]);
+			assert.deepStrictEqual(clear, []);
+		});
+
+		test('drop above the first session uses the current time', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [10],
+				aboveKey: undefined,
+				belowKey: 200,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			const value = set.get('x')!;
+			assert.ok(value > 200 && value < NOW, `expected ${value} between 200 and ${NOW}`);
+		});
+
+		test('drop below the last session steps below the last key', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [500],
+				aboveKey: 100,
+				belowKey: undefined,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			assert.ok(set.get('x')! < 100);
+		});
+
+		test('drops the fake value when the natural key already fits the slot', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [75],
+				aboveKey: 100,
+				belowKey: 50,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], []);
+			assert.deepStrictEqual(clear, ['x']);
+		});
+
+		test('multi-block gets strictly descending keys inside the gap', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b', 'c'],
+				naturalKeys: [5, 4, 3],
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			const values = ['a', 'b', 'c'].map(id => set.get(id)!);
+			assert.deepStrictEqual(values, [85, 70, 55]);
+			assert.ok(values.every(v => v > 40 && v < 100));
+		});
+
+		test('multi-block clears overrides when all natural keys already fit in order', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b'],
+				naturalKeys: [80, 60],
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], []);
+			assert.deepStrictEqual(clear, ['a', 'b']);
+		});
+
+		test('multi-block assigns synthetic keys when natural order does not fit', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b'],
+				naturalKeys: [60, 80], // ascending: does not match descending display order
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			assert.strictEqual(set.size, 2);
+			assert.ok(set.get('a')! > set.get('b')!);
 		});
 	});
 });
