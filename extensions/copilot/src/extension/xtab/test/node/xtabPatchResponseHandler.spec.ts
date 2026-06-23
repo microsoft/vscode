@@ -1087,4 +1087,106 @@ another_file.js:
 			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;']));
 		});
 	});
+
+	describe('splitReplacement', () => {
+
+		it('splits a multi-hunk replacement into one replacement per changed region', () => {
+			// removed lines 2..6 (1-based), only lines 3 ("b") and 5 ("d") change.
+			const removedLines = ['a', 'b', 'c', 'd', 'e'];
+			const replacement = new LineReplacement(new LineRange(2, 7), ['a', 'B', 'c', 'D', 'e']);
+
+			const result = XtabPatchResponseHandler.splitReplacement(replacement, removedLines);
+
+			expect(result).toEqual([
+				new LineReplacement(new LineRange(3, 4), ['B']),
+				new LineReplacement(new LineRange(5, 6), ['D']),
+			]);
+		});
+
+		it('leaves a single contiguous change unsplit', () => {
+			const removedLines = ['a', 'b', 'c'];
+			const replacement = new LineReplacement(new LineRange(10, 13), ['a', 'X', 'Y', 'c']);
+
+			const result = XtabPatchResponseHandler.splitReplacement(replacement, removedLines);
+
+			expect(result).toEqual([replacement]);
+		});
+
+		it('leaves a pure insertion unsplit', () => {
+			const replacement = new LineReplacement(new LineRange(5, 5), ['x', 'y']);
+
+			const result = XtabPatchResponseHandler.splitReplacement(replacement, []);
+
+			expect(result).toEqual([replacement]);
+		});
+
+		it('leaves a pure deletion unsplit', () => {
+			const replacement = new LineReplacement(new LineRange(5, 8), []);
+
+			const result = XtabPatchResponseHandler.splitReplacement(replacement, ['x', 'y', 'z']);
+
+			expect(result).toEqual([replacement]);
+		});
+	});
+
+	describe('handleResponse with splitPatchOnDiff', () => {
+
+		const docContent = '0\na\nb\nc\nd\ne\n';
+
+		// A single patch block whose only real changes are line "b"->"B" and
+		// "d"->"D"; the lines in between are re-emitted context.
+		async function* makeStream(): AsyncGenerator<string> {
+			yield '/test.ts:1';
+			yield '-a';
+			yield '-b';
+			yield '-c';
+			yield '-d';
+			yield '-e';
+			yield '+a';
+			yield '+B';
+			yield '+c';
+			yield '+D';
+			yield '+e';
+		}
+
+		it('splits one coarse patch into minimal replacements when enabled', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				false,
+				true,
+			);
+
+			expect(edits.map(e => e.edit)).toEqual([
+				new LineReplacement(new LineRange(3, 4), ['B']),
+				new LineReplacement(new LineRange(5, 6), ['D']),
+			]);
+		});
+
+		it('yields a single coarse replacement when disabled (default)', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+			);
+
+			expect(edits.map(e => e.edit)).toEqual([
+				new LineReplacement(new LineRange(2, 7), ['a', 'B', 'c', 'D', 'e']),
+			]);
+		});
+	});
 });
