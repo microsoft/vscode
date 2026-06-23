@@ -2820,11 +2820,19 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	getElementTop(element: TRef): number {
-		return this.view.getElementTop(this.model.getListIndex(element));
+		const index = this.model.getListIndex(element);
+		if (index === -1) {
+			return 0;
+		}
+		return this.view.getElementTop(index);
 	}
 
 	getElementHeight(element: TRef): number {
-		return this.view.getElementHeight(this.model.getListIndex(element));
+		const index = this.model.getListIndex(element);
+		if (index === -1) {
+			return 0;
+		}
+		return this.view.getElementHeight(index);
 	}
 
 	get renderHeight(): number {
