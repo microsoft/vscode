@@ -68,12 +68,17 @@ class TestChatInputNotificationService implements IChatInputNotificationService 
 	readonly setCalls: IChatInputNotification[] = [];
 	readonly deleteCalls: string[] = [];
 	readonly dismissedCalls: string[] = [];
+	private readonly _notificationIds = new Set<string>();
 
 	setNotification(notification: IChatInputNotification): void {
+		this._notificationIds.add(notification.id);
 		this.setCalls.push(notification);
 	}
 
 	deleteNotification(id: string): void {
+		if (!this._notificationIds.delete(id)) {
+			return;
+		}
 		this.deleteCalls.push(id);
 	}
 
@@ -298,6 +303,15 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		widgetService.setFocusedWidget(createWidget());
 
 		assert.strictEqual(notificationService.setCalls.length, 0);
+	});
+
+	test('clears active tip when persistent mute changes externally', () => {
+		createTipContribution();
+		widgetService.setFocusedWidget(createWidget());
+
+		storageService.store(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+
+		assert.deepStrictEqual(notificationService.deleteCalls, ['chat.localAgentDisabled.continueInAgentHostCopilot']);
 	});
 
 	test('mute action stores persistent profile mute and clears tip', async () => {
