@@ -326,6 +326,7 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		widgetService.setFocusedWidget(createWidget());
 
 		notificationService.dismissNotification('chat.localAgentDisabled.continueInAgentHostCopilot');
+		widgetService.setFocusedWidget(createWidget({ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) }));
 		widgetService.setFocusedWidget(createWidget({ sessionResource: LocalChatSessionUri.forSession('other-history') }));
 
 		assert.strictEqual(notificationService.setCalls.length, 1);
