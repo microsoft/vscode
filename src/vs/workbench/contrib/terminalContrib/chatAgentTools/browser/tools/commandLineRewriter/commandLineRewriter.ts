@@ -20,6 +20,7 @@ export interface ICommandLineRewriterOptions {
 	os: OperatingSystem;
 	isBackground?: boolean;
 	requestUnsandboxedExecution?: boolean;
+	forceSandboxed?: boolean;
 	sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
 	requestAllowNetwork?: boolean;
 }
