@@ -147,9 +147,27 @@ export class Fish {
 	 * footprint is updated so the body SVG (sized at 100%) scales with it.
 	 */
 	grow(factor: number): void {
-		this.size *= factor;
+		// Defensively ignore bogus factors so a single bad feed can't make a
+		// fish vanish (<=0) or blow up to NaN/Infinity.
+		if (!isFinite(factor) || factor <= 0) {
+			return;
+		}
+		const newSize = this.size * factor;
+		const delta = newSize - this.size;
+		// positionX/Y is the element's top-left corner, so simply growing
+		// width/height would expand toward the bottom-right and shift the
+		// fish's center. Offset the position by half the growth so the fish
+		// puffs up around its center instead of jumping.
+		this.positionX -= delta / 2;
+		this.positionY -= delta / 2;
+		this.size = newSize;
+		// The aquarium sets a per-fish transition-delay for the staggered
+		// fade-in/out. Clear it before resizing so the width/height growth
+		// fires immediately instead of inheriting that delay.
+		this.element.style.transitionDelay = '0ms';
 		this.element.style.width = `${this.size}px`;
 		this.element.style.height = `${this.size}px`;
+		this.applyTransform();
 	}
 }
 

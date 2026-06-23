@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
 import { FishFeedingStreak } from './fishFeedingStreak.js';
 
@@ -124,7 +124,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -270,8 +270,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 		const streak = this.streak.count;
 		if (streak > 0) {
 			// The 24h feeding window is playfully announced as a "day" streak.
-			// allow-any-unicode-next-line
-			return localize('aquarium.streakLabel', "{0} — 🔥 {1} day feeding streak", base, streak);
+			return streak === 1
+				// allow-any-unicode-next-line
+				? localize('aquarium.streakLabel.one', "{0} — 🔥 {1} day feeding streak", base, streak)
+				// allow-any-unicode-next-line
+				: localize('aquarium.streakLabel.other', "{0} — 🔥 {1} days feeding streak", base, streak);
 		}
 		return base;
 	}
@@ -355,18 +358,24 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.lastOfferedRevivable = revivable;
 		this.notificationService.prompt(
 			Severity.Info,
-			// allow-any-unicode-next-line
-			localize('aquarium.streakDied', "💔 Your {0} day fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable),
+			revivable === 1
+				// allow-any-unicode-next-line
+				? localize('aquarium.streakDied.one', "💔 Your {0} day fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable)
+				// allow-any-unicode-next-line
+				: localize('aquarium.streakDied.other', "💔 Your {0} days fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable),
 			[{
 				label: localize('aquarium.reviveStreak', "Revive Streak"),
 				run: () => {
 					const revived = this.streak.revive();
 					this.lastOfferedRevivable = 0;
-					this.sessionsViewService.openNewSession();
+					this.sessionsService.openNewSession();
 					this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 					if (revived > 0) {
-						// allow-any-unicode-next-line
-						this.notificationService.info(localize('aquarium.streakRevived', "🔥 Welcome back — your {0} day feeding streak lives again!", revived));
+						this.notificationService.info(revived === 1
+							// allow-any-unicode-next-line
+							? localize('aquarium.streakRevived.one', "🔥 Welcome back — your {0} day feeding streak lives again!", revived)
+							// allow-any-unicode-next-line
+							: localize('aquarium.streakRevived.other', "🔥 Welcome back — your {0} days feeding streak lives again!", revived));
 					}
 				}
 			}]
