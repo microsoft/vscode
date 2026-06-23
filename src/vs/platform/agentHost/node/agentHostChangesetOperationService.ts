@@ -70,7 +70,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitHubState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
-			gitHubState = readSessionGitHubState(sessionState?._meta);
+			gitHubState = readSessionGitHubState(sessionState?.summary._meta);
 		}
 
 		const changesets = changeset
