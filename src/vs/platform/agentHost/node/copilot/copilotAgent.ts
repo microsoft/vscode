@@ -118,6 +118,22 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	throw new Error(`Unable to resolve @github/copilot CLI path from ${copilotPackageUri.fsPath}`);
 }
 
+async function resolveCopilotCliDistDir(nodeModulesUri: URI): Promise<string | undefined> {
+	const platformArch = `${process.platform}-${process.arch}`;
+	const candidatePlatformPackages = process.platform === 'linux'
+		? [`copilot-${platformArch}`, `copilot-linuxmusl-${process.arch}`]
+		: [`copilot-${platformArch}`];
+
+	for (const packageName of candidatePlatformPackages) {
+		const packageDir = URI.joinPath(nodeModulesUri, '@github', packageName).fsPath;
+		if (await fileExists(join(packageDir, 'index.js'))) {
+			return packageDir;
+		}
+	}
+
+	return undefined;
+}
+
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
@@ -729,6 +745,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
 			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
+			const cliDistDir = await resolveCopilotCliDistDir(nodeModulesUri);
+			if (cliDistDir) {
+				env['COPILOT_CLI_DIST_DIR'] = cliDistDir;
+			}
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries

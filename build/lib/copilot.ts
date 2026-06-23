@@ -86,9 +86,12 @@ function toCopilotPackagePlatformArch(platform: string, arch: string): string {
 	return `${nodePlatform}-${nodeArch}`;
 }
 
-function getCopilotPackageExecutableName(platform: string): string {
-	return platform === 'win32' ? 'copilot.exe' : 'copilot';
-}
+const copilotOptionalNativePayloadDirs = [
+	'clipboard',
+	'foundry-local-sdk',
+	'mxc-bin',
+	'pvrecorder',
+];
 
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
@@ -139,18 +142,18 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  * app/remote packaging for the target platform.
  *
  * .moduleignore strips all @github/copilot-* platform packages globally.
- * Re-add only the selected package metadata and executable needed by
- * @github/copilot/npm-loader.js. Do not re-add platform prebuilds or optional
- * native payloads that are not needed by Agent Host.
+ * Re-add the selected runtime package so @github/copilot/npm-loader.js can
+ * launch the platform executable and the CLI can load its signed runtime
+ * prebuilds from the product instead of extracting them to the user cache.
+ * Keep optional native payload trees out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const copilotPlatformPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
-	const copilotPackageExecutableName = getCopilotPackageExecutableName(platform);
 
 	return [
-		path.posix.join(copilotPlatformPackageDir, 'package.json'),
-		path.posix.join(copilotPlatformPackageDir, copilotPackageExecutableName),
+		path.posix.join(copilotPlatformPackageDir, '**'),
+		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
 	];
 }
 
