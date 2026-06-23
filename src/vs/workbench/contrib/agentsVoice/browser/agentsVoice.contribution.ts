@@ -25,7 +25,6 @@ import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -153,48 +152,6 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 }
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
-
-// --- Toggle Command + Menu Item ---
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentsVoice.toggleWindow',
-			title: nls.localize2('toggleAgentsVoiceWindow', "Voice Mode"),
-			icon: Codicon.openInWindow,
-			menu: [{
-				id: MenuId.MenubarViewMenu,
-				group: '5_copilot',
-				order: 1,
-				when: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			}, {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
-				),
-				group: 'navigation',
-				order: 6
-			}],
-			toggled: AGENTS_VOICE_WINDOW_VISIBLE.isEqualTo(true),
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const service = accessor.get(IAgentsVoiceWindowService);
-		await service.toggleWindow();
-	}
-});
-
-// Internal command: open the floating window without toggling (used by voice
-// controller to surface responses for non-visible sessions).
-CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => {
-	const service = accessor.get(IAgentsVoiceWindowService);
-	if (!service.isOpen) {
-		await service.openWindow();
-	}
-});
 
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
@@ -482,13 +439,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
-			included: false,
-		},
-		'agents.voice.alwaysOnTop': {
-			type: 'boolean',
-			description: nls.localize('agents.voice.alwaysOnTop', "Keep the Voice Mode window always on top of other windows."),
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
 			included: false,
 		},
 		'agents.voice.backendUrl': {

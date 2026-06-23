@@ -1397,10 +1397,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					return undefined;
 				});
 				if (result && result.kind !== 'rejected') {
-					// Surface response in floating window
-					this._watchResponseForFloatingWindow(target);
-					// Open the floating window so user can see the response
-					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
 					// Keep the session model loaded until the response completes
 					// so the autorun can observe state transitions and trigger narration.
 					const model = this.chatService.getSession(target);
@@ -1468,73 +1464,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Ensure the chat view is visible so the user sees/hears the response
 			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
 		}
-	}
-
-	/**
-	 * Watch a session's latest response and surface it in the floating window
-	 * transcript. Called when voice sends to a non-visible session so the user
-	 * can see the reply without switching the chat panel.
-	 */
-	private _watchResponseForFloatingWindow(sessionResource: URI): void {
-		const model = this.chatService.getSession(sessionResource);
-		if (!model) {
-			return;
-		}
-
-		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
-		// and includes last_response_summary in the patch.
-		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '' });
-		this._sendContext();
-
-		const disposables = new DisposableStore();
-		let lastText = '';
-
-		const updateFromResponse = () => {
-			const lastReq = model.lastRequest;
-			const response = lastReq?.response;
-			if (!response) {
-				return;
-			}
-
-			const markdown = response.response.getMarkdown();
-			// Only first ~200 chars for the floating window transcript preview
-			const previewText = markdown.length > 200 ? markdown.slice(0, 200) + '…' : markdown;
-			if (previewText && previewText !== lastText) {
-				const isFirst = lastText === '';
-				lastText = previewText;
-				this._setAssistantTurn(previewText, { startNewTurn: isFirst });
-			}
-
-			if (response.isComplete || response.isCanceled) {
-				// Notify the voice backend of the state transition so it can
-				// narrate the response for this non-focused session.
-				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '' });
-				this._sendContext();
-				this.voiceClientService.flushSessionContext();
-				disposables.dispose();
-			}
-		};
-
-		// Listen for response changes
-		const checkResponse = () => {
-			const lastReq = model.lastRequest;
-			if (lastReq?.response) {
-				disposables.add(lastReq.response.onDidChange(() => updateFromResponse()));
-				updateFromResponse();
-			}
-		};
-
-		// The response may not exist yet — listen for model changes
-		disposables.add(model.onDidChange(e => {
-			if (e.kind === 'addResponse') {
-				checkResponse();
-			}
-		}));
-		checkResponse();
-
-		// Safety: dispose after 5 minutes in case the response never completes
-		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
-		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
 	// --- Transcript buffer helpers ---
