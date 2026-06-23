@@ -68,7 +68,7 @@ suite('ChatListRenderer', () => {
 				data: { rejected: false, action: 'Implement Plan', actionId: 'interactive' },
 			}, 'Approved plan');
 
-			assert.strictEqual(content.value, 'Approved&nbsp;plan\n\n## Plan summary\n\n[$(go-to-file) Open full plan file (plan.md)](file:///sessions/abc/plan.md)');
+			assert.strictEqual(content.value, 'Approved&nbsp;plan\n\n## Plan summary\n\n[Open full plan file (plan.md)](file:///sessions/abc/plan.md?vscodeLinkType=file)');
 		});
 	});
 });

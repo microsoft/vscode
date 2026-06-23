@@ -163,6 +163,10 @@ export interface IChatListItemTemplate {
 	readonly checkpointRestoreContainer: HTMLElement;
 }
 
+function escapeMarkdownLinkLabel(label: string): string {
+	return label.replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+}
+
 export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
 	const renderedAsUsed = !!review.isUsed;
 	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
@@ -197,7 +201,8 @@ export function buildPlanReviewProgressContent(review: IChatPlanReview, message:
 				const label = planFileName
 					? localize('chat.planReview.openFullPlanFile', "Open full plan file ({0})", planFileName)
 					: localize('chat.planReview.openFullPlan', "Open full plan file");
-				content.appendMarkdown(`[$(${Codicon.goToFile.id}) ${label}](${planUri.toString()})`);
+				const planWidgetUri = planUri.with({ query: planUri.query ? `${planUri.query}&vscodeLinkType=file` : 'vscodeLinkType=file' });
+				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
 			}
 		}
 	}
