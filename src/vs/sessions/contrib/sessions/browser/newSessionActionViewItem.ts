@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -15,7 +15,6 @@ import { OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,7 +38,6 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		private readonly inTitleBar: boolean,
-		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -69,9 +67,17 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			supportIcons: true,
 		}));
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
-		this._register(newSessionButton.onDidClick(() => {
+		this._register(newSessionButton.onDidClick(e => {
+			// The inner button lives inside this view item's <li>, whose click
+			// listener (installed by BaseActionViewItem) would also run the action.
+			// Stop propagation so the command runs exactly once, and run through the
+			// action runner so the action's enabled state is respected.
+			EventHelper.stop(e, true);
+			if (!this.action.enabled) {
+				return;
+			}
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);
+			this.actionRunner.run(this.action);
 		}));
 
 		const newSessionLabel = localize('newCompact', "New");
