@@ -263,13 +263,12 @@ function verifyNpmIntegrity(tarballPath: string, integrity: string | undefined):
 }
 
 /**
- * Materializes the copilot CLI ripgrep shim directly inside the built-in copilot extension.
+ * Materializes target-platform Copilot CLI SDK files directly inside the built-in copilot extension.
  *
  * This is used when copilot is shipped as a built-in extension so startup does
- * not need to create the shim at runtime. The destination layout matches the
- * runtime shim logic in the copilot extension:
- * - ripgrep:  node_modules/@github/copilot/sdk/ripgrep/bin/{platform-arch}
- * - marker:   node_modules/@github/copilot/shims.txt
+ * not need to create the shim at runtime. The Copilot VSIX is built once on the
+ * Linux x64 host, so product packaging also restores target-platform SDK
+ * natives from the selected @github/copilot-{platform} package.
  *
  * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
  * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to
@@ -290,6 +289,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
+	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir);
 	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotSdkBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
@@ -320,6 +320,49 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	} catch (err) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Failed to materialize ripgrep shim for ${platformArch}: ${err}`);
 	}
+}
+
+function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: string, tgrepPlatformArch: string, copilotBase: string, appNodeModulesDir: string): void {
+	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
+		return;
+	}
+
+	const platformPackageDir = path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`);
+	if (!fs.existsSync(platformPackageDir)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot platform package not found at ${platformPackageDir}`);
+	}
+
+	copyRequiredDirectory(
+		path.join(platformPackageDir, 'prebuilds', copilotPackagePlatformArch),
+		path.join(copilotBase, 'sdk', 'prebuilds', copilotPackagePlatformArch),
+		`Copilot SDK native prebuilds for ${copilotPackagePlatformArch}`
+	);
+
+	if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
+		return;
+	}
+
+	const tgrepSource = path.join(platformPackageDir, 'tgrep', 'bin', tgrepPlatformArch);
+	copyRequiredDirectory(
+		tgrepSource,
+		path.join(copilotBase, 'tgrep', 'bin', tgrepPlatformArch),
+		`Copilot tgrep for ${tgrepPlatformArch}`
+	);
+	copyRequiredDirectory(
+		tgrepSource,
+		path.join(copilotBase, 'sdk', 'tgrep', 'bin', tgrepPlatformArch),
+		`Copilot SDK tgrep for ${tgrepPlatformArch}`
+	);
+}
+
+function copyRequiredDirectory(source: string, target: string, description: string): void {
+	if (!fs.existsSync(source)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${description} not found at ${source}`);
+	}
+
+	fs.rmSync(target, { recursive: true, force: true });
+	fs.mkdirSync(path.dirname(target), { recursive: true });
+	fs.cpSync(source, target, { recursive: true });
 }
 
 function pruneNonTargetCopilotSdkPrebuilds(targetPlatformArch: string, prebuildsDir: string, platformArchs: string[]): void {
