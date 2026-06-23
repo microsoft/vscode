@@ -97,6 +97,10 @@ export interface SessionModelInfo {
 	name: string;
 	/** Maximum context window size */
 	maxContextWindow?: number;
+	/** Maximum number of output tokens the model can generate */
+	maxOutputTokens?: number;
+	/** Maximum number of prompt (input) tokens the model accepts */
+	maxPromptTokens?: number;
 	/** Whether the model supports vision */
 	supportsVision?: boolean;
 	/** Policy configuration state */
