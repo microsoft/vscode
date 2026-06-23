@@ -85,11 +85,7 @@ function modelsResponse(models: object[]): Response {
 }
 
 function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new class extends CopilotApiService {
-		constructor() {
-			super(fetchImpl, new NullLogService(), testProductService);
-		}
-	}();
+	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
 }
 
 type CapturedRequest = { url: string; init: RequestInit | undefined };

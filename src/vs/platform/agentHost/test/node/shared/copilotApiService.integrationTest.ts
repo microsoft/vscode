@@ -34,12 +34,7 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 		// `globalThis.fetch` through `this._fetch(...)` throws
 		// "Illegal invocation" in the Electron renderer.
 		const boundFetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
-		const service = new class extends CopilotApiService {
-			constructor() {
-				super(boundFetch, new NullLogService(), productService);
-			}
-		}();
-		return service;
+		return new CopilotApiService(boundFetch, new NullLogService(), productService);
 	}
 
 	(hasToken ? test : test.skip)('answers a trivial arithmetic prompt', async function () {
