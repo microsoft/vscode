@@ -133,8 +133,8 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
 
 /**
  * Shape of the {@link ChatConfiguration.DefaultConfiguration}
- * object setting. Controls the starting `mode` and `approvals` for new
- * agent-host sessions (such as Copilot CLI). Both properties are optional —
+ * object setting. Controls the starting `mode`, `approvals` and `model` for
+ * new agent-host sessions (such as Copilot CLI). All properties are optional —
  * a missing property falls back to the per-axis default.
  */
 export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
@@ -144,6 +144,13 @@ export interface IChatDefaultConfiguration {
 	readonly mode?: AgentSessionMode;
 	/** Starting approval level: `default` / `autoApprove`. */
 	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
+	/**
+	 * Starting language model, stored as the agent-host model id (e.g. `gpt-5`).
+	 * An empty string or missing value falls back to the provider's default
+	 * model. The id is provider-specific; when it does not apply to the active
+	 * provider the agent falls back to its own default.
+	 */
+	readonly model?: string;
 }
 
 /**

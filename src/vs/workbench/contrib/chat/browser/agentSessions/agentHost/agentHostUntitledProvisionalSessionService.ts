@@ -59,6 +59,7 @@ import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ModelSelection } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -189,6 +190,14 @@ interface IEntry {
 	 */
 	workingDirectory?: URI;
 	/**
+	 * Workbench-owned default model selection for this provisional, seeded from
+	 * the `chat.defaultConfiguration` `model` property at create time. Unlike
+	 * mode/approvals (which live in {@link config}), the model is a dedicated
+	 * `createSession` field, so it is preserved separately across
+	 * {@link tryRebind} and working-directory changes.
+	 */
+	model?: ModelSelection;
+	/**
 	 * Latest re-resolved config (schema + values) for this provisional, set
 	 * by {@link applyConfigChange} after each value change. Cleared when the
 	 * entry is rebound or disposed.
@@ -300,14 +309,16 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 			const backendSession = this._toBackendUri(sessionResource, provider);
 			const initialConfig = this._getInitialConfig();
+			const initialModel = this._getInitialModel();
 			try {
 				const created = await this._agentHostService.createSession({
 					provider,
 					session: backendSession,
 					workingDirectory,
 					config: initialConfig,
+					model: initialModel,
 				});
-				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory });
+				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory, model: initialModel });
 				this._onDidChange.fire(sessionResource);
 				return created;
 			} catch (err) {
@@ -367,6 +378,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// Read straight from the entry; do NOT round-trip through the agent's
 		// `state.config.values`, which lags behind by a server echo.
 		const config = oldEntry.config;
+		const model = oldEntry.model;
 		const newBackendSession = this._toBackendUri(newSessionResource, provider);
 
 		let created: URI;
@@ -376,6 +388,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				session: newBackendSession,
 				workingDirectory,
 				config,
+				model,
 			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
@@ -385,7 +398,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// Atomically swap entries: insert the new entry, drop the old one.
 		// Order matters — the old entry's `dispose` below must not race with
 		// the picker's `onDidChange` re-render reading the new entry.
-		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, workingDirectory, resolvedConfig: oldEntry.resolvedConfig });
+		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, workingDirectory, model, resolvedConfig: oldEntry.resolvedConfig });
 		this._entries.delete(oldSessionResource);
 		this._resolvedConfigs.delete(oldSessionResource);
 		this._resolvedConfigRequestSeq.delete(oldSessionResource);
@@ -426,6 +439,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			// the full `agent-host-*` chat-resource scheme.
 			const provider = entry.backendSession.scheme;
 			const config = { ...entry.config };
+			const model = entry.model;
 			try {
 				await this._agentHostService.disposeSession(entry.backendSession);
 			} catch (err) {
@@ -438,6 +452,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					session: entry.backendSession,
 					workingDirectory: newWorkingDirectory,
 					config,
+					model,
 				});
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] Failed to recreate provisional at new cwd: ${err instanceof Error ? err.message : String(err)}`);
@@ -447,7 +462,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._onDidChange.fire(sessionResource);
 				return;
 			}
-			this._entries.set(sessionResource, { backendSession: created, config, workingDirectory: newWorkingDirectory, resolvedConfig: entry.resolvedConfig });
+			this._entries.set(sessionResource, { backendSession: created, config, workingDirectory: newWorkingDirectory, model, resolvedConfig: entry.resolvedConfig });
 			// Re-resolve config against the new cwd so chip schemas refresh.
 			try {
 				const resolved = await this._agentHostService.resolveSessionConfig({
@@ -659,6 +674,31 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 
 		return migrateLegacyAutopilotConfig(config);
+	}
+
+	/**
+	 * Workbench-side initial model seed sent at `createSession` time. Unlike
+	 * mode/approvals (which live in the config bag), the model is a dedicated
+	 * `createSession` field carrying a {@link ModelSelection}.
+	 *
+	 * Seeded from the `model` property of the single `chat.defaultConfiguration`
+	 * object setting, which stores the agent-host model id. An empty/missing id
+	 * returns `undefined` so the provider falls back to its default model. The
+	 * id is provider-specific; the agent ignores ids it does not recognize.
+	 *
+	 * Skipped entirely in the Agents window, where the sessions provider
+	 * supplies config (and model) via `request.agentHostSessionConfig` instead.
+	 */
+	private _getInitialModel(): ModelSelection | undefined {
+		if (this._environmentService.isSessionsWindow) {
+			return undefined;
+		}
+		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+		const configuredModel = configuredDefaults?.model;
+		if (typeof configuredModel === 'string' && configuredModel.length > 0) {
+			return { id: configuredModel };
+		}
+		return undefined;
 	}
 }
 
