@@ -46,6 +46,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 // --- Context Keys ---
 
@@ -55,6 +56,8 @@ const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected'
 const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', false);
+/** Set on the specific widget where voice was initiated — used to scope connecting/connected UI to that widget only. */
+const AGENTS_VOICE_INITIATED_HERE = new RawContextKey<boolean>('agentsVoiceInitiatedHere', false);
 
 // --- Context Key Binding ---
 
@@ -88,6 +91,7 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 	constructor(
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -95,12 +99,22 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
 		const activeKey = AGENTS_VOICE_ACTIVE.bindTo(contextKeyService);
+		let wasConnected = false;
 		this._register(autorun(reader => {
-			connectedKey.set(voiceSessionController.isConnected.read(reader));
+			const connected = voiceSessionController.isConnected.read(reader);
+			connectedKey.set(connected);
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
 			const state = voiceSessionController.voiceState.read(reader);
 			listeningKey.set(state === 'listening');
 			activeKey.set(state === 'listening' || state === 'speaking');
+
+			// Clear per-widget "initiated here" key when voice disconnects
+			if (wasConnected && !connected) {
+				for (const widget of chatWidgetService.getAllWidgets()) {
+					AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(false);
+				}
+			}
+			wasConnected = connected;
 		}));
 	}
 }
@@ -159,6 +173,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: 6
@@ -202,6 +217,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: 4
@@ -225,6 +241,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_ACTIVE.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
 				),
@@ -244,6 +261,12 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		if (!voiceController.isConnected.get()) {
+			// Mark this widget as the one where voice was initiated
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			if (widget) {
+				AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(true);
+			}
 			await voiceController.connect(mainWindow);
 		} else {
 			voiceController.pttDown();
@@ -267,7 +290,9 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_ACTIVE.isEqualTo(true),
+					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: 4
@@ -285,9 +310,17 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		// Stop recording and send
-		voiceController.pttDown();
-		voiceController.pttUp();
+		// In auto-send mode, toggling voice mode off disconnects entirely.
+		// The auto-listen loop means there's no natural "idle" state to return to.
+		const configService = accessor.get(IConfigurationService);
+		const autoSendDelay = configService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
+		if (autoSendDelay >= 0) {
+			voiceController.disconnect();
+		} else {
+			// Manual mode: just stop recording
+			voiceController.pttDown();
+			voiceController.pttUp();
+		}
 	}
 });
 
@@ -304,16 +337,6 @@ registerAction2(class extends Action2 {
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-				),
-				group: 'navigation',
-				order: 5
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -485,7 +508,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.showTranscript': {
 			type: 'boolean',
 			description: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active."),
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 			tags: ['advanced'],
@@ -493,7 +516,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.autoSendDelay': {
 			type: 'number',
 			description: nls.localize('agents.voice.autoSendDelay', "In toggle voice mode (short tap), automatically finish recording after this many milliseconds of silence. Set to -1 to disable."),
-			default: 1000,
+			default: 500,
 			minimum: -1,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
