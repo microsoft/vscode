@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -1375,22 +1375,20 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			// sits between it and the window edge) it adopts the same doubled gutter the
 			// side/aux bars use, so its contents do not hug the window edge. The matching
 			// margins are applied in CSS via the toggled classes below.
-			const sideBarLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
-			const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-			const activityBarVisible = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART);
-			const auxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+			const owners = getFloatingOuterEdgeOwners(this.layoutService);
+			const outerLeft = owners.left === Parts.EDITOR_PART;
+			const outerRight = owners.right === Parts.EDITOR_PART;
 
-			const flushLeft = sideBarLeft ? (!sideBarVisible && !activityBarVisible) : !auxiliaryBarVisible;
-			const flushRight = sideBarLeft ? !auxiliaryBarVisible : (!sideBarVisible && !activityBarVisible);
-
-			const leftMargin = flushLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = flushRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
 
-			this.element.classList.toggle('floating-editor-flush-left', flushLeft);
-			this.element.classList.toggle('floating-editor-flush-right', flushRight);
+			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
+			this.element.classList.toggle('floating-editor-outer-right', outerRight);
+		} else {
+			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right');
 		}
 
 		// Layout contents

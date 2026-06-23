@@ -76,11 +76,11 @@
  * between it and the window edge) it adopts the same doubled gutter the side/aux
  * bars use. Kept in sync with the margin reservation in `EditorPart.layout`.
  */
-.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-flush-left {
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-left {
 	margin-left: calc(var(--vscode-spacing-size60) * 2);
 }
 
-.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-flush-right {
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-right {
 	margin-right: calc(var(--vscode-spacing-size60) * 2);
 }
 

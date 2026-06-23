@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, Position } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, Position, getFloatingOuterEdgeOwners } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -638,11 +638,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * the extra margin, or `undefined` when the side bar is not at the window edge.
 	 */
 	private getFloatingSideBarOuterEdge(): Position | undefined {
-		if (!this.layoutService.isFloatingPanelsEnabled() || this.partId !== Parts.SIDEBAR_PART || this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
+		if (this.partId !== Parts.SIDEBAR_PART) {
 			return undefined;
 		}
 
-		return this.layoutService.getSideBarPosition();
+		const owners = getFloatingOuterEdgeOwners(this.layoutService);
+		if (owners.left === Parts.SIDEBAR_PART) {
+			return Position.LEFT;
+		}
+		if (owners.right === Parts.SIDEBAR_PART) {
+			return Position.RIGHT;
+		}
+		return undefined;
 	}
 
 	protected override getRelayoutDimension(): Dimension | undefined {
@@ -654,8 +661,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
 	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin; the secondary side bar gets an extra
-	 * right margin, so its width inset is larger.
+	 * title bar, so they have no top margin. A side bar that sits at the window edge
+	 * (the secondary side bar always, or the primary side bar when it is the outermost
+	 * card — see {@link getFloatingSideBarOuterEdge}) gets a doubled outer margin, so
+	 * its width inset is larger on that side.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {

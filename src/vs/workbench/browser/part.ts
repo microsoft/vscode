@@ -177,6 +177,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	protected getRelayoutDimension(): Dimension | undefined {
 		return this._dimension;
 	}
+
 	/**
 	 * Layout title and content area in the given dimension.
 	 */

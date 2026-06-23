@@ -110,6 +110,41 @@ export function positionToString(position: Position): string {
 	}
 }
 
+/**
+ * Determines which window edge (left/right) is owned by the outermost floating card
+ * when the Modern UI Update experiment is enabled, and which {@link Parts} owns it.
+ * The owning part receives a doubled outer gutter so its contents do not hug the
+ * window edge. Returns `undefined` for an edge when no floating card owns it (for
+ * example the activity bar sits flush against that edge) or when the experiment is
+ * disabled.
+ *
+ * Consumed by both `AbstractPaneCompositePart` (primary side bar) and `EditorPart`
+ * (main editor) so the doubled-gutter decision stays in sync between them.
+ */
+export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutService): { left: Parts | undefined; right: Parts | undefined } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: undefined, right: undefined };
+	}
+
+	// Owner of the side the primary side bar (and activity bar) sit on.
+	let sideBarSideOwner: Parts | undefined;
+	if (layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
+		sideBarSideOwner = undefined; // the activity bar hugs the edge — it is not a floating card
+	} else if (layoutService.isVisible(Parts.SIDEBAR_PART)) {
+		sideBarSideOwner = Parts.SIDEBAR_PART;
+	} else {
+		sideBarSideOwner = Parts.EDITOR_PART;
+	}
+
+	// Owner of the opposite side, where the secondary side bar sits.
+	const auxSideOwner = layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.EDITOR_PART;
+
+	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	return sideBarLeft
+		? { left: sideBarSideOwner, right: auxSideOwner }
+		: { left: auxSideOwner, right: sideBarSideOwner };
+}
+
 const positionsByString: { [key: string]: Position } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
