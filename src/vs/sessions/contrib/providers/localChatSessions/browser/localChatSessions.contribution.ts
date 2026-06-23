@@ -14,6 +14,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
+import { RewindConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatRewindActions.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -99,6 +100,14 @@ registerAction2(class extends ForkConversationAction {
 		});
 	}
 });
+
+// Rewind removes the selected turn (and everything after it) in place. Unlike Fork it does
+// not open a new session, so it needs no sessions-service handling — but it must be registered
+// here so the Agents window contributes the Rewind button next to Fork and wires up the
+// `workbench.action.chat.rewindConversation` command that the `/rewind` slash command runs.
+// The Agents window does not load the workbench chat contribution where Fork/Rewind are
+// registered for the panel, which is why Fork is re-registered above and Rewind here.
+registerAction2(RewindConversationAction);
 
 registerAction2(class DeleteLocalSessionAction extends Action2 {
 	constructor() {
