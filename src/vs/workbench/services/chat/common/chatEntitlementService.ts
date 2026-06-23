@@ -41,6 +41,7 @@ export namespace ChatEntitlementContextKeys {
 		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
 		disabledInWorkspace: new RawContextKey<boolean>('chatSetupDisabledInWorkspace', false, true),	// True when chat is disabled at the workspace level via settings.
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
+		activating: new RawContextKey<boolean>('chatSetupActivating', false, true),	// True while the chat extension is activating (entitlement not yet resolved).
 		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
 		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
 		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true)	// True when the user has completed the setup flow, regardless of the outcome.
