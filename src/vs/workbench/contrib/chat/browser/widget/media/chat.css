@@ -4402,8 +4402,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-scrollbar-prompt-markers {
 	overflow: hidden;
 	/* Scrollbar .visible layer uses z-index 11; keep markers above it so marker clicks are not swallowed by the scrollbar. */
+	/* The container itself is non-interactive (pointer-events: none is set inline by the controller); only the child marker elements receive pointer events. */
 	z-index: 12;
-	pointer-events: auto;
 }
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {

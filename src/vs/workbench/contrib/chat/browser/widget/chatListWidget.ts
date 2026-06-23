@@ -255,9 +255,7 @@ export class ChatListWidget extends Disposable {
 		| (() => IChatRequestModeInfo | undefined)
 		| undefined;
 	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
-	private readonly _scrollbarPromptMarkerController:
-		| ChatScrollbarPromptMarkerController
-		| undefined;
+	private readonly _scrollbarPromptMarkerController: ChatScrollbarPromptMarkerController;
 
 	//#endregion
 
@@ -427,7 +425,7 @@ export class ChatListWidget extends Disposable {
 				}
 
 				this._onDidChangeItemHeight.fire(e);
-				this._scrollbarPromptMarkerController?.refresh();
+				this._scrollbarPromptMarkerController.refresh();
 			}),
 		);
 
@@ -543,7 +541,7 @@ export class ChatListWidget extends Disposable {
 		this._register(
 			this._tree.onDidChangeContentHeight(() => {
 				this._onDidChangeContentHeight.fire();
-				this._scrollbarPromptMarkerController?.refresh();
+				this._scrollbarPromptMarkerController.refresh();
 			}),
 		);
 
@@ -566,7 +564,7 @@ export class ChatListWidget extends Disposable {
 					}
 				}
 				this._onDidChangeFocus.fire();
-				this._scrollbarPromptMarkerController?.refresh();
+				this._scrollbarPromptMarkerController.refresh();
 			}),
 		);
 
@@ -575,7 +573,7 @@ export class ChatListWidget extends Disposable {
 			this._tree.onDidScroll((e) => {
 				this._onDidScroll.fire(e);
 				this.updateScrollDownButtonVisibility();
-				this._scrollbarPromptMarkerController?.refreshIfDimensionsChanged();
+				this._scrollbarPromptMarkerController.refreshIfDimensionsChanged();
 			}),
 		);
 
@@ -601,15 +599,13 @@ export class ChatListWidget extends Disposable {
 			}),
 		);
 
-		this._scrollbarPromptMarkerController =
-			options.scrollbarPromptMarkersEnabled
-				? this._register(
-					new ChatScrollbarPromptMarkerController(
-						this,
-						this.configurationService,
-					),
-				)
-				: undefined;
+		this._scrollbarPromptMarkerController = this._register(
+			new ChatScrollbarPromptMarkerController(
+				this,
+				this.configurationService,
+			),
+		);
+		this._scrollbarPromptMarkerController.setEnabled(!!options.scrollbarPromptMarkersEnabled);
 	}
 
 	//#region Internal event handlers
@@ -677,7 +673,7 @@ export class ChatListWidget extends Disposable {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
 			this._lastItemIdContextKey.set([]);
-			this._scrollbarPromptMarkerController?.refresh();
+			this._scrollbarPromptMarkerController.refresh();
 			return;
 		}
 
@@ -741,7 +737,7 @@ export class ChatListWidget extends Disposable {
 				},
 			});
 		});
-		this._scrollbarPromptMarkerController?.refresh();
+		this._scrollbarPromptMarkerController.refresh();
 	}
 
 	/**
@@ -750,6 +746,14 @@ export class ChatListWidget extends Disposable {
 	setScrollLock(value: boolean): void {
 		this._scrollLock = value;
 		this.updateScrollDownButtonVisibility();
+	}
+
+	/**
+	 * Enable or disable scrollbar prompt markers at runtime (e.g. when the
+	 * `chat.scrollbarPromptMarkers.enabled` setting changes).
+	 */
+	setScrollbarPromptMarkersEnabled(enabled: boolean): void {
+		this._scrollbarPromptMarkerController.setEnabled(enabled);
 	}
 
 	/**
@@ -1039,7 +1043,7 @@ export class ChatListWidget extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
-		this._scrollbarPromptMarkerController?.setVisible(visible);
+		this._scrollbarPromptMarkerController.setVisible(visible);
 	}
 
 	/**
@@ -1053,7 +1057,7 @@ export class ChatListWidget extends Disposable {
 		this.updateLastItemMinHeight();
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
-		this._scrollbarPromptMarkerController?.layout();
+		this._scrollbarPromptMarkerController.layout();
 	}
 
 	private _bodyDimension: dom.Dimension | null = null;
