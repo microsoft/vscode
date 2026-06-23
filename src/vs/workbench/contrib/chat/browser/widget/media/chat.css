@@ -37,9 +37,8 @@
 
 .chat-scrollbar-prompt-markers {
 	overflow: hidden;
-	/* Scrollbar .visible layer uses z-index 11; keep markers above it so marker clicks are not swallowed by the scrollbar. */
+	/* Scrollbar .visible layer uses z-index 11; keep markers above it so they remain visible. */
 	z-index: 12;
-	pointer-events: auto;
 }
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
