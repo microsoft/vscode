@@ -14,12 +14,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
 import { FishFeedingStreak } from './fishFeedingStreak.js';
 
@@ -83,6 +81,14 @@ export interface IAquariumService {
 	 * the last mount.
 	 */
 	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+
+	/**
+	 * Development/demo hook: force the persisted feeding streak into a specific
+	 * state and refresh the toggle tooltip(s) live. When `alive` is false the
+	 * streak is parked as a died/revivable streak and the revival prompt is
+	 * offered (when an aquarium is active). A `count` of 0 clears the streak.
+	 */
+	simulateStreak(count: number, alive: boolean): void;
 }
 
 export interface IMountedToggleHandle extends IDisposable {
@@ -112,8 +118,6 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly pendingExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly activeContextKey: IContextKey<boolean>;
 	private readonly streak: FishFeedingStreak;
-	/** Revivable count we've already prompted for, to avoid re-nagging on every re-activate. */
-	private lastOfferedRevivable = 0;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -123,8 +127,6 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -182,6 +184,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 				this.reconcileActivation();
 			},
 		};
+	}
+
+	simulateStreak(count: number, alive: boolean): void {
+		this.streak.simulate(count, alive);
+		this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 	}
 
 	/**
@@ -260,6 +267,29 @@ export class AquariumService extends Disposable implements IAquariumService {
 			}
 		}
 		button.appendChild(iconSpan);
+
+		// Surface the feeding streak as a visible badge beside the icon (not a
+		// notification): a live streak shows the count, while a died streak
+		// shows a quiet hint that feeding a fish will revive it.
+		this.streak.collectExpired();
+		const streak = this.streak.count;
+		const revivable = streak > 0 ? 0 : this.streak.revivableCount;
+		button.classList.toggle('has-streak', streak > 0 || revivable > 0);
+		if (streak > 0 || revivable > 0) {
+			const streakSpan = button.ownerDocument.createElement('span');
+			streakSpan.className = 'agents-aquarium-toggle-streak';
+			streakSpan.setAttribute('aria-hidden', 'true');
+			if (streak > 0) {
+				// allow-any-unicode-next-line
+				streakSpan.textContent = `🔥 ${streak}`;
+			} else {
+				streakSpan.classList.add('revivable');
+				// allow-any-unicode-next-line
+				streakSpan.textContent = localize('aquarium.reviveBadge', "💔 {0} · Feed again to revive", revivable);
+			}
+			button.appendChild(streakSpan);
+		}
+
 		const label = this.getToggleLabel(active);
 		button.setAttribute('aria-pressed', String(active));
 		button.setAttribute('aria-label', label);
@@ -275,6 +305,13 @@ export class AquariumService extends Disposable implements IAquariumService {
 				? localize('aquarium.streakLabel.one', "{0} — 🔥 {1} day feeding streak", base, streak)
 				// allow-any-unicode-next-line
 				: localize('aquarium.streakLabel.other', "{0} — 🔥 {1} days feeding streak", base, streak);
+		}
+		const revivable = this.streak.revivableCount;
+		if (revivable > 0) {
+			// A died streak that comes back to life by feeding a fish again.
+			return revivable === 1
+				? localize('aquarium.reviveLabel.one', "{0} — feed a fish to revive your {1} day streak", base, revivable)
+				: localize('aquarium.reviveLabel.other', "{0} — feed a fish to revive your {1} day streak", base, revivable);
 		}
 		return base;
 	}
@@ -331,55 +368,21 @@ export class AquariumService extends Disposable implements IAquariumService {
 		if (persist) {
 			this.setStoredEnabled(true);
 		}
-		// A streak that aged out while the aquarium was closed: offer a fun revival.
-		this.maybeOfferStreakRevival();
+		// Park a streak that aged out while the aquarium was closed so it shows
+		// up as a revivable badge on the toggle.
+		this.streak.collectExpired();
+		this.updateAllToggleButtonsVisual(true);
 	}
 
 	/** Called whenever a fish eats a pellet — extends the persisted feeding streak. */
 	private handleFishFed(): void {
 		const before = this.streak.count;
 		const result = this.streak.recordFeed();
-		// Refresh the toggle tooltip so the live streak count stays in sync.
-		if (result.count !== before) {
+		// Refresh the toggle so the streak badge stays in sync (count change or
+		// a died streak revived back to life by this feed).
+		if (result.count !== before || result.revived) {
 			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}
-	}
-
-	/**
-	 * If a previous feeding streak has died, prompt the user with a playful way
-	 * to bring it back: starting a brand new chat session revives the streak.
-	 */
-	private maybeOfferStreakRevival(): void {
-		this.streak.collectExpired();
-		const revivable = this.streak.revivableCount;
-		if (revivable <= 0 || revivable === this.lastOfferedRevivable) {
-			return;
-		}
-		this.lastOfferedRevivable = revivable;
-		this.notificationService.prompt(
-			Severity.Info,
-			revivable === 1
-				// allow-any-unicode-next-line
-				? localize('aquarium.streakDied.one', "💔 Your {0} day fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable)
-				// allow-any-unicode-next-line
-				: localize('aquarium.streakDied.other', "💔 Your {0} days fish feeding streak has gone belly-up! Start a fresh chat session to revive it.", revivable),
-			[{
-				label: localize('aquarium.reviveStreak', "Revive Streak"),
-				run: () => {
-					const revived = this.streak.revive();
-					this.lastOfferedRevivable = 0;
-					this.sessionsService.openNewSession();
-					this.updateAllToggleButtonsVisual(!!this.activeRef.value);
-					if (revived > 0) {
-						this.notificationService.info(revived === 1
-							// allow-any-unicode-next-line
-							? localize('aquarium.streakRevived.one', "🔥 Welcome back — your {0} day feeding streak lives again!", revived)
-							// allow-any-unicode-next-line
-							: localize('aquarium.streakRevived.other', "🔥 Welcome back — your {0} days feeding streak lives again!", revived));
-					}
-				}
-			}]
-		);
 	}
 
 	/**

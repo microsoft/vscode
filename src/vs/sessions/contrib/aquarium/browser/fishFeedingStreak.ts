@@ -6,22 +6,27 @@
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 /**
- * How long a feeding streak survives without a feed before it dies. Feeding any
- * fish within this window keeps the streak alive (and bumps the count). The
- * "24 hour" window is affectionately rendered to the user as a "24 day streak".
+ * How long a feeding streak survives without a feed before it dies, and the
+ * minimum spacing between count increments. Any feed within this window keeps
+ * the streak alive, but the count only goes up once per window (Snapchat-style)
+ * — feeding ten fish in one sitting still counts as a single day. The "24 hour"
+ * window is affectionately rendered to the user as a "24 day streak".
  */
 export const STREAK_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const STREAK_COUNT_KEY = 'sessions.aquarium.streak.count';
 const STREAK_LAST_FED_KEY = 'sessions.aquarium.streak.lastFedAt';
+const STREAK_LAST_INCREMENT_KEY = 'sessions.aquarium.streak.lastIncrementAt';
 const STREAK_REVIVABLE_KEY = 'sessions.aquarium.streak.revivable';
 
 /** Result of recording a feed, describing how the streak changed. */
 export interface IFeedResult {
 	/** The streak count after this feed. */
 	readonly count: number;
-	/** True when this feed started a brand new streak (none was alive). */
+	/** True when this feed started a brand new streak (none was alive or revivable). */
 	readonly started: boolean;
+	/** True when this feed revived a previously-died streak. */
+	readonly revived: boolean;
 }
 
 /**
@@ -41,6 +46,10 @@ export class FishFeedingStreak {
 
 	private get lastFedAt(): number {
 		return this.storageService.getNumber(STREAK_LAST_FED_KEY, StorageScope.APPLICATION, 0);
+	}
+
+	private get lastIncrementAt(): number {
+		return this.storageService.getNumber(STREAK_LAST_INCREMENT_KEY, StorageScope.APPLICATION, 0);
 	}
 
 	private get rawCount(): number {
@@ -79,36 +88,78 @@ export class FishFeedingStreak {
 		return 0;
 	}
 
-	/** Record that a fish was just fed, refreshing/extending the streak. */
+	/**
+	 * Record that a fish was just fed. Any feed keeps the streak alive, but the
+	 * count only goes up once per {@link STREAK_WINDOW_MS}: feeding repeatedly
+	 * within the same window leaves the count unchanged (Snapchat-style). If a
+	 * previous streak has died, feeding revives it back to its parked count.
+	 */
 	recordFeed(): IFeedResult {
+		const now = this.now();
 		const alive = this.isAlive;
-		const count = alive ? this.rawCount + 1 : 1;
-		this.store(STREAK_COUNT_KEY, count);
-		this.store(STREAK_LAST_FED_KEY, this.now());
-		// Actively feeding supersedes any parked dead streak: the user is
-		// building a live streak rather than reviving the old one.
-		if (this.revivableCount > 0) {
+		const revivable = this.revivableCount;
+		let count: number;
+		let revived = false;
+		if (alive && now - this.lastIncrementAt >= STREAK_WINDOW_MS) {
+			// Alive and a full window has passed since the last bump: count up.
+			// Advance the marker by exactly one window (rather than to `now`) so
+			// the daily cadence stays anchored — feeding a little under 24h apart
+			// still earns one bump per day instead of slowly drifting.
+			count = this.rawCount + 1;
+			this.store(STREAK_COUNT_KEY, count);
+			this.store(STREAK_LAST_INCREMENT_KEY, this.lastIncrementAt + STREAK_WINDOW_MS);
+		} else if (alive) {
+			// Alive but still within the current window: keep the streak warm
+			// without bumping the count.
+			count = this.rawCount;
+		} else if (revivable > 0) {
+			// A died streak gets revived by feeding again, restoring its count.
+			count = revivable;
+			revived = true;
+			this.store(STREAK_COUNT_KEY, count);
+			this.store(STREAK_LAST_INCREMENT_KEY, now);
+		} else {
+			// First feed of a brand new streak.
+			count = 1;
+			this.store(STREAK_COUNT_KEY, count);
+			this.store(STREAK_LAST_INCREMENT_KEY, now);
+		}
+		this.store(STREAK_LAST_FED_KEY, now);
+		if (revivable > 0) {
 			this.store(STREAK_REVIVABLE_KEY, 0);
 		}
-		return { count, started: !alive };
+		return { count, started: !alive && !revived, revived };
 	}
 
 	/**
-	 * Revive a previously-died streak: restore its count and restart the 24h
-	 * timer. Never lowers a streak that is already larger/alive. Returns the
-	 * resulting count, or 0 if there was nothing to revive.
+	 * Force the streak into a specific state. Intended for development and
+	 * demos only (see the "Simulate Fish Feeding Streak" command). When
+	 * `alive` is true the streak is fed "now" so it counts as live; otherwise
+	 * it is parked as a {@link revivableCount} died streak. A `count` of 0 (or
+	 * less) clears all streak state.
 	 */
-	revive(): number {
-		const revivable = this.revivableCount;
-		if (revivable <= 0) {
-			return 0;
+	simulate(count: number, alive: boolean): void {
+		if (count <= 0) {
+			this.store(STREAK_COUNT_KEY, 0);
+			this.store(STREAK_LAST_FED_KEY, 0);
+			this.store(STREAK_LAST_INCREMENT_KEY, 0);
+			this.store(STREAK_REVIVABLE_KEY, 0);
+			return;
 		}
-		// Don't clobber a currently-alive (possibly larger) streak.
-		const restored = Math.max(revivable, this.count);
-		this.store(STREAK_COUNT_KEY, restored);
-		this.store(STREAK_LAST_FED_KEY, this.now());
-		this.store(STREAK_REVIVABLE_KEY, 0);
-		return restored;
+		if (alive) {
+			this.store(STREAK_COUNT_KEY, count);
+			this.store(STREAK_LAST_FED_KEY, this.now());
+			// Counted "today" already: feeding again won't bump for a window.
+			this.store(STREAK_LAST_INCREMENT_KEY, this.now());
+			this.store(STREAK_REVIVABLE_KEY, 0);
+		} else {
+			// Last fed outside the window so the streak has aged out, with its
+			// count parked as revivable.
+			this.store(STREAK_COUNT_KEY, 0);
+			this.store(STREAK_LAST_FED_KEY, this.now() - STREAK_WINDOW_MS - 1000);
+			this.store(STREAK_LAST_INCREMENT_KEY, this.now() - STREAK_WINDOW_MS - 1000);
+			this.store(STREAK_REVIVABLE_KEY, count);
+		}
 	}
 
 	private store(key: string, value: number): void {
