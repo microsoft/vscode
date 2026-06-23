@@ -255,6 +255,10 @@ Counts shown in the sidebar (per-link badges and the header total in `AICustomiz
 
 Provider-supplied customization rows that include an explicit storage origin are treated as authoritative even when no local URI inference is available. In particular, `storage: PromptsStorage.plugin` keeps AHP remote host plugin customizations out of the User group when no local `pluginUri` exists, and `storage: BUILTIN_STORAGE` keeps provider-supplied built-ins in the Built-in group.
 
+### MCP Active Session Status
+
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
+
 ### Sidebar Entrypoint Mode
 
 The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
