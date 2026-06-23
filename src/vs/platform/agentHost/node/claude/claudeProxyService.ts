@@ -150,7 +150,7 @@ function readCopilotUsageNanoAiu(event: unknown): number | undefined {
  * {@link IClaudeProxyService.start} and the subprocess-ownership
  * invariant on `IClaudeProxyHandle`.
  */
-export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState> implements IClaudeProxyService {
+export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, string> implements IClaudeProxyService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -164,12 +164,12 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState> i
 		super(PROXY_USER_FACING_NAME, logService);
 	}
 
-	protected createState(): IClaudeProxyState {
-		return { githubToken: '' };
+	protected createState(githubToken: string): IClaudeProxyState {
+		return { githubToken };
 	}
 
 	async start(githubToken: string): Promise<IClaudeProxyHandle> {
-		const { runtime, release } = await this.acquire();
+		const { runtime, release } = await this.acquire(githubToken);
 		// Late-binding token update covers the case where multiple
 		// concurrent callers awaited the same bind — last caller's token
 		// wins, matching the single-tenant contract.

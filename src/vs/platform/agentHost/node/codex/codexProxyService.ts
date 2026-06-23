@@ -116,7 +116,7 @@ function writeJsonError(res: http.ServerResponse, status: number, type: string, 
  * Lifecycle: refcounted handles, single shared bind, in-flight requests
  * aborted on teardown.
  */
-export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState> implements ICodexProxyService {
+export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, string> implements ICodexProxyService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -127,12 +127,12 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState> imp
 		super(PROXY_USER_FACING_NAME, logService);
 	}
 
-	protected createState(): ICodexProxyState {
-		return { githubToken: '' };
+	protected createState(githubToken: string): ICodexProxyState {
+		return { githubToken };
 	}
 
 	async start(githubToken: string): Promise<ICodexProxyHandle> {
-		const { runtime, release } = await this.acquire();
+		const { runtime, release } = await this.acquire(githubToken);
 		// Most recent token wins for the runtime — single-tenant assumption.
 		// Covers concurrent callers that awaited the same bind.
 		runtime.state.githubToken = githubToken;

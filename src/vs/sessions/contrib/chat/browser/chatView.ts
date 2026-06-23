@@ -211,6 +211,11 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
+			// Expose the bound chat resource on the DOM so test automation
+			// can synchronize with the post-rebind state without polling timeouts.
+			// Set AFTER `setModel` so observers see the attribute only once the
+			// inner widget is fully attached to the loaded model.
+			this.element.dataset.boundChatResource = resource.toString();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -230,6 +235,10 @@ export class ChatView extends AbstractChatView {
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `setChat` cycle to finish
+		// before acting on the view.
+		delete this.element.dataset.boundChatResource;
 	}
 
 	private _applyHistoryKey(): void {
