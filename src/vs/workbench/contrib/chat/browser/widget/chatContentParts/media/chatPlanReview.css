@@ -65,7 +65,7 @@
 }
 
 .interactive-session .chat-plan-review-container.chat-plan-review-expanded > .chat-confirmation-widget2.chat-plan-review {
-	max-height: min(720px, 75vh);
+	max-height: min(720px, calc(100vh - 240px));
 }
 
 /* ---------- Title bar ---------- */
@@ -213,7 +213,7 @@
 }
 
 .interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
-	min-height: min(520px, 60vh);
+	min-height: min(420px, 45vh);
 }
 
 .interactive-session .chat-plan-review-container .chat-plan-review-body-editor > .monaco-editor {

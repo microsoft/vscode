@@ -2395,6 +2395,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		let inputCompleted = false;
 		let latestResult: IChatPlanReviewResult | undefined = convertProtocolPlanReviewResult(planReview, ChatInputResponseKind.Accept, inputReq.answers);
+		let planReviewCleared = false;
+		const clearPlanReview = () => {
+			if (planReviewCleared) {
+				return;
+			}
+			planReviewCleared = true;
+			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearPlanReview(undefined, inputReq.id);
+		};
 
 		const sub = this._ensureChatSubscription(opts.backendSession.toString(), opts.chatChannel);
 		store.add(sub.onWillApplyAction(envelope => {
@@ -2409,7 +2417,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			review.draftFeedback = undefined;
 			review.draftCollapsed = undefined;
 			void review.completion.complete(latestResult);
-			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearPlanReview(undefined, inputReq.id);
+			clearPlanReview();
 		}));
 
 		review.completion.p.then(result => {
@@ -2434,19 +2442,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		store.add(toDisposable(() => {
-			if (review.isUsed) {
-				return;
+			if (!review.isUsed) {
+				if (inputCompleted) {
+					review.data = latestResult;
+					review.isUsed = true;
+					review.draftFeedback = undefined;
+					review.draftCollapsed = undefined;
+					void review.completion.complete(latestResult);
+				} else {
+					review.dismiss();
+				}
 			}
-			if (inputCompleted) {
-				review.data = latestResult;
-				review.isUsed = true;
-				review.draftFeedback = undefined;
-				review.draftCollapsed = undefined;
-				void review.completion.complete(latestResult);
-			} else {
-				review.dismiss();
-			}
-			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearPlanReview(undefined, inputReq.id);
+			clearPlanReview();
 		}));
 	}
 
