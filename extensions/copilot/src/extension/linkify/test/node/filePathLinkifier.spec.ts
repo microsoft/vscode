@@ -353,7 +353,7 @@ suite('File Path Linkifier', () => {
 		);
 	});
 
-	test(`Should linkify inline code with space-containing paths`, async () => {
+	test(`Should not linkify inline code with space-containing paths`, async () => {
 		const linkifier = createTestLinkifierService(
 			'space file.ts',
 			'sub space/space file.ts',
