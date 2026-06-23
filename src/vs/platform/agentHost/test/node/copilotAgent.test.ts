@@ -911,13 +911,13 @@ suite('CopilotAgent', () => {
 			const schema = models[0].configSchema;
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
-			assert.strictEqual(schema?.properties.contextTier, undefined);
+			assert.strictEqual(schema?.properties.contextSize, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema emits a numeric contextTier property when long_context tier exceeds default', async () => {
+	test('configSchema emits a numeric contextSize property when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
@@ -936,17 +936,17 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			const contextTier = models[0].configSchema?.properties.contextTier;
-			assert.strictEqual(contextTier?.type, 'number');
-			assert.deepStrictEqual(contextTier?.enum, [200_000, 1_000_000]);
-			assert.strictEqual(contextTier?.default, 200_000);
-			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+			const contextSize = models[0].configSchema?.properties.contextSize;
+			assert.strictEqual(contextSize?.type, 'number');
+			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
+			assert.strictEqual(contextSize?.default, 200_000);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['200K', '1M']);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
+	test('configSchema omits contextSize when long_context tier is missing or not larger', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [
 				{
@@ -975,7 +975,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	suite('contextTier resolution', () => {
+	suite('contextSize to contextTier mapping', () => {
 		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',
 			name: 'Claude Sonnet',
@@ -1013,28 +1013,28 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		test('maps the largest numeric context window to long_context', async () => {
-			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: '1000000' } }, [longContextModel]);
+		test('maps the largest numeric context size to long_context', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '1000000' } }, [longContextModel]);
 			assert.ok(config, 'SDK createSession should be called during materialization');
 			assert.strictEqual(config.contextTier, 'long_context');
 		});
 
-		test('maps the default numeric context window to default', async () => {
-			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: '200000' } }, [longContextModel]);
+		test('maps the default numeric context size to default', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '200000' } }, [longContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'default');
 		});
 
-		test('drops a numeric context window the model does not offer', async () => {
+		test('drops a numeric context size the model does not offer', async () => {
 			const config = await captureSessionConfig(
-				{ id: 'no-context-picker', config: { contextTier: '1000000' } },
+				{ id: 'no-context-picker', config: { contextSize: '1000000' } },
 				[{ id: 'no-context-picker', name: 'No Picker' }],
 			);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, undefined);
 		});
 
-		test('passes through an already-resolved tier string', async () => {
+		test('passes through a legacy resolved tier string under the deprecated contextTier key', async () => {
 			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: 'long_context' } }, [longContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');

@@ -52,7 +52,7 @@ import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
@@ -698,7 +698,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Synthesize a `contextTier` config property when the model exposes a `long_context` pricing tier with a distinct
+	 * Synthesize a `contextSize` config property when the model exposes a `long_context` pricing tier with a distinct
 	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
 	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
 	 *
@@ -710,7 +710,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
 	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
 	 */
-	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
+	private _createContextSizeConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
 		const tokenPrices = billing?.tokenPrices;
 		const defaultMax = tokenPrices?.contextMax;
 		const longContextMax = tokenPrices?.longContext?.contextMax;
@@ -723,23 +723,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		return {
 			type: 'number',
-			title: localize('copilot.modelContextTier.title', "Context Size"),
-			description: localize('copilot.modelContextTier.description', "Selects the context window size for this model."),
+			title: localize('copilot.modelContextSize.title', "Context Size"),
+			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
 			default: defaultMax,
 			enum: [defaultMax, longContextMax],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 			enumDescriptions: [
-				localize('copilot.modelContextTier.default', "Default"),
+				localize('copilot.modelContextSize.default', "Default"),
 				hasLongContextSurcharge
-					? localize('copilot.modelContextTier.longerSessions', "Longer sessions")
-					: localize('copilot.modelContextTier.longerSessionsNoCompaction', "Longer sessions without compaction"),
+					? localize('copilot.modelContextSize.longerSessions', "Longer sessions")
+					: localize('copilot.modelContextSize.longerSessionsNoCompaction', "Longer sessions without compaction"),
 			],
 		};
 	}
 
 	/**
 	 * The model's long-context window (in tokens): the largest size offered by its "Context Size" picker
-	 * (the max numeric value in the synthesized `contextTier` {@link ConfigPropertySchema.enum}). Used by
+	 * (the max numeric value in the synthesized `contextSize` {@link ConfigPropertySchema.enum}). Used by
 	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
 	 * Returns `undefined` when the model exposes no such picker (or the model list isn't loaded yet),
 	 * leaving the SDK on its default tier.
@@ -748,7 +748,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!modelId) {
 			return undefined;
 		}
-		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextTierConfigKey]?.enum;
+		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
 		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
 	}
@@ -791,9 +791,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextTier = this._createContextTierConfigSchemaProperty(m.billing);
-		if (contextTier) {
-			properties[ContextTierConfigKey] = contextTier;
+		const contextSize = this._createContextSizeConfigSchemaProperty(m.billing);
+		if (contextSize) {
+			properties[ContextSizeConfigKey] = contextSize;
 		}
 		if (Object.keys(properties).length === 0) {
 			return undefined;

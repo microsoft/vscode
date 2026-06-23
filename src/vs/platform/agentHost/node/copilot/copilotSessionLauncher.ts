@@ -26,6 +26,16 @@ import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts
 import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+/**
+ * Config key for the numeric "Context Size" selection (a context-window token count). Mapped to the
+ * SDK's two-valued {@link SessionConfig.contextTier} by {@link getCopilotContextTier}.
+ */
+export const ContextSizeConfigKey = 'contextSize';
+/**
+ * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
+ * directly. Replaced by the numeric {@link ContextSizeConfigKey}; still read from persisted sessions
+ * for backward compatibility.
+ */
 export const ContextTierConfigKey = 'contextTier';
 
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
@@ -108,10 +118,6 @@ interface ICopilotSessionLaunchBase {
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
 	readonly model: ModelSelection | undefined;
-	/**
-	 * Long-context window (in tokens) for {@link model}, used by {@link getCopilotContextTier} to map a
-	 * numeric "Context Size" selection onto the SDK tier. Absent when the model exposes no such window.
-	 */
 	readonly longContextWindow?: number;
 }
 
@@ -120,7 +126,6 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
-		/** Long-context window for {@link fallback.model}; see {@link ICopilotCreateSessionLaunchPlan.longContextWindow}. */
 		readonly longContextWindow?: number;
 	};
 }
@@ -185,19 +190,21 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 }
 
 export function getCopilotContextTier(model: ModelSelection | undefined, longContextWindow?: number): SessionConfig['contextTier'] {
-	const contextTier = model?.config?.[ContextTierConfigKey];
-	if (contextTier === undefined) {
+	// Legacy persisted selections stored the resolved tier string directly under the deprecated key.
+	const legacyTier = model?.config?.[ContextTierConfigKey];
+	if (isContextTier(legacyTier)) {
+		return legacyTier;
+	}
+	// The "Context Size" picker exposes numeric token-count enum values, so a current selection arrives
+	// under `contextSize` as a token count. Map it to the SDK's two-valued tier using the model's
+	// long-context window: only a selection that reaches that window opts into `long_context`. Without
+	// the window (model exposes no picker, or the model list isn't loaded) leave the SDK on its default
+	// tier.
+	const contextSize = model?.config?.[ContextSizeConfigKey];
+	if (contextSize === undefined) {
 		return undefined;
 	}
-	// Persisted/older selections already store the resolved tier string.
-	if (isContextTier(contextTier)) {
-		return contextTier;
-	}
-	// The "Context Size" picker exposes numeric token-count enum values, so a selection arrives here as
-	// a token count. Map it to the SDK's two-valued tier using the model's long-context window: only a
-	// selection that reaches that window opts into `long_context`. Without the window (model exposes no
-	// picker, or the model list isn't loaded) leave the SDK on its default tier.
-	const selectedWindow = Number(contextTier);
+	const selectedWindow = Number(contextSize);
 	if (!Number.isFinite(selectedWindow) || typeof longContextWindow !== 'number') {
 		return undefined;
 	}

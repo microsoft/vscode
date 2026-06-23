@@ -2960,10 +2960,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 
+		// Config values travel as strings. Most pickers already produce strings, but a synthesized
+		// numeric picker (e.g. the context-size picker, whose enum values are token counts) hands back a
+		// number. Coerce numeric/boolean values to strings only when the model's configuration schema
+		// declares that property, so the selection survives into the string `config` bag (and is mapped
+		// to the SDK context tier by the agent's `getCopilotContextTier`) while stray untyped values are
+		// still ignored.
+		const schemaProperties = languageModelIdentifier
+			? this._languageModelsService.lookupLanguageModel(languageModelIdentifier)?.configurationSchema?.properties
+			: undefined;
+
 		const config: Record<string, string> = {};
 		for (const [key, value] of Object.entries(modelConfiguration ?? {})) {
 			if (typeof value === 'string') {
 				config[key] = value;
+			} else if ((typeof value === 'number' || typeof value === 'boolean') && schemaProperties?.[key]) {
+				config[key] = String(value);
 			}
 		}
 

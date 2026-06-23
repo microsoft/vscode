@@ -161,7 +161,7 @@ export interface ConfigPropertySchema {
 	description?: string;
 	/** JSON Schema: default value */
 	default?: unknown;
-	/** JSON Schema: allowed values. May be primitives of any JSON type (e.g. numeric token counts). */
+	/** JSON Schema: allowed values. May be primitives of any JSON type. */
 	enum?: (string | number | boolean | null)[];
 	/** Display extension: human-readable label per enum value (parallel array) */
 	enumLabels?: string[];

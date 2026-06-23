@@ -122,7 +122,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
 			case 'thinkingLevel': return 'navigation';
-			case 'contextTier': return 'tokens';
+			case 'contextSize': return 'tokens';
 			default: return undefined;
 		}
 	}
