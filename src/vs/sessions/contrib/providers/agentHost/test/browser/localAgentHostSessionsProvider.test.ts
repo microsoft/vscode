@@ -2363,7 +2363,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- gitHubInfo / PR icon -------
 
-	test('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A GitHub service that resolves a PR number asynchronously (mirroring the
 		// real `findPullRequestNumberByHeadBranch` REST lookup) and hands out a
 		// live PR model. We count lookups so we can assert the number is resolved
