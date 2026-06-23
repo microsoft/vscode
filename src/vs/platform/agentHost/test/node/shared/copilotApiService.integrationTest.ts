@@ -38,9 +38,6 @@ suite('CopilotApiService.utilityChatCompletion (real CAPI)', () => {
 			constructor() {
 				super(boundFetch, new NullLogService(), productService);
 			}
-			override getIntegrationId(): string | undefined {
-				return undefined; // Don't send an integration ID for tests
-			}
 		}();
 		return service;
 	}

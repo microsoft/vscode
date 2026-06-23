@@ -89,9 +89,6 @@ function createService(fetchImpl: FetchFunction): CopilotApiService {
 		constructor() {
 			super(fetchImpl, new NullLogService(), testProductService);
 		}
-		override getIntegrationId(): string | undefined {
-			return undefined; // Don't send an integration ID for tests
-		}
 	}();
 }
 
