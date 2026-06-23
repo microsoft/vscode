@@ -5,6 +5,7 @@
 
 import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 
 /**
  * Model-agnostic guidance for the `tool_instructions` system-prompt section.
@@ -18,11 +19,10 @@ import { coalesce } from '../../../../../base/common/arrays.js';
  * snake_case ids).
  *
  * To add guidance for a tool, write a {@link ToolInstructionLine} and add it to
- * {@link TOOL_INSTRUCTION_LINES}. For example, a browser line would gate on
- * `openBrowserPage` (plus an agentic browser tool) being present and return a
- * sentence such as "Use the browser tools (...) for front-end tasks". No lines
- * are registered yet — concrete tool hookups land in follow-up changes; this
- * module is the wiring they plug into.
+ * {@link TOOL_INSTRUCTION_LINES}. The browser guidance ({@link browserToolInstructions})
+ * is the first such hookup: it gates on `openBrowserPage` (plus an agentic browser
+ * tool) being present and returns the extension's "Use the browser tools (...)"
+ * sentence.
  */
 
 /**
@@ -36,10 +36,34 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 type ToolInstructionLine = (hasTool: (name: string) => boolean) => string | undefined;
 
 /**
- * The registered tool-instruction lines, in render order. Empty until concrete
- * tool hookups are added — add new per-tool guidance here.
+ * Browser tools other than `openBrowserPage` — the agent-host equivalent of the
+ * Copilot extension's `agenticBrowserTools`. Derived from the full reference-name
+ * list so it stays in sync as browser tools are added or removed.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [];
+const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => name !== BrowserChatToolReferenceName.OpenBrowserPage);
+
+/**
+ * Front-end guidance for the integrated browser tools, ported from the Copilot
+ * extension's `defaultAgentInstructions`/per-model prompts. Emitted only when the
+ * page-opening tool AND at least one agentic browser tool are available, naming
+ * the first available agentic tool as the example (the rest are covered by "etc.").
+ */
+const browserToolInstructions: ToolInstructionLine = hasTool => {
+	if (!hasTool(BrowserChatToolReferenceName.OpenBrowserPage)) {
+		return undefined;
+	}
+	const companion = agenticBrowserToolNames.find(hasTool);
+	if (!companion) {
+		return undefined;
+	}
+	return `Use the browser tools (${BrowserChatToolReferenceName.OpenBrowserPage}, ${companion}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.`;
+};
+
+/**
+ * The registered tool-instruction lines, in render order. Add new per-tool
+ * guidance here.
+ */
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions];
 
 /**
  * Composes the applicable `lines` into a single block (one line each), or
@@ -60,7 +84,7 @@ export function universalToolInstructions(hasTool: (name: string) => boolean, li
  *
  * @param existing the per-model contributor's `tool_instructions` override, if any.
  */
-export function composeToolInstructions(existing: SectionOverride | undefined, content: string): SectionOverride {
+function composeToolInstructions(existing: SectionOverride | undefined, content: string): SectionOverride {
 	// No per-model override: append after the SDK foundation section, led by a
 	// newline so it doesn't run on from the foundation content.
 	if (!existing) {
@@ -99,23 +123,4 @@ export function composeToolInstructions(existing: SectionOverride | undefined, c
 export function resolveToolInstructionsOverride(hasTool: (name: string) => boolean, existing: SectionOverride | undefined, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): SectionOverride | undefined {
 	const content = universalToolInstructions(hasTool, lines);
 	return content === undefined ? undefined : composeToolInstructions(existing, content);
-}
-
-/**
- * Appends the universal tool-instruction lines to a full (`replace`-mode)
- * system prompt's `content`.
- *
- * A `replace`-mode contributor owns its whole prompt and so is skipped by the
- * registry's universal `tool_instructions` layer. When such a contributor is
- * added, calling this from its `resolveFullSystemPrompt` re-includes the same
- * gated guidance (separated by a blank line), mirroring how the extension's
- * full-prompt models inline it. No `resolveFullSystemPrompt` contributor exists
- * yet, so this currently has no production caller. Returns `content` unchanged
- * when no line applies.
- *
- * @param lines defaults to the registered {@link TOOL_INSTRUCTION_LINES}.
- */
-export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): string {
-	const extra = universalToolInstructions(hasTool, lines);
-	return extra === undefined ? content : `${content}\n\n${extra}`;
 }
