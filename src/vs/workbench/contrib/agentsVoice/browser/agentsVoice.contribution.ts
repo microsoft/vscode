@@ -501,7 +501,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.microphoneDevice': {
 			type: 'string',
-			description: nls.localize('agents.voice.microphoneDevice', "The device ID of the microphone to use for voice mode. Use the 'Voice: Select Microphone' command to pick a device."),
+			markdownDescription: nls.localize('agents.voice.microphoneDevice.markdownDescription', "The device ID of the microphone to use for voice mode. Run the `Voice: Select Microphone` command to pick a device."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			ignoreSync: true,
