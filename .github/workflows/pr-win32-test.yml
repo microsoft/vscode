@@ -224,6 +224,21 @@ jobs:
         shell: pwsh
         run: npm run smoketest-no-compile -- --tracing
 
+      # TEMPORARY: loop the Codex smoke test to confirm it is not flaky.
+      # Remove this step (and the matching ones in pr-darwin-test.yml /
+      # pr-linux-test.yml) before merging PR #322366.
+      - name: 🧪 Codex smoke flakiness probe (TEMPORARY)
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        timeout-minutes: 90
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 20; $i++) {
+            Write-Host "::group::Codex smoke probe run $i/20"
+            npm run smoketest-no-compile -- --tracing -g "Test Codex session"
+            if ($LASTEXITCODE -ne 0) { Write-Host "::error::Codex smoke test failed on run $i/20"; exit 1 }
+            Write-Host "::endgroup::"
+          }
+
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
