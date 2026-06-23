@@ -482,13 +482,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
 				}
 
-				// Blue when listening, purple when speaking
+				// Blue when listening (more active/flashy), purple when speaking (subtle)
 				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
-				const borderAlpha = 0.4 + intensity * 0.5;
-				const shadowSpread = 4 + intensity * 12;
-				const shadowAlpha = 0.15 + intensity * 0.35;
+				let borderAlpha: number;
+				let shadowSpread: number;
+				let shadowAlpha: number;
+				if (voiceState === 'listening') {
+					// Flashy, audio-reactive glow while user is speaking
+					borderAlpha = 0.6 + intensity * 0.4;
+					shadowSpread = 6 + intensity * 20;
+					shadowAlpha = 0.25 + intensity * 0.55;
+				} else {
+					// Subtle glow during TTS playback
+					borderAlpha = 0.4 + intensity * 0.5;
+					shadowSpread = 4 + intensity * 12;
+					shadowAlpha = 0.15 + intensity * 0.35;
+				}
 				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				if (voiceState === 'listening') {
+					// Double-layer glow for extra presence when listening
+					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`;
+				} else {
+					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				}
 				target.classList.add('voice-active');
 				target.classList.toggle('voice-listening', voiceState === 'listening');
 			};
