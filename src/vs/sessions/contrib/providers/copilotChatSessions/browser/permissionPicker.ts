@@ -169,7 +169,7 @@ export class PermissionPicker extends Disposable {
 		if (this._delegate.getPermissionLevelHover) {
 			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
 				const meta = getPermissionLevelMeta(this._currentLevel);
-				return { content: this._delegate.getPermissionLevelHover?.(this._currentLevel, meta) ?? '' };
+				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
 			}));
 		}
 
@@ -232,7 +232,7 @@ export class PermissionPicker extends Disposable {
 			// when enterprise policy turns off global auto-approval.
 			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
 			const hover = this._delegate.getPermissionLevelHover
-				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._delegate.getPermissionLevelHover(level, meta))
+				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
 				: meta.hover;
 			return {
 				kind: ActionListItemKind.Action,
@@ -338,13 +338,17 @@ export class PermissionPicker extends Disposable {
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = meta.label;
 
-		const hover = this._delegate.getPermissionLevelHover?.(this._currentLevel, meta);
+		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
 		trigger.ariaLabel = hover
 			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", meta.label, hover)
 			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
+		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
 	}
 }
 
