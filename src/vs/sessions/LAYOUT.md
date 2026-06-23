@@ -85,7 +85,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 |---------|---------|---------|
 | Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, agent host filter |
 | Center | `Menus.CommandCenter` | Session picker widget (plus `Menus.TitleBarSessionMenu` for active-session actions) |
-| Right | `Menus.TitleBarRightLayout` | Run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
+| Right | `Menus.TitleBarRightLayout` | Remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
 
 No menubar, no editor actions, no `WindowTitle` dependency.
 
@@ -107,6 +107,12 @@ When multiple remote agent hosts are known, a dropdown pill in the left toolbar 
 ### Account Widget (Right)
 
 Shows the signed-in GitHub profile image (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
+
+### Remote Connections (Right)
+
+The remote connections toggle is a global titlebar action (`Menus.TitleBarRightLayout`) rather than a per-chat input action. This keeps tunnel hosting state visually scoped to the Agents window as a whole, so users do not interpret it as a setting that must be enabled separately for each chat session.
+
+This Agents-window placement is intentionally different from the main editor window: outside the Agents window the same toggle remains in `MenuId.ChatInputSecondary` for agent-host chat inputs. Keep both menu items mutually exclusive with `IsSessionsWindowContext` so the editor window keeps its chat-input affordance while the Agents window shows only the titlebar affordance.
 
 ---
 
