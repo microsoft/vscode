@@ -161,10 +161,23 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	}
 
 	private relayout() {
-		if (this.dimension && this.contentPosition) {
-			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		const dimension = this.getRelayoutDimension();
+		if (dimension && this.contentPosition) {
+			this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left);
 		}
 	}
+
+	/**
+	 * The dimension to use when the part re-lays out itself in response to internal
+	 * changes (e.g. title, header or footer visibility). Subclasses that reduce the
+	 * dimension passed to {@link layout} (for example to reserve space for a floating
+	 * card margin) must override this to return the original, unreduced dimension so
+	 * the reduction is not applied repeatedly on every relayout.
+	 */
+	protected getRelayoutDimension(): Dimension | undefined {
+		return this._dimension;
+	}
+
 	/**
 	 * Layout title and content area in the given dimension.
 	 */

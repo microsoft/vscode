@@ -186,7 +186,7 @@ In core VS Code, customization items contributed by the default chat extension (
 
 ### Management Editor Item Pipeline
 
-All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, and status fields.
+All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, plugin provenance (`pluginUri`/`pluginLabel`), and status fields.
 
 ```
 promptsService ──→ PromptsServiceCustomizationItemProvider ──→ ICustomizationItem[]
