@@ -196,6 +196,61 @@ export function getCopilotContextTier(model: ModelSelection | undefined): Sessio
 	return isContextTier(contextTier) ? contextTier : undefined;
 }
 
+/**
+ * Resolve the BYOK provider/model session config for `sessionId` from the
+ * renderer's active bridge. Returns empty — the session launches without BYOK
+ * models — when BYOK is gated off (no active bridge), when the renderer reports
+ * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
+ * at least one model is present.
+ *
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * whose `baseUrl` points at the proxy and authenticates with the session-scoped
+ * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
+ * provider-qualified selection id `vendor/id`, matching what the renderer's
+ * `AgentHostByokLmHandler` resolves.
+ *
+ * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
+ * unit-testable without instantiating the launcher; the launcher passes a
+ * `startProxy` thunk that memoizes the single shared proxy handle.
+ */
+export async function resolveByokSessionConfig(
+	sessionId: string,
+	bridgeRegistry: IByokLmBridgeRegistry,
+	startProxy: () => Promise<IByokLmProxyHandle>,
+	logService: ILogService,
+): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+	const connection = bridgeRegistry.getActive();
+	if (!connection) {
+		return {};
+	}
+	let byokModels: IByokLmModelInfo[];
+	try {
+		byokModels = await connection.listModels();
+	} catch (err) {
+		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridge`, err);
+		return {};
+	}
+	if (byokModels.length === 0) {
+		return {};
+	}
+	const handle = await startProxy();
+	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
+		name: vendor,
+		type: 'openai',
+		wireApi: 'completions',
+		baseUrl: handle.providerBaseUrl(vendor),
+		bearerToken: `${handle.nonce}.${sessionId}`,
+	}));
+	const models: ProviderModelConfig[] = byokModels.map(m => ({
+		id: m.id,
+		provider: m.vendor,
+		...(m.name !== undefined ? { name: m.name } : {}),
+		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+	}));
+	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
+	return { providers, models };
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
@@ -306,51 +361,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Synthesize SDK provider/model config for the renderer's BYOK models so the
-	 * runtime issues their inference against the node-side loopback proxy (which
-	 * bridges back to the renderer LM API). Returns empty when BYOK is gated off
-	 * (no active bridge), the renderer reports no BYOK models, or enumeration
-	 * fails — in each case the session simply launches without BYOK models.
-	 *
-	 * Each provider points at `proxy.providerBaseUrl(vendor)` and authenticates
-	 * with the session-scoped `Bearer <nonce>.<sessionId>`; each model surfaces
-	 * under the provider-qualified selection id `vendor/id`, matching what the
-	 * renderer's `AgentHostByokLmHandler` resolves.
+	 * Launcher-bound wrapper over {@link resolveByokSessionConfig}: supplies the
+	 * active bridge registry and a `startProxy` thunk that memoizes the single
+	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
-	private async _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-		const connection = this._byokLmBridgeRegistry.getActive();
-		if (!connection) {
-			return {};
-		}
-		let byokModels: IByokLmModelInfo[];
-		try {
-			byokModels = await connection.listModels();
-		} catch (err) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridge`, err);
-			return {};
-		}
-		if (byokModels.length === 0) {
-			return {};
-		}
-		if (!this._byokProxyHandle) {
-			this._byokProxyHandle = this._byokLmProxyService.start();
-		}
-		const handle = await this._byokProxyHandle;
-		const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
-			name: vendor,
-			type: 'openai',
-			wireApi: 'completions',
-			baseUrl: handle.providerBaseUrl(vendor),
-			bearerToken: `${handle.nonce}.${sessionId}`,
-		}));
-		const models: ProviderModelConfig[] = byokModels.map(m => ({
-			id: m.id,
-			provider: m.vendor,
-			...(m.name !== undefined ? { name: m.name } : {}),
-			...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
-		}));
-		this._logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
-		return { providers, models };
+	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+		return resolveByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
+			if (!this._byokProxyHandle) {
+				this._byokProxyHandle = this._byokLmProxyService.start();
+			}
+			return this._byokProxyHandle;
+		}, this._logService);
 	}
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
