@@ -25,6 +25,13 @@ interface OpenRouterModelData {
 	architecture?: {
 		input_modalities?: string[];
 	};
+	/**
+	 * The model's maximum context length across providers. OpenRouter reports
+	 * this at the top level, while `top_provider.context_length` reflects only
+	 * the currently-routed provider and is frequently smaller. Prefer this value
+	 * so the model's full context window is exposed. See issue #316402.
+	 */
+	context_length?: number;
 	top_provider: {
 		context_length: number;
 	};
@@ -73,11 +80,14 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		const supportsReasoningEffort = supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort')
 			? ['low', 'medium', 'high']
 			: undefined;
+		// Prefer the model-level `context_length` (max across providers) and fall back to the
+		// currently-routed provider's value. See issue #316402.
+		const contextLength = openRouterModelData.context_length ?? openRouterModelData.top_provider.context_length;
 		return {
 			name: openRouterModelData.name,
 			toolCalling: supportedParameters.includes('tools'),
 			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? false,
-			maxInputTokens: openRouterModelData.top_provider.context_length - 16000,
+			maxInputTokens: contextLength - 16000,
 			maxOutputTokens: 16000,
 			supportsReasoningEffort
 		};

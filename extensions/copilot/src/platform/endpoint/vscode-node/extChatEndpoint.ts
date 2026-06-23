@@ -65,8 +65,9 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	}
 
 	get maxOutputTokens(): number {
-		// The VS Code API doesn't expose max output tokens, use a reasonable default
-		return 8192;
+		// Prefer the provider-declared max output tokens when available, otherwise fall back to a
+		// reasonable default. See issue #321761.
+		return this.languageModel.maxOutputTokens ?? 8192;
 	}
 
 	get urlOrRequestMetadata(): string {

@@ -9,6 +9,15 @@ declare module 'vscode' {
 
 	export interface LanguageModelChat {
 		/**
+		 * The maximum number of tokens the model can produce in a single response.
+		 *
+		 * This mirrors the stable {@link LanguageModelChat.maxInputTokens} but for output. It is
+		 * provided by the model provider and allows consumers (e.g. other extensions routing
+		 * requests through this model) to size requests correctly instead of assuming a default.
+		 */
+		readonly maxOutputTokens?: number;
+
+		/**
 		 * The capabilities of the language model.
 		 */
 		readonly capabilities: {
