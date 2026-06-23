@@ -52,7 +52,7 @@ import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, isContextTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
@@ -703,8 +703,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
 	 *
 	 * The `enum` values are the two context-window sizes (in tokens), smallest first, so the numeric token counts
-	 * flow to the client; the chosen value is mapped back to the SDK's two-valued `contextTier` by
-	 * {@link _resolveContextTier} when the selection returns.
+	 * flow to the client. The chosen value comes back in the model's `config` bag and is mapped to the SDK's
+	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
+	 * window from {@link _longContextWindowFor}.
 	 *
 	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
 	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
@@ -737,37 +738,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Maps a model selection received from a client back onto the SDK's two-valued `contextTier`. The
-	 * "Context Size" picker exposes numeric token-count {@link ConfigPropertySchema.enum} values (see
-	 * {@link _createContextTierConfigSchemaProperty}), so the selection arrives in `config[contextTier]`
-	 * as a token count rather than a tier name. This rewrites it to `'default'` / `'long_context'` so
-	 * {@link getCopilotContextTier} and the launcher can consume it unchanged, and so the persisted form
-	 * stays the tier string.
-	 *
-	 * The long-context threshold is read from the model's own config-schema enum — the same numbers the
-	 * client picked from — so no model billing needs to be retained. A value the model does not offer (or
-	 * a model without a context-size picker) leaves `config` untouched; an already-resolved tier string
-	 * (e.g. a persisted older selection) is passed through.
+	 * The model's long-context window (in tokens): the largest size offered by its "Context Size" picker
+	 * (the max numeric value in the synthesized `contextTier` {@link ConfigPropertySchema.enum}). Used by
+	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
+	 * Returns `undefined` when the model exposes no such picker (or the model list isn't loaded yet),
+	 * leaving the SDK on its default tier.
 	 */
-	private _resolveContextTier(model: ModelSelection): ModelSelection;
-	private _resolveContextTier(model: ModelSelection | undefined): ModelSelection | undefined;
-	private _resolveContextTier(model: ModelSelection | undefined): ModelSelection | undefined {
-		const raw = model?.config?.[ContextTierConfigKey];
-		if (raw === undefined || isContextTier(raw)) {
-			return model;
+	private _longContextWindowFor(modelId: string | undefined): number | undefined {
+		if (!modelId) {
+			return undefined;
 		}
-		const selectedWindow = Number(raw);
-		const windows = this._models.get().find(m => m.id === model!.id)?.configSchema?.properties?.[ContextTierConfigKey]?.enum;
+		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextTierConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
-		if (!Number.isFinite(selectedWindow) || !numericWindows || numericWindows.length === 0) {
-			// Unknown / out-of-range size (e.g. a stale client selection): drop it so the SDK keeps its default tier.
-			this._logService.warn(`[Copilot] Ignoring unresolvable context size '${raw}' for model '${model!.id}'`);
-			const config = { ...model!.config };
-			delete config[ContextTierConfigKey];
-			return { ...model!, config: Object.keys(config).length > 0 ? config : undefined };
-		}
-		const contextTier = selectedWindow >= Math.max(...numericWindows) ? 'long_context' : 'default';
-		return { ...model!, config: { ...model!.config, [ContextTierConfigKey]: contextTier } };
+		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
 	}
 
 	/**
@@ -998,7 +981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const sessionConfig = { ...(config ?? {}), model: this._resolveContextTier(config?.model) };
+		const sessionConfig = config ?? {};
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
@@ -1192,6 +1175,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				shellManager,
 				githubToken: this._githubToken,
 				model: provisional.model,
+				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 			};
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
@@ -1653,7 +1637,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._chatSessions.has(chatKey)) {
 				return;
 			}
-			const model = this._resolveContextTier(options?.model);
+			const model = options?.model;
 			// Resolve the owning session so the new chat inherits its working
 			// directory scope. The parent may be provisional (no SDK session
 			// yet); in that case use its provisional working directory.
@@ -1683,6 +1667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				shellManager,
 				githubToken: this._githubToken,
 				model,
+				longContextWindow: this._longContextWindowFor(model?.id),
 			};
 			let agentSession: CopilotAgentSession | undefined;
 			try {
@@ -1796,7 +1781,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientState: activeClient.state,
 				shellManager,
 				githubToken: this._githubToken,
-				fallback: { model: info.model },
+				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id) },
 			};
 			let agentSession: CopilotAgentSession | undefined;
 			try {
@@ -1847,26 +1832,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
-		const resolved = this._resolveContextTier(model);
+		const longContextWindow = this._longContextWindowFor(model.id);
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`; apply the change there and
 		// skip the session-level metadata store (peer chats are not persisted
 		// per-chat).
 		if (chat && !isDefaultChatUri(chat)) {
-			await this._chatSessions.get(chat.toString())?.setModel(resolved.id, getCopilotReasoningEffort(resolved), getCopilotContextTier(resolved));
+			await this._chatSessions.get(chat.toString())?.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model, longContextWindow));
 			return;
 		}
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
-			provisional.model = resolved;
+			provisional.model = model;
 			return;
 		}
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			await entry.setModel(resolved.id, getCopilotReasoningEffort(resolved), getCopilotContextTier(resolved));
+			await entry.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model, longContextWindow));
 		}
-		await this._storeSessionMetadata(session, resolved, undefined, undefined, undefined);
+		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
 	}
 
 	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
@@ -2112,6 +2097,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			githubToken: this._githubToken,
 			fallback: {
 				model: storedMetadata.model,
+				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
 			},
 		};
 

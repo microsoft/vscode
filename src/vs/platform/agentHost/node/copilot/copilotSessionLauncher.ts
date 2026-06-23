@@ -108,6 +108,11 @@ interface ICopilotSessionLaunchBase {
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
 	readonly model: ModelSelection | undefined;
+	/**
+	 * Long-context window (in tokens) for {@link model}, used by {@link getCopilotContextTier} to map a
+	 * numeric "Context Size" selection onto the SDK tier. Absent when the model exposes no such window.
+	 */
+	readonly longContextWindow?: number;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -115,6 +120,8 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
+		/** Long-context window for {@link fallback.model}; see {@link ICopilotCreateSessionLaunchPlan.longContextWindow}. */
+		readonly longContextWindow?: number;
 	};
 }
 
@@ -177,9 +184,24 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
+export function getCopilotContextTier(model: ModelSelection | undefined, longContextWindow?: number): SessionConfig['contextTier'] {
 	const contextTier = model?.config?.[ContextTierConfigKey];
-	return isContextTier(contextTier) ? contextTier : undefined;
+	if (contextTier === undefined) {
+		return undefined;
+	}
+	// Persisted/older selections already store the resolved tier string.
+	if (isContextTier(contextTier)) {
+		return contextTier;
+	}
+	// The "Context Size" picker exposes numeric token-count enum values, so a selection arrives here as
+	// a token count. Map it to the SDK's two-valued tier using the model's long-context window: only a
+	// selection that reaches that window opts into `long_context`. Without the window (model exposes no
+	// picker, or the model list isn't loaded) leave the SDK on its default tier.
+	const selectedWindow = Number(contextTier);
+	if (!Number.isFinite(selectedWindow) || typeof longContextWindow !== 'number') {
+		return undefined;
+	}
+	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
@@ -224,6 +246,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...plan,
 				kind: 'create',
 				model: plan.fallback.model,
+				longContextWindow: plan.fallback.longContextWindow,
 			}, config, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -237,7 +260,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
-			contextTier: getCopilotContextTier(plan.model),
+			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});
