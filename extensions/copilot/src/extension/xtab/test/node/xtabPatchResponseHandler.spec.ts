@@ -1189,4 +1189,131 @@ another_file.js:
 			]);
 		});
 	});
+
+	describe('patchIndex attribution', () => {
+
+		it('extractEdits assigns an incrementing index per model patch header', async () => {
+			const linesStream = AsyncIterUtils.fromArray([
+				'a.ts:1',
+				'-a',
+				'+A',
+				'b.ts:2',
+				'-b',
+				'+B',
+				'c.ts:3',
+				'-c',
+				'+C',
+			]);
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream));
+			expect(patches.map(p => p.patchIndex)).toEqual([0, 1, 2]);
+		});
+
+		it('extractEdits does not advance the index for an invalid header', async () => {
+			const linesStream = AsyncIterUtils.fromArray([
+				'a.ts:1',
+				'-a',
+				'+A',
+				'not a valid header',
+				'b.ts:2',
+				'-b',
+				'+B',
+			]);
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream));
+			// The invalid header is skipped, so the two valid patches remain 0 and 1.
+			expect(patches.map(p => p.patchIndex)).toEqual([0, 1]);
+		});
+
+		it('all fragments of a split patch share the originating patchIndex', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = '0\na\nb\nc\nd\ne\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-a';
+				yield '-b';
+				yield '-c';
+				yield '-d';
+				yield '-e';
+				yield '+a';
+				yield '+B';
+				yield '+c';
+				yield '+D';
+				yield '+e';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				false,
+				true,
+			);
+
+			expect(edits).toHaveLength(2);
+			expect(edits.map(e => e.patchIndex)).toEqual([0, 0]);
+		});
+
+		it('distinct model patches get distinct patchIndex values', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = '0\na\nb\nc\nd\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-a';
+				yield '+A';
+				yield '/test.ts:3';
+				yield '-c';
+				yield '+C';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+			);
+
+			expect(edits.map(e => e.patchIndex)).toEqual([0, 1]);
+		});
+
+		it('progressive ghost-text fragments share the patchIndex while a following patch advances it', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\nbar();\n';
+			// Cursor on line 2 (1-based) → cursorLineOffset = 1
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+    let y = 2;';
+				yield '/test.ts:3';
+				yield '-bar();';
+				yield '+baz();';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				true,
+			);
+
+			// First two edits are the ghost-text early + continuation of patch 0;
+			// the third edit comes from the second model patch.
+			expect(edits.map(e => e.patchIndex)).toEqual([0, 0, 1]);
+		});
+	});
 });
