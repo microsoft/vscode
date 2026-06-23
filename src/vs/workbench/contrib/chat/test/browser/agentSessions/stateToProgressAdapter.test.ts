@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -163,6 +163,21 @@ suite('stateToProgressAdapter', () => {
 			const progress = response.parts[0] as IChatProgressMessage;
 			assert.strictEqual(progress.kind, 'progressMessage');
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('reasoning response part restores as thinking progress carrying its id', () => {
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' }],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const thinking = response.parts[0] as IChatThinkingPart;
+			assert.strictEqual(thinking.kind, 'thinking');
+			assert.strictEqual(thinking.value, 'Let me think about this...');
+			assert.strictEqual(thinking.id, 'r-1');
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -1150,6 +1165,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
+			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
