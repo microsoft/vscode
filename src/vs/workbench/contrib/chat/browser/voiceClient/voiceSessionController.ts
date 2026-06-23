@@ -29,6 +29,8 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -158,8 +160,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Short-tap threshold: if the key is held for less than this, enter
 	 *  toggle mode where a second tap finishes the recording. */
 	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
+
+	/** Debounce before re-entering listening after assistant stops speaking. */
+	private static readonly _AUTO_LISTEN_QUIET_MS = 1200;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoListenTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
+	/** Guards auto re-listen: only re-arm after a reply has actually played. */
+	private _replyPlayedSinceSend = false;
+	/** Set after send_to_chat; blocks auto-listen until the reply TTS starts. */
+	private _awaitingReplyAudio = false;
+	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
+	/** Enter listening immediately after greeting finishes (no debounce). */
+	private _autoListenAfterGreeting = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -254,6 +268,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -552,6 +568,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
+					// Hands-free: enter listening after audio finishes.
+					if (this._isAutoSendEnabled() && !this._awaitingReplyAudio) {
+						if (this._autoListenAfterGreeting) {
+							this._autoListenAfterGreeting = false;
+							this._enterAutoListen();
+						} else if (this._replyPlayedSinceSend) {
+							this._scheduleAutoListen();
+						}
+					}
 				}
 			}
 		}));
@@ -835,6 +860,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
+
+				if (!isResuming && this._isAutoSendEnabled()) {
+					this._autoListenAfterGreeting = true;
+				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
 			} else if (this._isReconnecting.get()) {
@@ -855,6 +884,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
+			this._clearAutoSendSilenceTimer();
+			this._clearAutoListenTimer();
 			this.ttsPlaybackService.stopPlayback();
 			this._audioQueue.length = 0;
 			this._currentPlaybackSessionId = null;
@@ -883,6 +914,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				// Persist the user's final transcript (local-only, no backend coordination).
 				this._persistTurn('user', e.text);
+			}
+			// Restart silence countdown for auto-send in toggle mode.
+			if (this._pttToggleMode && this._pttHeld) {
+				this._scheduleAutoSendOnSilence();
 			}
 		}));
 
@@ -928,6 +963,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
+				this._setAwaitingReply();
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
@@ -952,6 +988,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						approved: e.name === 'approve_confirmation',
 					});
 				}
+				// Exit listening mode so the response audio isn't suppressed.
+				if (this._pttHeld) {
+					this._finishPtt();
+				}
+				this._suppressIncomingAudio = false;
+				this._setAwaitingReply();
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
@@ -1009,6 +1051,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
 		this._transcriptTurns.set([], undefined);
+		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
+		this._clearAwaitingReply();
+		this._autoListenAfterGreeting = false;
+		this._replyPlayedSinceSend = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1082,6 +1129,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	pttDown(): void {
 		if (!this._isConnected.get()) { return; }
 
+		this._clearAutoSendSilenceTimer();
+
 		// Toggle mode: second tap finishes recording
 		if (this._pttToggleMode) {
 			this._pttToggleMode = false;
@@ -1091,6 +1140,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { return; }
 		this._pttHeld = true;
+		this._autoListenAfterGreeting = false;
+		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttWaitingForPlayback = false;
 		this._telemetryPttDownMs = Date.now();
@@ -1131,6 +1182,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
+		// Audible cue when hands-free mode re-arms listening.
+		if (this._isAutoSendEnabled()) {
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
@@ -1155,6 +1210,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _finishPtt(): void {
 		if (!this._pttHeld) { return; }
+		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
 		this._pttHeld = false;
 		this._telemetryPttUpMs = Date.now();
 		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
@@ -1165,7 +1222,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
+		this._replyPlayedSinceSend = false;
+		this._clearAwaitingReply();
+		this._suppressIncomingAudio = false;
 		this.micCaptureService.pttUp();
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
+		}
 	}
 
 	markUserCancelled(sessionId: string): void {
@@ -1198,6 +1261,91 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._delayedMicStopTimer = undefined;
 			this._pttWaitingForPlayback = false;
 		}, 1000);
+	}
+
+	private _isAutoSendEnabled(): boolean {
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		return typeof delayMs === 'number' && delayMs >= 0;
+	}
+
+	/** Re-enter listening via synthetic short tap. */
+	private _enterAutoListen(): void {
+		this._clearAutoListenTimer();
+		if (!this._isConnected.get() || this._pttHeld) {
+			return;
+		}
+		// Don't enter listening if audio is still playing or queued.
+		if (this.ttsPlaybackService.isPlaying || this._audioQueue.length > 0 || this._currentPlaybackSessionId !== null) {
+			return;
+		}
+		this.pttDown();
+		this.pttUp();
+	}
+
+	/** Debounced re-listen after assistant stops speaking. */
+	private _scheduleAutoListen(): void {
+		this._clearAutoListenTimer();
+		this._autoListenTimer = setTimeout(() => {
+			this._autoListenTimer = undefined;
+			// Re-check: don't enter listening if we're now awaiting reply audio.
+			if (this._awaitingReplyAudio) { return; }
+			this._enterAutoListen();
+		}, VoiceSessionController._AUTO_LISTEN_QUIET_MS);
+	}
+
+	private _clearAutoListenTimer(): void {
+		if (this._autoListenTimer) {
+			clearTimeout(this._autoListenTimer);
+			this._autoListenTimer = undefined;
+		}
+	}
+
+	/** Auto-finish recording after configured silence in toggle mode. */
+	private _scheduleAutoSendOnSilence(): void {
+		this._clearAutoSendSilenceTimer();
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		if (typeof delayMs !== 'number' || delayMs < 0) {
+			return;
+		}
+		this._autoSendSilenceTimer = setTimeout(() => {
+			this._autoSendSilenceTimer = undefined;
+			if (this._pttToggleMode && this._pttHeld) {
+				this._pttToggleMode = false;
+				this._finishPtt();
+			}
+		}, delayMs);
+	}
+
+	private _clearAutoSendSilenceTimer(): void {
+		if (this._autoSendSilenceTimer) {
+			clearTimeout(this._autoSendSilenceTimer);
+			this._autoSendSilenceTimer = undefined;
+		}
+	}
+
+	/** Block auto-listen until reply audio arrives (with 30s watchdog). */
+	private _setAwaitingReply(): void {
+		this._awaitingReplyAudio = true;
+		this._clearAutoListenTimer();
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+		}
+		this._awaitingReplyWatchdog = setTimeout(() => {
+			this._awaitingReplyWatchdog = undefined;
+			this._awaitingReplyAudio = false;
+			// No reply came — re-enter listening if eligible.
+			if (this._isAutoSendEnabled() && !this._pttHeld) {
+				this._enterAutoListen();
+			}
+		}, 30_000);
+	}
+
+	private _clearAwaitingReply(): void {
+		this._awaitingReplyAudio = false;
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+			this._awaitingReplyWatchdog = undefined;
+		}
 	}
 
 	/**
@@ -1634,6 +1782,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
+		if (isFirstChunk) {
+			this._clearAwaitingReply();
+		}
+
 		// If nothing is playing and queue is empty, or same session is playing, play immediately
 		const nothingPlaying = this._currentPlaybackSessionId === null;
 		const sameSession = !nothingPlaying && this._currentPlaybackSessionId === sessionId;
@@ -1679,15 +1831,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
 		if (ttsEnabled && audio) {
+			this._clearAutoListenTimer();
+			this._replyPlayedSinceSend = true;
 			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
 		} else if (!ttsEnabled) {
-			// TTS disabled — skip audio but still complete the playback cycle
+			this._replyPlayedSinceSend = true;
 			if (isFinal) {
 				this._currentPlaybackSessionId = null;
 				this._processQueue();
+				if (this._isAutoSendEnabled()) {
+					this._scheduleAutoListen();
+				}
 			}
 		} else {
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);

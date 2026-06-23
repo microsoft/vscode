@@ -111,6 +111,8 @@ Remote agent hosts can also register **external harnesses** dynamically. Each re
 
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
 
+Local plugin discovery is aggregated by `IAgentPluginService` from priority-ordered discovery providers: configured paths, VS Code marketplace installs, extension-contributed plugins, and Copilot CLI installs. Each provider reports `undefined` until its initial scan completes; the service waits for every provider to complete before exposing plugins. Once ready, plugins are canonicalized into collision groups so the same plugin discovered from multiple install roots (for example a VS Code marketplace install and a Copilot CLI direct install) remains visible but only the highest-priority copy is enabled by default. Enabling one copy disables the other copies in the same collision group.
+
 ### IHarnessDescriptor
 
 Key properties on the harness descriptor:

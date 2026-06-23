@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, projectManagedSettings } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, managedSettingValue, projectManagedSettings, selectManagedSettings } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -37,6 +38,40 @@ suite('Copilot managed settings projection', () => {
 
 	test('collectManagedSettingsDefinitions returns empty when nothing is declared', () => {
 		assert.deepStrictEqual(collectManagedSettingsDefinitions({ P: { type: 'string' } }), {});
+	});
+
+	test('hasManagedSettingsDefinitions detects whether any policy declares a managed key', () => {
+		assert.deepStrictEqual(
+			{
+				withKeys: hasManagedSettingsDefinitions(definitions),
+				none: hasManagedSettingsDefinitions({ P: { type: 'string' } }),
+				empty: hasManagedSettingsDefinitions({}),
+			},
+			{ withKeys: true, none: false, empty: false },
+		);
+	});
+
+	test('managedSettingValue locks to the managed value when set, else undefined', () => {
+		const value = managedSettingValue('permissions.disableBypassPermissionsMode');
+		assert.deepStrictEqual(
+			{
+				set: value({ managedSettings: { 'permissions.disableBypassPermissionsMode': 'disable' } } as IPolicyData),
+				otherKey: value({ managedSettings: { 'other.key': 'x' } } as IPolicyData),
+				noBag: value({} as IPolicyData),
+			},
+			{ set: 'disable', otherKey: undefined, noBag: undefined },
+		);
+	});
+
+	test('managedSettingValue returns the same memoized callback per key (stable reference identity)', () => {
+		assert.strictEqual(
+			managedSettingValue('permissions.disableBypassPermissionsMode'),
+			managedSettingValue('permissions.disableBypassPermissionsMode'),
+		);
+		assert.notStrictEqual(
+			managedSettingValue('permissions.disableBypassPermissionsMode'),
+			managedSettingValue('some.other.key'),
+		);
 	});
 
 	test('projectManagedSettings keeps declared+typed keys, drops undeclared and type-mismatched', () => {
@@ -71,5 +106,25 @@ suite('Copilot managed settings projection', () => {
 			msg => warnings.push(msg),
 		);
 		assert.strictEqual(warnings.length, 1);
+	});
+
+	test('selectManagedSettings: server wins over native MDM, never merged', () => {
+		const selection = selectManagedSettings(
+			{ 'permissions.x': 'server' },
+			{ 'permissions.y': 'native' },
+		);
+		assert.deepStrictEqual(selection, { source: 'server', values: { 'permissions.x': 'server' } });
+	});
+
+	test('selectManagedSettings: falls through to native MDM when server is absent or empty', () => {
+		const fromUndefined = selectManagedSettings(undefined, { 'permissions.y': 'native' });
+		const fromEmptyObject = selectManagedSettings({}, { 'permissions.y': 'native' });
+		assert.deepStrictEqual(fromUndefined, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+		assert.deepStrictEqual(fromEmptyObject, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+	});
+
+	test('selectManagedSettings: reports `none` with no values when every channel is empty', () => {
+		assert.deepStrictEqual(selectManagedSettings(undefined, undefined), { source: 'none', values: undefined });
+		assert.deepStrictEqual(selectManagedSettings({}, {}), { source: 'none', values: undefined });
 	});
 });

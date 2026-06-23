@@ -482,5 +482,10 @@ import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 
+// Onboarding: the engine + spotlight presentation (from the workbench layer) and
+// the Agents window scenario data.
+import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
+import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion
