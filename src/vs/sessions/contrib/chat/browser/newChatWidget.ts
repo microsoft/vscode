@@ -27,6 +27,7 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 // #region --- New Chat Widget ---
 
@@ -143,6 +144,9 @@ export class NewChatWidget extends Disposable {
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
+		// Onboarding spotlight target — id is referenced by the "new session" tour
+		// in vs/sessions/contrib/onboardingTours.
+		this._register(markOnboardingTarget(workspacePickerContainer, 'sessions.newSession.workspacePicker'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
 		// known there is nothing for the user to pick, so swap the picker
