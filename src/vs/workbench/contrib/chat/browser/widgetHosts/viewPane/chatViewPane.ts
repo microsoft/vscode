@@ -482,25 +482,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
 				}
 
-				// Blue when listening (more active/flashy), purple when speaking (subtle)
+				// Blue when listening (more active/flashy when transcript hidden), purple when speaking (subtle)
 				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
+				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 				let borderAlpha: number;
 				let shadowSpread: number;
 				let shadowAlpha: number;
-				if (voiceState === 'listening') {
-					// Flashy, audio-reactive glow while user is speaking
+				if (voiceState === 'listening' && transcriptHidden) {
+					// Flashy, audio-reactive glow while user is speaking (no transcript visible)
 					borderAlpha = 0.6 + intensity * 0.4;
 					shadowSpread = 6 + intensity * 20;
 					shadowAlpha = 0.25 + intensity * 0.55;
 				} else {
-					// Subtle glow during TTS playback
+					// Standard glow (transcript visible or TTS playback)
 					borderAlpha = 0.4 + intensity * 0.5;
 					shadowSpread = 4 + intensity * 12;
 					shadowAlpha = 0.15 + intensity * 0.35;
 				}
 				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				if (voiceState === 'listening') {
-					// Double-layer glow for extra presence when listening
+				if (voiceState === 'listening' && transcriptHidden) {
+					// Double-layer glow for extra presence when listening without transcript
 					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`;
 				} else {
 					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;

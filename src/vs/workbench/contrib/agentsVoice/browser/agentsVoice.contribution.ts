@@ -225,6 +225,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_ACTIVE.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
 				),
@@ -267,6 +268,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_ACTIVE.isEqualTo(true),
 				),
 				group: 'navigation',
