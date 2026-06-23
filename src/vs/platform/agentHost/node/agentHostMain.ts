@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -28,6 +28,8 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
@@ -63,7 +65,7 @@ import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
-import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
+import { registerAgentHostClientReverseRpc } from './agentHostClientReverseRpc.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -131,6 +133,11 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	// Gate all BYOK agent-host additions (proxy, bridge registry, reverse-RPC
+	// bridge) behind the opt-in `chat.agentHost.byokModels.enabled` setting,
+	// forwarded from the renderer as an env var. When off, none of the BYOK
+	// wiring is created here and the renderer skips the BYOK server channel.
+	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], false);
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -172,6 +179,16 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
+		// BYOK language-model proxy + bridge registry, gated behind
+		// `chat.agentHost.byokModels.enabled`. The registry is populated per
+		// renderer connection below; the proxy lazily binds when the session
+		// launcher starts it for a session that selected a forwarded BYOK model.
+		if (byokLmEnabled) {
+			const byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+			diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
+			const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
+			diServices.set(IByokLmProxyService, byokLmProxyService);
+		}
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
@@ -217,10 +234,12 @@ async function startAgentHost(): Promise<void> {
 	// in-process renderer-to-utility-process MessagePort transport).
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+	const byokLmBridgeRegistry = byokLmEnabled ? instantiationService.invokeFunction(accessor => accessor.get(IByokLmBridgeRegistry)) : undefined;
 
 	// Wire reverse-RPC for in-process renderer connections. The renderer's
-	// `MessagePortClient` ctx is its `clientId`, and it exposes
-	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
+	// `MessagePortClient` ctx is its `clientId`, and it exposes the
+	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` (filesystem reads) and
+	// `AGENT_HOST_CLIENT_BYOK_LM_CHANNEL` (BYOK language-model calls).
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
 		const registerConnection = (connection: (typeof server.connections)[number]) => {
@@ -231,9 +250,12 @@ async function startAgentHost(): Promise<void> {
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
 			}
-			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
-			const fsConnection = createAgentHostClientResourceConnection(channel);
-			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+			authorityRegistrations.set(connection, registerAgentHostClientReverseRpc(
+				clientId,
+				channelName => server.getChannel(channelName, c => c.ctx === clientId),
+				clientFileSystemProvider,
+				byokLmBridgeRegistry,
+			));
 		};
 		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {

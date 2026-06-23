@@ -9,6 +9,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostByokModelsEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
@@ -53,6 +54,12 @@ configurationRegistry.registerConfiguration({
 			policyReference: {
 				name: 'Claude3PIntegration',
 			},
+		},
+		[AgentHostByokModelsEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: false,
+			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',
