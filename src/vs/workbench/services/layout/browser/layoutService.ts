@@ -119,7 +119,9 @@ export function positionToString(position: Position): string {
  * disabled.
  *
  * Consumed by both `AbstractPaneCompositePart` (primary side bar) and `EditorPart`
- * (main editor) so the doubled-gutter decision stays in sync between them.
+ * (main editor) so the doubled-gutter decision stays in sync between them. The
+ * secondary side bar can be reported as an aux-side owner, but that value is purely
+ * informational: the aux bar applies its own doubled gutter unconditionally.
  */
 export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutService): { left: Parts | undefined; right: Parts | undefined } {
 	if (!layoutService.isFloatingPanelsEnabled()) {
@@ -129,7 +131,7 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// Owner of the side the primary side bar (and activity bar) sit on.
 	let sideBarSideOwner: Parts | undefined;
 	if (layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
-		sideBarSideOwner = undefined; // the activity bar hugs the edge — it is not a floating card
+		sideBarSideOwner = undefined;
 	} else if (layoutService.isVisible(Parts.SIDEBAR_PART)) {
 		sideBarSideOwner = Parts.SIDEBAR_PART;
 	} else {

@@ -633,9 +633,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	/**
 	 * When the primary side bar sits directly at the window edge (the activity bar is
-	 * not in its default position) it becomes the outermost card on its side and adopts
-	 * the same doubled gutter the other floating cards use. Returns the edge that needs
-	 * the extra margin, or `undefined` when the side bar is not at the window edge.
+	 * not visible) it becomes the outermost card on its side and adopts the same doubled
+	 * gutter the other floating cards use. Returns the edge that needs the extra margin,
+	 * or `undefined` when the side bar is not at the window edge.
 	 */
 	private getFloatingSideBarOuterEdge(): Position | undefined {
 		if (this.partId !== Parts.SIDEBAR_PART) {
