@@ -147,7 +147,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 				statusText: response.statusText,
 				headers: response.headers,
 				body: responseStream,
-				requestId: getRequestId(response.headers),
+				requestId: getRequestIdForRequest(response.headers, isCopilotHostedRequest),
 				response,
 			});
 
@@ -331,4 +331,18 @@ async function collectAsyncIterableToString(iterable: AsyncIterable<string>): Pr
 		parts.push(part);
 	}
 	return parts.join('');
+}
+
+function getRequestIdForRequest(headers: IHeaders, isCopilotHostedRequest: boolean): RequestId {
+	if (isCopilotHostedRequest) {
+		return getRequestId(headers);
+	}
+	return {
+		headerRequestId: '',
+		gitHubRequestId: '',
+		completionId: '',
+		created: 0,
+		serverExperiments: '',
+		deploymentId: '',
+	};
 }

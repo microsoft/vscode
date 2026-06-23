@@ -504,10 +504,12 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 						this.instantiationService.invokeFunction(telemetry, 'request.cancel', telemetryData);
 						return { type: 'canceled', reason: 'during fetch request' };
 					} else if (err instanceof Completions.UnsuccessfulResponse) {
-						const modelRequestId = getRequestId(err.headers);
-						telemetryData.extendWithRequestId(modelRequestId);
-						if (modelRequestId.serverExperiments) {
-							this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+						if (!customCompletionModel) {
+							const modelRequestId = getRequestId(err.headers);
+							telemetryData.extendWithRequestId(modelRequestId);
+							if (modelRequestId.serverExperiments) {
+								this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+							}
 						}
 						const totalTimeMs = requestSw.elapsed();
 						telemetryData.measurements.totalTimeMs = totalTimeMs;
@@ -567,10 +569,12 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 				{
 					// This ID is hopefully the one the same as ourRequestId, but it is not guaranteed.
 					// If they are different then we will override the original one we set in telemetryData above.
-					const modelRequestId = responseStream.requestId;
-					telemetryData.extendWithRequestId(modelRequestId);
-					if (modelRequestId.serverExperiments) {
-						this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+					if (!customCompletionModel) {
+						const modelRequestId = responseStream.requestId;
+						telemetryData.extendWithRequestId(modelRequestId);
+						if (modelRequestId.serverExperiments) {
+							this.instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService).setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments));
+						}
 					}
 
 					// TODO: Add response length (requires parsing)
@@ -608,7 +612,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 				return {
 					type: 'success',
 					choices: postProcessChoices(choices),
-					getProcessingTime: () => getProcessingTime(responseStream.headers),
+					getProcessingTime: () => customCompletionModel ? 0 : getProcessingTime(responseStream.headers),
 				};
 
 			} finally {
