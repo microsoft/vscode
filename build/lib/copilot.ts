@@ -93,6 +93,10 @@ const copilotOptionalNativePayloadDirs = [
 	'pvrecorder',
 ];
 
+const copilotOptionalNativePayloadFiles = [
+	'prebuilds/*/computer.node',
+];
+
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
  * for architectures other than the build target.
@@ -154,6 +158,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 	return [
 		path.posix.join(copilotPlatformPackageDir, '**'),
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
+		...copilotOptionalNativePayloadFiles.map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
 	];
 }
 

@@ -17,6 +17,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linux-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linux-x64', [
 			'copilot',
@@ -35,6 +36,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
 		]);
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-linuxmusl-x64', [
 			'copilot',
@@ -50,6 +52,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer.node',
 		]);
 		assertCopilotPlatformPackageIncludes(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64', [
 			'copilot.exe',
@@ -66,6 +69,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-arm64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer.node',
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 	});
@@ -108,6 +112,8 @@ function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], pac
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}
+	assert(patterns.includes(`!${packageDir}/prebuilds/*/computer.node`), 'computer.node');
+	assert(!matchesGlob(`${packageDir}/prebuilds/linux-x64/computer.node`, patterns), 'computer.node');
 }
 
 function matchesGlob(file: string, patterns: string[]): boolean {
@@ -115,11 +121,26 @@ function matchesGlob(file: string, patterns: string[]): boolean {
 	for (const pattern of patterns) {
 		const isExclude = pattern.startsWith('!');
 		const glob = isExclude ? pattern.slice(1) : pattern;
-		if (glob.endsWith('/**') && file.startsWith(glob.slice(0, -2))) {
-			included = !isExclude;
-		} else if (file === glob) {
+		if (matchesPattern(file, glob)) {
 			included = !isExclude;
 		}
 	}
 	return included;
+}
+
+function matchesPattern(file: string, pattern: string): boolean {
+	if (pattern.endsWith('/**')) {
+		return file.startsWith(pattern.slice(0, -2));
+	}
+
+	if (pattern.includes('*')) {
+		const regex = new RegExp(`^${pattern.split('*').map(escapeRegExp).join('[^/]+')}$`);
+		return regex.test(file);
+	}
+
+	return file === pattern;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }
