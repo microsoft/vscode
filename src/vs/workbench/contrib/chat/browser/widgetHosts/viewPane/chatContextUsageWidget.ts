@@ -306,7 +306,8 @@ export class ChatContextUsageWidget extends Disposable {
 	): void {
 		this._modelConfigurationResolver = resolver;
 		this._modelConfigurationListener.value = onDidChange(modelId => {
-			if (this._currentResponse && this._currentModelId && (this._currentModelId === modelId || this._selectedModelId === modelId)) {
+			const affectsDisplayedModel = this._currentModelId === modelId || this._selectedModelId === modelId;
+			if (this._currentResponse && this._currentModelId && affectsDisplayedModel) {
 				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}
 		});
