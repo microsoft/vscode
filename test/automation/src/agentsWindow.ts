@@ -448,6 +448,14 @@ export class AgentsWindow {
 					// has rendered, so we additionally enforce a small minimum
 					// quiet period before returning.
 					await this.waitForResponseSettled(15_000, 4_000);
+					// Synchronize with the workbench-side untitled → committed
+					// URI swap: the {@link ChatView} sets `data-bound-chat-resource`
+					// on its root element after binding its inner widget to the
+					// loaded chat model, and clears it during rebind. Without this
+					// wait, follow-up typing can land in the about-to-be-replaced
+					// widget while the rebind is still in flight, losing the typed
+					// prompt when the widget swaps to the committed session.
+					await this.waitForActiveChatBoundToCommittedResource();
 					return text;
 				}
 			}
@@ -461,6 +469,32 @@ export class AgentsWindow {
 		const activeViews = await this.code.getElements(ACTIVE_SESSION, /* recursive */ false);
 		const activeSummary = (activeViews ?? []).map((v, i) => `  [${i}] class=${JSON.stringify(v.className)} text=${JSON.stringify((v.textContent ?? '').trim().slice(0, 200))}`).join('\n');
 		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}\nSession list rows at failure:\n${rowsSummary}\nActive session views:\n${activeSummary}`);
+	}
+
+	/**
+	 * Wait until the active session view's {@link ChatView} root advertises
+	 * a non-untitled chat resource via the `data-bound-chat-resource`
+	 * attribute. The Agents Window's `ChatView.setChat` sets this attribute
+	 * after binding its inner chat widget to the loaded chat model, and
+	 * clears it during rebind — so this CSS selector matches precisely
+	 * once the untitled → committed URI swap has landed and the widget is
+	 * bound to the committed chat.
+	 *
+	 * Uses Playwright's `page.waitForSelector` (push-based via
+	 * `MutationObserver` in the renderer) so we don't add any polling on
+	 * the test-driver side. Soft no-op when the selector never matches
+	 * within `timeoutMs` (e.g. for sessions that don't use {@link ChatView}
+	 * such as the local AgentHost smoke tests).
+	 */
+	private async waitForActiveChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
+		const selector = `${ACTIVE_SESSION} .chat-view-chat[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		try {
+			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
+		} catch {
+			// Soft failure: callers have already verified the response text
+			// is on screen, so proceed and let downstream assertions surface
+			// any actual problem.
+		}
 	}
 
 	private async waitForResponseSettled(timeoutMs: number, fallbackQuietMs: number): Promise<void> {

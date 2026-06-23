@@ -330,10 +330,15 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
+
+		// When a meta-model (e.g. "auto") routes to a concrete model, the
+		// usage reports the actual model that served the request.
+		const effectiveModelId = usage?.actualModelId ?? modelId;
+
 		// The denominator (context window) follows the currently selected model so
 		// switching models updates the widget immediately; the numerator (usage)
 		// still comes from the last response.
-		const denominatorModelId = this._selectedModelId ?? modelId;
+		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;

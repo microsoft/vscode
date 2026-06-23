@@ -182,8 +182,9 @@ export class SessionHeader extends Disposable {
 		// Workspace label (rebuilt per session) followed by a separator and the
 		// session header meta toolbar. Actions are contributed into the generic
 		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
-		// action, rendered as a clickable menu item that opens the multi-file diff
-		// editor.
+		// action (opens the multi-file diff editor) and the GitHub contribution
+		// contributes the pull request pill (opens the PR on GitHub), each rendered
+		// as a clickable menu item.
 		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
 		this._metaRow.appendChild(this._metaWorkspaceEl);
 

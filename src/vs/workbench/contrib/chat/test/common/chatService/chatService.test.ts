@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -48,7 +49,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1790,7 +1791,7 @@ suite('ChatService', () => {
 			assert.strictEqual(model.lastRequest?.response?.isComplete, true, 'Non-streaming session should complete response at load time');
 		});
 
-		test.skip('draft input is restored after disposing and reloading a remote session', async () => {
+		test('draft input is restored after disposing and reloading a remote session', async () => {
 			const { resource } = setupRemoteProvider({ history: [] });
 
 			const testService = createChatService();
@@ -1815,6 +1816,48 @@ suite('ChatService', () => {
 			const model2 = ref2.object as ChatModel;
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
+
+		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
+			const historyModelId = 'history-model';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'History Model', vendor: 'copilot', version: '1.0', family: 'history',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true }
+			};
+			// Resolve only the model the session actually used in its history.
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+
+			const testService = createChatService();
+
+			// Load, then seed an unsent draft AND a stale model selection that must NOT survive reload.
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: 'stale-model', metadata: { ...historyMetadata, id: 'stale-model', name: 'Stale Model' } },
+			});
+
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+			assert.deepStrictEqual(
+				{ inputText: restored?.inputText, selectedModel: restored?.selectedModel?.identifier },
+				{ inputText: 'unsent draft', selectedModel: historyModelId },
+				'Draft text is restored and the model comes from session history, not the stale persisted selection'
+			);
 		});
 	});
 

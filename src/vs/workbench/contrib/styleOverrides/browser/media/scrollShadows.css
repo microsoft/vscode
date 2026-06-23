@@ -20,7 +20,7 @@
  * variable, defaulted below and refined per part. The overlays are
  * non-interactive and sit above the scrolling content.
  *
- * All rules are gated behind the `.style-override-scrollShadows` class, which
+ * All rules are gated behind the `.style-override` class, which
  * the StyleOverridesContribution toggles onto the workbench container(s) when
  * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  */
@@ -29,31 +29,31 @@
  * Surface colour the edges fade into. Default to the editor background, then
  * refine per part so lists in the panel / side bar fade into their own surface.
  */
-.style-override-scrollShadows {
+.style-override {
 	--scroll-shadow-surface: var(--vscode-editor-background);
 }
 
-.style-override-scrollShadows .part.panel {
+.style-override .part.panel {
 	--scroll-shadow-surface: var(--vscode-panel-background);
 }
 
-.style-override-scrollShadows .part.sidebar {
+.style-override .part.sidebar {
 	--scroll-shadow-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
 
-.style-override-scrollShadows .part.auxiliarybar {
+.style-override .part.auxiliarybar {
 	--scroll-shadow-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
 
 /* =============================================================================
  * Lists and trees.
  * ========================================================================== */
-.style-override-scrollShadows .monaco-list {
+.style-override .monaco-list {
 	position: relative;
 }
 
-.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::before,
-.style-override-scrollShadows .monaco-list > .monaco-scrollable-element::after {
+.style-override .monaco-list > .monaco-scrollable-element::before,
+.style-override .monaco-list > .monaco-scrollable-element::after {
 	content: "";
 	position: absolute;
 	left: 0;
@@ -69,26 +69,26 @@
  * stacking context and sit below it. Scope to the editor / panel parts so the
  * fade never leaks onto inline editors such as the chat input.
  * ========================================================================== */
-.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after {
+.style-override .part.editor .monaco-editor .editor-scrollable::before,
+.style-override .part.editor .monaco-editor .editor-scrollable::after {
 	content: "";
 	position: absolute;
 	left: 0;
 	right: 0;
-	height: 24px;
+	height: 8px;
 	pointer-events: none;
 	/* Below the scrollbar (z-index 11) so it is never obscured, above content. */
 	z-index: 10;
 }
 
-.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::before {
+.style-override .part.editor .monaco-editor .editor-scrollable::before,
+.style-override .part.panel .monaco-editor .editor-scrollable::before {
 	top: 0;
 	background: linear-gradient(to bottom, var(--scroll-shadow-surface), transparent);
 }
 
-.style-override-scrollShadows .part.editor .monaco-editor .editor-scrollable::after,
-.style-override-scrollShadows .part.panel .monaco-editor .editor-scrollable::after {
+.style-override .part.editor .monaco-editor .editor-scrollable::after,
+.style-override .part.panel .monaco-editor .editor-scrollable::after {
 	bottom: 0;
 	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
 }
@@ -99,7 +99,7 @@
  * inputs, not as scrolling editor surfaces. Suppress the edge fades there so the
  * input keeps a flat background and never shows the editor-coloured rectangle.
  * ========================================================================== */
-.style-override-scrollShadows .suggest-input-container .monaco-editor .editor-scrollable::before,
-.style-override-scrollShadows .suggest-input-container .monaco-editor .editor-scrollable::after {
+.style-override .suggest-input-container .monaco-editor .editor-scrollable::before,
+.style-override .suggest-input-container .monaco-editor .editor-scrollable::after {
 	display: none;
 }
