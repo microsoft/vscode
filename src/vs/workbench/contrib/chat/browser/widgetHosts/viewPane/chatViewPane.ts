@@ -490,11 +490,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Blue when listening (more active/flashy when transcript hidden), purple when speaking (subtle)
 				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
-				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
+				const transcriptMode = this.configurationService.getValue<string>('agents.voice.showTranscript') ?? 'neither';
+				const userSpeechHidden = transcriptMode === 'neither' || transcriptMode === 'voiceResponse';
 				let borderAlpha: number;
 				let shadowSpread: number;
 				let shadowAlpha: number;
-				if (voiceState === 'listening' && transcriptHidden) {
+				if (voiceState === 'listening' && userSpeechHidden) {
 					// Flashy, audio-reactive glow while user is speaking (no transcript visible)
 					borderAlpha = 0.6 + intensity * 0.4;
 					shadowSpread = 6 + intensity * 20;
@@ -506,7 +507,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					shadowAlpha = 0.15 + intensity * 0.35;
 				}
 				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				if (voiceState === 'listening' && transcriptHidden) {
+				if (voiceState === 'listening' && userSpeechHidden) {
 					// Double-layer glow for extra presence when listening without transcript
 					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`;
 				} else {
@@ -554,8 +555,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
-			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+			const transcriptMode = this.configurationService.getValue<string>('agents.voice.showTranscript') ?? 'neither';
+			const showUser = transcriptMode === 'userSpeech' || transcriptMode === 'both';
+			const showResponse = transcriptMode === 'voiceResponse' || transcriptMode === 'both';
+			const visible = turns.filter(t => {
+				if (t.speaker === 'user') {
+					return showUser && (t.text.length > 0 || t.isPartial);
+				}
+				return showResponse && t.text.length > 0;
+			});
 
 			if (!connected) {
 				transcriptOverlayNode.style.display = 'none';
@@ -574,8 +582,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			// Show hint when connected but no transcript yet
-			if (visible.length === 0 || !showTranscript) {
-				if (voiceState === 'idle' && visible.length === 0) {
+			if (visible.length === 0 || transcriptMode === 'neither') {
+				if (voiceState === 'idle' && visible.length === 0 && transcriptMode !== 'neither') {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
@@ -596,7 +604,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			transcriptOverlayNode.style.display = '';
 			transcriptOverlayNode.classList.add('has-transcript');
-			// Show only the latest turn: user question first, then assistant reply replaces it
+			// Show only the latest visible turn
 			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
 			if (lastTurn.speaker === 'user') {
