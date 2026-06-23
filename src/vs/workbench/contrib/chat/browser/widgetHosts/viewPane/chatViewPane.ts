@@ -59,7 +59,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId } from '../../chat.js';
+import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -141,6 +141,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -386,9 +387,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
-				if (text && this._widget?.viewModel) {
-					this._widget.acceptInput(text, { preserveFocus: true });
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget ?? this._widget;
+				if (text && widget?.viewModel) {
+					if (widget.viewModel.editing) {
+						// When editing an old message, populate the active input
+						// editor so the user can review before submitting.
+						widget.input.setValue(text, false);
+					} else {
+						widget.acceptInput(text, { preserveFocus: true });
+					}
 				}
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
@@ -425,6 +434,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let animFrameId: number | undefined;
 		let glowDataArray: Uint8Array | undefined;
 		const win = getWindow(inputContainerEl);
+		let lastGlowTarget: HTMLElement | undefined;
+		const getActiveInputContainer = (): HTMLElement => {
+			const focused = this.chatWidgetService.lastFocusedWidget;
+			return focused?.input?.inputContainerElement ?? inputContainerEl;
+		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
 			const animate = () => {
@@ -432,11 +446,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
 				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+				const target = getActiveInputContainer();
+
+				// If the target changed, clear styling on the old one
+				if (lastGlowTarget && lastGlowTarget !== target) {
+					lastGlowTarget.style.borderColor = '';
+					lastGlowTarget.style.boxShadow = '';
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening');
+				}
+				lastGlowTarget = target;
 
 				if (!glowActive) {
-					inputContainerEl.style.borderColor = '';
-					inputContainerEl.style.boxShadow = '';
-					inputContainerEl.classList.remove('voice-active', 'voice-listening');
+					target.style.borderColor = '';
+					target.style.boxShadow = '';
+					target.classList.remove('voice-active', 'voice-listening');
 					return;
 				}
 
@@ -464,10 +487,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const borderAlpha = 0.4 + intensity * 0.5;
 				const shadowSpread = 4 + intensity * 12;
 				const shadowAlpha = 0.15 + intensity * 0.35;
-				inputContainerEl.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				inputContainerEl.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
-				inputContainerEl.classList.add('voice-active');
-				inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
+				target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				target.classList.add('voice-active');
+				target.classList.toggle('voice-listening', voiceState === 'listening');
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -476,9 +499,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				win.cancelAnimationFrame(animFrameId);
 				animFrameId = undefined;
 			}
-			inputContainerEl.style.borderColor = '';
-			inputContainerEl.style.boxShadow = '';
-			inputContainerEl.classList.remove('voice-active', 'voice-listening');
+			const target = lastGlowTarget ?? inputContainerEl;
+			target.style.borderColor = '';
+			target.style.boxShadow = '';
+			target.classList.remove('voice-active', 'voice-listening');
+			lastGlowTarget = undefined;
 		};
 
 		this._register(autorun(reader => {

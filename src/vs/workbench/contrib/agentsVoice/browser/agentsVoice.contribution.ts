@@ -285,9 +285,17 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		// Stop recording and send
-		voiceController.pttDown();
-		voiceController.pttUp();
+		// In auto-send mode, toggling voice mode off disconnects entirely.
+		// The auto-listen loop means there's no natural "idle" state to return to.
+		const configService = accessor.get(IConfigurationService);
+		const autoSendDelay = configService.getValue<number>('agents.voice.autoSendDelay') ?? 1000;
+		if (autoSendDelay >= 0) {
+			voiceController.disconnect();
+		} else {
+			// Manual mode: just stop recording
+			voiceController.pttDown();
+			voiceController.pttUp();
+		}
 	}
 });
 
@@ -304,16 +312,6 @@ registerAction2(class extends Action2 {
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-				),
-				group: 'navigation',
-				order: 5
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -485,7 +483,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.showTranscript': {
 			type: 'boolean',
 			description: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active."),
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 			tags: ['advanced'],
