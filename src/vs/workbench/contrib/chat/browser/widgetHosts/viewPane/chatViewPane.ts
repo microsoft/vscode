@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -72,7 +72,6 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { IAgentsVoiceWindowService } from '../../../../agentsVoice/common/agentsVoice.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -110,6 +109,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
+	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
 		options: IViewPaneOptions,
@@ -140,7 +140,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
@@ -563,11 +562,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return;
 			}
 
-			// If aux window is open and voice is targeting a different session,
-			// don't show transcript in the chat input — it's shown in aux window instead.
+			// Don't show transcript from a different session in this widget
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
-			const currentSession = this._widget?.viewModel?.sessionResource;
-			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
+			const currentSession = this._currentSessionResource.read(reader);
+			if (targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
@@ -907,6 +905,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
+			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
