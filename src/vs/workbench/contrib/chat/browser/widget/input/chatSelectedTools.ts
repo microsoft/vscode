@@ -9,8 +9,6 @@ import { derived, IObservable, ObservableMap } from '../../../../../../base/comm
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
@@ -18,11 +16,12 @@ import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
+import { IChatGlobalToolEnablementStore } from './chatGlobalToolEnablementStore.js';
 
 
 // todo@connor4312/bhavyaus: make tools key off displayName so model-specific tool
 // enablement can stick between models with different underlying tool definitions
-type ToolEnablementStates = {
+export type ToolEnablementStates = {
 	readonly toolSets: ReadonlyMap<string, boolean>;
 	readonly tools: ReadonlyMap<string, boolean>;
 };
@@ -39,7 +38,7 @@ type StoredDataV1 = {
 	readonly disabledTools?: string[];
 };
 
-namespace ToolEnablementStates {
+export namespace ToolEnablementStates {
 	export function fromMap(map: IToolAndToolSetEnablementMap): ToolEnablementStates {
 		const toolSets: Map<string, boolean> = new Map(), tools: Map<string, boolean> = new Map();
 		for (const [entry, enabled] of map.entries()) {
@@ -98,8 +97,6 @@ export enum ToolsScope {
 
 export class ChatSelectedTools extends Disposable {
 
-	private readonly _globalState: ObservableMemento<ToolEnablementStates>;
-
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
 	private readonly _currentTools: IObservable<readonly IToolData[]>;
 
@@ -107,19 +104,11 @@ export class ChatSelectedTools extends Disposable {
 		private readonly _mode: IObservable<IChatMode>,
 		private readonly languageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatGlobalToolEnablementStore private readonly _globalStore: IChatGlobalToolEnablementStore,
 	) {
 		super();
 
-		const globalStateMemento = observableMemento<ToolEnablementStates>({
-			key: 'chat/selectedTools',
-			defaultValue: { toolSets: new Map(), tools: new Map() },
-			fromStorage: ToolEnablementStates.fromStorage,
-			toStorage: ToolEnablementStates.toStorage
-		});
-
-		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
 		this._currentTools = languageModel.map(lm =>
 			_toolsService.observeTools(lm?.metadata)).map((o, r) => o.read(r));
 	}
@@ -142,7 +131,7 @@ export class ChatSelectedTools extends Disposable {
 			}
 		}
 		if (!currentMap) {
-			currentMap = this._globalState.read(r);
+			currentMap = this._globalStore.state.read(r);
 		}
 		// Use getTools with contextKeyService to filter tools by current model
 		for (const tool of this._currentTools.read(r)) {
@@ -209,7 +198,7 @@ export class ChatSelectedTools extends Disposable {
 				return;
 			}
 		}
-		this._globalState.set(ToolEnablementStates.fromMap(enablementMap), undefined);
+		this._globalStore.setState(ToolEnablementStates.fromMap(enablementMap));
 	}
 
 	private async updateCustomModeTools(uri: URI, enablementMap: IToolAndToolSetEnablementMap): Promise<void> {

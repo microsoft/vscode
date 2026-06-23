@@ -12,6 +12,7 @@ import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../common/chatService/mockChatService.js';
 import { ChatSelectedTools } from '../../../../browser/widget/input/chatSelectedTools.js';
+import { ChatGlobalToolEnablementStore, IChatGlobalToolEnablementStore } from '../../../../browser/widget/input/chatGlobalToolEnablementStore.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { Iterable } from '../../../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -37,6 +38,7 @@ suite('ChatSelectedTools', () => {
 		}, store);
 		instaService.stub(IChatService, new MockChatService());
 		instaService.stub(ILanguageModelToolsService, instaService.createInstance(LanguageModelToolsService));
+		instaService.stub(IChatGlobalToolEnablementStore, instaService.createInstance(ChatGlobalToolEnablementStore));
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);

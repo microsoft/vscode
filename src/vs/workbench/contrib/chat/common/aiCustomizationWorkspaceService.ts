@@ -45,6 +45,7 @@ export const AICustomizationManagementSection = {
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
 	Models: 'models',
+	Tools: 'tools',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
