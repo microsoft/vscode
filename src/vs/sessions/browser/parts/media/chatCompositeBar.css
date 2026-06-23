@@ -253,7 +253,7 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 0;
+	gap: 4px;
 }
 
 .chat-composite-bar-toolbar {
@@ -296,6 +296,7 @@
 	line-height: 22px;
 	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 4%, transparent);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
@@ -348,6 +349,7 @@
 
 .chat-composite-bar-tab:hover {
 	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 8%, transparent);
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
@@ -356,7 +358,7 @@
 }
 
 .session-view.is-active .chat-composite-bar-tab.active {
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
 }
 
 /* Reduce right padding when close button is present to avoid excess spacing */

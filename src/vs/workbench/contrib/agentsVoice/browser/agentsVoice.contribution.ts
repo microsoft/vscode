@@ -36,6 +36,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
@@ -180,8 +181,8 @@ CommandsRegistry.registerCommand('_agentsVoice.openWindow', async (accessor) => 
 	}
 });
 
-// --- Mic button in Chat toolbar ---
-// Shows mic (unfilled) normally, mic-filled when actively listening.
+// --- Voice mode button in Chat toolbar ---
+// Shows the voice mode icon in both idle and active states.
 // Click to connect if disconnected, or toggle PTT if connected.
 // The disconnect button (shown when connected) indicates active voice mode.
 
@@ -217,7 +218,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
-			icon: Codicon.mic,
+			icon: Codicon.voiceMode,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -256,7 +257,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.pttStopInChat',
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
-			icon: Codicon.micFilled,
+			icon: Codicon.voiceMode,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_ACTIVE.isEqualTo(true),
@@ -385,6 +386,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Select Microphone Command ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.selectMicrophone',
+			title: nls.localize2('agentsVoice.selectMicrophone', "Voice: Select Microphone"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		const allAudioInputs = devices.filter(d => d.kind === 'audioinput');
+		const defaultDevice = allAudioInputs.find(d => d.deviceId === 'default');
+		const defaultDeviceLabel = defaultDevice?.label?.replace(/^Default - /, '') || '';
+		const audioInputs = allAudioInputs.filter(d => d.deviceId !== 'default');
+
+		if (audioInputs.length === 0) {
+			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
+			return;
+		}
+
+		const currentDeviceId = configurationService.getValue<string>('agents.voice.microphoneDevice') || '';
+
+		const items = audioInputs.map(d => {
+			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
+			const isSystemDefault = label === defaultDeviceLabel;
+			const isSelected = currentDeviceId === '' ? isSystemDefault : d.deviceId === currentDeviceId;
+
+			const parts: string[] = [];
+			if (isSystemDefault) {
+				parts.push(nls.localize('systemDefault', "System Default"));
+			}
+			if (isSelected) {
+				parts.push(nls.localize('current', "(current)"));
+			}
+
+			return {
+				label,
+				description: parts.length > 0 ? parts.join(' ') : undefined,
+				deviceId: d.deviceId,
+			};
+		});
+
+		const picked = await quickInputService.pick(items, {
+			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
+		});
+
+		if (picked) {
+			const selection = picked as typeof items[number];
+			await configurationService.updateValue('agents.voice.microphoneDevice', selection.deviceId);
+		}
+	}
+});
+
 // --- Settings ---
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -429,6 +489,22 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 			tags: ['advanced'],
+		},
+		'agents.voice.autoSendDelay': {
+			type: 'number',
+			description: nls.localize('agents.voice.autoSendDelay', "In toggle voice mode (short tap), automatically finish recording after this many milliseconds of silence. Set to -1 to disable."),
+			default: 1000,
+			minimum: -1,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['advanced'],
+		},
+		'agents.voice.microphoneDevice': {
+			type: 'string',
+			description: nls.localize('agents.voice.microphoneDevice', "The device ID of the microphone to use for voice mode. Use the 'Voice: Select Microphone' command to pick a device."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
 		},
 	}
 });

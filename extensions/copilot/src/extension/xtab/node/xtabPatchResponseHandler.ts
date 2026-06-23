@@ -13,6 +13,7 @@ import { equals as arraysEqual } from '../../../util/vs/base/common/arrays';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { URI } from '../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../util/vs/editor/common/core/edits/lineEdit';
+import { DefaultLinesDiffComputer } from '../../../util/vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { LineRange } from '../../../util/vs/editor/common/core/ranges/lineRange';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { AbstractText } from '../../../util/vs/editor/common/core/text/abstractText';
@@ -281,6 +282,64 @@ function applyDuplicatePolicy(
 
 export namespace XtabPatchResponseHandler {
 
+	/**
+	 * Upper bound on how long the per-patch diff may run before we give up and
+	 * fall back to the original (unsplit) replacement. The inputs are a single
+	 * patch's removed/added lines, so this is only a safety valve against
+	 * pathological inputs.
+	 */
+	const SPLIT_DIFF_MAX_COMPUTATION_TIME_MS = 100;
+
+	/**
+	 * Splits a coarse patch replacement into the minimal set of sub-replacements
+	 * by running a line diff between the removed and added lines.
+	 *
+	 * The diff-patch model emits a patch as a contiguous block of `-`/`+` lines,
+	 * which `resolveEdit` turns into a single `LineReplacement` spanning every
+	 * removed line. When only a subset of those lines actually changed (the model
+	 * re-emitted surrounding context), a line-level diff recovers the minimal
+	 * hunks, yielding several small replacements with the untouched lines left as
+	 * context — a nicer suggestion shape.
+	 *
+	 * @param replacement The resolved (possibly dedup-trimmed) replacement; its
+	 * `newLines` are the added lines and its `lineRange` anchors the result in
+	 * the document.
+	 * @param removedLines The original line content removed by the patch. Its
+	 * length is expected to match `replacement.lineRange.length`.
+	 *
+	 * Returns the original replacement unchanged when there is nothing to gain:
+	 * a pure insertion or deletion (one side empty), a diff that times out, or a
+	 * diff that collapses to a single hunk.
+	 */
+	export function splitReplacement(replacement: LineReplacement, removedLines: readonly string[]): LineReplacement[] {
+		const addedLines = replacement.newLines;
+		if (removedLines.length === 0 || addedLines.length === 0) {
+			return [replacement];
+		}
+
+		const diff = new DefaultLinesDiffComputer().computeDiff([...removedLines], [...addedLines], {
+			ignoreTrimWhitespace: false,
+			maxComputationTimeMs: SPLIT_DIFF_MAX_COMPUTATION_TIME_MS,
+			computeMoves: false,
+		});
+		if (diff.hitTimeout || diff.changes.length <= 1) {
+			return [replacement];
+		}
+
+		// `change.original`/`change.modified` are 1-based line ranges over
+		// `removedLines`/`addedLines`. Anchor the original side at the
+		// replacement's first removed line (`removedLines[0]` lives on
+		// `lineRange.startLineNumber`) and slice the new content from `addedLines`.
+		const baseLine = replacement.lineRange.startLineNumber;
+		return diff.changes.map(change => new LineReplacement(
+			new LineRange(
+				baseLine + change.original.startLineNumber - 1,
+				baseLine + change.original.endLineNumberExclusive - 1,
+			),
+			addedLines.slice(change.modified.startLineNumber - 1, change.modified.endLineNumberExclusive - 1),
+		));
+	}
+
 	export async function* handleResponse(
 		linesStream: AsyncIterable<string>,
 		currentDocument: CurrentDocument,
@@ -290,6 +349,7 @@ export namespace XtabPatchResponseHandler {
 		parentTracer: ILogger,
 		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
 		enableProgressiveGhostText: boolean = false,
+		splitPatchOnDiff: boolean = false,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
@@ -330,12 +390,17 @@ export namespace XtabPatchResponseHandler {
 					}
 				}
 
-				yield {
-					edit: lineReplacement,
-					isFromCursorJump: false,
-					targetDocument,
-					window,
-				} satisfies StreamedEdit;
+				const replacements = splitPatchOnDiff
+					? splitReplacement(lineReplacement, edit.removedLines)
+					: [lineReplacement];
+				for (const replacement of replacements) {
+					yield {
+						edit: replacement,
+						isFromCursorJump: false,
+						targetDocument,
+						window,
+					} satisfies StreamedEdit;
+				}
 			}
 		} catch (e: unknown) {
 			if (e instanceof FetchStreamError) {

@@ -958,6 +958,7 @@ export class ChangesViewPane extends ViewPane {
 	private renderSidebarList(
 		container: HTMLElement,
 		onDidLayout: Event<{ readonly height: number; readonly width: number }>,
+		contextKeyService: IContextKeyService,
 		items: IChangesFileItem[],
 		openFileItem: (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => void,
 	): IDisposable {
@@ -975,7 +976,7 @@ export class ChangesViewPane extends ViewPane {
 		const countBadge = disposables.add(new CountBadge(headerNode, { count: items.length }, defaultCountBadgeStyles));
 		countBadge.setCount(items.length);
 
-		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
+		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
 			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items)));
@@ -1032,14 +1033,24 @@ export class ChangesViewPane extends ViewPane {
 		onDidChangeVisibility: Event<boolean>,
 		disposables: DisposableStore,
 		getSelection?: () => IChangesFileItem[],
+		contextKeyService?: IContextKeyService,
 	): WorkbenchCompressibleObjectTree<ChangesTreeElement> {
+		// When a scoped context key service is provided (e.g. when rendering into
+		// the modal editor sidebar), create the tree with an instantiation service
+		// that uses it so the tree's context descends from the modal. This keeps
+		// modal-level context keys (e.g. `editorPartModal`) active while the tree
+		// has focus.
+		const treeInstantiationService = contextKeyService
+			? disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])))
+			: this.instantiationService;
+
 		const resourceLabels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility }));
 		const actionRunner = disposables.add(new ChangesViewActionRunner(
 			() => this.viewModel.activeSessionResourceObs.get(),
 			() => this.getSessionDiscardRef(),
 			getSelection ?? (() => this.getTreeSelection()),
 		));
-		return disposables.add(this.instantiationService.createInstance(
+		return disposables.add(treeInstantiationService.createInstance(
 			WorkbenchCompressibleObjectTree<ChangesTreeElement>,
 			'ChangesViewTree',
 			container,
@@ -1119,8 +1130,8 @@ export class ChangesViewPane extends ViewPane {
 		const currentIndex = items.indexOf(item);
 
 		const sidebar = includeSidebar ? {
-			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
-				return this.renderSidebarList(container as HTMLElement, onDidLayout, items, this._openFileItem.bind(this));
+			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => {
+				return this.renderSidebarList(container as HTMLElement, onDidLayout, contextKeyService, items, this._openFileItem.bind(this));
 			}
 		} : undefined;
 
