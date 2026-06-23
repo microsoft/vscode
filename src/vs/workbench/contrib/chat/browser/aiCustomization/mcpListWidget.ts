@@ -301,18 +301,23 @@ function getMcpStatusPresentation(state: McpStatusKind | undefined): { label: st
 	}
 }
 
-function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): McpStatusKind | undefined {
-	if (entry.type !== 'session-server-item' && entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
+function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, isSessionsWindow: boolean): McpStatusKind | undefined {
+	if (entry.type === 'session-server-item') {
+		return entry.server.enabled ? entry.server.status : 'disabled';
+	}
+	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
 		return 'disabled';
 	}
-	const activeSessionServer = entry.type === 'session-server-item' ? entry.server : entry.activeSessionServer;
-	if (!activeSessionServer) {
-		return undefined;
+	if (entry.activeSessionServer) {
+		return entry.activeSessionServer.enabled ? entry.activeSessionServer.status : 'disabled';
 	}
-	return activeSessionServer.enabled ? activeSessionServer.status : 'disabled';
+	if (entry.type === 'server-item' && !isSessionsWindow) {
+		return entry.localServer?.connectionState.get().state;
+	}
+	return undefined;
 }
 
-function getMcpEntryAriaLabel(element: IMcpListEntry): string {
+function getMcpEntryAriaLabel(element: IMcpListEntry, isSessionsWindow: boolean): string {
 	if (element.type === 'group-header') {
 		return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 	}
@@ -321,7 +326,7 @@ function getMcpEntryAriaLabel(element: IMcpListEntry): string {
 		: element.type === 'builtin-item'
 			? element.label
 			: element.server.label;
-	const status = getMcpStatusPresentation(getMcpStatusKind(element));
+	const status = getMcpStatusPresentation(getMcpStatusKind(element, isSessionsWindow));
 	return status
 		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label)
 		: label;
@@ -589,6 +594,7 @@ export class McpListWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
@@ -747,7 +753,7 @@ export class McpListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IMcpListEntry) => {
-						return getMcpEntryAriaLabel(element);
+						return getMcpEntryAriaLabel(element, this.workspaceService.isSessionsWindow);
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");
