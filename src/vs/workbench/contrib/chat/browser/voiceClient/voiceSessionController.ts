@@ -174,6 +174,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
 	/** Enter listening immediately after greeting finishes (no debounce). */
 	private _autoListenAfterGreeting = false;
+	/** Tracks whether the initial listen cue has been played after connecting. */
+	private _hasPlayedInitialListenCue = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -1055,6 +1057,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAutoListenTimer();
 		this._clearAwaitingReply();
 		this._autoListenAfterGreeting = false;
+		this._hasPlayedInitialListenCue = false;
 		this._replyPlayedSinceSend = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
@@ -1182,9 +1185,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
-		// Audible cue when hands-free mode re-arms listening.
+		// Audible cue: for non-screen-reader users, only play on the first
+		// listen after connecting. For screen reader users, play every time.
 		if (this._isAutoSendEnabled()) {
-			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			if (!this._hasPlayedInitialListenCue) {
+				this._hasPlayedInitialListenCue = true;
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			} else if (this.accessibilityService.isScreenReaderOptimized()) {
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			}
 		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
