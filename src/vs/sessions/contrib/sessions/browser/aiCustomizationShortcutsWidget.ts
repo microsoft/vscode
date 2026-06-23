@@ -128,7 +128,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		const header = DOM.append(container, $('.ai-customization-header'));
 		this._headerElement = header;
 		header.setAttribute('role', 'button');
-		header.setAttribute('aria-label', localize('toggleCustomizations', "Toggle Customizations"));
 		header.setAttribute('aria-expanded', 'true');
 		header.tabIndex = 0;
 
@@ -137,6 +136,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._headerTotalCountElement = DOM.append(header, $('span.ai-customization-header-total-count.hidden'));
 
 		this._chevronElement = DOM.append(header, $('span.ai-customization-chevron'));
+		this._chevronElement.setAttribute('aria-hidden', 'true');
 		this._updateChevron();
 
 		const totalCount = this._totalCount();
@@ -206,6 +206,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _setCollapsed(collapsed: boolean): void {
+		if (collapsed && this._scrollableDomNode?.contains(DOM.getActiveElement())) {
+			this._headerElement?.focus();
+		}
 		this._collapsed = collapsed;
 		this._headerElement?.classList.toggle('collapsed', collapsed);
 		this._headerElement?.setAttribute('aria-expanded', String(!collapsed));
@@ -240,6 +243,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	focus(): void {
+		if (this._collapsed) {
+			this._headerElement?.focus();
+			return;
+		}
 		this._toolbar?.focus();
 	}
 }
