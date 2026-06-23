@@ -165,7 +165,11 @@ export class ChatCompositeBar extends Disposable {
 			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = mainChat.resource.toString();
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+			// Keep the provider's order, but move untitled (in-composer) chats
+			// to the end so a just-completed background chat never jumps last.
+			const orderedChats = [...chats].sort((a, b) =>
+				(a.status.read(reader) === SessionStatus.Untitled ? 1 : 0) - (b.status.read(reader) === SessionStatus.Untitled ? 1 : 0));
+			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
 
 			if (shown) {
 				return;
