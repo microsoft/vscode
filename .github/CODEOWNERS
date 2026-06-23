@@ -20,3 +20,9 @@ src/vs/workbench/services/extensions/common/extensionPoints.json @mjbvz @alexr00
 # Adding entries here lets a new .js/.cjs/.mjs file land in the repo;
 # review is required to make sure TypeScript is not a better choice.
 .eslint-allowed-javascript-files @alexr00 @alexdima @sbatten
+
+# OSS compliance manifests.
+# Changes to these files affect third-party notice generation and license
+# overrides; require review so dependency/license overrides aren't self-approved.
+/cglicenses.json @benvillalobos
+/cgmanifest.json @benvillalobos
