@@ -28,6 +28,10 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
 	private static readonly _MAX_WIDTH = 400;
+	// The input should never be wider than the editor itself. Cap it to this
+	// fraction of the editor width so it doesn't render past the editor bounds
+	// on narrow editors.
+	private static readonly _MAX_WIDTH_EDITOR_FRACTION = 0.9;
 
 	readonly allowEditorOverflow = false;
 
@@ -190,14 +194,21 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._measureElement.textContent = text;
 		const textWidth = this._measureElement.scrollWidth;
 
-		// Clamp width between min and max
-		const width = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, Math.min(textWidth + 10, AgentFeedbackInputWidget._MAX_WIDTH));
+		// Clamp width between min and a max that never exceeds the editor width
+		const maxWidth = this._computeMaxWidth();
+		const desiredWidth = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, textWidth + 10);
+		const width = Math.min(desiredWidth, maxWidth);
 		this._inputElement.style.width = `${width}px`;
 
 		// Reset height to auto then expand to fit all content, with a minimum of 1 line
 		this._inputElement.style.height = 'auto';
 		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
 		this._inputElement.style.height = `${newHeight}px`;
+	}
+
+	private _computeMaxWidth(): number {
+		const editorWidth = this._editor.getLayoutInfo().width;
+		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, editorWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
 	}
 
 }
@@ -225,6 +236,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._store.add(this._editor.onDidScrollChange(() => {
 			if (this._visible) {
+				this._updatePosition();
+			}
+		}));
+		this._store.add(this._editor.onDidLayoutChange(() => {
+			if (this._visible && this._widget) {
+				// The editor resized: re-clamp the input width to the new editor
+				// width and reposition it.
+				this._widget.autoSize();
 				this._updatePosition();
 			}
 		}));
@@ -602,8 +621,11 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Clamp vertical position within editor bounds
 		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
 
-		// Clamp horizontal position so the widget stays within the editor
-		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+		// Clamp horizontal position so the widget stays within the editor and
+		// never renders on top of the line numbers/glyph margin (content left).
+		// When the editor is scrolled horizontally the cursor position can fall
+		// behind the content area, so stick the widget to the content left edge.
+		const left = Math.max(layoutInfo.contentLeft, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}
