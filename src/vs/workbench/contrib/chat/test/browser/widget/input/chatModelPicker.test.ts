@@ -242,17 +242,24 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
 	});
 
-	test('restrictedMode shows an explanatory entry and a Trust Workspace action instead of auto', () => {
-		const items = callBuild([], { restrictedMode: true });
+	test('restrictedMode shows an explanatory header and a Trust Workspace action instead of auto', () => {
+		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { } });
 		const actions = getActionItems(items);
-		assert.strictEqual(actions.length, 2);
-		assert.strictEqual(actions[0].item?.id, 'restrictedModeInfo');
-		assert.strictEqual(actions[0].item?.enabled, false);
-		assert.strictEqual(actions[1].item?.id, 'restrictedModeTrust');
-		assert.strictEqual(actions[1].item?.enabled, true);
+		// The explanation is a non-interactive header; only Trust is selectable.
+		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models Unavailable in Restricted Mode'));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'restrictedModeTrust');
+		assert.strictEqual(actions[0].item?.enabled, true);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
 		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
 		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+	});
+
+	test('restrictedMode Trust action is disabled without a trust callback', () => {
+		const items = callBuild([], { restrictedMode: true });
+		const trust = getActionItems(items).find(a => a.item?.id === 'restrictedModeTrust');
+		assert.strictEqual(trust?.item?.enabled, false);
+		assert.strictEqual(trust?.disabled, true);
 	});
 
 	test('restrictedMode takes precedence over showAutoModel', () => {
