@@ -23,7 +23,7 @@
 	min-width: 0;
 	box-sizing: border-box;
 	padding: 4px 6px 4px 10px;
-	border: 1px solid var(--vscode-input-border, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	font-size: var(--vscode-chat-font-size-body-s);
@@ -69,39 +69,25 @@
 }
 
 .session-input-banner .session-input-banner-action {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	height: 20px;
-	padding: 0 8px;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
 	font-size: var(--vscode-agents-fontSize-label2);
-	font-family: inherit;
-	cursor: pointer;
+	padding: 0 8px;
+	min-width: unset;
+	width: auto;
+	height: 20px;
 	white-space: nowrap;
-	color: var(--vscode-foreground);
+}
+
+/* Transparent ghost style for secondary action buttons (e.g. "Reveal Checks"). */
+.session-input-banner .session-input-banner-action.secondary {
+	border: none;
 	background: transparent;
-	outline: none;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
 }
 
-.session-input-banner .session-input-banner-action:hover {
+.session-input-banner .session-input-banner-action.secondary:hover {
 	background: var(--vscode-toolbar-hoverBackground);
-}
-
-/* Primary action stands out with the button colors. */
-.session-input-banner .session-input-banner-action.primary {
-	color: var(--vscode-button-foreground);
-	background: var(--vscode-button-background);
-}
-
-.session-input-banner .session-input-banner-action.primary:hover {
-	background: var(--vscode-button-hoverBackground);
-}
-
-.session-input-banner .session-input-banner-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	opacity: 1;
 }
 
 /* Dismiss (x) button. */
@@ -125,6 +111,6 @@
 }
 
 .session-input-banner .session-input-banner-dismiss:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

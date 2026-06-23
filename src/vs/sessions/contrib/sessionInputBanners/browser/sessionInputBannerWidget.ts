@@ -5,12 +5,14 @@
 
 import './media/sessionInputBanners.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 export interface ISessionInputBannerAction {
 	readonly label: string;
@@ -61,14 +63,26 @@ export class SessionInputBannerWidget extends Disposable {
 
 		const actions = dom.append(this.domNode, dom.$('.session-input-banner-actions'));
 		for (const action of banner.actions) {
-			const button = dom.append(actions, dom.$('button.session-input-banner-action')) as HTMLButtonElement;
-			button.type = 'button';
-			button.classList.toggle('primary', !!action.primary);
-			button.textContent = action.label;
-			this._register(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
-				dom.EventHelper.stop(e, true);
-				action.run();
+			// Primary uses the prominent button colors; secondary renders as a
+			// ghost button (colors overridden to undefined so the CSS ghost
+			// styles apply), mirroring the chat input notification widget.
+			const button = this._register(new Button(actions, {
+				...defaultButtonStyles,
+				...(action.primary ? {} : {
+					buttonBackground: undefined,
+					buttonHoverBackground: undefined,
+					buttonForeground: undefined,
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: !action.primary,
 			}));
+			button.element.classList.add('session-input-banner-action');
+			button.label = action.label;
+			button.element.ariaLabel = `${banner.ariaLabel} ${action.label}`;
+			this._register(button.onDidClick(() => action.run()));
 		}
 
 		const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
