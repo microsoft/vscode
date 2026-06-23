@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
@@ -209,6 +210,37 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			controller.layout();
 
 			assert.strictEqual(controller['container'].parentElement, null);
+		});
+
+		test('is a no-op when disabled — does not insert DOM or attach listeners', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.setEnabled(false);
+			controller.layout();
+
+			// Container should not have been inserted into the DOM
+			assert.strictEqual(controller['container'].parentElement, null);
+			// Listeners should not have been attached
+			assert.strictEqual(controller['parentPointerDownListener'].value, undefined);
+			assert.strictEqual(controller['parentClickListener'].value, undefined);
+			assert.strictEqual(controller['parentMouseUpListener'].value, undefined);
+		});
+
+		test('setEnabled(true) after disabled installs DOM and listeners on next layout', () => {
+			const layoutInfo = makeLayoutInfo(14);
+			const host = new FakeHost({ renderHeight: 200, scrollHeight: 400, layoutInfo });
+			const controller = createController(host);
+
+			controller.setEnabled(false);
+			controller.setEnabled(true);
+			controller.layout();
+
+			// Container should now be in the DOM
+			assert.strictEqual(controller['container'].parentElement, layoutInfo.parent);
+			// Listeners should be attached
+			assert.notStrictEqual(controller['parentPointerDownListener'].value, undefined);
 		});
 	});
 
@@ -640,7 +672,7 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.deepStrictEqual(calls, ['reveal']);
 		});
 
-		test('with RevealAndFocus calls reveal immediately and retries focusItem across animation frames', async () => {
+		test('with RevealAndFocus calls reveal immediately and retries focusItem across animation frames', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const req = makeRequest('r1');
 			const layoutInfo = makeLayoutInfo(14);
 			const heights = new Map([['r1', 100]]);
@@ -668,13 +700,13 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			// reveal is called immediately; focusItem is deferred to animation frames
 			assert.deepStrictEqual(calls, ['reveal']);
 
-			// Wait for animation frames to process
-			await new Promise(resolve => setTimeout(resolve, 200));
+			// Flush scheduled animation frames deterministically
+			await new Promise(resolve => setTimeout(resolve, 0));
 
 			// focusItem should have been called once after hasElement returned true
 			assert.ok(calls.includes('focusItem'), `expected focusItem to be called, got: ${JSON.stringify(calls)}`);
 			assert.strictEqual(calls.filter(c => c === 'focusItem').length, 1);
-		});
+		}));
 	});
 
 	suite('pointer/click event handling', () => {

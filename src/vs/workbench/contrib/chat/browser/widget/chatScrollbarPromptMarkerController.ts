@@ -132,6 +132,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	}
 
 	layout(): void {
+		if (!this.enabled) {
+			return;
+		}
+
 		const layoutInfo = this.host.getOverviewRulerLayoutInfo();
 		if (!layoutInfo) {
 			return;
