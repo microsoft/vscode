@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, Position, getFloatingOuterEdgeOwners } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -109,13 +109,6 @@ export interface IPaneCompositePart extends IView {
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
-
-	/**
-	 * Additional right margin for the secondary side bar (it sits at the window
-	 * edge), doubling the standard margin. Must match the `margin-right` override
-	 * in `part.css`.
-	 */
-	private static readonly FLOATING_AUXBAR_EXTRA_RIGHT = FLOATING_PANEL_MARGIN;
 
 	get snap(): boolean {
 		// Always allow snapping closed
@@ -615,11 +608,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.contentDimension = new Dimension(width, height);
 
-		// Reflect whether the primary side bar sits at the window edge so the matching
-		// doubled outer gutter can be applied in CSS (kept in sync with `getFloatingInset`).
-		const outerEdge = this.getFloatingSideBarOuterEdge();
-		this.element.classList.toggle('floating-sidebar-outer-left', outerEdge === Position.LEFT);
-		this.element.classList.toggle('floating-sidebar-outer-right', outerEdge === Position.RIGHT);
+		// Reflect which window edges this part is the outermost floating card on so the
+		// matching doubled outer gutter can be applied in CSS (kept in sync with
+		// `getFloatingInset`).
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
+		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
@@ -632,24 +626,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
-	 * When the primary side bar sits directly at the window edge (the activity bar is
-	 * not visible) it becomes the outermost card on its side and adopts the same doubled
-	 * gutter the other floating cards use. Returns the edge that needs the extra margin,
-	 * or `undefined` when the side bar is not at the window edge.
+	 * The window edges on which this part is the outermost floating card and therefore
+	 * adopts a doubled outer gutter, so its contents do not hug the window edge. Applies
+	 * to the primary side bar, the secondary side bar and the panel; a horizontal panel
+	 * can own both edges at once.
 	 */
-	private getFloatingSideBarOuterEdge(): Position | undefined {
-		if (this.partId !== Parts.SIDEBAR_PART) {
-			return undefined;
-		}
-
-		const owners = getFloatingOuterEdgeOwners(this.layoutService);
-		if (owners.left === Parts.SIDEBAR_PART) {
-			return Position.LEFT;
-		}
-		if (owners.right === Parts.SIDEBAR_PART) {
-			return Position.RIGHT;
-		}
-		return undefined;
+	private getFloatingOuterGutterEdges(): { left: boolean; right: boolean } {
+		return getFloatingOuterGutterEdges(this.layoutService, this.partId);
 	}
 
 	protected override getRelayoutDimension(): Dimension | undefined {
@@ -661,10 +644,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
 	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. A side bar that sits at the window edge
-	 * (the secondary side bar always, or the primary side bar when it is the outermost
-	 * card — see {@link getFloatingSideBarOuterEdge}) gets a doubled outer margin, so
-	 * its width inset is larger on that side.
+	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
+	 * margin, so its width inset is larger on that side.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
@@ -674,18 +656,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
 		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
-		let leftMargin = margin;
-		let rightMargin = margin;
-		if (this.partId === Parts.AUXILIARYBAR_PART) {
-			rightMargin = margin + AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT;
-		} else {
-			const outerEdge = this.getFloatingSideBarOuterEdge();
-			if (outerEdge === Position.LEFT) {
-				leftMargin = margin * 2;
-			} else if (outerEdge === Position.RIGHT) {
-				rightMargin = margin * 2;
-			}
-		}
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		const leftMargin = outerGutter.left ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : margin;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
 			height: topMargin + margin + borderTotal
