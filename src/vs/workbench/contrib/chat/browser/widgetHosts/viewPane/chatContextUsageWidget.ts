@@ -341,7 +341,6 @@ export class ChatContextUsageWidget extends Disposable {
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
-
 		if (!usage || totalContextWindow <= 0) {
 			if (!this.currentData) {
 				this.hide();
