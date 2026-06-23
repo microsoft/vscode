@@ -409,18 +409,49 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 
 	const sizeMB = (output.length / 1024 / 1024).toFixed(2);
 
+	// Reconcile the numbers so the summary is self-explaining. Only three inputs
+	// ADD a row to the final NOTICE: CG packages, brand-new extension-scanner
+	// packages, and injected overrides. Everything else either lands on a package
+	// CG already covers (folded -> no new row) or edits an existing row in place
+	// (count-neutral). "Found" is the gross discovery count across all sources;
+	// "included" is what actually ships after folding the overlaps.
+	const extScannerFound = extAdded + extStubOverridden + extSkipped;
+	const totalFound = cgCount + extScannerFound + overridesInjected;
+	const totalFolded = extSkipped + extStubOverridden;
+	const totalIncluded = sorted.length;
+
 	console.log('=== Merge Summary ===');
-	console.log(`  Total packages: ${sorted.length}`);
-	console.log(`    From CG: ${cgCount}`);
-	console.log(`    From extension scanner: ${extAdded}`);
-	console.log(`    Cargo stub-overrides (beat CG): ${extStubOverridden}`);
-	console.log(`    Extension duplicates skipped: ${extSkipped}`);
+	console.log('');
+	console.log('  Packages found (gross, across all sources):');
+	console.log(`    Component Governance:                 ${cgCount}`);
+	console.log(`    Extension scanner:                    ${extScannerFound}  (${extAdded} new, ${extSkipped} already in CG, ${extStubOverridden} stub-overrides)`);
 	if (cglicensesPath) {
-		console.log(`    cglicenses overrides applied: ${overridesApplied} (${overrideEntryCount} merged entries updated)`);
-		console.log(`    cglicenses overrides injected: ${overridesInjected}`);
-		console.log(`    cglicenses overrides stale (skipped, warn-only): ${staleOverrides.length}`);
-		console.log(`    cglicenses overrides unmatched (no usable text): ${unmatchedOverrides.length}`);
+		console.log(`    cglicenses.json injected:             ${overridesInjected}  (present-but-unlicensed, added by override)`);
 	}
+	console.log(`    Total packages found:                 ${totalFound}`);
+	console.log('');
+	console.log('  Folded during merge (scanner hit a package CG already had -- no new row):');
+	console.log(`    Duplicates skipped (CG text kept):    ${extSkipped}`);
+	console.log(`    Stub-overrides (CG text replaced):    ${extStubOverridden}`);
+	console.log(`    Total folded:                         ${totalFolded}`);
+	console.log('');
+	if (cglicensesPath) {
+		console.log('  Edited in place (count-neutral):');
+		console.log(`    cglicenses overrides applied:         ${overridesApplied}  (${overrideEntryCount} entries updated)`);
+		console.log(`    cglicenses overrides stale (skipped): ${staleOverrides.length}  (warn-only)`);
+		console.log(`    cglicenses overrides unmatched:       ${unmatchedOverrides.length}  (no usable text)`);
+		console.log('');
+	}
+	console.log(`  Total packages included in shipping ThirdPartyNotices: ${totalIncluded}`);
+	console.log(`    (${totalFound} found - ${totalFolded} folded = ${totalIncluded})`);
+
+	// Defensive: if a future code path mutates the merged map without updating a
+	// counter, this catches the drift instead of silently shipping a wrong total.
+	if (totalFound - totalFolded !== totalIncluded) {
+		console.warn(`  WARN: merge accounting mismatch -- found(${totalFound}) - folded(${totalFolded}) = ${totalFound - totalFolded}, but the final NOTICE has ${totalIncluded} packages. A source or override path is uncounted.`);
+	}
+
+	console.log('');
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
 }
 
