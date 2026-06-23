@@ -106,6 +106,8 @@
  * so lift it explicitly; otherwise the indicator (appended last in the DOM)
  * would paint over the icon.
  */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label,
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge {
 	position: relative;
@@ -113,6 +115,7 @@
 }
 
 /* Drop the flat, full-bleed active fill — it is replaced by the rounded box. */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
 	background-color: transparent;
 }
@@ -121,18 +124,20 @@
  * Drop the thin top/bottom active border line. It is kept while the item is
  * keyboard focused so the focus indicator still shows.
  */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:focus) .active-item-indicator:before,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:focus) .active-item-indicator:before {
 	display: none;
 }
 
 /* Active item: inset, rounded background box behind the icon. */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
 	z-index: 0;
 	top: 5px;
 	left: 2px;
 	width: calc(100% - 4px);
 	height: calc(100% - 10px);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
 
@@ -141,6 +146,7 @@
  * shows the box) and while dragging (the action-item `::before`/`::after` are
  * reused for the drop-line indicators).
  */
+.style-override .pane-composite-part > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
 	z-index: 0;
 	top: 5px;
@@ -157,18 +163,74 @@
  * items are tinted via `color`; image (iconUrl) items render as a tinted SVG
  * mask, so they are tinted via `background-color` instead.
  */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon {
 	color: var(--vscode-foreground) !important;
 }
 
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon {
 	color: var(--vscode-descriptionForeground) !important;
 }
 
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon {
 	background-color: var(--vscode-foreground) !important;
 }
 
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.uri-icon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.uri-icon {
 	background-color: var(--vscode-descriptionForeground) !important;
 }
+
+/* Render the composite icons at the standard 16px size. */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
+	font-size: 16px;
+}
+
+/*
+ * Drop the divider between the horizontal activity bar and the part body. The
+ * rounded box gives the active item its own shape, so the full-width rule under
+ * the top (header) bar — and over the bottom (footer) bar — is removed for the
+ * cleaner, default-position look. `.monaco-workbench` is added to outrank the
+ * base part rule.
+ */
+.style-override.monaco-workbench .pane-composite-part:not(.empty) > .header {
+	border-bottom: none;
+}
+
+.style-override.monaco-workbench .pane-composite-part:not(.empty) > .footer {
+	border-top: none;
+}
+
+/*
+ * Re-center the icon within its item. With the rounded box in place the item is
+ * given a touch more horizontal padding and the codicon glyph is nudged so it
+ * sits centered inside the box, matching the default position.
+ */
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	padding: 0 4px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before {
+	left: 3px;
+}
+
+/*
+ * Auxiliary bar only: give its composite icon items a shorter 28px height so the
+ * single Chat item reads as a compact, balanced chip. Scoped to the auxiliary
+ * bar so the primary activity bar keeps its default item height.
+ */
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
+	height: 24px;
+	padding: 0 2px;
+}
+
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
