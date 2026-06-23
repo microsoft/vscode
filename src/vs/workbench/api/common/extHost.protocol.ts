@@ -491,6 +491,7 @@ export interface IdentifiableInlineCompletions extends languages.InlineCompletio
 }
 
 export interface IdentifiableInlineCompletion extends languages.InlineCompletion {
+	pid: number;
 	idx: number;
 	suggestionId: EditSuggestionId | undefined;
 }

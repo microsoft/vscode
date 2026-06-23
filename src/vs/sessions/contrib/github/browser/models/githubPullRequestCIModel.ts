@@ -27,12 +27,12 @@ export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollec
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
 		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._fetcher, this._logService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestCIModel): void {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
 		object.dispose();
 	}
 }
