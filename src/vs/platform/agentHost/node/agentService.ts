@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -53,7 +53,7 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
-import { AgentHostGitStateService } from './agentHostGitStateService.js';
+import { AgentHostGitStateService, META_GITHUB_STATE } from './agentHostGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -418,8 +418,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, isRead: true, isArchived: true, isDone: true, ...changesetKeys }
-						: { customTitle: true, isRead: true, isArchived: true, isDone: true };
+						? { customTitle: true, isRead: true, isArchived: true, isDone: true, [META_GITHUB_STATE]: true, ...changesetKeys }
+						: { customTitle: true, isRead: true, isArchived: true, isDone: true, [META_GITHUB_STATE]: true };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					let updated = s;
 					if (m.customTitle) {
@@ -433,6 +433,15 @@ export class AgentService extends Disposable implements IAgentService {
 					} else if (m.isDone !== undefined) {
 						updated = { ...updated, isArchived: m.isDone === 'true' };
 					}
+					if (m[META_GITHUB_STATE]) {
+						try {
+							const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
+							updated = { ...updated, _summaryMeta: withSessionGitHubState(updated._summaryMeta, gitHubState) };
+						} catch (e) {
+							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
+						}
+					}
+
 					return this._changesetCoordinator.decorateListEntry(updated, m as Record<string, string | undefined>);
 				} finally {
 					ref.dispose();
@@ -456,6 +465,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
+				// Overlay the live session `_meta` over the DB-derived value.
+				// The summary `_meta` is the freshest source (e.g. the GitHub
+				// state is published here via `setSessionSummaryMeta` as soon
+				// as a PR is created), so a freshly-created session that has
+				// not yet persisted its state to its session database still
+				// reports it here (the DB overlay above only sees persisted
+				// state). Keep the DB value as the base so any keys absent from
+				// the live summary are preserved.
+				const _meta = liveState._meta !== undefined || s._meta !== undefined
+					? { ...s._meta, ...liveState._meta }
+					: undefined;
+				const _summaryMeta = liveState.summary._meta !== undefined || s._summaryMeta !== undefined
+					? { ...s._summaryMeta, ...liveState.summary._meta }
+					: undefined;
 				return {
 					...s,
 					summary: liveState.summary.title || s.summary,
@@ -465,6 +488,8 @@ export class AgentService extends Disposable implements IAgentService {
 					agent: liveState.summary.agent ?? s.agent,
 					changes: liveState.summary.changes ?? s.changes,
 					changesets: liveState.changesets ?? s.changesets,
+					...(_summaryMeta !== undefined ? { _summaryMeta } : {}),
+					...(_meta !== undefined ? { _meta } : {}),
 				};
 			}
 			return s;
@@ -504,6 +529,13 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 				changes: summary.changes,
+				// This overlay path never opens the session database (unlike the
+				// provider-returned sessions handled above), so carry the
+				// in-memory `summary._meta` directly. It holds the live state
+				// (e.g. the GitHub state published via `setSessionSummaryMeta`
+				// when a PR is created), so a freshly-created session that the
+				// provider transiently omits still reports it here.
+				...(summary._meta !== undefined ? { _summaryMeta: summary._meta } : {}),
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;

@@ -12,7 +12,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus, SessionSummaryMeta } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -736,6 +736,45 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Merges `meta` into the aggregate `summary._meta` for a session.
+	 *
+	 * Unlike {@link setSessionMeta} — which replaces the session state's
+	 * `_meta` wholesale — this performs a shallow merge of the supplied keys
+	 * onto the existing `summary._meta` so callers can update individual
+	 * slots without clobbering the rest. Like {@link setSessionSummaryChanges},
+	 * there is no dedicated action for this field: the value is purely
+	 * informational (session list / notification rendering), so the write
+	 * piggybacks on the existing `sessionSummaryChanged` notification path.
+	 * We mutate `state.summary` in place, mark the session dirty, and let
+	 * {@link _flushSummaryNotificationFor} pick the new value up via its
+	 * `current._meta !== lastNotified._meta` diff.
+	 */
+	setSessionSummaryMeta(session: URI, meta: SessionSummaryMeta | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionSummaryMeta: unknown session ${session}`);
+			return;
+		}
+
+		if (structuralEquals(state.summary._meta, meta)) {
+			return;
+		}
+
+		const newState = {
+			...state,
+			summary: {
+				...state.summary,
+				_meta: meta
+			},
+		};
+
+		this._sessionStates.set(session, newState);
+
+		this._dirtySummaries.add(session);
+		this._summaryNotifyScheduler.schedule();
+	}
+
+	/**
 	 * Replaces the catalogue entries on `state.changesets` for `session` by
 	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
 	 * Subscribers see the mutation in the standard session action stream —
@@ -1108,6 +1147,7 @@ export class AgentHostStateManager extends Disposable {
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
+		if (current._meta !== lastNotified._meta) { changes._meta = current._meta; }
 
 		this._lastNotifiedSummaries.set(session, current);
 

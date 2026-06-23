@@ -592,10 +592,11 @@ export function setup(logger: Logger) {
 			},
 			settings: {
 				// Register the Codex provider in the agent host process (it is
-				// off by default). The provider only actually appears if the
-				// codex SDK is resolvable (product.agentSdks.codex in packaged
-				// builds, or VSCODE_AGENT_HOST_CODEX_SDK_ROOT in dev) — the test
-				// skips gracefully when it is not.
+				// off by default). The provider resolves the codex SDK from the
+				// repo's `node_modules` in dev, or `product.agentSdks.codex` in
+				// packaged builds (or the VSCODE_AGENT_HOST_CODEX_SDK_ROOT
+				// override) — so the test below is a hard requirement in dev and
+				// skips only in built products where the SDK is genuinely absent.
 				'chat.agentHost.codexAgent.enabled': true,
 			},
 		});
@@ -605,15 +606,36 @@ export function setup(logger: Logger) {
 
 			const app = this.app as Application;
 
-			// Gate on Codex availability OUTSIDE the try/catch below so that the
+			// Resolve Codex availability OUTSIDE the try/catch below so that the
 			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
-			// failure) by the failure-diagnostics handler. Codex registers only
-			// when its native SDK is resolvable; until it ships in the build this
-			// keeps the suite green instead of red.
+			// failure) by the failure-diagnostics handler.
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
 			if (!codexAvailable) {
-				logger.log('[Agents Window/Codex] Codex session type not available (no product.agentSdks.codex / VSCODE_AGENT_HOST_CODEX_SDK_ROOT); skipping');
+				// Codex must be available — and so this test must run rather than
+				// skip — whenever the build under test is supposed to be able to
+				// resolve the SDK:
+				//   - Running from source (VSCODE_DEV=1, set by the smoke runner
+				//     when no `--build` is passed): the agent host is not built, so
+				//     it resolves the SDK from the repo's `node_modules`
+				//     (`@openai/codex` is a devDependency).
+				//   - Publish builds: `product.agentSdks.codex` is stamped (only
+				//     when VSCODE_PUBLISH=true, see build/azure-pipelines/common/
+				//     agent-sdk-produce.yml) so the SDK is fetched from the CDN.
+				// In both cases an unavailable Codex is a regression — fail loudly.
+				// Otherwise (built non-publish CI, where the SDK is neither shipped
+				// nor stamped) Codex is legitimately absent, so skip gracefully.
+				//
+				// VSCODE_DEV (not app.quality === Quality.Dev) is the precise
+				// "from source" signal: parseQuality() also returns Quality.Dev for
+				// a `--build` product when VSCODE_QUALITY is unset, which would
+				// wrongly hard-fail a packaged build that legitimately lacks Codex.
+				const isFromSource = process.env['VSCODE_DEV'] === '1';
+				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
+				if (isFromSource || isPublishBuild) {
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env['VSCODE_DEV'] ?? '<unset>'}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
+				}
+				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
 			}
 

@@ -122,7 +122,7 @@ suite('OnboardingScenarioService', () => {
 		second.start();
 		await timeout(0);
 
-		contextKeyService.createKey('onboardingTestDevModeReevaluate', false).set(true);
+		contextKeyService.createKey<boolean>('onboardingTestDevModeReevaluate', false).set(true);
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, ['dev-repeat-1', 'dev-repeat-1']);

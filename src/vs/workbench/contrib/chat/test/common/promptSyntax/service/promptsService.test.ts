@@ -4473,6 +4473,55 @@ suite('PromptsService', () => {
 
 			testPluginsObservable.set([], undefined);
 		});
+
+		test('plugin skill slash command prefix uses plugin label when install path is a pinned SHA', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const pluginUri = URI.file('/cache/agentPlugins/github/datadog/sha_b003fcad48c3a935ffe04b6218f5cf58fe2b6760');
+			const skillUri = URI.joinPath(pluginUri, 'skills', 'ddsetup', 'SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "ddsetup"',
+						'description: "Set up Datadog"',
+						'---',
+						'Datadog setup skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				label: 'datadog',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands
+				.filter(command => command.uri.toString() === skillUri.toString())
+				.map(command => ({ name: command.name, description: command.description, type: command.type, storage: command.storage })), [{
+					name: 'datadog:ddsetup',
+					description: 'Set up Datadog',
+					type: PromptsType.skill,
+					storage: PromptsStorage.plugin,
+				}]);
+
+			testPluginsObservable.set([], undefined);
+		});
 	});
 
 	suite('hooks', () => {

@@ -83,9 +83,9 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 | Section | Menu ID | Content |
 |---------|---------|---------|
-| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, agent host filter |
+| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden), agent host filter |
 | Center | `Menus.CommandCenter` | Session picker widget (plus `Menus.TitleBarSessionMenu` for active-session actions) |
-| Right | `Menus.TitleBarRightLayout` | Run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
+| Right | `Menus.TitleBarRightLayout` | Remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
 
 No menubar, no editor actions, no `WindowTitle` dependency.
 
@@ -108,6 +108,12 @@ When multiple remote agent hosts are known, a dropdown pill in the left toolbar 
 
 Shows the signed-in GitHub profile image (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
 
+### Remote Connections (Right)
+
+The remote connections toggle is a global titlebar action (`Menus.TitleBarRightLayout`) rather than a per-chat input action. This keeps tunnel hosting state visually scoped to the Agents window as a whole, so users do not interpret it as a setting that must be enabled separately for each chat session.
+
+This Agents-window placement is intentionally different from the main editor window: outside the Agents window the same toggle remains in `MenuId.ChatInputSecondary` for agent-host chat inputs. Keep both menu items mutually exclusive with `IsSessionsWindowContext` so the editor window keeps its chat-input affordance while the Agents window shows only the titlebar affordance.
+
 ---
 
 ## 4. Sessions Part
@@ -118,7 +124,7 @@ The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sess
 
 A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
 
-- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). The meta row hosts a generic `Menus.SessionHeaderMeta` toolbar that any feature can contribute actions into; the changes view contributes the diff stats as a clickable menu item (gated by the per-view `SessionHasChangesContext` key, which `SessionView` sets from the session's changes, with its custom action view item registered via `IActionViewItemService` from `contrib/changes/browser/changesActions.ts`) that, when activated, opens the multi-file diff editor for the session. Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The built-in rename action is registered from `contrib/sessions/browser/sessionsActions.ts` and uses `ISessionsPartService` to find the matching `SessionView`, which delegates to the header's inline rename control.
+- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · pull request · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). The meta row hosts a generic `Menus.SessionHeaderMeta` toolbar that any feature can contribute actions into; the changes view contributes the diff stats as a clickable menu item (gated by the per-view `SessionHasChangesContext` key, which `SessionView` sets from the session's changes, with its custom action view item registered via `IActionViewItemService` from `contrib/changes/browser/changesActions.ts`) that, when activated, opens the multi-file diff editor for the session. The GitHub contribution similarly contributes a `#<number>` pull request pill (gated by the per-view `SessionHasPullRequestContext` key, which `SessionView` sets from the session's GitHub info, with its custom action view item registered from `contrib/github/browser/pullRequestActions.ts`) that, when activated, opens the pull request on GitHub. Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The built-in rename action is registered from `contrib/sessions/browser/sessionsActions.ts` and uses `ISessionsPartService` to find the matching `SessionView`, which delegates to the header's inline rename control.
 - A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip. Visibility is **sticky per opened session**: it appears once the session has more than one chat, or its single (default) chat carries a title that differs from the session title (so both independent titles stay visible), and from then on it stays shown for that session's lifetime — it is never hidden again when chats are later removed or renamed, keeping the experience consistent. A single chat that still inherits the session title (and never diverged) keeps the strip hidden.
 - A **chat view** below the bars, swapped in/out based on session state.
 - A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.

@@ -5,7 +5,6 @@
 
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -64,6 +63,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -725,6 +725,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
 							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							// Enrich usage entries with the actual model so the
+							// context-usage widget resolves the right context window
+							// on reconnection (same enrichment as _observeTurn).
+							const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
+							if (actualModelId) {
+								for (const p of initialProgress) {
+									if (p.kind === 'usage') {
+										p.actualModelId = actualModelId;
+									}
+								}
+							}
 							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
 					}
@@ -837,7 +848,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isDefault: false,
 			isDynamic: true,
 			isCore: true,
-			metadata: { themeIcon: Codicon.copilot },
+			metadata: { themeIcon: getAgentSessionProviderIcon(this._config.sessionType) },
 			slashCommands: [],
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent],
@@ -1603,9 +1614,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			store.add(autorun(reader => {
-				const usage = usageInfoToChatUsage(usage$.read(reader));
+				const rawUsage = usage$.read(reader);
+				const usage = usageInfoToChatUsage(rawUsage);
 				if (!usage) {
 					return;
+				}
+				// Carry through the actual model so the context-usage widget
+				// can look up context window metadata when the request-level
+				// model (e.g. "auto") doesn't expose one.
+				const actualModelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
+				if (actualModelId) {
+					usage.actualModelId = actualModelId;
 				}
 				if (lastUsage
 					&& lastUsage.promptTokens === usage.promptTokens
@@ -2830,7 +2849,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return {
 			resource: forkedResource,
 			label: forkedLabel,
-			iconPath: Codicon.copilot,
+			iconPath: getAgentSessionProviderIcon(this._config.sessionType),
 			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
 		};
 	}

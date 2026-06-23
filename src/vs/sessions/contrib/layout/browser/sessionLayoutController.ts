@@ -423,7 +423,12 @@ export class LayoutController extends Disposable {
 		const newSessionRaw = this._storageService.get(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
 		if (newSessionRaw) {
 			try {
-				this._newSessionViewState = JSON.parse(newSessionRaw) as INewSessionViewState;
+				const parsed = JSON.parse(newSessionRaw);
+				if (parsed && typeof parsed.auxiliaryBarVisible === 'boolean') {
+					this._newSessionViewState = { auxiliaryBarVisible: parsed.auxiliaryBarVisible };
+				} else {
+					this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+				}
 			} catch {
 				this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
 			}

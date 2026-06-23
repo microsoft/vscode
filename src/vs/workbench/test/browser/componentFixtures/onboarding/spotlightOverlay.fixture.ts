@@ -25,7 +25,7 @@ function renderSpotlightOverlay({ container, disposableStore }: ComponentFixture
 	container.style.background = 'var(--vscode-editor-background)';
 	container.style.color = 'var(--vscode-editor-foreground)';
 
-	const targetButton = dom.append(container, dom.$('button.spotlight-fixture-target'));
+	const targetButton = dom.append(container, dom.$<HTMLButtonElement>('button.spotlight-fixture-target'));
 	targetButton.type = 'button';
 	targetButton.textContent = 'Clickable target';
 	targetButton.style.padding = '8px 12px';

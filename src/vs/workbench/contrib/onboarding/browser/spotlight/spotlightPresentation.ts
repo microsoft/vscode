@@ -146,7 +146,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const animations: Animation[] = [];
 		for (let element: HTMLElement | null = target; element; element = element.parentElement) {
 			for (const animation of element.getAnimations()) {
-				if ((animation.playState === 'running' || animation.playState === 'pending') && animation.effect?.getTiming().iterations !== Infinity) {
+				if (animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity) {
 					animations.push(animation);
 				}
 			}

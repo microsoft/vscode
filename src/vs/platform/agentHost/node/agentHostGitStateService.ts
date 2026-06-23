@@ -8,9 +8,13 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
-import { readSessionGitState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
+import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+
+export const META_GIT_STATE = 'agentHost.git';
+export const META_GITHUB_STATE = 'agentHost.github';
 
 export class AgentHostGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -19,6 +23,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) { }
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined | null> {
@@ -46,6 +51,14 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 			}
 
 			this._setSessionGitState(sessionKey, gitState);
+
+			if (gitState.githubOwner || gitState.githubRepo) {
+				void this.setSessionGitHubState(sessionKey, {
+					owner: gitState.githubOwner,
+					repo: gitState.githubRepo
+				} satisfies ISessionGitHubState);
+			}
+
 			return gitState;
 		} catch (e) {
 			this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}`, e);
@@ -53,10 +66,67 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 	}
 
+	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
+		// Attempt to load the GitHub state from the state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+		const currentGitHubState = readSessionGitHubState(currentMeta);
+		if (currentGitHubState) {
+			return currentGitHubState;
+		}
+
+		// Load the GitHub state from the session database
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][getSessionGitHubState] Failed to open session database for ${sessionKey}`, error);
+			return undefined;
+		}
+
+		try {
+			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
+			if (githubStateStr) {
+				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
+				this._stateManager.setSessionSummaryMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
+
+				return githubState;
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_getSessionGitHubState] Failed to load GitHub state for ${sessionKey}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
+
+		return undefined;
+	}
+
+	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
+		const current = await this.getSessionGitHubState(sessionKey);
+		const next = { ...current, ...state } satisfies ISessionGitHubState;
+
+		if (objectEquals(current, next)) {
+			return;
+		}
+
+		// Update session state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+		const nextMeta = withSessionGitHubState(currentMeta, next);
+		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
+
+		// Update session database
+		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(next));
+	}
+
 	private _setSessionGitState(sessionKey: string, gitState: ISessionGitState): void {
-		const current = this._stateManager.getSessionState(sessionKey)?._meta;
-		this._stateManager.setSessionMeta(sessionKey, withSessionGitState(current, gitState));
 		this._updateBranchChangesetDescription(sessionKey, gitState);
+
+		// Update session state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const nextMeta = withSessionGitState(currentMeta, gitState);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
+
+		// Update session database
+		void this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
 	}
 
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
@@ -101,5 +171,29 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 			return;
 		}
 		this._stateManager.setSessionChangesets(sessionKey, next);
+	}
+
+	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
+		// Skip saving session state if the session is not materialized
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating) {
+			return;
+		}
+
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to open session database for ${sessionKey}`, error);
+			return;
+		}
+
+		try {
+			await databaseRef.object.setMetadata(key, value);
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
 	}
 }
