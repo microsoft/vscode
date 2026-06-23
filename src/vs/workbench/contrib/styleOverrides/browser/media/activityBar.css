@@ -9,7 +9,7 @@
  */
 
 /* Drop the 2px left border indicator on the active item. */
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
 	border-left: none !important;
 }
 
@@ -21,7 +21,7 @@
  * (36px wide / 32px tall) layouts. The square side tracks the action height
  * (the limiting dimension), and `left` keeps it horizontally centered.
  */
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	z-index: 0;
 	top: 0;
 	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
@@ -43,19 +43,19 @@
  * mirror the same tint there, scoped to `:not(.codicon)` so codicon items never
  * gain a filled background box.
  */
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.codicon {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.codicon {
 	color: var(--vscode-foreground) !important;
 }
 
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
 	color: var(--vscode-descriptionForeground) !important;
 }
 
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label:not(.codicon) {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label:not(.codicon) {
 	background-color: var(--vscode-foreground) !important;
 }
 
-.style-override-activityBar .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label:not(.codicon) {
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label:not(.codicon) {
 	background-color: var(--vscode-descriptionForeground) !important;
 }
 
@@ -71,7 +71,7 @@
  * for the drop-line indicators) and on the checked item (which already shows the
  * active box).
  */
-.style-override-activityBar .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
+.style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
 	content: "";
 	display: block;
 	position: absolute;
