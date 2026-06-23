@@ -14,7 +14,9 @@ import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -76,6 +78,8 @@ export class SessionHeader extends Disposable {
 	private readonly _titleTextEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _metaWorkspaceEl: HTMLElement;
+	private readonly _metaPrSeparatorEl: HTMLElement;
+	private readonly _metaPrEl: HTMLElement;
 	private readonly _metaSeparatorEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
@@ -85,6 +89,9 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
+
+	/** The pull request currently surfaced in the meta row, used by the click handler. */
+	private _currentPullRequestUri: URI | undefined;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -122,6 +129,7 @@ export class SessionHeader extends Disposable {
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -194,6 +202,37 @@ export class SessionHeader extends Disposable {
 			this._metaWorkspaceEl,
 			() => this._buildWorkspaceHover(),
 		));
+
+		// Pull request pill: a `#<number>` link rendered next to the workspace label
+		// when the session is associated with a GitHub pull request. Activating it
+		// opens the pull request on GitHub. The leading separator is shown only when
+		// both the workspace label and the pill are visible.
+		this._metaPrSeparatorEl = $('span.chat-composite-bar-meta-separator');
+		this._metaRow.appendChild(this._metaPrSeparatorEl);
+
+		this._metaPrEl = $('a.chat-composite-bar-meta-pr');
+		this._metaPrEl.setAttribute('role', 'button');
+		this._metaPrEl.tabIndex = 0;
+		this._metaRow.appendChild(this._metaPrEl);
+
+		this._register(this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			this._metaPrEl,
+			() => this._currentPullRequestUri ? localize('agentSessions.openPullRequest', "Open Pull Request") : undefined,
+		));
+
+		this._register(addDisposableListener(this._metaPrEl, EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._openPullRequest();
+		}));
+		this._register(addStandardDisposableListener(this._metaPrEl, EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openPullRequest();
+			}
+		}));
 
 		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
 		this._metaRow.appendChild(this._metaSeparatorEl);
@@ -357,14 +396,25 @@ export class SessionHeader extends Disposable {
 		}
 		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
 
+		// Pull request pill — surface `#<number>` when the session's repository has an
+		// associated GitHub pull request. Clicking it opens the PR on GitHub.
+		const pullRequest = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
+		this._currentPullRequestUri = pullRequest?.uri;
+		const hasPullRequest = !!pullRequest;
+		if (hasPullRequest) {
+			reset(this._metaPrEl, $('span.chat-composite-bar-meta-pr-label', undefined, `#${pullRequest.number}`));
+		}
+		this._metaPrEl.style.display = hasPullRequest ? '' : 'none';
+		this._metaPrSeparatorEl.style.display = hasWorkspace && hasPullRequest ? '' : 'none';
+
 		// Show the meta row separator/row based on whether the meta toolbar has any
 		// contributed actions. Reading the signal re-runs this on menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
 
-		this._metaSeparatorEl.style.display = hasWorkspace && hasMetaActions ? '' : 'none';
+		this._metaSeparatorEl.style.display = (hasWorkspace || hasPullRequest) && hasMetaActions ? '' : 'none';
 
-		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
+		this._metaRow.style.display = hasWorkspace || hasPullRequest || hasMetaActions ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 
@@ -397,6 +447,17 @@ export class SessionHeader extends Disposable {
 		}
 
 		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
+	}
+
+	/**
+	 * Opens the pull request currently surfaced in the meta row on GitHub.
+	 */
+	private _openPullRequest(): void {
+		const uri = this._currentPullRequestUri;
+		if (!uri) {
+			return;
+		}
+		this._openerService.open(uri, { openExternal: true }).catch(onUnexpectedError);
 	}
 
 	private _setVisible(visible: boolean): void {
