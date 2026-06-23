@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
@@ -92,6 +93,14 @@ const CLIENT_INFO = {
 };
 
 const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
+
+/**
+ * User-agent prefix applied to the Codex agent's outbound CAPI calls (e.g. the
+ * model-list fetch) so the traffic is identifiable server-side. Mirrors
+ * `claudeAgent.ts` and the `vscode_codex` prefix used by `codexProxyService.ts`
+ * and `oaiLanguageModelServer.ts`.
+ */
+const USER_AGENT_PREFIX = 'vscode_codex';
 
 const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 
@@ -544,6 +553,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
+		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -719,7 +729,8 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _refreshModels(token: string): Promise<void> {
 		try {
-			const all = await this._copilotApiService.models(token, { suppressIntegrationId: true });
+			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
+			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			if (this._githubToken !== token) {
 				return;
 			}
