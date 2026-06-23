@@ -429,7 +429,7 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello']);
 		});
 
-		test('replayEventSubscriptions re-issues EventListen for live subscriptions against a replaced server', async function () {
+		test('ChannelClient reinitialize re-issues EventListen for live subscriptions against a replaced server', async function () {
 			// Model a replaced remote: the ChannelClient keeps its protocol, but the ChannelServer on
 			// the other end is swapped for a fresh one (as after stale-token recovery). Replayed
 			// EventListen must register on the new server, for live subscriptions only.
@@ -460,10 +460,37 @@ suite('Base IPC', function () {
 			const secondServer = store.add(new ChannelServer(serverProtocol, 'ctx'));
 			secondServer.registerChannel(TestChannelId, secondChannel);
 
-			channelClient.replayEventSubscriptions();
+			channelClient.reinitialize();
 			await timeout(0);
 			// The two live subscriptions are re-issued on the fresh server; the disposed one is skipped.
 			assert.strictEqual(secondChannel.listenCount, 2);
+		});
+
+		test('reinitialize lets a replaced server-side ChannelClient issue server->client calls', async function () {
+			// After stale-token recovery the client keeps its ChannelServer but the server stands up a fresh
+			// ChannelClient. Initialize is sent only in the ChannelServer constructor, so without re-sending it
+			// the fresh client blocks in whenInitialized().
+			const toClient = store.add(new Emitter<VSBuffer>());
+			const toServer = store.add(new Emitter<VSBuffer>());
+			const clientProtocol: IMessagePassingProtocol = { onMessage: toClient.event, send: buffer => toServer.fire(buffer) };
+			const serverProtocol: IMessagePassingProtocol = { onMessage: toServer.event, send: buffer => toClient.fire(buffer) };
+
+			// Create the server-side ChannelClient first so it receives the constructor Initialize.
+			const firstServerClient = store.add(new ChannelClient(serverProtocol));
+			const clientChannelServer = store.add(new ChannelServer(clientProtocol, 'ctx'));
+			clientChannelServer.registerChannel(TestChannelId, new TestChannel(service));
+			assert.strictEqual(await firstServerClient.getChannel<IChannel>(TestChannelId).call('marco'), 'polo');
+
+			// Replace the server side: a fresh ChannelClient that never saw an Initialize.
+			firstServerClient.dispose();
+			const secondServerClient = store.add(new ChannelClient(serverProtocol));
+			let resolved = false;
+			const callPromise = secondServerClient.getChannel<IChannel>(TestChannelId).call('marco').then(r => { resolved = true; return r; });
+			await timeout(0);
+			assert.strictEqual(resolved, false); // blocked while the fresh client is Uninitialized
+
+			clientChannelServer.reinitialize();
+			assert.strictEqual(await callPromise, 'polo');
 		});
 	});
 

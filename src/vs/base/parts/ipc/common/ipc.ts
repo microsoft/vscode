@@ -341,7 +341,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay = 1000) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
-		this.sendResponse({ type: ResponseType.Initialize });
+		this.reinitialize();
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
@@ -349,6 +349,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		// https://github.com/microsoft/vscode/issues/72531
 		setTimeout(() => this.flushPendingRequests(channelName), 0);
+	}
+
+	/** Establish (or re-establish) this server's session: send Initialize so the peer's ChannelClient leaves the Uninitialized state. Run at construction and again after a transport replacement. */
+	public reinitialize(): void {
+		this.sendResponse({ type: ResponseType.Initialize });
 	}
 
 	private sendResponse(response: IRawResponse): void {
@@ -653,7 +658,8 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				} else {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
-
+				// Drop our handler; the promise is settled below and no response will arrive.
+				this.handlers.delete(id);
 				e(new CancellationError());
 			};
 
@@ -799,20 +805,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	/** Reject pending promise-style requests and drop their handlers. Event subscriptions are left alive. */
+	/** Reject pending promise-style requests (each clears its own handler). Event subscriptions stay alive. */
 	public cancelPendingPromiseRequests(): void {
 		dispose(this.activePromiseRequests.values());
 		this.activePromiseRequests.clear();
-		// Promise handlers self-remove on response; sweep the ones whose responses will never arrive.
-		for (const id of [...this.handlers.keys()]) {
-			if (!this.activeEventSubscriptions.has(id)) {
-				this.handlers.delete(id);
-			}
-		}
 	}
 
-	/** Re-send EventListen for every live subscription so a replaced server can register them. Ids are preserved so existing client-side handlers continue to route correctly. */
-	public replayEventSubscriptions(): void {
+	/** Re-establish this client's session: re-send EventListen for every live subscription so a replaced server can register them. Ids are preserved so existing client-side handlers continue to route correctly. */
+	public reinitialize(): void {
 		for (const { request } of this.activeEventSubscriptions.values()) {
 			this.sendRequest(request);
 		}
@@ -1045,6 +1045,8 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	private channelServer: ChannelServer<TContext>;
 
 	constructor(private readonly _protocol: IMessagePassingProtocol, private readonly _ctx: TContext, ipcLogger: IIPCLogger | null = null) {
+		// Context first (message #1), then each child establishes itself in its constructor. Whatever is sent
+		// here to set up the session must also be re-sent by reinitialize(); keep the two in sync.
 		this.sendInitialContext();
 		this.channelClient = new ChannelClient(_protocol, ipcLogger);
 		this.channelServer = new ChannelServer(_protocol, _ctx, ipcLogger);
@@ -1074,10 +1076,15 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 		this.channelClient.cancelPendingPromiseRequests();
 	}
 
-	/** After a session reset for a replaced server, re-send the connection context (message #1) and replay live event subscriptions (ids preserved so existing handlers keep routing). */
-	public resendInitialContextAndReplay(): void {
+	/**
+	 * Re-establish the whole session against a replaced server, mirroring the constructor's setup in order:
+	 * context (message #1), then each child's reinitialize(). Add any new session-establishing component's
+	 * reinitialize() here so recovery stays complete.
+	 */
+	public reinitialize(): void {
 		this.sendInitialContext();
-		this.channelClient.replayEventSubscriptions();
+		this.channelServer.reinitialize();
+		this.channelClient.reinitialize();
 	}
 
 	dispose(): void {
