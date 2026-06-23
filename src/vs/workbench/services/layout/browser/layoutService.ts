@@ -196,7 +196,7 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
  * therefore receive a doubled outer gutter so it aligns with the editor card above it.
  * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
  * the bar on that side is hidden or not full-height (and, on the side bar side, the
- * activity bar is absent). The full-height/sibling computation mirrors `Layout.arrangeParts`.
+ * activity bar is absent). The full-height/sibling computation mirrors `Layout.adjustPartPositions`.
  */
 function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutService): { left: boolean; right: boolean } {
 	if (!layoutService.isVisible(Parts.PANEL_PART)) {
