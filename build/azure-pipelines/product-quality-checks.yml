@@ -135,10 +135,8 @@ jobs:
         displayName: Compile & Hygiene
 
       - script: npm run download-builtin-extensions-cg
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Download component details of built-in extensions
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+        continueOnError: true
 
       - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
         displayName: "Component Detection"
@@ -146,7 +144,170 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      - task: notice@0
+        displayName: "Generate ThirdPartyNotices (CG)"
+        inputs:
+          outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
+        continueOnError: true
+
+      # =========================================================================
+      # Cached-NOTICE fallback
+      #
+      # Goal: never ship without *some* CG NOTICE. If `notice@0` above fails or
+      # produces an empty file (CG service down, timeout, etc.), substitute the
+      # most recent successfully-generated `ThirdPartyNotices.generated.txt`
+      # from a prior build.
+      #
+      # Fallback order:
+      #   1. Most recent successful run on the CURRENT branch
+      #   2. Most recent successful run on `main`
+      #
+      # TODO: consider enforcing a max-age check (~30 days) on cached NOTICEs.
+      # Today the only signal is the warning emitted below.
+      #
+      # Architecture note: the fallback ONLY substitutes the CG-supplied portion.
+      # The local steps (scan-licenses, merge-notices, apply-overrides) ALWAYS
+      # run fresh against current HEAD, so extension licenses and
+      # cglicenses.json overrides are always current-PR-accurate.
+      # =========================================================================
+      - task: DownloadPipelineArtifact@2
+        displayName: "Cache: download last good NOTICE (same branch)"
+        inputs:
+          buildType: specific
+          project: $(System.TeamProject)
+          definition: $(System.DefinitionId)
+          buildVersionToDownload: latestFromBranch
+          branchName: $(Build.SourceBranch)
+          allowPartiallySucceededBuilds: true
+          artifactName: notice_output
+          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
+          targetPath: $(Pipeline.Workspace)/cached-notice-branch
+        continueOnError: true
+
+      - task: DownloadPipelineArtifact@2
+        displayName: "Cache: download last good NOTICE (main fallback)"
+        inputs:
+          buildType: specific
+          project: $(System.TeamProject)
+          definition: $(System.DefinitionId)
+          buildVersionToDownload: latestFromBranch
+          branchName: refs/heads/main
+          allowPartiallySucceededBuilds: true
+          artifactName: notice_output
+          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
+          targetPath: $(Pipeline.Workspace)/cached-notice-main
+        continueOnError: true
+        condition: ne(variables['Build.SourceBranch'], 'refs/heads/main')
+
+      - script: |
+          set -u
+          GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
+          BRANCH_CACHE="$(Pipeline.Workspace)/cached-notice-branch/ThirdPartyNotices.generated.txt"
+          BRANCH_META="$(Pipeline.Workspace)/cached-notice-branch/notice-meta.txt"
+          MAIN_CACHE="$(Pipeline.Workspace)/cached-notice-main/ThirdPartyNotices.generated.txt"
+          MAIN_META="$(Pipeline.Workspace)/cached-notice-main/notice-meta.txt"
+
+          # Emit what a cached NOTICE was built from, if we have the sidecar.
+          # The sidecar is written by the upload step on every successful run.
+          describe_cache() {
+            local meta="$1"
+            local label="$2"
+            if [ -f "$meta" ]; then
+              echo "##[warning]Cache source ($label):"
+              while IFS= read -r line; do echo "##[warning]    $line"; done < "$meta"
+            else
+              echo "##[warning]Cache source ($label): no notice-meta.txt sidecar (built before this metadata was added)"
+            fi
+          }
+
+          # `notice@0` succeeded if the file exists and is non-trivial (>1KB).
+          if [ -f "$GEN" ] && [ "$(wc -c < "$GEN")" -gt 1024 ]; then
+            echo "##[section]CG NOTICE generation succeeded; no fallback needed."
+            echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]false"
+            exit 0
+          fi
+
+          echo "##[warning]CG NOTICE generation failed or produced empty output."
+
+          if [ -f "$BRANCH_CACHE" ] && [ "$(wc -c < "$BRANCH_CACHE")" -gt 1024 ]; then
+            echo "##[warning]Falling back to cached NOTICE from same branch ($(Build.SourceBranch))."
+            describe_cache "$BRANCH_META" "same-branch"
+            cp "$BRANCH_CACHE" "$GEN"
+            echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]branch"
+            exit 0
+          fi
+
+          if [ -f "$MAIN_CACHE" ] && [ "$(wc -c < "$MAIN_CACHE")" -gt 1024 ]; then
+            echo "##[warning]Falling back to cached NOTICE from main."
+            echo "##[warning]Branch $(Build.SourceBranch) may have dependencies that differ from main; review the audit log."
+            describe_cache "$MAIN_META" "main"
+            cp "$MAIN_CACHE" "$GEN"
+            echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]main"
+            exit 0
+          fi
+
+          echo "##[warning]No cached NOTICE available from either source. Merge step will proceed with empty CG input; final NOTICE will rely entirely on the local scanner + cglicenses.json overrides."
+          echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]none"
+        displayName: "Cache: apply NOTICE fallback if CG failed"
+        continueOnError: true
+
+      - script: |
+          echo "=== CG NOTICE artifact ==="
+          if [ -f "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" ]; then
+            SIZE=$(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt")
+            echo "Generated file size: $SIZE bytes (NOTICE_FROM_CACHE=$NOTICE_FROM_CACHE)"
+            cp "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+            echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+
+            # Write a sidecar so future runs (and humans) know what this NOTICE
+            # was built from. Consumed by the "Cache: apply NOTICE fallback" step
+            # of subsequent builds when they fall back to this artifact.
+            # Only meaningful when this run generated the NOTICE fresh; if we
+            # fell back to a cache, skip writing the sidecar so we don't
+            # mis-attribute someone else's NOTICE to this commit.
+            if [ "${NOTICE_FROM_CACHE:-false}" = "false" ]; then
+              {
+                echo "built_at:          $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                echo "source_branch:     $(Build.SourceBranch)"
+                echo "source_commit:     $(Build.SourceVersion)"
+                echo "build_id:          $(Build.BuildId)"
+                echo "build_number:      $(Build.BuildNumber)"
+                echo "size_bytes:        $SIZE"
+              } > "$(Build.ArtifactStagingDirectory)/notice-meta.txt"
+              echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/notice-meta.txt"
+            else
+              echo "Skipping notice-meta.txt sidecar: NOTICE_FROM_CACHE=$NOTICE_FROM_CACHE (don't re-publish someone else's metadata as our own)"
+            fi
+          else
+            echo "ERROR: ThirdPartyNotices.generated.txt not found (CG failed AND no cache available)"
+          fi
+        displayName: "Upload CG NOTICE artifact"
+        continueOnError: true
+
+      - script: |
+          set -e
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          node .oss-build-out/scan-licenses.js \
+            --repo "$(Build.SourcesDirectory)" \
+            --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
+        displayName: "Scan extension-bundled licenses"
+        continueOnError: true
+
+      - script: |
+          node .oss-build-out/merge-notices.js \
+            --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
+            --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
+            --cglicenses "$(Build.SourcesDirectory)/cglicenses.json" \
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt" \
+            --provenance
+
+          # Upload all artifacts
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+        displayName: "Merge CG + extension notices into .new.txt"
+        continueOnError: true
 
       - task: AzureCLI@2
         displayName: Fetch secrets

@@ -195,14 +195,13 @@ export class TerminalSandboxEngine extends Disposable {
 		return { allowedDomains, deniedDomains };
 	}
 
-	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean, forceSandboxed: boolean = false): Promise<ITerminalSandboxWrapResult> {
+	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult> {
 		const allowUnsandboxedCommands = this._areUnsandboxedCommandsAllowed();
 		const retryWithAllowNetworkRequests = this._areRetryWithAllowNetworkRequestsAllowed();
-		const shouldInspectBlockedDomains = !forceSandboxed && requestUnsandboxedExecution !== true && requestAllowNetwork !== true && (retryWithAllowNetworkRequests || allowUnsandboxedCommands);
+		const shouldInspectBlockedDomains = requestUnsandboxedExecution !== true && requestAllowNetwork !== true && (retryWithAllowNetworkRequests || allowUnsandboxedCommands);
 		const blockedDomainResult = shouldInspectBlockedDomains ? this._getBlockedDomains(command) : { blockedDomains: [], deniedDomains: [] };
-		const requiresPreflightAllowNetwork = !forceSandboxed && retryWithAllowNetworkRequests && blockedDomainResult.blockedDomains.length > 0;
-		const commandWillRunSandboxed = forceSandboxed || requestUnsandboxedExecution !== true;
-		const allowNetworkForCommand = !forceSandboxed && commandWillRunSandboxed && ((requestAllowNetwork === true && retryWithAllowNetworkRequests) || requiresPreflightAllowNetwork);
+		const requiresPreflightAllowNetwork = retryWithAllowNetworkRequests && blockedDomainResult.blockedDomains.length > 0;
+		const allowNetworkForCommand = requestUnsandboxedExecution !== true && ((requestAllowNetwork === true && retryWithAllowNetworkRequests) || requiresPreflightAllowNetwork);
 		const normalizedCommandDetails = this._normalizeCommandDetails(commandDetails ?? []);
 		const normalizedCommandKeywords = this._normalizeCommandKeywords(normalizedCommandDetails.map(c => c.keyword));
 		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
@@ -233,7 +232,7 @@ export class TerminalSandboxEngine extends Disposable {
 
 		// If per-command network relaxation is disabled, preserve the existing
 		// unsandbox fallback for commands with statically-detected blocked domains.
-		if (!forceSandboxed && !requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
+		if (!requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
 				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
@@ -244,7 +243,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
-		if (!forceSandboxed && requestUnsandboxedExecution && allowUnsandboxedCommands) {
+		if (requestUnsandboxedExecution && allowUnsandboxedCommands) {
 			return {
 				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
@@ -681,8 +680,12 @@ export class TerminalSandboxEngine extends Disposable {
 			},
 		};
 		if (this._os !== OperatingSystem.Windows) {
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
-			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, commandRuntimeSetting);
+			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
+			if (this._os === OperatingSystem.Macintosh) {
+				sandboxRuntimeSettings.allowPty ??= true;
+			}
 		}
 		this._sandboxConfigPath = configFilePath;
 		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
