@@ -325,7 +325,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
-					title: localize2('overviewAction', '{0}', CUSTOMIZATION_OVERVIEW_ITEM.label),
+						title: CUSTOMIZATION_OVERVIEW_ITEM.label,
 					menu: {
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',
