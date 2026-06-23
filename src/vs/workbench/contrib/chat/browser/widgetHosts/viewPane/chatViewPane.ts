@@ -565,7 +565,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Don't show transcript from a different session in this widget
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
 			const currentSession = this._currentSessionResource.read(reader);
-			if (targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
+			if (targetSession && currentSession && !isEqual(targetSession, currentSession)) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
