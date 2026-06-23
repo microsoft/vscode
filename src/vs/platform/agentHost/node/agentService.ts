@@ -473,11 +473,11 @@ export class AgentService extends Disposable implements IAgentService {
 				// reports it here (the DB overlay above only sees persisted
 				// state). Keep the DB value as the base so any keys absent from
 				// the live summary are preserved.
-				const _meta = liveState.summary._meta !== undefined || s._meta !== undefined
+				const _meta = liveState._meta !== undefined || s._meta !== undefined
 					? { ...s._meta, ...liveState._meta }
 					: undefined;
-				const _summaryMeta = liveState.summary._meta !== undefined || s._meta !== undefined
-					? { ...s._meta, ...liveState.summary._meta }
+				const _summaryMeta = liveState.summary._meta !== undefined || s._summaryMeta !== undefined
+					? { ...s._summaryMeta, ...liveState.summary._meta }
 					: undefined;
 				return {
 					...s,

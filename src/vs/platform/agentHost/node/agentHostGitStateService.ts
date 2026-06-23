@@ -174,7 +174,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 	}
 
 	private async _saveSessionState(sessionKey: string, key: string, value: string): Promise<void> {
-		// Skip saving session state if the session is no materialized
+		// Skip saving session state if the session is not materialized
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
 			return;

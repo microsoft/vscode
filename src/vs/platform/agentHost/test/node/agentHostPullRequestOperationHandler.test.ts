@@ -114,13 +114,14 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		modifiedAt: 1,
 		workingDirectory: URI.file('/repo').toString(),
 	});
-	stateManager.setSessionMeta(session.toString(), withSessionGitHubState(withSessionGitState(undefined, {
+	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
 		hasGitHubRemote: true,
 		githubOwner: 'microsoft',
 		githubRepo: 'vscode',
 		branchName: 'feature/test',
 		baseBranchName: 'main',
-	}), {
+	}));
+	stateManager.setSessionSummaryMeta(session.toString(), withSessionGitHubState(undefined, {
 		owner: 'microsoft',
 		repo: 'vscode',
 	}));

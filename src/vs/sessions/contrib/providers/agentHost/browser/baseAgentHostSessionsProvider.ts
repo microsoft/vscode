@@ -327,7 +327,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
-		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
@@ -406,7 +406,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(
 				baseGitHubInfo.owner, baseGitHubInfo.repo, baseGitHubInfo.pullRequest.number));
 			const livePR = prModelRef.object.pullRequest.read(reader);
 
@@ -775,7 +775,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * and rebuild the workspace if the git state changed. Returns `true` iff
 	 * the workspace actually changed.
 	 */
-	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
+	setMeta(meta: SessionMeta | undefined): boolean {
 		this._meta = meta;
 		const gitState = readSessionGitState(this._meta);
 		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
@@ -789,7 +789,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return workspaceChanged;
 	}
 
-	setSummaryMeta(meta: IAgentSessionMetadata['_meta']): boolean {
+	setSummaryMeta(meta: SessionSummaryMeta | undefined): boolean {
 		if (meta === undefined || structuralEquals(this._summaryMeta, meta)) {
 			return false;
 		}
