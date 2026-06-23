@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -33,16 +33,13 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 
 /**
  * Provides provider-specific session list items for the chat sessions sidebar
- * by projecting the shared {@link AgentHostSessionListStore} state.
+ * by projecting the shared {@link AgentHostSessionListStore} state. The
+ * controller is a stateless view: items are derived from the store on demand
+ * and change events are a filtered/mapped projection of the store's event.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
-	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
-	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
-
-	private _itemsByRawId = new Map<string, IChatSessionItem>();
-	/** Final-looking resources created locally before the backend session exists. */
-	private readonly _pendingNewSessions = new Set<string>();
+	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -57,23 +54,25 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		super();
 		void _connectionAuthority;
 
-		this._register(this._sessionListStore.onDidChangeSessions(delta => this._applyDelta(delta)));
-
-		// Seed from the store's current snapshot so a controller created after the
-		// store is already populated has its items immediately; later changes
-		// arrive as incremental deltas. No event is fired here because the
-		// consumer pulls `items` after the initial `refresh()`.
-		for (const entry of this._sessionListStore.getSessions(this._provider)) {
-			this._itemsByRawId.set(entry.rawId, this._makeItemFromSummary(entry.rawId, entry.summary));
-		}
+		// Project the store's provider-agnostic delta down to this provider's
+		// chat-session-item delta, dropping events that don't touch us. Both
+		// combinators are bound to `this._store` so disposing the controller
+		// tears down the projection and its subscription to the store event.
+		this.onDidChangeChatSessionItems = Event.filter(
+			Event.map(this._sessionListStore.onDidChangeSessions, delta => this._projectDelta(delta), this._store),
+			(delta: IChatSessionItemsDelta | undefined): delta is IChatSessionItemsDelta => delta !== undefined,
+			this._store,
+		);
 	}
 
 	get items(): readonly IChatSessionItem[] {
-		return [...this._itemsByRawId.values()];
+		return this._sessionListStore.getSessions(this._provider)
+			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary));
 	}
 
 	isNewSession(resource: URI): boolean {
-		return resource.scheme === this._sessionType && this._pendingNewSessions.has(resource.path.substring(1));
+		return resource.scheme === this._sessionType
+			&& this._sessionListStore.isPendingNewSession(this._provider, resource.path.substring(1));
 	}
 
 	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
@@ -81,7 +80,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return undefined;
 		}
 		const rawId = generateUuid();
-		this._pendingNewSessions.add(rawId);
+		this._sessionListStore.addPendingNewSession(this._provider, rawId);
 		const now = Date.now();
 		const item = this._makeItem(rawId, {
 			title: request.prompt.trim(),
@@ -123,60 +122,41 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 		const rawId = AgentSession.id(resource);
 		await this._sessionListStore.disposeSession(this._provider, rawId);
-		this._pendingNewSessions.delete(rawId);
 
-		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the item from
-		// our cache directly. If the notification does fire as well, the second call is a no-op.
+		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
+		// the store directly (this also clears any local pending marker). If the notification does fire as well, the
+		// second call is a no-op.
 		this._sessionListStore.removeSession(this._provider, rawId);
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
 		// The store fans out a delta during the await when its list changes, which
-		// `_applyDelta` projects into items. When nothing changed (e.g. the store
-		// cache was still valid), the items seeded in the constructor / kept live
-		// by deltas are already current.
+		// projects into a change event. When nothing changed (e.g. the store cache
+		// was still valid), `items` already reflects the current store state.
 		await this._sessionListStore.refresh(token);
 	}
 
-	private _applyDelta(delta: IAgentHostSessionListDelta): void {
-		const addedOrUpdated: IChatSessionItem[] = [];
-		const removed: URI[] = [];
-
+	private _projectDelta(delta: IAgentHostSessionListDelta): IChatSessionItemsDelta | undefined {
+		let addedOrUpdated: IChatSessionItem[] | undefined;
 		for (const entry of delta.addedOrUpdated ?? []) {
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			this._pendingNewSessions.delete(entry.rawId);
-			const item = this._makeItemFromSummary(entry.rawId, entry.summary);
-			// `set` appends a new raw id and replaces an existing one in place.
-			this._itemsByRawId.set(entry.rawId, item);
-			addedOrUpdated.push(item);
+			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary));
 		}
 
+		let removed: URI[] | undefined;
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
-			this._pendingNewSessions.delete(removal.rawId);
-			const existing = this._itemsByRawId.get(removal.rawId);
-			if (!existing) {
-				continue;
-			}
-			this._itemsByRawId.delete(removal.rawId);
-			removed.push(existing.resource);
+			(removed ??= []).push(this._resource(removal.rawId));
 		}
 
-		this._fireDelta({
-			...(addedOrUpdated.length > 0 ? { addedOrUpdated } : undefined),
-			...(removed.length > 0 ? { removed } : undefined),
-		});
-	}
-
-	private _fireDelta(delta: IChatSessionItemsDelta | undefined): void {
-		if (!delta || (!delta.addedOrUpdated?.length && !delta.removed?.length)) {
-			return;
+		if (!addedOrUpdated && !removed) {
+			return undefined;
 		}
-		this._onDidChangeChatSessionItems.fire(delta);
+		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
 	}
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
@@ -204,7 +184,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
 		return {
-			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
+			resource: this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
 			iconPath: Codicon.copilot,
@@ -224,6 +204,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				}
 				: undefined,
 		};
+	}
+
+	private _resource(rawId: string): URI {
+		return URI.from({ scheme: this._sessionType, path: `/${rawId}` });
 	}
 
 	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {

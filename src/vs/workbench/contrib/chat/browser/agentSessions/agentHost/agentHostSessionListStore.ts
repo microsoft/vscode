@@ -63,6 +63,13 @@ export class AgentHostSessionListStore extends Disposable {
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
 	private readonly _entries = new Map<string, IAgentHostSessionListEntry>();
+	/**
+	 * Backend session keys for sessions a controller created locally (via
+	 * `newChatSessionItem`) that the backend has not yet announced. Tracked here
+	 * so per-provider controllers stay stateless; cleared once the backend
+	 * surfaces or removes the session.
+	 */
+	private readonly _pendingNewSessions = new Set<string>();
 	private _cacheValid = false;
 	private _refreshInFlight: Promise<void> | undefined;
 	/**
@@ -94,6 +101,16 @@ export class AgentHostSessionListStore extends Disposable {
 		return [...this._entries.values()].filter(entry => entry.provider === provider);
 	}
 
+	/** Record a session created locally before the backend has announced it. */
+	addPendingNewSession(provider: string, rawId: string): void {
+		this._pendingNewSessions.add(this._key(provider, rawId));
+	}
+
+	/** Whether a session was created locally and the backend has not surfaced it yet. */
+	isPendingNewSession(provider: string, rawId: string): boolean {
+		return this._pendingNewSessions.has(this._key(provider, rawId));
+	}
+
 	resetCache(): void {
 		this._cacheValid = false;
 		this._mutationGeneration++;
@@ -111,6 +128,9 @@ export class AgentHostSessionListStore extends Disposable {
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
 		const key = this._key(provider, rawId);
+		// Clear any local pending marker even when there's no backend entry yet:
+		// an optimistic delete can target a session the backend never announced.
+		this._pendingNewSessions.delete(key);
 		const entry = this._entries.get(key);
 		if (!entry) {
 			return;
@@ -177,7 +197,11 @@ export class AgentHostSessionListStore extends Disposable {
 
 		this._entries.clear();
 		for (const entry of nextEntries) {
-			this._entries.set(this._key(entry.provider, entry.rawId), entry);
+			const key = this._key(entry.provider, entry.rawId);
+			this._entries.set(key, entry);
+			// A locally-created session that now appears in the backend list is no
+			// longer pending.
+			this._pendingNewSessions.delete(key);
 		}
 		this._cacheValid = true;
 
@@ -208,7 +232,11 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 			this._mutationGeneration++;
-			this._entries.set(this._key(entry.provider, entry.rawId), entry);
+			const key = this._key(entry.provider, entry.rawId);
+			this._entries.set(key, entry);
+			// The backend has now announced this session, so it is no longer a
+			// locally-pending new session.
+			this._pendingNewSessions.delete(key);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [entry] });
 		} else if (notification.type === 'root/sessionRemoved') {
 			const provider = AgentSession.provider(notification.session);

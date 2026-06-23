@@ -1455,7 +1455,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('summaryChanged notification rebuilds only the changed item and preserves identity of unchanged items', async () => {
+		test('summaryChanged notification emits only the changed item and reflects the update', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'a'), startTime: 1000, modifiedTime: 2000, summary: 'A' });
@@ -1465,9 +1465,6 @@ suite('AgentHostChatContribution', () => {
 			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
 
 			await listController.refresh(CancellationToken.None);
-			const before = listController.items;
-			const originalA = before[0];
-			const originalB = before[1];
 
 			const events: string[][] = [];
 			disposables.add(listController.onDidChangeChatSessionItems(delta => events.push((delta.addedOrUpdated ?? []).map(item => AgentSession.id(item.resource)))));
@@ -1479,17 +1476,14 @@ suite('AgentHostChatContribution', () => {
 				changes: { title: 'B updated' },
 			} as INotification);
 
-			const after = listController.items;
 			assert.deepStrictEqual({
-				unchangedItemKeptIdentity: after[0] === originalA,
-				changedItemRebuilt: after[1] !== originalB,
-				labels: after.map(item => item.label),
+				// The change event for a single summary change carries only the
+				// changed item, not the whole provider list.
 				events,
+				labels: [...listController.items.map(item => item.label)].sort(),
 			}, {
-				unchangedItemKeptIdentity: true,
-				changedItemRebuilt: true,
-				labels: ['A', 'B updated'],
 				events: [['b']],
+				labels: ['A', 'B updated'],
 			});
 		});
 
