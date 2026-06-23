@@ -218,6 +218,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Model refs eagerly loaded for sessions awaiting input (no UI focus needed). */
 	private readonly _eagerModelRefs = new Map<string, IChatModelReference>();
 
+	/** Sessions with an in-flight eager model load, to dedupe concurrent loads. */
+	private readonly _eagerModelLoading = new Set<string>();
+
 	/**
 	 * Sessions whose ``idle`` transition is being deferred until their chat
 	 * model loads, so the narration can include ``last_response_summary``.
@@ -1095,6 +1098,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._confirmationFlushWatchdogs.clear();
 		for (const ref of this._eagerModelRefs.values()) { ref.dispose(); }
 		this._eagerModelRefs.clear();
+		this._eagerModelLoading.clear();
 		this._pendingIdleNarration.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
@@ -2195,16 +2199,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _ensureModelLoaded(resource: URI): void {
 		const key = resource.toString();
-		if (this._eagerModelRefs.has(key) || this.chatService.getSession(resource)) {
+		// Skip if already loaded, resident in the UI, or a load is in flight.
+		// The in-flight guard prevents repeated onDidChangeSessions/autorun
+		// cycles from starting concurrent loads whose refs would overwrite each
+		// other in _eagerModelRefs and leak the prior ref.
+		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
 			return;
 		}
 		this.logService.info(`[voice] eagerly loading model for session ${key.slice(-32)}`);
+		this._eagerModelLoading.add(key);
 		const cts = new CancellationTokenSource();
 		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token, 'VoiceSessionController#eagerLoad').then(ref => {
+			this._eagerModelLoading.delete(key);
 			if (ref) {
-				if (!this._isConnected.get()) {
+				const existing = this._eagerModelRefs.get(key);
+				if (!this._isConnected.get() || existing) {
 					ref.dispose();
-					this._pendingIdleNarration.delete(key);
+					if (!this._isConnected.get()) {
+						this._pendingIdleNarration.delete(key);
+					}
 				} else {
 					this._eagerModelRefs.set(key, ref);
 				}
@@ -2213,7 +2226,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._pendingIdleNarration.delete(key);
 			}
 			cts.dispose();
-		}, () => { this._pendingIdleNarration.delete(key); cts.dispose(); });
+		}, () => { this._eagerModelLoading.delete(key); this._pendingIdleNarration.delete(key); cts.dispose(); });
 	}
 
 	/**
