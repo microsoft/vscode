@@ -194,10 +194,16 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._measureElement.textContent = text;
 		const textWidth = this._measureElement.scrollWidth;
 
-		// Clamp width between min and a max that never exceeds the editor width
+		// Clamp width between min and a max that never exceeds the editor width.
+		// On very narrow editors the max can drop below the nominal minimum, so
+		// derive an effective minimum that never exceeds the max and apply it
+		// inline to override the CSS `min-width` (otherwise the textarea would be
+		// forced back up to its CSS minimum and overflow the editor).
 		const maxWidth = this._computeMaxWidth();
-		const desiredWidth = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, textWidth + 10);
+		const minWidth = Math.min(AgentFeedbackInputWidget._MIN_WIDTH, maxWidth);
+		const desiredWidth = Math.max(minWidth, textWidth + 10);
 		const width = Math.min(desiredWidth, maxWidth);
+		this._inputElement.style.minWidth = `${minWidth}px`;
 		this._inputElement.style.width = `${width}px`;
 
 		// Reset height to auto then expand to fit all content, with a minimum of 1 line
@@ -207,8 +213,12 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _computeMaxWidth(): number {
-		const editorWidth = this._editor.getLayoutInfo().width;
-		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, editorWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
+		// The widget sticks to the editor's content left edge, so the space it
+		// has available is the content area width (to the right of the line
+		// numbers/glyph margin), not the full editor width.
+		const layoutInfo = this._editor.getLayoutInfo();
+		const contentWidth = Math.max(0, layoutInfo.width - layoutInfo.contentLeft);
+		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, contentWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
 	}
 
 }
@@ -625,7 +635,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// never renders on top of the line numbers/glyph margin (content left).
 		// When the editor is scrolled horizontally the cursor position can fall
 		// behind the content area, so stick the widget to the content left edge.
-		const left = Math.max(layoutInfo.contentLeft, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+		// Guard that the left edge (content left) never exceeds the right-most
+		// valid position, otherwise the widget would overflow the editor's right
+		// edge on very narrow editors or with a wide widget.
+		const minLeft = layoutInfo.contentLeft;
+		const maxLeft = Math.max(minLeft, layoutInfo.width - widgetWidth);
+		const left = Math.max(minLeft, Math.min(scrolledPosition.left, maxLeft));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}
