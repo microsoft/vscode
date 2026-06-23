@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
@@ -67,6 +68,7 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			supportIcons: true,
 		}));
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
+		this._register(markOnboardingTarget(newSessionButton.element, 'sessions.newSession.button'));
 		this._register(newSessionButton.onDidClick(e => {
 			// The inner button lives inside this view item's <li>, whose click
 			// listener (installed by BaseActionViewItem) would also run the action.
