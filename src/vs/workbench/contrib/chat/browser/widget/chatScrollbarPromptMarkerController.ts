@@ -303,7 +303,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			marker.className = `chat-scrollbar-prompt-marker chat-scrollbar-prompt-marker-type-${descriptor.markerType} chat-scrollbar-prompt-marker-lane-${descriptor.lane}`;
 			marker.classList.toggle(
 				'active',
-				descriptor.id === activeMarkerId,
+				descriptor.target.id === activeMarkerId,
 			);
 
 			nextMarkerById.set(descriptor.id, marker);
