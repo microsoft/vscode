@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -109,6 +109,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
+	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
 		options: IViewPaneOptions,
@@ -561,6 +562,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return;
 			}
 
+			// Don't show transcript from a different session in this widget
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
+			if (targetSession && currentSession && !isEqual(targetSession, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				return;
+			}
+
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
 				const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
@@ -895,6 +905,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
+			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
