@@ -85,7 +85,14 @@ function modelsResponse(models: object[]): Response {
 }
 
 function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
+	return new class extends CopilotApiService {
+		constructor() {
+			super(fetchImpl, new NullLogService(), testProductService);
+		}
+		override getIntegrationId(): string | undefined {
+			return undefined; // Don't send an integration ID for tests
+		}
+	}();
 }
 
 type CapturedRequest = { url: string; init: RequestInit | undefined };
@@ -587,18 +594,23 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
 		});
 
-		test('sends a derived Copilot-Integration-Id header by default', async () => {
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
 			);
 			const service = createService(fetchFn);
 
-			// @vscode/copilot-api derives the integration id from the license /
-			// SKU / build state and sends it on every request.
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
 			await service.messages('gh-tok', baseRequest);
-			const headers = captured().init?.headers as Record<string, string>;
+			const withHeader = captured().init?.headers as Record<string, string>;
 
-			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 
@@ -1585,16 +1597,21 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(capturedHeaders?.['Authorization'], 'Bearer gh-tok');
 		});
 
-		test('sends a derived Copilot-Integration-Id header by default', async () => {
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(() => modelsResponse([]));
 			const service = createService(fetchFn);
 
-			// @vscode/copilot-api derives the integration id from the license /
-			// SKU / build state and sends it on every request.
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
 			await service.models('gh-tok');
-			const headers = captured().init?.headers as Record<string, string>;
+			const withHeader = captured().init?.headers as Record<string, string>;
 
-			assert.ok(headers['Copilot-Integration-Id'], 'integration id should be present');
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.models('gh-tok', { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 

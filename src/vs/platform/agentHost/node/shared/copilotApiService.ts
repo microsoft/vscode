@@ -10,7 +10,7 @@ import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
+import { COPILOT_INTEGRATION_ID, COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 
 // #region Types
 
@@ -28,6 +28,19 @@ import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgree
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
+
+	/**
+	 * Suppress the `Copilot-Integration-Id` header on this request.
+	 *
+	 * When unset, `@vscode/copilot-api` derives the integration id from the
+	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
+	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
+	 * integration and refuses premium models such as `claude-opus-4.7`.
+	 * Setting this to `true` omits the header so CAPI authorizes against the
+	 * token's real entitlement. Mirrors the Copilot Chat extension's
+	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
+	 */
+	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -522,6 +535,9 @@ export class CopilotApiService implements ICopilotApiService {
 					...options?.headers,
 					'Authorization': `Bearer ${githubToken}`,
 				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
 				signal: options?.signal,
 			},
 			{ type: RequestType.Models },
@@ -566,6 +582,9 @@ export class CopilotApiService implements ICopilotApiService {
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
 				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -750,6 +769,7 @@ export class CopilotApiService implements ICopilotApiService {
 					// paths already omit it). Thread a real per-turn initiator here if
 					// that signal ever becomes available at the proxy boundary.
 				},
+				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -811,6 +831,9 @@ export class CopilotApiService implements ICopilotApiService {
 		this._clientsByToken.delete(githubToken);
 	}
 
+	protected getIntegrationId(): string | undefined {
+		return COPILOT_INTEGRATION_ID;
+	}
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
@@ -821,7 +844,7 @@ export class CopilotApiService implements ICopilotApiService {
 				body: options.body,
 				signal: options.signal as AbortSignal | undefined,
 			}),
-		});
+		}, undefined, this.getIntegrationId());
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
 
