@@ -50,7 +50,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImag
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
@@ -118,7 +118,7 @@ class CancellableRequest implements IDisposable {
 }
 
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
-const EMPTY_TOOL_ENABLEMENT_MAP: IToolAndToolSetEnablementMap = new Map();
+const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
