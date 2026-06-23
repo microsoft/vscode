@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { filter } from '../../../../base/common/objects.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 
@@ -43,6 +44,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		@IDebugService private readonly debugService: IDebugService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -273,6 +275,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 					$ref: `#/definitions/common/properties/${prop}`
 				};
 			}
+			const malformedPropertyNames: string[] = [];
 			Object.keys(properties).forEach(name => {
 				const property = properties[name];
 				// A debugger extension may contribute a malformed property whose value is not a schema
@@ -281,8 +284,13 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 				if (isObject(property)) {
 					// Use schema allOf property to get independent error reporting #21113
 					ConfigurationResolverUtils.applyDeprecatedVariableMessage(property);
+				} else {
+					malformedPropertyNames.push(name);
 				}
 			});
+			if (malformedPropertyNames.length) {
+				this.logService.warn(`Ignoring malformed debug configuration schema properties for type '${this.type}': ${malformedPropertyNames.join(', ')}`);
+			}
 
 			definitions[definitionId] = { ...attributes };
 			definitions[platformSpecificDefinitionId] = {
