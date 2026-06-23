@@ -324,8 +324,8 @@ export class SessionsView extends ViewPane {
 
 		const customizationsPane: IView = {
 			element: customizationsSection,
-			minimumSize: CUSTOMIZATIONS_MIN_HEIGHT,
-			get maximumSize() { return Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
+			get minimumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : CUSTOMIZATIONS_MIN_HEIGHT; },
+			get maximumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
 			onDidChange: Event.map(Event.any(customizationsWidget.onDidChangeHeight, customizationsSizeChange.event), () => this.getCustomizationsPaneHeight()),
 			layout: height => {
 				customizationsSection.style.height = `${height}px`;
@@ -335,6 +335,23 @@ export class SessionsView extends ViewPane {
 
 		this.sidebarSplitView.addView(sessionsPane, Sizing.Distribute, 0, true);
 		this.sidebarSplitView.addView(customizationsPane, this.getCustomizationsPaneHeight(), 1, true);
+
+		let savedCustomizationsPaneHeight = this.getCustomizationsPaneHeight();
+		this._register(customizationsWidget.onDidToggleCollapsed(collapsed => {
+			if (!this.sidebarSplitView) {
+				return;
+			}
+			if (collapsed) {
+				const currentSize = this.sidebarSplitView.getViewSize(1);
+				if (currentSize > customizationsWidget.collapsedHeight) {
+					savedCustomizationsPaneHeight = currentSize;
+				}
+				this.sidebarSplitView.resizeView(1, customizationsWidget.collapsedHeight);
+			} else {
+				this.sidebarSplitView.resizeView(1, savedCustomizationsPaneHeight);
+			}
+			this.layoutSidebarSplitView();
+		}));
 
 		const updateSplitViewStyles = () => {
 			const borderColor = this.themeService.getColorTheme().getColor(PANEL_SECTION_BORDER);
@@ -559,6 +576,9 @@ export class SessionsView extends ViewPane {
 	}
 
 	private getCustomizationsPaneHeight(): number {
+		if (this._customizationsWidget?.collapsed) {
+			return this._customizationsWidget.collapsedHeight;
+		}
 		const desiredHeight = this._customizationsWidget?.desiredHeight ?? 0;
 		return Math.max(CUSTOMIZATIONS_MIN_HEIGHT, Number.isFinite(desiredHeight) ? desiredHeight : 0);
 	}

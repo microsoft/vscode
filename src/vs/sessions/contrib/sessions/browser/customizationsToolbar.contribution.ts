@@ -8,7 +8,7 @@ import './media/customizationsToolbar.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -34,51 +34,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-
-/**
- * Setting key that controls how the Customizations section in the Agents
- * sidebar is presented and what happens when an entry is clicked.
- *
- * This setting is registered (and only meaningful) in the Agents app.
- */
-export const SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING = 'sessions.customizations.sidebarMode';
-
-/**
- * Presentation/click behavior for the Customizations section in the Agents sidebar.
- * See {@link SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING}.
- */
-export enum SessionsCustomizationsSidebarMode {
-	/** Overview item plus one item per category; category clicks deep-link. */
-	Welcome = 'welcome',
-	/** Overview item plus one item per category; category clicks deep-link. */
-	Section = 'section',
-	/** A single "Customizations" entry that opens the welcome page. */
-	Single = 'single',
-}
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING]: {
-			type: 'string',
-			tags: ['preview'],
-			enum: [
-				SessionsCustomizationsSidebarMode.Welcome,
-				SessionsCustomizationsSidebarMode.Section,
-				SessionsCustomizationsSidebarMode.Single,
-			],
-			enumDescriptions: [
-				localize('sessions.customizations.sidebarMode.welcome', "Show an Overview item followed by one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
-				localize('sessions.customizations.sidebarMode.section', "Show an Overview item followed by one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
-				localize('sessions.customizations.sidebarMode.single', "Show a single \"Customizations\" entry instead of one item per category. Clicking it opens the Customizations welcome page."),
-			],
-			description: localize('sessions.customizations.sidebarMode', "Controls how the Customizations section in the Agents sidebar is presented and what happens when an entry is clicked."),
-			default: SessionsCustomizationsSidebarMode.Welcome,
-		},
-	},
-});
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -325,7 +280,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
-						title: CUSTOMIZATION_OVERVIEW_ITEM.label,
+					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
 					menu: {
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',
@@ -360,7 +315,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				constructor() {
 					super({
 						id: config.id,
-						title: localize2('customizationAction', '{0}', config.label),
+						title: config.label,
 						menu: {
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',

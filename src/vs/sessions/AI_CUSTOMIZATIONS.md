@@ -261,9 +261,9 @@ The MCP Servers section combines locally known MCP servers with MCP servers repo
 
 ### Sidebar Entrypoint Mode
 
-The Agents sidebar `AICustomizationShortcutsWidget` appears as a non-collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space.
+The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron.
 
-The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. The `sessions.customizations.sidebarMode` setting still supports `single`, which replaces the per-category rows with one Customizations entry that opens the welcome page; the legacy `welcome` and `section` values both render the overview-plus-category list. All modes keep the active customization harness in sync with the active session before opening the editor.
+The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. All entries keep the active customization harness in sync with the active session before opening the editor.
 
 ### Item Badges
 

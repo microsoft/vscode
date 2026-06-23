@@ -12,8 +12,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuActionOptions, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -24,7 +22,7 @@ import { getChatSessionType } from '../../../../../workbench/contrib/chat/common
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig } from '../../browser/customizationsToolbar.contribution.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -179,17 +177,12 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; mode?: SessionsCustomizationsSidebarMode; height?: number }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.height = `${options?.height ?? 260}px`;
 	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
 	const actionViewItemService = new FixtureActionViewItemService();
-
-	const configurationService = new TestConfigurationService();
-	if (options?.mode !== undefined) {
-		configurationService.setUserConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, options.mode);
-	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -198,7 +191,6 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			// Register overrides AFTER registerWorkbenchServices so they take priority
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
-			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
 				override readonly onDidActiveEditorChange = Event.None;
 				override readonly onDidVisibleEditorsChange = Event.None;
@@ -268,39 +260,4 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	// --- Sidebar mode variations ---
-
-	ModeWelcome: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, {
-			mode: SessionsCustomizationsSidebarMode.Welcome,
-			mcpServerCount: 2,
-			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
-		}),
-	}),
-
-	ModeSection: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, {
-			mode: SessionsCustomizationsSidebarMode.Section,
-			mcpServerCount: 2,
-			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
-		}),
-	}),
-
-	ModeSingle: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, {
-			mode: SessionsCustomizationsSidebarMode.Single,
-			mcpServerCount: 2,
-			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
-		}),
-	}),
-
-	ModeSingleEmpty: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (ctx) => renderWidget(ctx, {
-			mode: SessionsCustomizationsSidebarMode.Single,
-		}),
-	}),
 });
