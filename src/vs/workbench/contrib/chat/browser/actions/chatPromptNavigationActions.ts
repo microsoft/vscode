@@ -106,29 +106,15 @@ export interface IChatScrollbarPromptMarkerDescriptor {
 }
 
 /**
- * Returns all user prompt requests from the given chat items, filtering out
- * system-initiated requests (except compaction) and deduplicating by message text.
+ * Returns all request view models from the given chat items.
+ * No filtering or deduplication is applied here — system-initiated filtering
+ * and deduplication by message text happen in {@link getScrollbarPromptMarkerDescriptors}.
  */
-export function getUserPromptRequests(
+export function getRequestViewModels(
 	items: readonly ChatPromptNavigationItem[],
 ): IChatRequestViewModel[] {
 	return items.filter((item): item is IChatRequestViewModel =>
 		isRequestVM(item),
-	);
-}
-
-/**
- * Returns the set of request view models that have at least one marker descriptor.
- * This is the subset of {@link getUserPromptRequests} that survived deduplication
- * and system-initiated filtering.
- */
-export function getScrollbarPromptMarkerRequests(
-	items: readonly ChatPromptNavigationItem[],
-): IChatRequestViewModel[] {
-	return getScrollbarPromptMarkerDescriptors(items).filter(
-		(descriptor) => descriptor.target === descriptor.request,
-	).map(
-		(descriptor) => descriptor.request,
 	);
 }
 
@@ -614,7 +600,7 @@ function navigateUserPrompts(accessor: ServicesAccessor, reverse: boolean) {
 	}
 
 	// Get all user prompts (requests) in the conversation
-	const userPrompts = getUserPromptRequests(items);
+	const userPrompts = getRequestViewModels(items);
 	if (userPrompts.length === 0) {
 		return;
 	}

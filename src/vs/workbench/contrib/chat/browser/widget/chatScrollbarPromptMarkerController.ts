@@ -101,7 +101,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		this.container.style.position = 'absolute';
 		this.container.style.top = '0';
 		this.container.style.bottom = '0';
-		this.container.style.pointerEvents = 'auto';
+		this.container.style.pointerEvents = 'none';
 		this.container.style.display = 'none';
 	}
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
-import { applyScrollbarPromptMarkerClickBehavior, ChatScrollbarPromptMarkerLane, ChatScrollbarPromptMarkerType, getFocusedScrollbarPromptMarkerId, getFocusedScrollbarPromptMarkerRequestId, getScrollbarPromptMarkerDescriptors, getScrollbarPromptMarkerRequests } from '../../../browser/actions/chatPromptNavigationActions.js';
+import { applyScrollbarPromptMarkerClickBehavior, ChatScrollbarPromptMarkerLane, ChatScrollbarPromptMarkerType, getFocusedScrollbarPromptMarkerId, getFocusedScrollbarPromptMarkerRequestId, getScrollbarPromptMarkerDescriptors } from '../../../browser/actions/chatPromptNavigationActions.js';
 
 suite('Chat scrollbar prompt marker helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,7 +76,7 @@ suite('Chat scrollbar prompt marker helpers', () => {
 		} as IChatResponseViewModel;
 	}
 
-	test('getScrollbarPromptMarkerRequests keeps the latest logical prompt and drops system initiated requests', () => {
+	test('getScrollbarPromptMarkerDescriptors keeps the latest logical prompt and drops system initiated requests', () => {
 		const items = [
 			request('request-1', 0, 'hello', 1),
 			response('request-1'),
@@ -85,7 +85,8 @@ suite('Chat scrollbar prompt marker helpers', () => {
 			request('request-4', 0, 'world', 4),
 		];
 
-		assert.deepStrictEqual(getScrollbarPromptMarkerRequests(items).map(item => item.id), ['request-2', 'request-4']);
+		const descriptors = getScrollbarPromptMarkerDescriptors(items).filter(d => d.target === d.request);
+		assert.deepStrictEqual(descriptors.map(d => d.request.id), ['request-2', 'request-4']);
 	});
 
 	test('getScrollbarPromptMarkerDescriptors assigns taxonomy lanes and types', () => {
