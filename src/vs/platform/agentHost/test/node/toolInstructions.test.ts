@@ -39,10 +39,19 @@ suite('toolInstructions', () => {
 			assert.deepStrictEqual(composeToolInstructions(undefined, 'LINE'), { action: 'append', content: '\nLINE' });
 		});
 
-		test('folds into a per-model string override, preserving its action', () => {
-			assert.deepStrictEqual(composeToolInstructions({ action: 'append', content: 'A' }, 'LINE'), { action: 'append', content: 'A\nLINE' });
-			assert.deepStrictEqual(composeToolInstructions({ action: 'replace', content: 'OWN' }, 'LINE'), { action: 'replace', content: 'OWN\nLINE' });
-			assert.deepStrictEqual(composeToolInstructions({ action: 'prepend', content: 'P' }, 'LINE'), { action: 'prepend', content: 'P\nLINE' });
+		test('folds into a per-model string override, preserving action and foundation spacing', () => {
+			const overrides: SectionOverride[] = [
+				{ action: 'append', content: 'A' },   // sits after foundation → leads with a newline
+				{ action: 'prepend', content: 'P' },  // sits before foundation → trails with a newline
+				{ action: 'replace', content: 'OWN' },// owns the section → no padding
+				{ action: 'replace', content: '' },   // empty replace → no spurious leading newline
+			];
+			assert.deepStrictEqual(overrides.map(o => composeToolInstructions(o, 'LINE')), [
+				{ action: 'append', content: '\nA\nLINE' },
+				{ action: 'prepend', content: 'P\nLINE\n' },
+				{ action: 'replace', content: 'OWN\nLINE' },
+				{ action: 'replace', content: 'LINE' },
+			]);
 		});
 
 		test('preserves a remove or transform-function override untouched', () => {
@@ -61,7 +70,7 @@ suite('toolInstructions', () => {
 		test('composes the rendered lines with the existing override', () => {
 			assert.deepStrictEqual(
 				resolveToolInstructionsOverride(hasTools('a'), { action: 'append', content: 'A' }, [lineFor('a')]),
-				{ action: 'append', content: 'A\nuse a' }
+				{ action: 'append', content: '\nA\nuse a' }
 			);
 		});
 	});
@@ -69,6 +78,10 @@ suite('toolInstructions', () => {
 	suite('appendUniversalToolInstructions', () => {
 		test('returns the prompt unchanged while no lines apply (empty registry)', () => {
 			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a')), 'FULL PROMPT');
+		});
+
+		test('appends the rendered lines after a blank line when a line applies', () => {
+			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a'), [lineFor('a')]), 'FULL PROMPT\n\nuse a');
 		});
 	});
 });

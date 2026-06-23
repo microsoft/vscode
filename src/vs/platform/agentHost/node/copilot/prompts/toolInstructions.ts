@@ -61,9 +61,8 @@ export function universalToolInstructions(hasTool: (name: string) => boolean, li
  * @param existing the per-model contributor's `tool_instructions` override, if any.
  */
 export function composeToolInstructions(existing: SectionOverride | undefined, content: string): SectionOverride {
-	// No per-model override: append our lines to the SDK foundation section. The
-	// leading newline keeps the appended text on its own line rather than running
-	// on from the foundation content.
+	// No per-model override: append after the SDK foundation section, led by a
+	// newline so it doesn't run on from the foundation content.
 	if (!existing) {
 		return { action: 'append', content: `\n${content}` };
 	}
@@ -72,10 +71,18 @@ export function composeToolInstructions(existing: SectionOverride | undefined, c
 	if (existing.action === 'remove' || typeof existing.action === 'function') {
 		return existing;
 	}
-	// String action (`append` | `prepend` | `replace`): fold our lines into the
-	// contributor's content so its instructions are preserved, not clobbered.
+	// Fold our lines into the contributor's content (preserve it, don't clobber),
+	// then pad relative to the foundation by where this action places the content:
+	// `append` sits after it (lead with a newline), `prepend` sits before it (trail
+	// with a newline), `replace` owns the section (no foundation adjacency, so no
+	// padding — and no leading newline even when the contributor's content is empty).
 	const base = existing.content ?? '';
-	return { action: existing.action, content: base ? `${base}\n${content}` : `\n${content}` };
+	const merged = base ? `${base}\n${content}` : content;
+	switch (existing.action) {
+		case 'append': return { action: 'append', content: `\n${merged}` };
+		case 'prepend': return { action: 'prepend', content: `${merged}\n` };
+		default: return { action: existing.action, content: merged };
+	}
 }
 
 /**
@@ -99,12 +106,16 @@ export function resolveToolInstructionsOverride(hasTool: (name: string) => boole
  * system prompt's `content`.
  *
  * A `replace`-mode contributor owns its whole prompt and so is skipped by the
- * registry's universal `tool_instructions` layer; calling this from
- * `resolveFullSystemPrompt` gives such a contributor the same gated guidance by
- * construction, mirroring how the extension's full-prompt models inline it. Returns
- * `content` unchanged when no line applies.
+ * registry's universal `tool_instructions` layer. When such a contributor is
+ * added, calling this from its `resolveFullSystemPrompt` re-includes the same
+ * gated guidance (separated by a blank line), mirroring how the extension's
+ * full-prompt models inline it. No `resolveFullSystemPrompt` contributor exists
+ * yet, so this currently has no production caller. Returns `content` unchanged
+ * when no line applies.
+ *
+ * @param lines defaults to the registered {@link TOOL_INSTRUCTION_LINES}.
  */
-export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean): string {
-	const extra = universalToolInstructions(hasTool);
+export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): string {
+	const extra = universalToolInstructions(hasTool, lines);
 	return extra === undefined ? content : `${content}\n\n${extra}`;
 }

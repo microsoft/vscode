@@ -67,7 +67,10 @@ export function describeSystemMessageConfig(config: SystemMessageConfig): string
 			const action = override?.action;
 			return `${name}:${typeof action === 'function' ? 'transform' : action}`;
 		});
-		return `mode=customize sections=[${parts.join(', ')}]`;
+		// The customize convenience `content` is appended after all sections; note
+		// it so the summary doesn't understate what was sent.
+		const content = config.content ? ` +content(length ${config.content.length})` : '';
+		return `mode=customize sections=[${parts.join(', ')}]${content}`;
 	}
 	return `mode=append (content length ${config.content?.length ?? 0})`;
 }

@@ -30,13 +30,19 @@ export interface IAgentHostPromptContext {
 	getSetting<K extends keyof CustomizationConfigDefinition & string>(key: K): SchemaValue<CustomizationConfigDefinition[K]> | undefined;
 
 	/**
-	 * Returns whether a tool is available in the session, addressed by the name
-	 * the agent sees it under (client tools use their camelCase
-	 * `toolReferenceName`). The agent-host equivalent of the Copilot extension
-	 * inspecting its available tool set, used to gate tool-specific instructions
-	 * on the tool actually being present.
+	 * Returns whether a *client* tool is available in the session, addressed by
+	 * the camelCase `toolReferenceName` the agent sees it under (e.g.
+	 * `openBrowserPage`). Used to gate tool-specific instructions on the tool
+	 * being present, the agent-host equivalent of the Copilot extension
+	 * inspecting its tool set.
+	 *
+	 * Scope: client tools only (the forwarded workbench tools). It does NOT see
+	 * shell tools, server-SDK tools, or MCP-provided tools — those aren't in the
+	 * session snapshot at launch (MCP is discovered dynamically). A line that
+	 * gates on one of those names silently resolves to `false`; broadening this
+	 * is the context-enrichment follow-up.
 	 */
-	hasTool(name: string): boolean;
+	hasClientTool(name: string): boolean;
 }
 
 /**
@@ -176,9 +182,10 @@ export class AgentHostPromptRegistry {
 	 * Only `customize`-mode configs carry section overrides, so this is a no-op
 	 * for a contributor's full `replace` prompt (which owns the entire system
 	 * message and intentionally drops the SDK foundation) and for `append` mode.
-	 * A `replace` contributor that wants the universal guidance embeds it itself
-	 * via {@link universalToolInstructions}, mirroring how the extension's
-	 * full-prompt models inline the same lines.
+	 * A `replace` contributor that wants the universal guidance re-includes it
+	 * itself by calling `appendUniversalToolInstructions` (in `toolInstructions.ts`)
+	 * from its `resolveFullSystemPrompt`, mirroring how the extension's full-prompt
+	 * models inline the same lines.
 	 *
 	 * A per-model `tool_instructions` override is composed with — not overwritten
 	 * by — the universal lines (see {@link resolveToolInstructionsOverride}).
@@ -187,7 +194,7 @@ export class AgentHostPromptRegistry {
 		if (config.mode !== 'customize') {
 			return config;
 		}
-		const toolInstructions = resolveToolInstructionsOverride(name => context.hasTool(name), config.sections?.tool_instructions);
+		const toolInstructions = resolveToolInstructionsOverride(name => context.hasClientTool(name), config.sections?.tool_instructions);
 		if (!toolInstructions) {
 			return config;
 		}

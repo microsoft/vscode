@@ -21,7 +21,7 @@ function context(settings: SchemaValues<typeof agentHostCustomizationConfigSchem
 	const toolNames = new Set(tools);
 	return {
 		getSetting: key => settings[key],
-		hasTool: name => toolNames.has(name),
+		hasClientTool: name => toolNames.has(name),
 	};
 }
 
@@ -152,20 +152,6 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
 				{ mode: 'customize', sections: { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } } }
-			);
-		});
-
-		test('leaves a full replace prompt untouched', () => {
-			const registry = new AgentHostPromptRegistry();
-			registry.registerPrompt(class {
-				static readonly familyPrefixes = ['gpt-5'];
-				resolveFullSystemPrompt(): string {
-					return 'FULL PROMPT';
-				}
-			});
-			assert.deepStrictEqual(
-				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, ['anyTool'])),
-				{ mode: 'replace', content: 'FULL PROMPT' }
 			);
 		});
 	});

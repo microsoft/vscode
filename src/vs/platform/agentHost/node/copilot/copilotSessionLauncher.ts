@@ -8,7 +8,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -322,14 +322,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const clientToolNames = clientToolNamesFromSnapshot(plan.snapshot);
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
-			hasTool: name => clientToolNames.has(name),
+			hasClientTool: name => clientToolNames.has(name),
 		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
 		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
-		this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
+		if (this._logService.getLevel() <= LogLevel.Trace) {
+			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
+			// serialize it when trace output is actually emitted.
+			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
+		}
 		return {
 			clientName: 'vscode',
 			enableMcpApps: true,
