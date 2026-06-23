@@ -725,6 +725,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
 							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							// Enrich usage entries with the actual model so the
+							// context-usage widget resolves the right context window
+							// on reconnection (same enrichment as _observeTurn).
+							const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
+							if (actualModelId) {
+								for (const p of initialProgress) {
+									if (p.kind === 'usage') {
+										p.actualModelId = actualModelId;
+									}
+								}
+							}
 							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
 					}
@@ -1603,9 +1614,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			store.add(autorun(reader => {
-				const usage = usageInfoToChatUsage(usage$.read(reader));
+				const rawUsage = usage$.read(reader);
+				const usage = usageInfoToChatUsage(rawUsage);
 				if (!usage) {
 					return;
+				}
+				// Carry through the actual model so the context-usage widget
+				// can look up context window metadata when the request-level
+				// model (e.g. "auto") doesn't expose one.
+				const actualModelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
+				if (actualModelId) {
+					usage.actualModelId = actualModelId;
 				}
 				if (lastUsage
 					&& lastUsage.promptTokens === usage.promptTokens
