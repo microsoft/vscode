@@ -299,7 +299,7 @@ suite('Paged clipping - current file', () => {
 			new OffsetRange(10, 14),
 			computeTokens,
 			10,
-			{ ...opts, maxTokens: 50, useLeftoverBudgetFromAbove: false }
+			{ ...opts, maxTokens: 50 }
 		);
 		assert(result.isOk());
 		const taggedCurrentFileContent = result.val;

@@ -434,12 +434,12 @@ export namespace ResponseFormat {
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
 	currentFile: {
-		maxTokens: 1500,
+		maxTokens: 2000,
 		includeTags: true,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		includeCursorTag: false,
 		prioritizeAboveCursor: false,
-		useLeftoverBudgetFromAbove: true,
+		useLeftoverBudgetFromAbove: false,
 	},
 	pagedClipping: {
 		pageSize: 10,
