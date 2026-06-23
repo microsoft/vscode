@@ -107,7 +107,7 @@ function buildBuiltinSkillsContainer(entries: readonly IBuiltinSkillEntry[]): Di
 	}
 
 	const children: SkillCustomization[] = entries.map(entry => {
-		const uri = URI.from({ scheme: AGENT_BUILTIN_SCHEME, path: `/skill/${entry.name}` }).toString();
+		const uri = URI.from({ scheme: AGENT_BUILTIN_SCHEME, path: `/skill/${encodeURIComponent(entry.name)}` }).toString();
 		return {
 			type: CustomizationType.Skill,
 			id: customizationId(uri),

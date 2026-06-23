@@ -1093,9 +1093,9 @@ Shipped in PR #318113. Two-tier model:
   single "Discovered in Claude" Open Plugins-conformant on-disk tree under
   `IAgentPluginManager.basePath`, namespaced by working-directory hash and
   nonce-stable across repeated bundles of the same SDK snapshot.
-  **(Superseded by Phase 16:** the synthetic-stub bundle was replaced by a
+  **(Superseded by Phase 16: the synthetic-stub bundle was replaced by a
   disk scan returning real editable `file:` URIs; `ClaudeSdkCustomizationBundler`
-  is deleted.**)**
+  is deleted.)**
 
 **Per-session ownership.** All customization state lives on
 `ClaudeAgentSession`:

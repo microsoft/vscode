@@ -35,11 +35,16 @@ export function claudeMemoryFiles(workingDirectory: URI | undefined, userHome: U
 /**
  * Recursively collects `*.md` files under `dir` (sorted by path). Follows
  * symlinked subdirectories — `.claude/rules` supports them — with a
- * visited-set guard so circular symlinks terminate.
+ * visited-set guard plus a hard depth cap so circular symlinks terminate.
+ * (The visited-set alone is insufficient: a symlink cycle like
+ * `rules/a -> rules` produces an ever-deeper, never-repeating path, so the
+ * depth cap is the real termination guarantee.)
  */
-async function readMarkdownFilesRecursive(dir: URI, fileService: IFileService, seen = new Set<string>()): Promise<URI[]> {
+const MAX_RULE_SCAN_DEPTH = 32;
+
+async function readMarkdownFilesRecursive(dir: URI, fileService: IFileService, seen = new Set<string>(), depth = 0): Promise<URI[]> {
 	const key = dir.toString();
-	if (seen.has(key)) {
+	if (depth > MAX_RULE_SCAN_DEPTH || seen.has(key)) {
 		return [];
 	}
 	seen.add(key);
@@ -57,7 +62,7 @@ async function readMarkdownFilesRecursive(dir: URI, fileService: IFileService, s
 	const files: URI[] = [];
 	for (const child of stat.children) {
 		if (child.isDirectory) {
-			files.push(...await readMarkdownFilesRecursive(child.resource, fileService, seen));
+			files.push(...await readMarkdownFilesRecursive(child.resource, fileService, seen, depth + 1));
 		} else if (child.isFile && child.resource.path.toLowerCase().endsWith('.md')) {
 			files.push(child.resource);
 		}
