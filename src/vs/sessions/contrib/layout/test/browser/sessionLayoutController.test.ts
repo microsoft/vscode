@@ -120,6 +120,7 @@ suite('LayoutController', () => {
 		readonly useModal?: 'off' | 'some' | 'all';
 		readonly workspaceFolders?: readonly { readonly uri: URI }[];
 		readonly layoutState?: readonly object[];
+		readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
 	}
 
 	function createLayoutController(options: ICreateOptions = {}): LayoutController {
@@ -128,6 +129,9 @@ suite('LayoutController', () => {
 		storageService = store.add(new TestStorageService());
 		if (options.layoutState) {
 			storageService.store('sessions.layoutState', JSON.stringify(options.layoutState), StorageScope.WORKSPACE, 0);
+		}
+		if (options.newSessionViewState) {
+			storageService.store('sessions.newSessionViewState', JSON.stringify(options.newSessionViewState), StorageScope.WORKSPACE, 0);
 		}
 		instaService.stub(IStorageService, storageService);
 
@@ -257,6 +261,72 @@ suite('LayoutController', () => {
 		activeSessionObs.set(session, undefined);
 
 		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+	});
+
+	test('remembers hidden aux bar across new (untitled) sessions', () => {
+		createLayoutController();
+		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
+		const existing = makeSession(URI.parse('session:existing'));
+		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
+
+		// Open a new (untitled) session — aux bar shows the Files view.
+		activeSessionObs.set(untitled1, undefined);
+		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+
+		// User hides the aux bar on the new-session view.
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		// Switch to an existing session and back to a brand new (untitled) session.
+		activeSessionObs.set(existing, undefined);
+
+		setPartHiddenCalls = [];
+		openedViewContainers = [];
+		activeSessionObs.set(untitled2, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should stay hidden on the next new session'
+		);
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not re-open the Files view on the next new session'
+		);
+	});
+
+	test('persists hidden new-session aux bar to storage and restores it after reload', () => {
+		// First lifetime: user hides the aux bar on the new-session view.
+		createLayoutController();
+		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
+		activeSessionObs.set(untitled1, undefined);
+
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		assert.deepStrictEqual(
+			JSON.parse(storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE) ?? ''),
+			{ auxiliaryBarVisible: false },
+			'state should be persisted to storage'
+		);
+
+		store.clear();
+
+		// Second lifetime (reload): a fresh controller with the persisted state.
+		createLayoutController({ newSessionViewState: { auxiliaryBarVisible: false } });
+		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
+
+		setPartHiddenCalls = [];
+		openedViewContainers = [];
+		activeSessionObs.set(untitled2, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should stay hidden after reload'
+		);
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not re-open the Files view after reload'
+		);
 	});
 
 	test('does not open views when session has no workspace', () => {
