@@ -17,8 +17,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { ILanguageModelsService } from '../common/languageModels.js';
+import { getSelectedModelIdentifier, getSelectedModelMetadata, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
+import { IChatWidgetService } from './chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -33,6 +34,7 @@ const TRAJECTORY_NUDGE_SPEC = {
 	msPerDay: 24 * 60 * 60 * 1000,
 	learnMoreUrl: 'https://aka.ms/token-usage-tips',
 	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
+	tryAutoCommandId: 'workbench.action.chat.quotaTrajectoryTryAuto',
 } as const;
 
 type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
@@ -40,11 +42,17 @@ type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
 	comment: 'Tracks when users click the chat quota trajectory nudge learn more link.';
 };
 
+type ChatQuotaTrajectoryNudgeTryAutoClickedClassification = {
+	owner: 'rfeltis';
+	comment: 'Tracks when users click the chat quota trajectory nudge Try Auto link.';
+};
+
 type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
 	treatment: boolean;
 	entitlement: string;
 	averageDailyUsage: number;
 	percentUsed: number;
+	linkToAuto: 'enabled' | 'alreadyAuto' | 'autoIneligible';
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
@@ -54,6 +62,7 @@ type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
 	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage when the user was assigned to the experiment flight.' };
 	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the user was assigned to the experiment flight.' };
+	linkToAuto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the Try Auto link was shown, or why it was not shown.' };
 };
 
 /**
@@ -103,6 +112,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -110,6 +120,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
 		this._register(CommandsRegistry.registerCommand(TRAJECTORY_NUDGE_SPEC.learnMoreCommandId, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
+		this._register(CommandsRegistry.registerCommand(TRAJECTORY_NUDGE_SPEC.tryAutoCommandId, () => this._handleTryAutoCommand()));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
@@ -346,16 +357,26 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._showingExhausted = false;
 		this._storeTrajectoryShown();
+		const linkToAuto = this._getLinkToAutoDecision();
+		const shouldShowTryAuto = linkToAuto === 'enabled';
+		const tryAutoLink = shouldShowTryAuto ? createMarkdownCommandLink({
+			text: localize('quota.trajectory.tryAuto', "Try auto"),
+			id: TRAJECTORY_NUDGE_SPEC.tryAutoCommandId,
+			tooltip: localize('quota.trajectory.tryAutoTooltip', "Try Auto"),
+		}) : undefined;
 		const learnMoreLink = createMarkdownCommandLink({
-			text: localize('quota.trajectory.learnMore', "Learn more about managing credits"),
+			text: localize('quota.trajectory.learnMore', "learn about optimizing usage"),
 			id: TRAJECTORY_NUDGE_SPEC.learnMoreCommandId,
-			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn more about managing credits"),
+			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn about optimizing usage"),
 		});
+		const message = tryAutoLink
+			? localize({ key: 'quota.trajectory.messageWithTryAuto', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0} or {1}", tryAutoLink, learnMoreLink)
+			: localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0}", learnMoreLink);
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: new MarkdownString(localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Based on recent usage, your monthly allowance may run out before it resets. {0}", learnMoreLink), { isTrusted: { enabledCommands: [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
+			message: new MarkdownString(message, { isTrusted: { enabledCommands: shouldShowTryAuto ? [TRAJECTORY_NUDGE_SPEC.tryAutoCommandId, TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] : [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
 			description: undefined,
 			actions: [],
 			dismissible: true,
@@ -369,12 +390,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
 	}
 
+	private _handleTryAutoCommand(): void {
+		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeTryAutoClickedClassification>('chatQuotaTrajectoryNudgeTryAutoClicked');
+		const autoModelIdentifier = this._getAutoModelIdentifier();
+		const widget = this._chatWidgetService.lastFocusedWidget;
+		if (autoModelIdentifier && widget?.input.canSwitchModelByIdentifier(autoModelIdentifier)) {
+			widget.input.switchModelByIdentifier(autoModelIdentifier);
+		}
+		queueMicrotask(() => this._hideNotification());
+	}
+
 	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean, warning: { averageDailyUsage: number; percentUsed: number }): void {
 		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
 			treatment,
 			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
 			averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
 			percentUsed: Math.round(warning.percentUsed * 100) / 100,
+			linkToAuto: this._getLinkToAutoDecision(),
 		});
 	}
 
@@ -558,6 +590,37 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 */
 	private _isCopilotModelSelected(): boolean {
 		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
+	}
+
+	private _getLinkToAutoDecision(): 'enabled' | 'alreadyAuto' | 'autoIneligible' {
+		if (this._isAutoModelSelected()) {
+			return 'alreadyAuto';
+		}
+		const autoModelIdentifier = this._getAutoModelIdentifier();
+		if (!autoModelIdentifier || this._chatWidgetService.lastFocusedWidget?.input.canSwitchModelByIdentifier(autoModelIdentifier) !== true) {
+			return 'autoIneligible';
+		}
+		return 'enabled';
+	}
+
+	private _isAutoModelSelected(): boolean {
+		const metadata = getSelectedModelMetadata(this._contextKeyService, this._storageService, this._languageModelsService);
+		if (metadata) {
+			return this._isAutoModel(metadata.id, metadata.vendor);
+		}
+		const identifier = getSelectedModelIdentifier(this._contextKeyService, this._storageService);
+		return identifier === 'auto' || identifier?.endsWith('/auto') === true;
+	}
+
+	private _getAutoModelIdentifier(): string | undefined {
+		return this._languageModelsService.getLanguageModelIds().find(identifier => {
+			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
+			return !!metadata && this._isAutoModel(metadata.id, metadata.vendor);
+		});
+	}
+
+	private _isAutoModel(id: string, vendor: string): boolean {
+		return id === 'auto' && (vendor === COPILOT_VENDOR_ID || vendor === 'copilotcli');
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {

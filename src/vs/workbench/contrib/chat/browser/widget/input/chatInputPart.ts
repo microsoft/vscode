@@ -993,13 +993,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * was found and applied.
 	 */
 	public switchModelByIdentifier(identifier: string): boolean {
-		const models = this.getModels();
-		const model = models.find(m => m.identifier === identifier);
+		const model = this.getModelByIdentifier(identifier);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
 		return false;
+	}
+
+	public canSwitchModelByIdentifier(identifier: string): boolean {
+		return this.getModelByIdentifier(identifier) !== undefined;
+	}
+
+	private getModelByIdentifier(identifier: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		return this.getModels().find(m => m.identifier === identifier);
 	}
 
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
