@@ -4226,9 +4226,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	grid-template-columns: auto auto auto;
 }
 
-/* Rows are transparent: their cells participate directly in the table grid so columns align. */
+/* Each row is a real (positioned) element that still aligns to the table's columns via subgrid,
+	so it can paint a single continuous dotted line behind all of its cells. */
 .chat-model-hover-cost-row {
-	display: contents;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	position: relative;
+}
+
+/* The single continuous dotted leader, painted behind the cells. The label text and the
+	number have opaque backgrounds (below) that mask it, so the visible dots read as one
+	continuous line running from the label to the number. */
+.chat-model-hover-cost-row:not(.header)::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
 }
 
 .chat-model-hover-cost-heading {
@@ -4237,65 +4255,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-right: 12px;
 }
 
-/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
+/* Label cell: text only. Opaque background + right padding mask the start of the dotted line
+	and create the gap between the label and the first dot. Positioned above the leader. */
 .chat-model-hover-cost-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
+	position: relative;
+	z-index: 1;
 }
 
 .chat-model-hover-cost-label-text {
-	flex: 0 0 auto;
+	padding-right: 6px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
-.chat-model-hover-cost-leader {
-	flex: 1 1 auto;
-	min-width: 12px;
-	height: 0;
-	border-bottom: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
+/* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
 .chat-model-hover-cost-value {
-	position: relative;
-	text-align: right;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
 	white-space: nowrap;
 	min-width: 0;
+	position: relative;
+	z-index: 1;
+	/* Blank inset separating the Default and Long Context value columns. */
+	padding-left: 8px;
 }
 
-.chat-model-hover-cost-value::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 50%;
-	border-top: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-.chat-model-hover-cost-value.subheader::before,
-.chat-model-hover-cost-value.empty::before {
-	content: none;
-}
-
-/* Blank gap (no dots) separating the Default and Long Context value columns. */
+/* Opaque mask over the second value column's leading inset so the Default column's dots stop
+	cleanly and don't bleed into the Long Context column (a clear separator between them). */
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
-	padding-left: 18px;
+	padding-left: 12px;
 }
 
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
-	left: 18px;
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 12px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-number {
-	position: relative;
 	padding-left: 6px;
 	font-weight: 700;
 	color: var(--vscode-foreground);
-	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-value.subheader {
@@ -4354,14 +4361,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* Voice mode: color the mic icon blue when listening, purple when speaking */
-/* Voice mode: color the mic icon when listening/speaking */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+@keyframes chat-voice-icon-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+	}
 }
 
-.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
+/* Voice mode: blue when listening */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+}
+
+/* Voice mode: purple when speaking */
+.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: green disconnect button */

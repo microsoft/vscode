@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -61,8 +61,15 @@ export interface IAgentPluginService {
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
-	readonly plugins: IObservable<readonly IAgentPlugin[]>;
+	readonly plugins: IObservable<readonly IAgentPlugin[] | undefined>;
 	start(enablementModel: IEnablementModel): void;
+}
+
+export const enum AgentPluginDiscoveryPriority {
+	Configured = 10,
+	Marketplace = 20,
+	Extension = 30,
+	CopilotCli = 40,
 }
 
 export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, commandName: string): string {
@@ -94,17 +101,24 @@ function normalizePluginToken(value: string): string {
 }
 
 class AgentPluginDiscoveryRegistry {
-	private readonly _discovery: SyncDescriptor0<IAgentPluginDiscovery>[] = [];
+	private readonly _discovery: { readonly descriptor: SyncDescriptor0<IAgentPluginDiscovery>; readonly priority: AgentPluginDiscoveryPriority; readonly order: number }[] = [];
+	private _order = 0;
 
-	register(descriptor: SyncDescriptor0<IAgentPluginDiscovery>): void {
-		this._discovery.push(descriptor);
+	register(descriptor: SyncDescriptor0<IAgentPluginDiscovery>, priority: AgentPluginDiscoveryPriority): IDisposable {
+		const registration = { descriptor, priority, order: this._order++ };
+		this._discovery.push(registration);
+		return toDisposable(() => {
+			const index = this._discovery.indexOf(registration);
+			if (index >= 0) {
+				this._discovery.splice(index, 1);
+			}
+		});
 	}
 
-	getAll(): readonly SyncDescriptor0<IAgentPluginDiscovery>[] {
-		return this._discovery;
+	getAll(): readonly { readonly descriptor: SyncDescriptor0<IAgentPluginDiscovery>; readonly priority: AgentPluginDiscoveryPriority; readonly order: number }[] {
+		return [...this._discovery].sort((a, b) => a.priority - b.priority || a.order - b.order);
 	}
 }
 
 export const agentPluginDiscoveryRegistry = new AgentPluginDiscoveryRegistry();
-
 

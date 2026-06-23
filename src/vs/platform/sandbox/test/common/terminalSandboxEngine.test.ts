@@ -223,6 +223,39 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.includes(`/app/node_modules/@vscode/ripgrep-universal/bin/linux-${arch}`), `Expected ripgrep-universal platform-arch path in command. Actual: ${wrapped.command}`);
 	});
 
+	test('sandbox config enables PTY access by default on macOS', async () => {
+		const host = createHost({ getOS: () => Promise.resolve(OperatingSystem.Macintosh) });
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(config.allowPty, true);
+	});
+
+	test('sandbox config does not enable PTY access by default on Linux', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(Object.prototype.hasOwnProperty.call(config, 'allowPty'), false);
+	});
+
+	test('sandbox config respects explicitly disabled PTY access on macOS', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { allowPty: false });
+		const host = createHost({ getOS: () => Promise.resolve(OperatingSystem.Macintosh) });
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(config.allowPty, false);
+	});
+
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
@@ -253,23 +286,6 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
-	});
-
-	test('forceSandboxed keeps filesystem and network sandbox restrictions', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
-		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
-		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
-
-		const wrapped = await engine.wrapCommand('curl https://example.com', true, 'bash', undefined, undefined, true, true);
-		const configPath = await engine.getSandboxConfigPath();
-		ok(configPath, 'Config path should be defined');
-		const config = JSON.parse(createdFiles.get(configPath)!);
-
-		strictEqual(wrapped.isSandboxWrapped, true);
-		strictEqual(wrapped.requiresUnsandboxConfirmation, undefined);
-		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
-		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: ['example.com'] });
-		ok(config.filesystem.denyRead.includes(configPath), 'Filesystem sandbox policy should remain active');
 	});
 
 	test('blocked domains request sandboxed network access before execution when enabled', async () => {

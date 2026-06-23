@@ -6,12 +6,17 @@
 import type * as http from 'http';
 import * as fs from 'fs';
 import { join } from '../../../../base/common/path.js';
-import { AddressInfo } from 'net';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CopilotApiError, ICopilotApiService } from '../shared/copilotApiService.js';
 import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
+import {
+	ILoopbackProxyHandle,
+	ILoopbackProxyRuntime,
+	IProxyInFlight,
+	LoopbackProxyServer,
+	readProxyRequestBody,
+} from '../shared/loopbackProxyServer.js';
 
 /**
  * Refcounted handle to the local OpenAI-Responses → CAPI proxy.
@@ -29,7 +34,7 @@ import { buildForwardedChatError, encodeForwardedChatError } from '../shared/for
  * rebind on a different port on next `start()` and the subprocess silently
  * loses its endpoint.
  */
-export interface ICodexProxyHandle extends IDisposable {
+export interface ICodexProxyHandle extends ILoopbackProxyHandle {
 	/** e.g. `http://127.0.0.1:54321` — no trailing slash. */
 	readonly baseUrl: string;
 	/** Random per-process nonce used as `Bearer <nonce>` by the codex CLI. */
@@ -57,21 +62,13 @@ export interface ICodexProxyService {
 
 export const ICodexProxyService = createDecorator<ICodexProxyService>('codexProxyService');
 
-interface IInFlight {
-	readonly ac: AbortController;
-	readonly res: http.ServerResponse;
-	clientGone: boolean;
-}
-
-interface IProxyRuntime {
-	readonly server: http.Server;
-	readonly baseUrl: string;
-	readonly nonce: string;
-	readonly inFlight: Set<IInFlight>;
+/** Subclass-owned per-bind mutable state: the active outbound CAPI token. */
+interface ICodexProxyState {
 	/** Token cell — read fresh on each outbound request. */
 	githubToken: string;
-	refcount: number;
 }
+
+type ICodexProxyRuntime = ILoopbackProxyRuntime<ICodexProxyState>;
 
 const PROXY_USER_FACING_NAME = 'CodexProxyService';
 
@@ -101,31 +98,12 @@ function getDumpDir(): string | undefined {
 	}
 }
 
-function generateNonce(): string {
-	const bytes = new Uint8Array(32);
-	crypto.getRandomValues(bytes);
-	let out = '';
-	for (let i = 0; i < bytes.length; i++) {
-		out += bytes[i].toString(16).padStart(2, '0');
-	}
-	return out;
-}
-
 function writeJsonError(res: http.ServerResponse, status: number, type: string, message: string): void {
 	if (res.headersSent || res.writableEnded) {
 		return;
 	}
 	res.writeHead(status, { 'Content-Type': 'application/json' });
 	res.end(JSON.stringify({ error: { type, message } }));
-}
-
-function readRequestBody(req: http.IncomingMessage): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
-		req.on('data', c => chunks.push(c));
-		req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-		req.on('error', reject);
-	});
 }
 
 /**
@@ -138,30 +116,26 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
  * Lifecycle: refcounted handles, single shared bind, in-flight requests
  * aborted on teardown.
  */
-export class CodexProxyService implements ICodexProxyService {
+export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, string> implements ICodexProxyService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _runtime: IProxyRuntime | undefined;
-	private _starting: Promise<IProxyRuntime> | undefined;
-	private _disposed = false;
-
 	constructor(
-		@ILogService private readonly _logService: ILogService,
+		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
-	) { }
+	) {
+		super(PROXY_USER_FACING_NAME, logService);
+	}
+
+	protected createState(githubToken: string): ICodexProxyState {
+		return { githubToken };
+	}
 
 	async start(githubToken: string): Promise<ICodexProxyHandle> {
-		if (this._disposed) {
-			throw new Error('CodexProxyService has been disposed');
-		}
-		const runtime = await this._ensureRuntime(githubToken);
-		if (this._disposed || this._runtime !== runtime) {
-			throw new Error('CodexProxyService has been disposed');
-		}
+		const { runtime, release } = await this.acquire(githubToken);
 		// Most recent token wins for the runtime — single-tenant assumption.
-		runtime.githubToken = githubToken;
-		runtime.refcount++;
+		// Covers concurrent callers that awaited the same bind.
+		runtime.state.githubToken = githubToken;
 
 		let disposed = false;
 		return {
@@ -174,128 +148,22 @@ export class CodexProxyService implements ICodexProxyService {
 				// Update the shared runtime's token cell. In-flight requests
 				// keep the value they captured at dispatch; new requests
 				// pick up the fresh value on `_handleResponses`.
-				runtime.githubToken = newToken;
+				runtime.state.githubToken = newToken;
 			},
 			dispose: () => {
 				if (disposed) {
 					return;
 				}
 				disposed = true;
-				this._releaseHandle(runtime);
+				release();
 			},
 		};
 	}
 
-	dispose(): void {
-		if (this._disposed) {
-			return;
-		}
-		this._disposed = true;
-		this._teardownRuntime();
-	}
-
-	private _ensureRuntime(githubToken: string): Promise<IProxyRuntime> {
-		if (this._runtime) {
-			return Promise.resolve(this._runtime);
-		}
-		if (!this._starting) {
-			this._starting = (async () => {
-				try {
-					const rt = await this._startServer(githubToken);
-					if (this._disposed) {
-						rt.server.closeAllConnections();
-						rt.server.close();
-						throw new Error('CodexProxyService has been disposed');
-					}
-					this._runtime = rt;
-					return rt;
-				} finally {
-					this._starting = undefined;
-				}
-			})();
-		}
-		return this._starting;
-	}
-
-	private _releaseHandle(runtime: IProxyRuntime): void {
-		if (this._runtime !== runtime) {
-			return;
-		}
-		runtime.refcount--;
-		if (runtime.refcount === 0) {
-			this._teardownRuntime();
-		}
-	}
-
-	private _teardownRuntime(): void {
-		const runtime = this._runtime;
-		if (!runtime) {
-			return;
-		}
-		this._runtime = undefined;
-		for (const entry of runtime.inFlight) {
-			entry.ac.abort();
-		}
-		runtime.server.closeAllConnections();
-		runtime.server.close(err => {
-			if (err) {
-				this._logService.warn(`[${PROXY_USER_FACING_NAME}] server.close error: ${err.message}`);
-			}
-		});
-	}
-
-	private async _startServer(githubToken: string): Promise<IProxyRuntime> {
-		const nonce = generateNonce();
-		const inFlight = new Set<IInFlight>();
-		const httpModule = await import('http');
-		const server = httpModule.createServer();
-
-		await new Promise<void>((resolve, reject) => {
-			const onError = (err: Error) => reject(err);
-			server.once('error', onError);
-			server.listen(0, '127.0.0.1', () => {
-				server.removeListener('error', onError);
-				resolve();
-			});
-		});
-
-		const address = server.address();
-		if (!address || typeof address === 'string') {
-			server.close();
-			throw new Error(`${PROXY_USER_FACING_NAME} failed to bind: unexpected address ${String(address)}`);
-		}
-		const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-		this._logService.info(`[${PROXY_USER_FACING_NAME}] listening on ${baseUrl}`);
-
-		const runtime: IProxyRuntime = {
-			server,
-			baseUrl,
-			nonce,
-			inFlight,
-			githubToken,
-			refcount: 0,
-		};
-
-		server.on('request', (req, res) => {
-			this._handleRequest(req, res, runtime).catch(err => {
-				this._logService.error(`[${PROXY_USER_FACING_NAME}] unhandled request error`, err);
-				if (!res.headersSent) {
-					try {
-						writeJsonError(res, 500, 'api_error', 'Internal proxy error');
-					} catch { /* ignore */ }
-				} else if (!res.writableEnded) {
-					try { res.end(); } catch { /* ignore */ }
-				}
-			});
-		});
-
-		return runtime;
-	}
-
-	private async _handleRequest(
+	protected override async handleRequest(
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
-		runtime: IProxyRuntime,
+		runtime: ICodexProxyRuntime,
 	): Promise<void> {
 		const method = req.method ?? 'GET';
 		const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
@@ -329,11 +197,11 @@ export class CodexProxyService implements ICodexProxyService {
 	private async _handleResponses(
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
-		runtime: IProxyRuntime,
+		runtime: ICodexProxyRuntime,
 	): Promise<void> {
 		let body: string;
 		try {
-			body = await readRequestBody(req);
+			body = await readProxyRequestBody(req);
 		} catch (err) {
 			writeJsonError(res, 400, 'invalid_request_error', `Failed to read request body: ${err instanceof Error ? err.message : String(err)}`);
 			return;
@@ -393,7 +261,7 @@ export class CodexProxyService implements ICodexProxyService {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] >>> /responses body (unparseable): ${body.slice(0, 200)}`);
 		}
 
-		const entry: IInFlight = { ac: new AbortController(), res, clientGone: false };
+		const entry: IProxyInFlight = { ac: new AbortController(), res, clientGone: false };
 		runtime.inFlight.add(entry);
 		const onClose = () => {
 			entry.clientGone = true;
@@ -403,8 +271,8 @@ export class CodexProxyService implements ICodexProxyService {
 
 		// Snapshot the token at dispatch time so an in-flight request keeps
 		// using the value it started with; subsequent requests will pick up
-		// whatever `runtime.githubToken` has been rotated to.
-		const dispatchedToken = runtime.githubToken;
+		// whatever `runtime.state.githubToken` has been rotated to.
+		const dispatchedToken = runtime.state.githubToken;
 
 		try {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] forwarding to CAPI responses...`);
