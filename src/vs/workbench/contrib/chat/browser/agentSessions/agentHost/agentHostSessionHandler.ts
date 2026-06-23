@@ -1746,7 +1746,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
-		let lastEmitted = opts.seedEmittedLengths?.get(part$.get().id) ?? 0;
+		const partId = part$.get().id;
+		let lastEmitted = opts.seedEmittedLengths?.get(partId) ?? 0;
 		store.add(autorun(reader => {
 			const content = part$.read(reader).content;
 			if (content.length <= lastEmitted) {
@@ -1754,7 +1755,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const delta = content.substring(lastEmitted);
 			lastEmitted = content.length;
-			opts.sink([{ kind: 'thinking', value: delta }]);
+			opts.sink([{ kind: 'thinking', value: delta, id: partId }]);
 		}));
 	}
 
