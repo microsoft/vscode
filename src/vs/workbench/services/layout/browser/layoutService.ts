@@ -119,7 +119,7 @@ export function positionToString(position: Position): string {
  * disabled.
  *
  * The horizontal order of the parts is reconstructed from the same inputs the grid
- * layout uses (see `Layout.arrangeParts`): the activity bar and primary side bar sit
+ * layout uses (mirrors `Layout.adjustPartPositions` in `src/vs/workbench/browser/layout.ts`): the activity bar and primary side bar sit
  * on `getSideBarPosition()`, the secondary side bar on the opposite side, and a
  * vertical (left/right) panel sits immediately next to the editor on its placement
  * side. The outermost *visible* part on each edge wins; the activity bar is not a
