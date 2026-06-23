@@ -243,6 +243,9 @@ export async function resolveCustomizationRefs(
 			if (syncProvider.isDisabled(plugin.uri)) {
 				continue;
 			}
+			if (!isContributionEnabled(plugin.enablement.get())) {
+				continue;
+			}
 			addPluginRef(plugin);
 		} else {
 			looseFiles.push({ uri: entry.uri, type: entry.type });

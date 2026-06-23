@@ -1581,8 +1581,9 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				table.classList.add('has-long-context');
 			}
 
-			// Each value cell paints a dotted leader behind a right-aligned, background-masked
-			// number so the dots run right up to the number (and between the two columns).
+			// Each row paints a single continuous dotted line behind its cells (see CSS); the
+			// right-aligned number has an opaque background that masks the line so the dots read
+			// as one continuous leader from the label to the number.
 			const appendValueCell = (row: HTMLElement, cost: number | undefined): void => {
 				if (cost === undefined) {
 					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
@@ -1605,12 +1606,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			}
 			table.appendChild(headerRow);
 
-			// Cost rows: label on the left, dotted leader, then right-aligned credit value(s)
+			// Cost rows: label on the left, a continuous dotted line, then right-aligned credit value(s)
 			for (const metric of metrics) {
 				const row = dom.$('.chat-model-hover-cost-row');
 				const labelCell = dom.$('.chat-model-hover-cost-label');
 				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
-				labelCell.appendChild(dom.$('span.chat-model-hover-cost-leader'));
 				row.appendChild(labelCell);
 				appendValueCell(row, metric.def);
 				if (hasLongContext) {

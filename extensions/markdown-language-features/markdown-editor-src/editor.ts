@@ -8,7 +8,7 @@ import { Disposable, autorun } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
-import '@vscode/markdown-editor/themes/github.css';
+import '@vscode/markdown-editor/themes/vscode.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
@@ -64,7 +64,7 @@ class Editor extends Disposable {
 		const model = this.model;
 
 		const view = this._register(new EditorView(model, {
-			classNames: ['github-markdown-theme'],
+			classNames: ['md-theme-vscode'],
 			syntaxHighlighter: this.#syntaxHighlighter,
 			onToggleCheckbox: (item, newChecked) => {
 				if (readonly) {
@@ -104,11 +104,13 @@ class Editor extends Disposable {
 		host.appendChild(view.element);
 
 		if (!readonly) {
+			let firstTime = true;
 			this._register(autorun((reader) => {
 				const text = reader.readObservable(this.model.sourceText).value;
-				if (!this.isUpdatingFromExtension) {
+				if (!this.isUpdatingFromExtension && !firstTime) {
 					this.#vscode.postMessage({ type: 'edit', content: text });
 				}
+				firstTime = false;
 			}));
 		}
 	}

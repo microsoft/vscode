@@ -102,7 +102,7 @@ export class SessionsPart extends Part {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
-	readonly priority = LayoutPriority.Normal;
+	readonly priority = LayoutPriority.High;
 
 	constructor(
 		@IThemeService themeService: IThemeService,

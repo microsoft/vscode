@@ -1119,6 +1119,11 @@
 	color: var(--vscode-editor-background);
 }
 
+.mcp-server-item .mcp-server-status.auth-required {
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
+	color: var(--vscode-editor-background);
+}
+
 .mcp-server-item .mcp-server-status.error {
 	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
 	color: var(--vscode-editor-background);

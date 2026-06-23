@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { OS } from '../../../../base/common/platform.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,12 +15,18 @@ import { IAgentHostTerminalService } from '../../../../workbench/contrib/termina
 import { ITerminalGroupService, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
-import { resolveTaskCommand } from '../../chat/browser/taskCommand.js';
+import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
+
+/**
+ * Sentinel address used for the local agent host (which runs on the same
+ * machine as the renderer). Remote hosts use their `remoteAddress` instead.
+ */
+const LOCAL_AGENT_HOST_ADDRESS = '__local__';
 
 /**
  * Task runner for sessions backed by an agent host (local or remote). Resolves
@@ -57,7 +64,14 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			byLabel.set(entry.task.label, entry.task);
 		}
 
-		const command = resolveTaskCommand(task, { lookup: label => byLabel.get(label) });
+		const command = resolveTaskCommand(task, {
+			// The local agent host runs on the same machine as the renderer, so
+			// the renderer's OS picks the right OS-specific `command`/`args`
+			// overrides (e.g. `.bat` vs `.sh`). For remote hosts the OS is
+			// unknown here, so we fall back to the task's default command.
+			targetOS: address === LOCAL_AGENT_HOST_ADDRESS ? osToTaskTargetOS(OS) : undefined,
+			lookup: label => byLabel.get(label),
+		});
 		if (!command) {
 			this._logService.trace(`${LOG_PREFIX} Skipping task '${task.label}' — no command could be resolved.`);
 			return undefined;
@@ -87,7 +101,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
-		return provider.remoteAddress ?? '__local__';
+		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
 	}
 
 	private _getCwd(session: ISession): URI | undefined {

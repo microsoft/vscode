@@ -55,14 +55,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	 * Calls setWindowAlwaysOnTop via a registered command (Electron only).
 	 * Avoids importing INativeHostService in the browser layer.
 	 */
-	private async trySetWindowAlwaysOnTop(alwaysOnTop: boolean, targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.setWindowAlwaysOnTop', alwaysOnTop, targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
 	constructor(
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -101,17 +93,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		mainWindow.addEventListener('beforeunload', onBeforeUnload);
 		this._register({ dispose: () => mainWindow.removeEventListener('beforeunload', onBeforeUnload) });
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agents.voice.alwaysOnTop') && this._window) {
-				const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
-				this.trySetWindowAlwaysOnTop(alwaysOnTop, this._window.window.vscodeWindowId);
-			}
-		}));
-
 		const wasOpen = this.storageService.getBoolean(AgentsVoiceStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
-		if (wasOpen && this.configurationService.getValue<boolean>('agents.voice.enabled')) {
-			const reopenTimeout = setTimeout(() => this.openWindow(), 1000);
-			this._register({ dispose: () => clearTimeout(reopenTimeout) });
+		if (wasOpen) {
+			// Clear the stored state so it doesn't try to reopen in the future
+			this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -121,11 +106,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}
 
 		const bounds = this.loadBounds();
-		const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
-			alwaysOnTop,
+			alwaysOnTop: true,
 			frameless: true,
 			transparent: false,
 			disableFullscreen: true,
@@ -164,6 +148,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
+			hideDisconnect: (this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500) >= 0,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.
@@ -250,6 +235,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			voicePlaybackService: this.voicePlaybackService,
 			environmentService: this.environmentService,
 			chatService: this.chatService,
+			configurationService: this.configurationService,
 		}));
 
 		// Poll for session updates

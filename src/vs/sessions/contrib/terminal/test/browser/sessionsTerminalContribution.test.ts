@@ -33,7 +33,12 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 const HOME_DIR = URI.file('/home/user');
 
 class TestLogService extends NullLogService {
+	readonly infos: string[] = [];
 	readonly traces: string[] = [];
+
+	override info(message: string, ...args: unknown[]): void {
+		this.infos.push([message, ...args].join(' '));
+	}
 
 	override trace(message: string, ...args: unknown[]): void {
 		this.traces.push([message, ...args].join(' '));
@@ -596,6 +601,19 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(moveToBackgroundCalls.length, 0);
 	});
 
+	test('does not log info when an archived session has no tracked terminals', async () => {
+		const session = makeAgentSession({
+			sessionId: 'test:archived-without-terminal',
+			isArchived: true,
+			worktree: URI.file('/worktree'),
+			providerType: AgentSessionProviders.Background,
+		});
+
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
+		assert.deepStrictEqual(logService.infos, []);
+	});
+
 	test('does not hide or dispose terminals when archived session has no worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false, makeAgentSession({ sessionId: 'test:active-session', worktree: worktreeUri, providerType: AgentSessionProviders.Background }));
@@ -735,6 +753,19 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
+	});
+
+	test('does not log info when a removed session has no tracked terminals', async () => {
+		const session = makeAgentSession({
+			sessionId: 'test:removed-without-terminal',
+			worktree: URI.file('/worktree'),
+			providerType: AgentSessionProviders.Background,
+		});
+
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
+
+		assert.deepStrictEqual(logService.infos, []);
 	});
 
 	test('does not dispose the focused terminal when its session is removed (graduation case)', async () => {

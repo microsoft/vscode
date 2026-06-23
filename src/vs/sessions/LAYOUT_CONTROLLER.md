@@ -67,11 +67,16 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 strict priority order:
 
 1. **No resource / no workspace** → do nothing.
-2. **Untitled session** → open the Files container (`SESSIONS_FILES_CONTAINER_ID`), leave visibility as is.
+2. **Untitled session (new-session view)** → all untitled sessions share a single state object
+   (`_newSessionViewState`, persisted to workspace storage under `sessions.newSessionViewState`): if
+   the user explicitly hid the aux bar on a new session it stays hidden (across switches *and*
+   reloads); otherwise the default container (§3.2 step 4) is shown. This is what makes hiding the aux
+   bar on one new session "stick" when the next new session is opened (each untitled session has a
+   distinct resource, so per-resource saved state can't carry the choice).
 3. **Saved state exists**:
    - was **hidden** → hide the aux bar and stop.
    - was visible with an active container → reopen that container and stop.
-4. **No saved state (first visit) — defaults**:
+4. **No saved state (first visit) — defaults** (`_openDefaultAuxiliaryBarContainer`):
    - session **has changes** → open the Changes view (`CHANGES_VIEW_ID`).
    - otherwise → open the Files container.
 
@@ -92,11 +97,12 @@ sessions are visible.
 ### 3.4 Live visibility tracking
 
 Aux-bar visibility is also tracked **live** (not only on session switch) via an
-`onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` that re-runs `_captureViewState` for
-the active session (skipped on mobile web and while multiple sessions are visible). Without this,
-the sync autorun — which re-evaluates whenever the session's changes/workspace state updates, not
-just on switch — would find no saved state and re-run the default visibility logic (§3.2),
-re-revealing a side bar the user had just hidden.
+`onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` (skipped on mobile web and while
+multiple sessions are visible). For a titled active session it re-runs `_captureViewState`; for an
+untitled active session it updates the shared `_newSessionViewState` (§3.2 step
+2). Without this, the sync autorun — which re-evaluates whenever the session's changes/workspace
+state updates, not just on switch — would find no saved state and re-run the default visibility logic
+(§3.2), re-revealing a side bar the user had just hidden.
 
 ### 3.5 Editor reveal on session switch
 
@@ -168,12 +174,16 @@ back to the default-visible logic (§3.2) on the next reload.)
 
 ## 6. Persistence
 
-- All state serializes to the workspace-scoped key `sessions.layoutState` on
+- All per-session state serializes to the workspace-scoped key `sessions.layoutState` on
   `IStorageService.onWillSaveState` (`_saveState`), with a `StorageTarget.MACHINE` target.
 - `_saveState` captures the active session's current view state and working set (skipping untitled /
   multi-session cases) and writes one `ISessionLayoutEntry` per known session resource.
-- `_loadState` reads `sessions.layoutState`; if absent it performs a one-time migration from the
-  legacy `sessions.workingSets` key and then removes it. Corrupted data is dropped defensively.
+- The shared new-session view state (§3.2 step 2) is persisted separately under the workspace-scoped
+  key `sessions.newSessionViewState` as an `INewSessionViewState` object, written immediately whenever
+  the user toggles the aux bar on the new-session view (not on shutdown).
+- `_loadState` reads `sessions.newSessionViewState` and `sessions.layoutState`; if the latter is
+  absent it performs a one-time migration from the legacy `sessions.workingSets` key and then removes
+  it. Corrupted data is dropped defensively.
 
 ---
 

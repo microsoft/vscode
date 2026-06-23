@@ -43,6 +43,15 @@ interface ISessionViewState {
 }
 
 /**
+ * Shared layout state for the new-session (untitled) view. Untitled sessions
+ * each have a distinct resource, so a single value carries the user's choices
+ * across new sessions.
+ */
+interface INewSessionViewState {
+	readonly auxiliaryBarVisible: boolean;
+}
+
+/**
  * Full per-session layout state persisted to storage.
  */
 interface ISessionLayoutEntry {
@@ -55,6 +64,8 @@ interface ISessionLayoutEntry {
 const SESSION_LAYOUT_STATE_KEY = 'sessions.layoutState';
 /** Legacy key — read on startup for migration only. */
 const WORKING_SETS_STORAGE_KEY = 'sessions.workingSets';
+/** Shared layout state for the new-session (untitled) view. */
+const NEW_SESSION_VIEW_STATE_KEY = 'sessions.newSessionViewState';
 
 export class LayoutController extends Disposable {
 
@@ -65,6 +76,13 @@ export class LayoutController extends Disposable {
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
 	private readonly _workingSetSequencer = new Sequencer();
+
+	/**
+	 * Shared layout state for the new-session view, persisted across reloads.
+	 * `undefined` means no explicit choice yet (aux bar defaults to visible).
+	 */
+	private _newSessionViewState: INewSessionViewState | undefined;
+
 	private readonly _useModalConfigObs;
 	constructor(
 
@@ -250,7 +268,12 @@ export class LayoutController extends Disposable {
 					return;
 				}
 				const activeSession = this._sessionsService.activeSession.get();
-				if (activeSession) {
+				if (!activeSession) {
+					return;
+				}
+				if (activeSession.status.get() === SessionStatus.Untitled) {
+					this._setNewSessionViewState({ auxiliaryBarVisible: e.visible });
+				} else {
 					this._captureViewState(activeSession.resource);
 				}
 			}));
@@ -339,14 +362,27 @@ export class LayoutController extends Disposable {
 		});
 	}
 
+	private _setNewSessionViewState(state: INewSessionViewState): void {
+		this._newSessionViewState = state;
+		this._storageService.store(NEW_SESSION_VIEW_STATE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
 		if (!sessionResource || !hasWorkspace) {
 			return;
 		}
 
-		// On session switch or initial load, restore the saved view state.
-		// Untitled sessions never carry meaningful saved state.
-		const savedState = isUntitled ? undefined : this._viewStateBySession.get(sessionResource);
+		// New-session view: all untitled sessions share one state.
+		if (isUntitled) {
+			if (this._newSessionViewState && !this._newSessionViewState.auxiliaryBarVisible) {
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			} else {
+				this._openDefaultAuxiliaryBarContainer(hasChanges);
+			}
+			return;
+		}
+
+		const savedState = this._viewStateBySession.get(sessionResource);
 
 		// Honor an explicitly hidden auxiliary bar for this session.
 		if (savedState && !savedState.auxiliaryBarVisible) {
@@ -364,10 +400,12 @@ export class LayoutController extends Disposable {
 			return;
 		}
 
-		// Default for a session without a saved choice (e.g. fresh or untitled):
-		// prefer Changes when the session has changes. Otherwise show the Files
-		// pane, unless the user has hidden/unpinned it — in which case fall back to
-		// Changes rather than force-opening Files.
+		// Default for a session without a saved choice.
+		this._openDefaultAuxiliaryBarContainer(hasChanges);
+	}
+
+	/** Prefer Changes when the session has changes, otherwise Files (falling back to Changes if Files is hidden). */
+	private _openDefaultAuxiliaryBarContainer(hasChanges: boolean): void {
 		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
@@ -382,6 +420,20 @@ export class LayoutController extends Disposable {
 	}
 
 	private _loadState(): void {
+		const newSessionRaw = this._storageService.get(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+		if (newSessionRaw) {
+			try {
+				const parsed = JSON.parse(newSessionRaw);
+				if (parsed && typeof parsed.auxiliaryBarVisible === 'boolean') {
+					this._newSessionViewState = { auxiliaryBarVisible: parsed.auxiliaryBarVisible };
+				} else {
+					this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+				}
+			} catch {
+				this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+			}
+		}
+
 		// Load from new key first
 		const raw = this._storageService.get(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
 		if (raw) {
@@ -431,8 +483,8 @@ export class LayoutController extends Disposable {
 		const activeSession = this._sessionsService.activeSession.get();
 		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
 
-		// Capture current state for the active session (skip when multiple sessions are visible)
-		if (activeSession && !multipleVisible) {
+		// Capture current state for the active session (skip multiple-visible and untitled).
+		if (activeSession && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
 			this._captureViewState(activeSession.resource);
 		}
 

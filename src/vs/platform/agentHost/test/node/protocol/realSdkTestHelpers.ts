@@ -27,7 +27,7 @@ import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, isSubagentSession,
-	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type SessionState, type TerminalState,
+	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
@@ -41,7 +41,7 @@ import {
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import {
-	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
+	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
 
 // #region Token
@@ -988,6 +988,115 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.ok(subagentStarts.length >= 1,
 				`subagent session should contain at least one inner tool call, got ${subagentStarts.length}. ` +
 				`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
+		});
+
+		(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+			this.timeout(180_000);
+
+			const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
+			tempDirs.push(tempDir);
+			writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
+			writeFileSync(`${tempDir}/file-b.txt`, 'beta');
+
+			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+
+			// A unique marker the sub-agent — and only the sub-agent — is asked to
+			// emit, so we can detect whether its assistant message leaks into the
+			// parent transcript when the session is rebuilt from the event log.
+			const sentinel = `SUBAGENT_ONLY_MARKER_${generateUuid().replace(/-/g, '')}`;
+
+			let approvalsActive = true;
+			let approvalSeq = 2000;
+			const processedSeqs = new Set<number>();
+			const approvalLoop = (async () => {
+				while (approvalsActive) {
+					try {
+						const ready = await client.waitForNotification(n => {
+							if (!isActionNotification(n, 'chat/toolCallReady')) {
+								return false;
+							}
+							const envelope = getActionEnvelope(n);
+							const a = envelope.action as { confirmed?: string };
+							return !a.confirmed && !processedSeqs.has(envelope.serverSeq);
+						}, 2_000);
+						const envelope = getActionEnvelope(ready);
+						if (!processedSeqs.has(envelope.serverSeq)) {
+							processedSeqs.add(envelope.serverSeq);
+							const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+							if (!action.confirmed) {
+								client.notify('dispatchAction', {
+									channel: envelope.channel,
+									clientSeq: ++approvalSeq,
+									action: {
+										type: 'chat/toolCallConfirmed',
+										turnId: action.turnId,
+										toolCallId: action.toolCallId, approved: true,
+									},
+								});
+							}
+						}
+					} catch { /* timeout — re-poll */ }
+				}
+			})();
+
+			dispatchTurn(client, sessionUri, 'turn-sa-replay',
+				`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+				`Instruct the subagent to finish its response with the exact marker text ${sentinel} on its own line. ` +
+				`You, the main agent, must NOT write the marker text ${sentinel} yourself — only the subagent may emit it.`,
+				1);
+
+			const subagentContentNotif = await client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as { content: readonly ToolResultContent[] };
+				return envelope.channel === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+			}, 120_000);
+
+			const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
+			const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
+			const subagentSessionUri = subagentRef.resource as unknown as string;
+			assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
+				`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
+
+			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
+
+			await client.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === sessionUri, 150_000);
+
+			approvalsActive = false;
+			await approvalLoop;
+
+			// Force a reopen: drop every subscription on the session and its
+			// sub-agent so the agent host evicts the cached, live-built state, then
+			// re-fetch — which rebuilds the turns from the persisted SDK event log
+			// through `mapSessionEvents` (the path the regression lived in). The
+			// parent-session unsubscribe is sent last so it triggers eviction.
+			for (const channel of [buildDefaultChatUri(subagentSessionUri), subagentSessionUri, buildDefaultChatUri(sessionUri), sessionUri]) {
+				client.notify('unsubscribe', { channel });
+			}
+
+			const reopenedParent = await fetchSessionWithChat(client, sessionUri);
+			const reopenedSubagent = await fetchSessionWithChat(client, subagentSessionUri);
+
+			const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
+				turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
+
+			const subagentText = assistantText(reopenedSubagent.turns);
+			const parentText = assistantText(reopenedParent.turns);
+
+			// Precondition: the sub-agent emitted the marker and it is routed to the
+			// sub-agent transcript on the replay path.
+			assert.ok(subagentText.includes(sentinel),
+				`sub-agent transcript should contain the marker after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
+
+			// The regression: the sub-agent's assistant.message must NOT leak into
+			// the parent transcript when the session is reopened.
+			assert.ok(!parentText.includes(sentinel),
+				`parent transcript must NOT contain the sub-agent's marker after reopen ` +
+				`(replay path leaked sub-agent assistant.message into parent turns); ` +
+				`parent text: ${JSON.stringify(parentText).slice(0, 800)}`);
 		});
 	});
 }

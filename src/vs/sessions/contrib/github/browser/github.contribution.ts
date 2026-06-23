@@ -17,6 +17,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
+import './pullRequestActions.js';
+
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {
@@ -105,7 +107,10 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Removed sessions
 		for (const session of e.removed) {
-			this._sessionTrackers.deleteAndDispose(session.sessionId);
+			if (this._sessionTrackers.has(session.sessionId)) {
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} removed; disposing its poller (PR model no longer kept warm)`);
+				this._sessionTrackers.deleteAndDispose(session.sessionId);
+			}
 		}
 	}
 
@@ -114,6 +119,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			return;
 		}
 
+		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} now tracked; poller will keep its PR model warm once a PR number resolves`);
 		this._sessionTrackers.set(session.sessionId, this._createSessionPoller(session));
 	}
 

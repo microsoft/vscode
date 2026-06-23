@@ -26,7 +26,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
@@ -342,6 +342,47 @@ suite('ChatModel', () => {
 		const exported = model.toExport();
 		assert.strictEqual(exported.requests.length, 1);
 		assert.deepStrictEqual(exported.requests[0].modeInfo, modeInfo);
+	});
+
+	test('restores legacy top-level modelConfiguration into selectedModel (backwards compat)', async () => {
+		const legacyConfig = { thinkingEffort: 'high', contextSize: 2000 };
+
+		// Old format: modelConfiguration was persisted as a sibling of selectedModel
+		// rather than nested inside it.
+		const legacyInputState = {
+			attachments: [],
+			contrib: {},
+			inputText: 'draft',
+			selections: [],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: { identifier: 'copilot/gpt', metadata: { name: 'GPT' } },
+			modelConfiguration: legacyConfig,
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'legacy-model-config-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [],
+			inputState: legacyInputState as unknown as ISerializableChatModelInputState,
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		// Legacy config is recovered into the in-memory input state...
+		assert.deepStrictEqual(model.inputModel.state.get()?.modelConfiguration, legacyConfig);
+
+		// ...and re-serializes into the new nested shape with no top-level field.
+		const serialized = model.inputModel.toJSON();
+		assert.deepStrictEqual(serialized?.selectedModel?.modelConfiguration, legacyConfig);
+		assert.strictEqual((serialized as { modelConfiguration?: unknown }).modelConfiguration, undefined);
 	});
 });
 

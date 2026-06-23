@@ -137,6 +137,8 @@ invoke_agent copilot                           [~15s]
   └── (span ends)
 ```
 
+Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as the root span and nested `chat` / `execute_tool` children.
+
 **`invoke_agent`** — wraps the entire agent orchestration (all LLM calls + tool executions).
 
 | Attribute | Requirement | Example |

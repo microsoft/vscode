@@ -9,7 +9,7 @@
  * Adjusts the internal padding of common workbench surfaces to give content
  * more breathing room.
  *
- * All rules are gated behind the `.style-override-padding` class, which the
+ * All rules are gated behind the `.style-override` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
  * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
  * Without that class these rules never apply.
@@ -32,20 +32,24 @@
  */
 
 /* Header: inset the section title / actions to line up with the rows below. */
-.style-override-padding .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
+.style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
 	padding-left: var(--vscode-spacing-size80, 8px);
 	padding-right: var(--vscode-spacing-size80, 8px);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
-.style-override-padding .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+.style-override .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
 	left: var(--vscode-spacing-size80, 8px);
 	right: var(--vscode-spacing-size80, 8px);
 	width: auto;
 }
 
 /* Tighten the part title bar gutters: flush-left, small right inset. */
-.style-override-padding.monaco-workbench .part > .title {
+.style-override.monaco-workbench .part > .title {
 	padding-left: var(--vscode-spacing-size40, 4px);
-	padding-right: var(--vscode-spacing-size80, 8px);
+	padding-right: var(--vscode-spacing-size40, 4px);
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	padding: 0 4px;
 }

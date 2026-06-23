@@ -55,6 +55,16 @@ export interface ChatTurnStartedAction {
 	message: Message;
 	/** If this turn was auto-started from a queued message, the ID of that message */
 	queuedMessageId?: string;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -74,6 +84,16 @@ export interface ChatDeltaAction {
 	partId: string;
 	/** Text chunk */
 	content: string;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -88,6 +108,16 @@ export interface ChatResponsePartAction {
 	turnId: string;
 	/** Response part (markdown or content ref) */
 	part: ResponsePart;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -295,6 +325,16 @@ export interface ChatTurnCompleteAction {
 	type: ActionType.ChatTurnComplete;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -308,6 +348,16 @@ export interface ChatTurnCancelledAction {
 	type: ActionType.ChatTurnCancelled;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -322,6 +372,16 @@ export interface ChatErrorAction {
 	turnId: string;
 	/** Error details */
 	error: ErrorInfo;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 
@@ -337,6 +397,16 @@ export interface ChatUsageAction {
 	turnId: string;
 	/** Token usage data */
 	usage: UsageInfo;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -356,6 +426,16 @@ export interface ChatReasoningAction {
 	partId: string;
 	/** Reasoning text chunk */
 	content: string;
+	/**
+	 * Additional provider-specific metadata for this action.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI, and
+	 * agent hosts MAY use it to carry per-event context that does not fit any
+	 * other field — for example, attributing the event to a specific agent
+	 * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	 * convention.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 

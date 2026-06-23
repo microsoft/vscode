@@ -382,6 +382,13 @@ export interface ISessionCapabilities {
 	 */
 	readonly supportsRename?: boolean;
 	/**
+	 * Whether this session can be deleted. The agents-window sessions-list
+	 * `Delete...` action gates on this flag rather than on the provider id,
+	 * so delete is offered exactly where the backing provider supports it.
+	 * Defaults to falsy (not deletable) when omitted.
+	 */
+	readonly supportsDelete?: boolean;
+	/**
 	 * Whether the session's underlying runtime (e.g. a cloud agent host)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
 	 * environment provisioning. When `true`, the agents-window

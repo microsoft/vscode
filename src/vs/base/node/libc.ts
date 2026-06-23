@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { familySync, MUSL } from 'detect-libc';
 import * as Platform from '../common/platform.js';
 
 /** The libc family the current process is linked against. */
@@ -12,25 +13,25 @@ let _cached: LibcFamily | undefined;
 let _cacheValid = false;
 
 /**
- * Returns the libc family of the running Node process on Linux, or
- * `undefined` on non-Linux platforms (where the question is meaningless).
+ * Returns the libc family of the running Node process on Linux, or `undefined`
+ * on non-Linux platforms (where the question is meaningless).
  *
- * Mechanism: Node's process report exposes `glibcVersionRuntime` in the
- * header on glibc-linked builds and omits it on musl-linked builds. The
- * field's presence is itself the signal — no `ldd` subprocess, no
- * `/etc/os-release` parsing, no filesystem probe.
+ * Delegates to the `detect-libc` package, which probes cheap signals first (the
+ * ELF interpreter of `/proc/self/exe`, then `/usr/bin/ldd`) and only falls back
+ * to Node's process report — with the libuv/socket section excluded so it does
+ * not peg the CPU on busy hosts. When detection is inconclusive we assume
+ * `glibc`, the dominant Linux libc.
  *
- * Cached after first call. `process.report.getReport()` is expensive
- * (serializes heap + native stack + libuv state) so the cache pays for
- * itself; libc never changes mid-process.
+ * Cached after first call; libc never changes mid-process. This is the
+ * synchronous variant; add a promise-based `detectLibc` wrapping
+ * `detect-libc`'s async `family()` if a non-blocking caller ever needs one.
  */
-export function detectLibc(): LibcFamily | undefined {
+export function detectLibcSync(): LibcFamily | undefined {
 	if (_cacheValid) {
 		return _cached;
 	}
 	if (Platform.isLinux) {
-		const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
-		_cached = report?.header?.glibcVersionRuntime ? 'glibc' : 'musl';
+		_cached = familySync() === MUSL ? 'musl' : 'glibc';
 	} else {
 		_cached = undefined;
 	}

@@ -25,8 +25,8 @@ const REMOTE_CLIENT_GROUP = 'remote-client';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
-	return expander.expandPluginContents(pluginUri, groupKey, isBundleItem, source, token);
+function expand(expander: AgentCustomizationContentExpander, pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken, pluginLabel?: string): Promise<readonly ICustomizationItem[]> {
+	return expander.expandPluginContents(pluginUri, groupKey, isBundleItem, source, pluginLabel, token);
 }
 
 // ---------------------------------------------------------------------------
@@ -464,7 +464,7 @@ suite('AgentCustomizationContentExpander', () => {
 			}
 		});
 
-		test('isBundleItem=true clears pluginUri on child items', async () => {
+		test('isBundleItem=true clears pluginUri and pluginLabel on child items', async () => {
 			const pluginRoot = URI.file('/plugins/bundle');
 			await mockFiles(fileService, [
 				{
@@ -477,15 +477,14 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const bundleItems = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None);
+			const bundleItems = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true /* isBundleItem */, AICustomizationSources.plugin, CancellationToken.None, 'bundle-plugin');
 
-			// Bundle items must not carry pluginUri
 			for (const item of bundleItems) {
-				assert.strictEqual(item.pluginUri, undefined, `bundle item ${item.name} must have no pluginUri`);
+				assert.deepStrictEqual({ pluginUri: item.pluginUri, pluginLabel: item.pluginLabel }, { pluginUri: undefined, pluginLabel: undefined }, `bundle item ${item.name} must have no plugin provenance`);
 			}
 		});
 
-		test('isBundleItem=false sets pluginUri to the plugin root on child items', async () => {
+		test('isBundleItem=false sets pluginUri and pluginLabel on child items', async () => {
 			const pluginRoot = URI.file('/plugins/with-uri');
 			await mockFiles(fileService, [
 				{
@@ -498,9 +497,9 @@ suite('AgentCustomizationContentExpander', () => {
 			]);
 
 			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
-			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None, 'Datadog');
 			assert.strictEqual(items.length, 1);
-			assert.strictEqual(items[0].pluginUri?.toString(), pluginRoot.toString());
+			assert.deepStrictEqual({ pluginUri: items[0].pluginUri?.toString(), pluginLabel: items[0].pluginLabel }, { pluginUri: pluginRoot.toString(), pluginLabel: 'Datadog' });
 		});
 	});
 });

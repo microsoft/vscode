@@ -19,6 +19,7 @@ export interface HeaderProps {
 	readonly draggable: boolean;
 	readonly showClose: boolean;
 	readonly showPopout: boolean;
+	readonly hideDisconnect: boolean;
 	readonly centerConnectButton: boolean;
 	readonly onMicDown: (e: MouseEvent) => void;
 	readonly onMicUp: () => void;
@@ -58,8 +59,8 @@ export function createHeader(): HeaderComponent {
 	const copilotIcon = document.createElement('img');
 	copilotIcon.style.cssText = 'width:18px;height:18px;margin-right:4px;';
 
-	// Mic button
-	const micBtn = dom.$('span.codicon.codicon-mic');
+	// Voice mode button
+	const micBtn = dom.$('span.codicon.codicon-voice-mode');
 	micBtn.role = 'button';
 	micBtn.tabIndex = 0;
 	micBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
@@ -123,6 +124,13 @@ export function createHeader(): HeaderComponent {
 	connStyle.textContent = `
 		.voice-conn-indicator:hover .voice-conn-dot { display: none !important; }
 		.voice-conn-indicator:hover .voice-conn-disconnect { display: inline-block !important; color: var(--vscode-errorForeground, #f44) !important; }
+		@keyframes agents-voice-icon-pulse {
+			0%, 100% { box-shadow: 0 0 4px rgba(var(--agents-voice-icon-rgb, 88,166,255), 0.45); }
+			50% { box-shadow: 0 0 10px rgba(var(--agents-voice-icon-rgb, 88,166,255), 0.7); }
+		}
+		.monaco-workbench.monaco-enable-motion .agents-voice-mode-active {
+			animation: agents-voice-icon-pulse 1.4s ease-in-out infinite;
+		}
 	`;
 
 	container.append(copilotIcon, micBtn, placeholderText, gearBtn, connIndicator, spacer, popoutBtn, closeBtn, connStyle);
@@ -145,6 +153,13 @@ export function createHeader(): HeaderComponent {
 					: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 						: 'var(--vscode-descriptionForeground)';
 			micBtn.style.color = micColor;
+			const micIsActive = props.voiceState === 'listening' || props.voiceState === 'speaking';
+			micBtn.classList.toggle('agents-voice-mode-active', micIsActive);
+			micBtn.style.setProperty('--agents-voice-icon-rgb', props.voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+			micBtn.style.borderRadius = '50%';
+			if (!micIsActive) {
+				micBtn.style.boxShadow = 'none';
+			}
 			micBtn.onmouseenter = () => { micBtn.style.color = 'var(--vscode-foreground)'; };
 			micBtn.onmouseleave = () => { micBtn.style.color = micColor; };
 			micBtn.onmousedown = props.onMicDown;
@@ -155,7 +170,7 @@ export function createHeader(): HeaderComponent {
 			const keyLabel = props.pttKeyLabel;
 			const holdText = keyLabel
 				? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)
-				: localize('agentsVoice.clickMicToTalk', "Click mic to talk");
+				: localize('agentsVoice.clickMicToTalk', "Click voice mode to talk");
 			placeholderText.textContent = holdText;
 			placeholderText.ariaLabel = holdText;
 			placeholderText.onclick = props.onConnectClick;
@@ -165,7 +180,7 @@ export function createHeader(): HeaderComponent {
 			gearBtn.onclick = props.onPttKeyClick;
 
 			// Connection indicator
-			connIndicator.style.display = showConnected ? 'inline-flex' : 'none';
+			connIndicator.style.display = showConnected && !props.hideDisconnect ? 'inline-flex' : 'none';
 			connIndicator.onclick = props.onDisconnectClick;
 
 			// Spacer / center connect button

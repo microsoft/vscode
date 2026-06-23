@@ -13,7 +13,7 @@ import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService, matchesSessionType } from '../promptSyntax/service/promptsService.js';
-import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { ToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
@@ -47,7 +47,7 @@ export class ChatRequestParser {
 		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
 	}
 
-	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: IToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: ToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const toolsByName = new Map<string, IToolData>();
 		const toolSetsByName = new Map<string, IToolSet>();

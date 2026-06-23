@@ -2820,6 +2820,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!terminalsToDispose || terminalsToDispose.size === 0) {
 			return;
 		}
+		const shouldPreserveTerminalsForOutputLocation = this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal';
 
 		this._logService.debug(`RunInTerminalTool: Cleaning up ${terminalsToDispose.size} terminal(s) for ended chat session ${chatSessionResource}`);
 
@@ -2830,10 +2831,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Only dispose if the terminal is still hidden from the user. Once
 			// the user reveals it (via the terminal panel or the outputLocation
 			// setting), it joins foregroundInstances and should persist so they
-			// can inspect/interact with it. This prevents user-revealed
-			// terminals from being destroyed when switching between sessions.
-			if (this._terminalService.foregroundInstances.includes(terminal)) {
-				this._logService.debug(`RunInTerminalTool: Skipping disposal of user-revealed terminal ${terminal.instanceId} for session ${chatSessionResource}`);
+			// can inspect/interact with it. Also preserve terminals when the user
+			// explicitly configured outputLocation=terminal, since these are
+			// intended to remain available outside of chat session lifetime.
+			if (this._terminalService.foregroundInstances.includes(terminal) || shouldPreserveTerminalsForOutputLocation) {
+				this._logService.debug(`RunInTerminalTool: Skipping disposal of preserved terminal ${terminal.instanceId} for session ${chatSessionResource}`);
 				continue;
 			}
 			// Skip redundant map walks in onDidDispose since this session has already been removed.
@@ -2845,8 +2847,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalToRemove: string[] = [];
 		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 			if (terminalsToDispose.has(execution.instance)) {
-				// Skip active executions for terminals that were preserved above
-				if (this._terminalService.foregroundInstances.includes(execution.instance)) {
+				// Skip active executions for terminals that were preserved above.
+				if (this._terminalService.foregroundInstances.includes(execution.instance) || shouldPreserveTerminalsForOutputLocation) {
 					continue;
 				}
 				execution.dispose();

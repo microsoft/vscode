@@ -14,7 +14,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
 

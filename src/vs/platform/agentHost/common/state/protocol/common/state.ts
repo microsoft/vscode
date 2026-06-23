@@ -175,6 +175,8 @@ export interface ConfigPropertySchema {
 	properties?: Record<string, ConfigPropertySchema>;
 	/** JSON Schema: list of required property ids (used when `type` is `'object'`) */
 	required?: string[];
+	/** JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`). */
+	additionalProperties?: ConfigPropertySchema;
 }
 
 /**

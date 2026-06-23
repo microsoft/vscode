@@ -163,7 +163,6 @@ import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
-import './contrib/providers/agentHost/browser/agentHostSessionDeleteAction.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
@@ -198,6 +197,7 @@ import '../workbench/contrib/terminal/browser/terminalInstanceService.js';
 import '../workbench/contrib/tasks/browser/taskService.js';
 import '../workbench/contrib/tags/browser/workspaceTagsService.js';
 import '../workbench/contrib/issue/browser/issue.contribution.js';
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';

@@ -58,7 +58,7 @@ describe('NextEditProvider Caching', () => {
 	afterAll(() => {
 		disposableStore.dispose();
 	});
-	function createStatelessNextEditProvider(): IStatelessNextEditProvider {
+	function createStatelessNextEditProvider(patchIndices?: readonly (number | undefined)[]): IStatelessNextEditProvider {
 		return {
 			ID: 'TestNextEditProvider',
 			provideNextEdit: async function*(request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
@@ -83,8 +83,11 @@ describe('NextEditProvider Caching', () => {
 						)
 					]
 				);
+				let editIndex = 0;
 				for (const edit of lineEdit.replacements) {
-					yield new WithStatelessProviderTelemetry({ targetDocument: request.getActiveDocument().id, edit, isFromCursorJump: false }, telemetryBuilder.build(Result.ok(undefined)));
+					const patchIndex = patchIndices ? patchIndices[editIndex] : undefined;
+					editIndex++;
+					yield new WithStatelessProviderTelemetry({ targetDocument: request.getActiveDocument().id, edit, isFromCursorJump: false, patchIndex }, telemetryBuilder.build(Result.ok(undefined)));
 				}
 				const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, undefined);
 				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
@@ -330,5 +333,52 @@ describe('NextEditProvider Caching', () => {
 		assert(secondCacheEntry, 'expected a cacheEntry reference on the second (cached) NextEditResult');
 		expect(secondCacheEntry).toBe(firstCacheEntry);
 		expect(secondCacheEntry.wasRenderedAsInlineSuggestion).toBe(true);
+	});
+
+	it('attributes each served edit to its originating model patch via sourcePatchIndex', async () => {
+		const obsWorkspace = new MutableObservableWorkspace();
+		const obsGit = new ObservableGit(gitExtensionService);
+		// Edits are served in line order: the z parameter (patch 0), the getDistance
+		// body (also patch 0, i.e. a split of the same model patch per PR #322438),
+		// then the variable declaration (patch 1).
+		const statelessNextEditProvider = createStatelessNextEditProvider([0, 0, 1]);
+
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+
+		const doc = obsWorkspace.addDocument({
+			id: DocumentId.create(URI.file('/test/test.ts').toString()),
+			initialValue: outdent`
+			class Point {
+				constructor(
+					private readonly x: number,
+					private readonly y: number,
+				) { }
+				getDistance() {
+					return Math.sqrt(this.x ** 2 + this.y ** 2);
+				}
+			}
+
+			const myPoint = new Point(0, 1);`.trimStart()
+		});
+		doc.setSelection([new OffsetRange(1, 1)], undefined);
+		doc.applyEdit(StringEdit.insert(11, '3D'));
+
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
+		const cancellationToken = CancellationToken.None;
+
+		const servedPatchIndices: (number | undefined)[] = [];
+		for (let i = 0; i < 3; i++) {
+			const tb = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+			const result = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb.nesBuilder);
+			assert(result.result?.edit, `expected an edit on call ${i + 1}`);
+			servedPatchIndices.push(tb.nesBuilder.build(false).sourcePatchIndex);
+			tb.dispose();
+			doc.applyEdit(result.result.edit.toEdit());
+		}
+
+		// The first (fresh) edit must be attributed too, not just the cached ones;
+		// the split pair shares patch 0 while the final edit comes from patch 1.
+		expect(servedPatchIndices).toEqual([0, 0, 1]);
 	});
 });

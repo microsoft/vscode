@@ -13,7 +13,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, type ChangesetOperation, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -67,6 +67,12 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
 		return undefined;
 	}
+
+	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
+		return undefined;
+	}
+
+	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 }
 
 suite('AgentHostChangesetOperationService', () => {

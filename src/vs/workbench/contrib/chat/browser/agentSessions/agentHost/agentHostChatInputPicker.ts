@@ -96,14 +96,19 @@ function normalizeConfigValue(property: string, value: string, policyRestricted:
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => ({
-		kind: ActionListItemKind.Action,
-		label: item.label,
-		detail: item.description,
-		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
-	}));
+	return items.map(item => {
+		const disabled = policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot');
+		const hover = getConfigPickerItemHover(property, item, disabled);
+		return {
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: item.description,
+			group: { title: '', icon: getConfigIcon(property, item.value) },
+			disabled,
+			...(hover ? { hover: { content: hover } } : {}),
+			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+		};
+	});
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -111,6 +116,48 @@ function isSelectedValue(currentValue: unknown | undefined, itemValue: string): 
 		return currentValue === (itemValue === 'true');
 	}
 	return itemValue === currentValue;
+}
+
+function getAutoApproveHover(value: unknown | undefined, fallback: string | undefined): string {
+	switch (value) {
+		case ChatPermissionLevel.Default:
+			return localize('agentHostChatInputPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
+		case ChatPermissionLevel.AutoApprove:
+			return localize('agentHostChatInputPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+		case ChatPermissionLevel.Autopilot:
+			return localize('agentHostChatInputPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
+	}
+	return fallback ?? localize('agentHostChatInputPicker.approvalsHover', "Controls whether the agent asks before running tools in this session.");
+}
+
+function getEnumValueDescription(schema: SessionConfigPropertySchema, value: unknown | undefined): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const index = schema.enum?.indexOf(value) ?? -1;
+	return index >= 0 ? schema.enumDescriptions?.[index] : undefined;
+}
+
+export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): string {
+	if (property !== SessionConfigKey.AutoApprove) {
+		return schema.description ?? schema.title;
+	}
+
+	const hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
+	if (isReadOnly) {
+		return localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+	}
+	return hover;
+}
+
+export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | undefined {
+	if (disabled) {
+		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by enterprise policy");
+	}
+	if (property === SessionConfigKey.AutoApprove) {
+		return getAutoApproveHover(item.value, item.description);
+	}
+	return undefined;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -391,7 +438,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
-		const tooltip = ctx.schema.description ?? ctx.schema.title;
+		const tooltip = getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly);
 		if (tooltip) {
 			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 		}

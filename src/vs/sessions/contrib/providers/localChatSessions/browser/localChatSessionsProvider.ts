@@ -805,6 +805,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
 
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
@@ -1203,6 +1209,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			capabilities: {
 				supportsMultipleChats: true,
 				supportsRename: true,
+				supportsDelete: true,
 			},
 		};
 	}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
 import { ITaskEntry } from './sessionsTasksService.js';
 
@@ -12,6 +13,20 @@ import { ITaskEntry } from './sessionsTasksService.js';
  * `linux`).
  */
 export type TaskTargetOS = 'windows' | 'osx' | 'linux';
+
+/**
+ * Maps an {@link OperatingSystem} to the matching {@link TaskTargetOS} key used
+ * to select OS-specific `command`/`args` overrides on an `ITaskEntry`.
+ */
+export function osToTaskTargetOS(os: OperatingSystem): TaskTargetOS {
+	switch (os) {
+		case OperatingSystem.Windows: return 'windows';
+		case OperatingSystem.Macintosh: return 'osx';
+		case OperatingSystem.Linux:
+		default:
+			return 'linux';
+	}
+}
 
 /**
  * Context passed to {@link resolveTaskCommand}.

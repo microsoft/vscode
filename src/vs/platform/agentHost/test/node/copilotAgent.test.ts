@@ -38,7 +38,7 @@ import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } fr
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -98,7 +98,8 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async commitAll(): Promise<void> { }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
-	async pushBranch(): Promise<void> { }
+	async pull(): Promise<void> { }
+	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -353,6 +354,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 class TestableCopilotAgent extends CopilotAgent {
 	private readonly _fakeSessions = new Map<string, IFakeAgentSession>();
 	readonly resumeCalls: string[] = [];
+
+	// Keep model-refresh retries effectively instant in tests.
+	protected override readonly _modelRefreshBaseDelayMs = 1;
+	protected override readonly _modelRefreshMaxDelayMs = 2;
 
 	constructor(
 		private readonly _copilotClient: ITestCopilotClient,
@@ -732,6 +737,122 @@ suite('CopilotAgent', () => {
 				starts: 1,
 				stops: 0,
 				requests: [{ gitHubToken: 'model-token-a' }, { gitHubToken: 'model-token-b' }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('retries refreshing models after a transient failure', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('429 "too many requests"'));
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, m => m.length > 0);
+
+			assert.deepStrictEqual({
+				modelNames: models.map(m => m.name),
+				requestCount: client.modelListRequests.length,
+			}, {
+				modelNames: ['GPT-4o'],
+				requestCount: 2,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('stops refreshing models after the maximum number of attempts', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		for (let i = 0; i < 10; i++) {
+			client.modelListErrors.push(new Error('429 "too many requests"'));
+		}
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			for (let i = 0; i < 500 && client.modelListRequests.length < 5; i++) {
+				await new Promise(resolve => setTimeout(resolve, 1));
+			}
+			// Give any erroneous extra retry a chance to fire before asserting.
+			await new Promise(resolve => setTimeout(resolve, 10));
+
+			assert.deepStrictEqual({
+				requestCount: client.modelListRequests.length,
+				models: agent.models.get(),
+			}, {
+				requestCount: 5,
+				models: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('keeps the previously loaded models when a later refresh fails', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			await waitForState(agent.models, m => m.length > 0);
+
+			// A refresh triggered by the next token change fails on every attempt.
+			for (let i = 0; i < 10; i++) {
+				client.modelListErrors.push(new Error('429 "too many requests"'));
+			}
+			const requestsBefore = client.modelListRequests.length;
+			await agent.authenticate('https://api.github.com', 'token-b');
+			for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 5; i++) {
+				await new Promise(resolve => setTimeout(resolve, 1));
+			}
+			await new Promise(resolve => setTimeout(resolve, 10));
+
+			assert.deepStrictEqual({
+				modelNames: agent.models.get().map(m => m.name),
+				retriedRequests: client.modelListRequests.length - requestsBefore,
+			}, {
+				modelNames: ['GPT-4o'],
+				retriedRequests: 5,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('does not refresh models or restart the client after shutdown', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await waitForState(agent.models, m => m.length > 0);
+			await agent.shutdown();
+
+			const startsAfterShutdown = client.startCallCount;
+			const requestsAfterShutdown = client.modelListRequests.length;
+
+			// Simulate a queued model-refresh retry timer firing after shutdown.
+			// It must bail out rather than call `_ensureClient()` and spawn a
+			// fresh SDK client for an agent that is already torn down.
+			await (agent as unknown as { _refreshModels(attempt?: number): Promise<void> })._refreshModels(1);
+
+			assert.deepStrictEqual({
+				starts: client.startCallCount,
+				requests: client.modelListRequests.length,
+			}, {
+				starts: startsAfterShutdown,
+				requests: requestsAfterShutdown,
 			});
 		} finally {
 			await disposeAgent(agent);

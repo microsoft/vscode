@@ -51,6 +51,16 @@ invoke_agent copilot (INTERNAL)          ← toolCallingLoop.ts
 └── ...
 ```
 
+#### Inline Chat
+
+```
+invoke_agent Inline Chat (INTERNAL)      ← inlineChatIntent.ts
+├── chat gpt-4o (CLIENT)                 ← chatMLFetcher.ts
+├── execute_tool apply_patch (INTERNAL)  ← toolsService.ts
+├── chat gpt-4o (CLIENT)
+└── ...
+```
+
 #### Copilot CLI in-process (Bridge)
 
 ```
@@ -147,6 +157,7 @@ src/extension/trajectory/vscode-node/
 | `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
+| `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
 | `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
 | `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
 | `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |

@@ -11,7 +11,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { createToolSetFileContents, deleteToolSetFromFileContents, getEnabledSelectionReferences } from '../../../browser/tools/toolSetsContribution.js';
-import { IToolData, IToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ToolSetsContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,7 +53,7 @@ suite('ToolSetsContribution', () => {
 		));
 		store.add(userToolSet.addTool(coveredTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[userToolSet, true],
 			[coveredTool, true],
 			[standaloneTool, true],
@@ -96,7 +96,7 @@ suite('ToolSetsContribution', () => {
 		store.add(userToolSet.addTool(enabledTool));
 		store.add(userToolSet.addTool(disabledTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[userToolSet, true],
 			[enabledTool, true],
 			[disabledTool, false],
@@ -130,7 +130,7 @@ suite('ToolSetsContribution', () => {
 		));
 		store.add(vscodeToolSet.addTool(memoryTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[memoryTool, true],
 		]);
@@ -157,7 +157,7 @@ suite('ToolSetsContribution', () => {
 		const vscodeToolSet = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'vscode', 'vscode'));
 		store.add(vscodeToolSet.addTool(subTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[subTool, true],
 		]);
@@ -225,7 +225,7 @@ suite('ToolSetsContribution', () => {
 		store.add(readToolSet.addTool(readFileTool));
 		store.add(githubToolSet.addTool(githubIssuesTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[executeToolSet, false],
 			[readToolSet, false],

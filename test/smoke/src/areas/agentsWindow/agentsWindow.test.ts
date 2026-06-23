@@ -32,7 +32,7 @@ interface SessionConfig {
 }
 
 const SESSIONS: readonly SessionConfig[] = [
-	{ name: 'Copilot', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2', skipReply2: true },
+	{ name: 'Copilot', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
@@ -124,7 +124,8 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
+			logger.log(`[Agents Window] XDG_STATE_HOME=${copilotEnv.XDG_STATE_HOME ?? '<unset>'}`);
 			logger.log(`[Agents Window] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
 			return {
 				...opts,
@@ -166,6 +167,22 @@ export function setup(logger: Logger) {
 				['sessions.chat.localAgent.enabled', 'true'],
 				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
 				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
+				// Disable multi-chat per Copilot CLI session for this smoke
+				// test. With multi-chat enabled (default), each follow-up
+				// turn creates a *new sub-chat* with its own SDK session
+				// nested under the parent session: the workbench
+				// auto-swaps the active slot to a fresh new-session
+				// homepage right after the previous turn commits, and
+				// each turn ends up in its own isolated worktree
+				// (`isolationEnabled: true, worktreePath: agents-...`).
+				// That interferes with the smoke test driver's
+				// activate/send sequence and makes msg2 land in a
+				// different VS Code session than the assertion expects.
+				// With this setting off, `supportsMultipleChats` is
+				// false for Copilot CLI and turns share a workspace
+				// (`isolationEnabled: false, worktreePath: undefined`),
+				// which keeps the test flow deterministic.
+				['sessions.github.copilot.multiChatSessions', 'false'],
 			]);
 			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
@@ -223,25 +240,25 @@ export function setup(logger: Logger) {
 					const text = await app.workbench.agentsWindow.waitForAssistantText(session.reply);
 					logger.log(`Agents Window (${session.name}) response 1: ${text}`);
 
-					// Copilot CLI: after a request completes, the Agents Window
-					// auto-switches the active view to a fresh untitled session;
-					// sending a follow-up prompt there would spawn a brand new
-					// agent session (with its own session id and branch) rather
-					// than continuing the existing one. Click back into the
-					// just-completed session before sending message 2 so the
-					// follow-up lands in the same session. Identify the row by
-					// EITHER the first prompt or the msg1 reply: the row text is
-					// the session title, which starts as the prompt (synchronous
-					// fallback) and is asynchronously replaced by a generated
-					// title (the reply, in the mock). Matching either avoids a
-					// race on when title generation lands. The sessions list also
-					// contains workspace folder group headers and historical
-					// sessions, so we can't just click the topmost row.
-					if (session.name === 'Copilot') {
-						await app.workbench.agentsWindow.activateSessionByLabel([firstPrompt, session.reply], session.reply);
-					}
-
 					if (!session.skipReply2) {
+						// Copilot CLI: after a request completes, the Agents Window
+						// auto-switches the active view to a fresh untitled session;
+						// sending a follow-up prompt there would spawn a brand new
+						// agent session (with its own session id and branch) rather
+						// than continuing the existing one. Click back into the
+						// just-completed session before sending message 2 so the
+						// follow-up lands in the same session. Identify the row by
+						// EITHER the first prompt or the msg1 reply: the row text is
+						// the session title, which starts as the prompt (synchronous
+						// fallback) and is asynchronously replaced by a generated
+						// title (the reply, in the mock). Matching either avoids a
+						// race on when title generation lands. The sessions list also
+						// contains workspace folder group headers and historical
+						// sessions, so we can't just click the topmost row.
+						if (session.name === 'Copilot') {
+							await app.workbench.agentsWindow.activateSessionByLabel([firstPrompt, session.reply], session.reply);
+						}
+
 						// Follow-up message in the same session — exercises the
 						// active-session input path (not the new-session homepage).
 						// For Copilot CLI, pass the expected active label so
@@ -575,10 +592,11 @@ export function setup(logger: Logger) {
 			},
 			settings: {
 				// Register the Codex provider in the agent host process (it is
-				// off by default). The provider only actually appears if the
-				// codex SDK is resolvable (product.agentSdks.codex in packaged
-				// builds, or VSCODE_AGENT_HOST_CODEX_SDK_ROOT in dev) — the test
-				// skips gracefully when it is not.
+				// off by default). The provider resolves the codex SDK from the
+				// repo's `node_modules` in dev, or `product.agentSdks.codex` in
+				// packaged builds (or the VSCODE_AGENT_HOST_CODEX_SDK_ROOT
+				// override) — so the test below is a hard requirement in dev and
+				// skips only in built products where the SDK is genuinely absent.
 				'chat.agentHost.codexAgent.enabled': true,
 			},
 		});
@@ -588,15 +606,36 @@ export function setup(logger: Logger) {
 
 			const app = this.app as Application;
 
-			// Gate on Codex availability OUTSIDE the try/catch below so that the
+			// Resolve Codex availability OUTSIDE the try/catch below so that the
 			// Pending thrown by `this.skip()` is not swallowed (and re-thrown as a
-			// failure) by the failure-diagnostics handler. Codex registers only
-			// when its native SDK is resolvable; until it ships in the build this
-			// keeps the suite green instead of red.
+			// failure) by the failure-diagnostics handler.
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			const codexAvailable = await app.workbench.agentsWindow.isSessionTypeAvailable('Codex');
 			if (!codexAvailable) {
-				logger.log('[Agents Window/Codex] Codex session type not available (no product.agentSdks.codex / VSCODE_AGENT_HOST_CODEX_SDK_ROOT); skipping');
+				// Codex must be available — and so this test must run rather than
+				// skip — whenever the build under test is supposed to be able to
+				// resolve the SDK:
+				//   - Running from source (VSCODE_DEV=1, set by the smoke runner
+				//     when no `--build` is passed): the agent host is not built, so
+				//     it resolves the SDK from the repo's `node_modules`
+				//     (`@openai/codex` is a devDependency).
+				//   - Publish builds: `product.agentSdks.codex` is stamped (only
+				//     when VSCODE_PUBLISH=true, see build/azure-pipelines/common/
+				//     agent-sdk-produce.yml) so the SDK is fetched from the CDN.
+				// In both cases an unavailable Codex is a regression — fail loudly.
+				// Otherwise (built non-publish CI, where the SDK is neither shipped
+				// nor stamped) Codex is legitimately absent, so skip gracefully.
+				//
+				// VSCODE_DEV (not app.quality === Quality.Dev) is the precise
+				// "from source" signal: parseQuality() also returns Quality.Dev for
+				// a `--build` product when VSCODE_QUALITY is unset, which would
+				// wrongly hard-fail a packaged build that legitimately lacks Codex.
+				const isFromSource = process.env['VSCODE_DEV'] === '1';
+				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
+				if (isFromSource || isPublishBuild) {
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env['VSCODE_DEV'] ?? '<unset>'}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
+				}
+				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
 			}
 
@@ -830,7 +869,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 				COPILOT_ENABLE_ALT_PROVIDERS: 'true',
 				COPILOT_API_URL: mockServer.url,
 				COPILOT_DEBUG_GITHUB_API_URL: mockServer.url,

@@ -510,9 +510,6 @@
 				"command": "cmd /c \"npm install && npm run watch-transpile\""
 			},
 			"inAgents": true,
-			"runOptions": {
-				"runOn": "worktreeCreated"
-			},
 			"presentation": {
 				"focus": false,
 				"reveal": "never"

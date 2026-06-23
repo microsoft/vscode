@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
 
@@ -123,6 +124,12 @@ export interface IMicCaptureService {
 
 export class MicCaptureService extends Disposable implements IMicCaptureService {
 	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+	}
 
 	private _window: (Window & typeof globalThis) | undefined;
 	private _micStream: MediaStream | null = null;
@@ -284,13 +291,19 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._window = window;
 		if (this._isCapturing) { return; }
 
+		const deviceId = this.configurationService.getValue<string>('agents.voice.microphoneDevice');
+		const audioConstraints: MediaTrackConstraints = {
+			channelCount: 1,
+			sampleRate: 16000,
+			echoCancellation: true,
+			noiseSuppression: true,
+		};
+		if (deviceId) {
+			audioConstraints.deviceId = { exact: deviceId };
+		}
+
 		const micStream = await window.navigator.mediaDevices.getUserMedia({
-			audio: {
-				channelCount: 1,
-				sampleRate: 16000,
-				echoCancellation: true,
-				noiseSuppression: true,
-			},
+			audio: audioConstraints,
 		});
 		this._micStream = micStream;
 

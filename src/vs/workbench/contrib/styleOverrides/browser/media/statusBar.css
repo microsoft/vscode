@@ -13,7 +13,7 @@
  * editor foreground so it stays readable across all themes. Items that set
  * their own color (e.g. prominent, error or warning entries) keep theirs.
  */
-.style-override-statusBar .part.statusbar {
+.style-override .part.statusbar {
 	color: var(--vscode-foreground) !important;
 }
 
@@ -26,7 +26,7 @@
  * color — `--vscode-foreground` for standard items, or the kind color for
  * warning/error items — so only the background changes on hover.
  */
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
+.style-override .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	color: inherit !important;
 }
 
@@ -43,19 +43,19 @@
  * the left (square left, round right), `.compact-right` joins on the right (square
  * right, round left), and a middle item stays square on both sides.
  */
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item,
+.style-override .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 }
 
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
 }
 
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
 }

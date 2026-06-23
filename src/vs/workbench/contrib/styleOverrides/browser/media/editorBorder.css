@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Editor Border".
+ *
+ * Frames the editor area as a distinct card by drawing a subtle 1px border with
+ * rounded corners around the whole editor part (tabs, breadcrumbs and editor
+ * body). This separates the editor from the surrounding chrome (side bar,
+ * panel, auxiliary bar) and mirrors the card-like editor treatment used in the
+ * Agents window (src/vs/sessions/browser/media/style.css).
+ *
+ * The border is drawn with `box-sizing: border-box` so it sits inside the area
+ * the grid already allocates to the editor part — no margin is added, avoiding a
+ * relayout. `overflow: hidden` clips the editor content to the rounded corners.
+ * The floating editor window part (`.modal-editor-part`) is excluded.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+.style-override .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+/*
+ * The editor part paints a separator shadow on its leading edge (via the
+ * `::after` overlay) to set itself apart from the side bar. With the explicit
+ * border above that shadow is redundant and would double up, so suppress it.
+ */
+.style-override .part.editor:not(.modal-editor-part)::after {
+	box-shadow: none;
+}

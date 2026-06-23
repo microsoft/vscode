@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICopilotManagedSettingsService, collectManagedSettingsDefinitions, projectManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { ICopilotManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, selectManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -170,7 +170,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	}
 
 	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
-		if (!this.copilotManagedSettingsService || !hasManagedSettingsPolicyDefinitions(policyDefinitions)) {
+		if (!this.copilotManagedSettingsService || !hasManagedSettingsDefinitions(policyDefinitions)) {
 			return this.copilotManagedSettingsService?.managedSettings;
 		}
 
@@ -180,20 +180,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
 		const nativeManagedSettings = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
-		const hasNativeManagedSettings = nativeManagedSettings && Object.keys(nativeManagedSettings).length > 0;
-		if (!accountPolicyData && !hasNativeManagedSettings) {
-			return undefined;
-		}
 
 		// Single authoritative source: server-delivered managed settings win over native MDM.
 		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
-		const serverManagedSettings = accountPolicyData?.managedSettings;
-		const hasServerManagedSettings = serverManagedSettings && Object.keys(serverManagedSettings).length > 0;
-		const winningManagedSettings = hasServerManagedSettings ? serverManagedSettings : nativeManagedSettings;
+		const selection = selectManagedSettings(accountPolicyData?.managedSettings, nativeManagedSettings);
+		if (!accountPolicyData && selection.source === 'none') {
+			return undefined;
+		}
 
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
-			{ ...winningManagedSettings },
+			{ ...selection.values },
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);
@@ -243,16 +240,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		return { state: AccountPolicyGateState.Satisfied, approvedOrganizations: approvedOrgs };
 	}
-}
-
-function hasManagedSettingsPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
-	for (const policyName in policyDefinitions) {
-		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
-		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
-			return true;
-		}
-	}
-	return false;
 }
 
 function parseApprovedOrganizations(raw: PolicyValue | undefined): string[] {

@@ -16,6 +16,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -72,6 +73,11 @@ export interface IPermissionPickerDelegate {
 	 * dialog has been accepted).
 	 */
 	setPermissionLevel(level: ChatPermissionLevel): void;
+
+	/**
+	 * Optional hover content for delegates that need provider-specific copy.
+	 */
+	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
 }
 
 export interface IPermissionLevelMeta {
@@ -134,6 +140,7 @@ export class PermissionPicker extends Disposable {
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -159,6 +166,12 @@ export class PermissionPicker extends Disposable {
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel(trigger);
+		if (this._delegate.getPermissionLevelHover) {
+			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
+				const meta = getPermissionLevelMeta(this._currentLevel);
+				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
+			}));
+		}
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -218,6 +231,9 @@ export class PermissionPicker extends Disposable {
 			// Default is never policy-restricted; elevated levels are disabled
 			// when enterprise policy turns off global auto-approval.
 			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
+			const hover = this._delegate.getPermissionLevelHover
+				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
+				: meta.hover;
 			return {
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
@@ -229,7 +245,7 @@ export class PermissionPicker extends Disposable {
 				},
 				label: meta.label,
 				detail: meta.detail,
-				...(meta.hover ? { hover: { content: meta.hover } } : {}),
+				...(hover ? { hover: { content: hover } } : {}),
 				disabled,
 			} satisfies IActionListItem<IPermissionItem>;
 		});
@@ -322,10 +338,17 @@ export class PermissionPicker extends Disposable {
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = meta.label;
 
-		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
+		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
+		trigger.ariaLabel = hover
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", meta.label, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
+		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
 	}
 }
 

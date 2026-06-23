@@ -21,6 +21,12 @@ import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
+/** Command that sends the `fix-ci` prompt for the active session's failed checks. */
+export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';
+
+/** Command that opens the Changes view and reveals (expands + focuses) the CI checks section. */
+export const REVEAL_CI_CHECKS_COMMAND_ID = 'sessions.action.revealCIChecks';
+
 /** Slash command that invokes the built-in `fix-ci` skill. */
 const FIX_CI_QUERY = '/fix-ci';
 
@@ -128,7 +134,7 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 
 class FixCIChecksAction extends Action2 {
 
-	static readonly ID = 'sessions.action.fixCIChecks';
+	static readonly ID = FIX_CI_CHECKS_COMMAND_ID;
 
 	constructor() {
 		super({
