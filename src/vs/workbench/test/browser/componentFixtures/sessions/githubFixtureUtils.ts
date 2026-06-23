@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
+import { IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -38,17 +38,33 @@ class FixtureGitHubPullRequestModel extends GitHubPullRequestModel {
 	}
 }
 
+class FixtureGitHubPullRequestModelReferenceCollection extends ReferenceCollection<GitHubPullRequestModel> {
+
+	constructor(private readonly _pullRequests: Map<string, IGitHubPullRequest>) {
+		super();
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
+		return new FixtureGitHubPullRequestModel(owner, repo, prNumber, this._pullRequests.get(key));
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubPullRequestModel): void {
+		object.dispose();
+	}
+}
+
 export function createFixtureGitHubService(entries: readonly IFixturePullRequestEntry[]): IGitHubService {
+	const pullRequests = new Map(entries.map(entry => [toPullRequestKey(entry.owner, entry.repo, entry.pullRequest.number), entry.pullRequest]));
+
 	return new class extends mock<IGitHubService>() {
 		override readonly activeSessionPullRequestObs = constObservable<GitHubPullRequestModel | undefined>(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable<GitHubPullRequestCIModel | undefined>(undefined);
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable<GitHubPullRequestReviewThreadsModel | undefined>(undefined);
 
-		private readonly _pullRequests = new Map(entries.map(entry => [toPullRequestKey(entry.owner, entry.repo, entry.pullRequest.number), entry.pullRequest]));
+		private readonly _references = new FixtureGitHubPullRequestModelReferenceCollection(pullRequests);
 
 		override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
-			const pullRequest = this._pullRequests.get(toPullRequestKey(owner, repo, prNumber));
-			return new ImmortalReference(new FixtureGitHubPullRequestModel(owner, repo, prNumber, pullRequest));
+			return this._references.acquire(toPullRequestKey(owner, repo, prNumber), owner, repo, prNumber);
 		}
 	}();
 }
