@@ -83,7 +83,7 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 | Section | Menu ID | Content |
 |---------|---------|---------|
-| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, agent host filter |
+| Left | `Menus.TitleBarLeftLayout` | Toggle sidebar, new session (when sidebar hidden), agent host filter |
 | Center | `Menus.CommandCenter` | Session picker widget (plus `Menus.TitleBarSessionMenu` for active-session actions) |
 | Right | `Menus.TitleBarRightLayout` | Remote connections, run script (split button), Open Terminal/VS Code, toggle auxiliary bar, account widget |
 
