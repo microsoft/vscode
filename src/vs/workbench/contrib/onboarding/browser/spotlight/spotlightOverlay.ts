@@ -107,7 +107,9 @@ export class SpotlightOverlay extends Disposable {
 			append(this._root, $('.spotlight-blocker')),
 		];
 		this._hole = append(this._root, $('.spotlight-hole'));
+		this._hole.setAttribute('aria-hidden', 'true');
 		this._pointer = append(this._root, $('.spotlight-callout-pointer'));
+		this._pointer.setAttribute('aria-hidden', 'true');
 
 		this._callout = append(this._root, $('.spotlight-callout'));
 		this._callout.setAttribute('role', 'dialog');
