@@ -56,6 +56,13 @@ export interface IModelPickerDelegate {
 	 */
 	showAutoModel?(): boolean;
 	/**
+	 * The id of the current chat session, used to correlate model-picker
+	 * changes with the session in telemetry. Matches the `chatSessionId`
+	 * reported by other chat telemetry events (e.g. the chat request event).
+	 * Returns `undefined` when no session is active.
+	 */
+	getChatSessionId?(): string | undefined;
+	/**
 	 * Per-editor model configuration access. When omitted, the picker reads and
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */

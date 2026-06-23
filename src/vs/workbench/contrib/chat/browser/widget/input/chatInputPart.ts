@@ -91,7 +91,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
@@ -1044,6 +1044,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showAutoModel: () => this._showAutoModel(),
+			getChatSessionId: () => {
+				const sessionResource = this._widget?.viewModel?.model.sessionResource;
+				return sessionResource ? chatSessionResourceToId(sessionResource) : undefined;
+			},
 			modelConfiguration: this._modelConfigStore,
 		};
 	}
