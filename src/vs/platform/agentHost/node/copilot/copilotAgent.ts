@@ -78,7 +78,7 @@ function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOption
 }
 
 interface ICopilotPackageJson {
-	bin?: string | { copilot?: string };
+	bin?: { copilot?: string };
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -93,29 +93,18 @@ async function fileExists(filePath: string): Promise<boolean> {
 async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 	const copilotPackageUri = URI.joinPath(nodeModulesUri, '@github', 'copilot');
 	const packageJsonPath = URI.joinPath(copilotPackageUri, 'package.json').fsPath;
-	const fallbackPath = URI.joinPath(copilotPackageUri, 'index.js').fsPath;
-
-	let bin: string | undefined;
-	try {
-		const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8')) as ICopilotPackageJson;
-		bin = typeof packageJson.bin === 'string' ? packageJson.bin : packageJson.bin?.copilot;
-	} catch {
-		// Fall back below. Older @github/copilot packages used index.js, while
-		// 1.0.64-1+ resolves through package.json's bin entry.
+	const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8')) as ICopilotPackageJson;
+	const bin = packageJson.bin?.copilot;
+	if (typeof bin !== 'string' || bin.length === 0) {
+		throw new Error(`Unable to resolve @github/copilot CLI path. Missing package.json bin.copilot in ${packageJsonPath}`);
 	}
 
-	if (typeof bin === 'string' && bin.length > 0) {
-		const binPath = join(copilotPackageUri.fsPath, bin);
-		if (await fileExists(binPath)) {
-			return binPath;
-		}
+	const binPath = join(copilotPackageUri.fsPath, bin);
+	if (await fileExists(binPath)) {
+		return binPath;
 	}
 
-	if (await fileExists(fallbackPath)) {
-		return fallbackPath;
-	}
-
-	throw new Error(`Unable to resolve @github/copilot CLI path from ${copilotPackageUri.fsPath}`);
+	throw new Error(`Unable to resolve @github/copilot CLI path. package.json bin.copilot points to missing file ${binPath}`);
 }
 
 async function resolveCopilotCliDistDir(nodeModulesUri: URI): Promise<string | undefined> {
