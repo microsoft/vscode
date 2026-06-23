@@ -5,6 +5,7 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -29,10 +30,10 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
@@ -49,9 +50,9 @@ export const SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING = 'sessions.customizat
  * See {@link SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING}.
  */
 export enum SessionsCustomizationsSidebarMode {
-	/** One item per category; click opens the welcome page. */
+	/** Overview item plus one item per category; category clicks deep-link. */
 	Welcome = 'welcome',
-	/** One item per category; click deep-links to that category. */
+	/** Overview item plus one item per category; category clicks deep-link. */
 	Section = 'section',
 	/** A single "Customizations" entry that opens the welcome page. */
 	Single = 'single',
@@ -69,8 +70,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				SessionsCustomizationsSidebarMode.Single,
 			],
 			enumDescriptions: [
-				localize('sessions.customizations.sidebarMode.welcome', "Show one item per customization category. Clicking a category opens the Customizations welcome page."),
-				localize('sessions.customizations.sidebarMode.section', "Show one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
+				localize('sessions.customizations.sidebarMode.welcome', "Show an Overview item followed by one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
+				localize('sessions.customizations.sidebarMode.section', "Show an Overview item followed by one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
 				localize('sessions.customizations.sidebarMode.single', "Show a single \"Customizations\" entry instead of one item per category. Clicking it opens the Customizations welcome page."),
 			],
 			description: localize('sessions.customizations.sidebarMode', "Controls how the Customizations section in the Agents sidebar is presented and what happens when an entry is clicked."),
@@ -83,7 +84,7 @@ export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
-	readonly section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+	readonly section?: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 	/** If set, count comes from `IAICustomizationItemsModel.getCount(modelSection)`. */
 	readonly modelSection?: ItemsModelSection;
 	readonly isMcp?: boolean;
@@ -100,6 +101,12 @@ export interface ICustomizationItemConfig {
 function customizationSectionVisibleKey(section: string): string {
 	return `sessionsCustomizationSectionVisible.${section}`;
 }
+
+const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
+	id: 'sessions.customization.overview',
+	label: localize('overview', "Overview"),
+	icon: Codicon.home,
+};
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
@@ -152,6 +159,32 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		isTools: true,
 	},
 ];
+
+export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+	const sessionResource = sessionsService.activeSession.get()?.resource;
+	if (sessionResource) {
+		harnessService.setActiveSession(sessionResource);
+	}
+
+	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const pane = await editorService.openEditor(input, { pinned: true });
+	if (pane instanceof AICustomizationManagementEditor) {
+		pane.showWelcomePage();
+	}
+}
+
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+	const sessionResource = sessionsService.activeSession.get()?.resource;
+	if (sessionResource) {
+		harnessService.setActiveSession(sessionResource);
+	}
+
+	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const pane = await editorService.openEditor(input, { pinned: true });
+	if (pane instanceof AICustomizationManagementEditor) {
+		pane.selectSectionById(section);
+	}
+}
 
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
@@ -265,6 +298,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		// don't support a customization type don't surface its row.
 		const visibilityKeys = new Map<string, IContextKey<boolean>>();
 		for (const config of CUSTOMIZATION_ITEMS) {
+			if (!config.section) {
+				continue;
+			}
 			const key = new RawContextKey<boolean>(customizationSectionVisibleKey(config.section), true).bindTo(contextKeyService);
 			visibilityKeys.set(config.section, key);
 		}
@@ -274,17 +310,50 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			const descriptor = harnessService.getActiveDescriptor();
 			const hidden = new Set(descriptor.hiddenSections ?? []);
 			for (const config of CUSTOMIZATION_ITEMS) {
+				if (!config.section) {
+					continue;
+				}
 				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
 			}
 		}));
 
+		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
+			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
+		}, undefined));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
+					title: localize2('overviewAction', '{0}', CUSTOMIZATION_OVERVIEW_ITEM.label),
+					menu: {
+						id: Menus.SidebarCustomizations,
+						group: 'navigation',
+						order: 0,
+						when: ChatContextKeys.enabled,
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				await openCustomizationOverviewPage(
+					accessor.get(IEditorService),
+					accessor.get(ICustomizationHarnessService),
+					accessor.get(ISessionsService),
+				);
+			}
+		}));
+
 		for (const [index, config] of CUSTOMIZATION_ITEMS.entries()) {
+			if (!config.section) {
+				continue;
+			}
+			const section = config.section;
 			// Register the custom ActionViewItem for this action
 			this._register(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
 
-			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(config.section));
+			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -296,7 +365,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
-							when: sectionVisibleWhen,
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen),
 						}
 					});
 				}
@@ -304,22 +373,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsService = accessor.get(ISessionsService);
-					const configurationService = accessor.get(IConfigurationService);
-					const sessionResource = sessionsService.activeSession.get()?.resource;
-					if (sessionResource) {
-						harnessService.setActiveSession(sessionResource);
-					}
-					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const pane = await editorService.openEditor(input, { pinned: true });
-					if (pane instanceof AICustomizationManagementEditor) {
-						const mode = configurationService.getValue<string>(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING);
-						if (mode === SessionsCustomizationsSidebarMode.Section) {
-							pane.selectSectionById(config.section);
-						} else {
-							// 'welcome' (default) and 'single' both land on the welcome page.
-							pane.showWelcomePage();
-						}
-					}
+					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
 				}
 			}));
 		}

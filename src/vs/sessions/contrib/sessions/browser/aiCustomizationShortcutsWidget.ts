@@ -7,28 +7,25 @@ import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from './customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, openCustomizationOverviewPage, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 const $ = DOM.$;
-
-const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
 
 export interface IAICustomizationShortcutsWidgetOptions {
 	readonly onDidChangeLayout?: () => void;
@@ -36,18 +33,24 @@ export interface IAICustomizationShortcutsWidgetOptions {
 
 export class AICustomizationShortcutsWidget extends Disposable {
 
-	private _headerButton: Button | undefined;
 	private _singleButton: Button | undefined;
 	private _renderDisposables = this._register(new DisposableStore());
 	private _wrapper: HTMLElement | undefined;
 	private _options: IAICustomizationShortcutsWidgetOptions | undefined;
 	private _renderedSingle: boolean | undefined;
+	private _scrollableElement: DomScrollableElement | undefined;
+	private _toolbar: MenuWorkbenchToolBar | undefined;
+	private _rootElement: HTMLElement | undefined;
+	private _headerElement: HTMLElement | undefined;
+	private _toolbarContentElement: HTMLElement | undefined;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -67,9 +70,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._renderForCurrentMode();
 
 		// Re-render only when crossing the single<->non-single boundary. The
-		// `welcome` and `section` modes produce identical DOM (only click
-		// behavior differs, resolved at click-time in the contribution), so
-		// toggling between them needs no re-render.
+		// `welcome` and `section` modes produce identical DOM; both render
+		// overview-plus-section entries. Only `single` changes presentation.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING)) {
 				const isSingle = this._readMode() === SessionsCustomizationsSidebarMode.Single;
@@ -94,8 +96,12 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			return;
 		}
 		this._renderDisposables.clear();
-		this._headerButton = undefined;
 		this._singleButton = undefined;
+		this._scrollableElement = undefined;
+		this._toolbar = undefined;
+		this._rootElement = undefined;
+		this._headerElement = undefined;
+		this._toolbarContentElement = undefined;
 		DOM.clearNode(this._wrapper);
 
 		const mode = this._readMode();
@@ -110,8 +116,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 	private _renderSingleEntry(parent: HTMLElement): void {
 		const container = DOM.append(parent, $('.ai-customization-toolbar.single-entry'));
+		this._rootElement = container;
 
 		const buttonContainer = DOM.append(container, $('.customization-link-button-container'));
+		this._toolbarContentElement = buttonContainer;
 		const button = this._renderDisposables.add(new Button(buttonContainer, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -150,7 +158,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
 			let total = 0;
 			for (const config of CUSTOMIZATION_ITEMS) {
-				if (hidden.has(config.section)) {
+				if (config.section && hidden.has(config.section)) {
 					continue;
 				}
 				if (config.modelSection) {
@@ -166,101 +174,71 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private async _openWelcomePage(): Promise<void> {
-		const sessionResource = this.sessionsService.activeSession.get()?.resource;
-		if (sessionResource) {
-			this.harnessService.setActiveSession(sessionResource);
-		}
-
-		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true });
-		if (editor instanceof AICustomizationManagementEditor) {
-			editor.showWelcomePage();
-		}
+		await openCustomizationOverviewPage(this.editorService, this.harnessService, this.sessionsService);
 	}
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
-		// Get initial collapsed state
-		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, false);
-
 		const container = DOM.append(parent, $('.ai-customization-toolbar'));
-		if (isCollapsed) {
-			container.classList.add('collapsed');
-		}
+		this._rootElement = container;
 
 		// Header
 		const header = DOM.append(container, $('.ai-customization-header'));
-		header.classList.toggle('collapsed', isCollapsed);
-
-		const headerButtonContainer = DOM.append(header, $('.customization-link-button-container'));
-		const headerButton = this._renderDisposables.add(new Button(headerButtonContainer, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: false,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		headerButton.element.classList.add('customization-link-button', 'sidebar-action-button');
-		headerButton.element.setAttribute('aria-expanded', String(!isCollapsed));
-		headerButton.label = localize('customizations', "Customizations");
-		this._headerButton = headerButton;
-
-		// Total count + chevron live inside the single header button.
-		const headerTotalCount = DOM.append(headerButton.element, $('span.ai-customization-header-total.hidden'));
-		const chevron = DOM.append(headerButton.element, $('.ai-customization-chevron'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		this._headerElement = header;
+		const headerLabel = DOM.append(header, $('span.ai-customization-header-label'));
+		headerLabel.textContent = localize('customizations', "Customizations");
 
 		// Toolbar container
-		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
+		const scrollContent = $('.ai-customization-toolbar-content-scrollable');
+		const toolbarContainer = DOM.append(scrollContent, $('.ai-customization-toolbar-content.sidebar-action-list'));
+		this._toolbarContentElement = toolbarContainer;
+		const scrollableElement = this._renderDisposables.add(new DomScrollableElement(scrollContent, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this._scrollableElement = scrollableElement;
+		DOM.append(container, scrollableElement.getDomNode());
 
 		const toolbar = this._renderDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'sidebarCustomizations',
 		}));
+		this._toolbar = toolbar;
 
 		// Re-layout when toolbar items change (e.g., Plugins item appearing after extension activation)
 		this._renderDisposables.add(toolbar.onDidChangeMenuItems(() => {
+			this._scrollableElement?.scanDomNode();
+			this._onDidChangeHeight.fire();
 			options?.onDidChangeLayout?.();
 		}));
+	}
 
-		// Header total = sum of the same counts shown by each visible sidebar
-		// link (CUSTOMIZATION_ITEMS). This guarantees the header value equals
-		// the sum of the per-link badges by construction — and excludes
-		// sections like Prompts that the editor exposes but the sidebar does
-		// not surface, plus any sections the active harness hides via
-		// `hiddenSections` (e.g. Claude doesn't show Prompts; AHP doesn't
-		// show MCP Servers).
-		const totalCount = this._totalCount();
-		this._renderDisposables.add(autorun(reader => {
-			const value = totalCount.read(reader);
-			headerTotalCount.classList.toggle('hidden', value === 0);
-			headerTotalCount.textContent = `${value}`;
-		}));
+	get desiredHeight(): number {
+		const root = this._rootElement;
+		const content = this._toolbarContentElement;
+		if (!root || !content) {
+			return 0;
+		}
 
-		// Toggle collapse on header click
-		const transitionListener = this._renderDisposables.add(new MutableDisposable());
-		const toggleCollapse = () => {
-			const collapsed = container.classList.toggle('collapsed');
-			header.classList.toggle('collapsed', collapsed);
-			this.storageService.store(CUSTOMIZATIONS_COLLAPSED_KEY, collapsed, StorageScope.PROFILE, StorageTarget.USER);
-			headerButton.element.setAttribute('aria-expanded', String(!collapsed));
-			chevron.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chevronRight), ...ThemeIcon.asClassNameArray(Codicon.chevronDown));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+		const rootStyles = DOM.getWindow(root).getComputedStyle(root);
+		const paddingTop = parseFloat(rootStyles.paddingTop);
+		const paddingBottom = parseFloat(rootStyles.paddingBottom);
+		const rootVerticalPadding = (Number.isFinite(paddingTop) ? paddingTop : 0) + (Number.isFinite(paddingBottom) ? paddingBottom : 0);
+		const headerHeight = this._headerElement?.offsetHeight ?? 0;
+		const height = Math.ceil(rootVerticalPadding + headerHeight + content.scrollHeight);
+		return Number.isFinite(height) ? height : 0;
+	}
 
-			// Re-layout after the transition
-			transitionListener.value = DOM.addDisposableListener(toolbarContainer, 'transitionend', () => {
-				transitionListener.clear();
-				options?.onDidChangeLayout?.();
-			});
-		};
-
-		this._renderDisposables.add(headerButton.onDidClick(() => toggleCollapse()));
+	layout(_height: number, _width: number): void {
+		this._scrollableElement?.scanDomNode();
 	}
 
 	focus(): void {
-		(this._singleButton ?? this._headerButton)?.element.focus();
+		if (this._singleButton) {
+			this._singleButton.element.focus();
+			return;
+		}
+		this._toolbar?.focus();
 	}
 }

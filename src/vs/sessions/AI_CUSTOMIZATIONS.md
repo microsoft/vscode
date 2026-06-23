@@ -59,7 +59,7 @@ src/vs/sessions/contrib/chat/browser/
 ├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
-├── aiCustomizationShortcutsWidget.ts           # Sidebar shortcuts widget with header overview action
+├── aiCustomizationShortcutsWidget.ts           # Resizable sidebar shortcuts widget with overview + section links
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
@@ -261,7 +261,9 @@ The MCP Servers section combines locally known MCP servers with MCP servers repo
 
 ### Sidebar Entrypoint Mode
 
-The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+The Agents sidebar `AICustomizationShortcutsWidget` appears as a non-collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space.
+
+The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. The `sessions.customizations.sidebarMode` setting still supports `single`, which replaces the per-category rows with one Customizations entry that opens the welcome page; the legacy `welcome` and `section` values both render the overview-plus-category list. All modes keep the active customization harness in sync with the active session before opening the editor.
 
 ### Item Badges
 
