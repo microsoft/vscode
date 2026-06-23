@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, Position } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -137,6 +137,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private globalToolBar: MenuWorkbenchToolBar | undefined;
 	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
+	private floatingLayoutDimension: Dimension | undefined;
 
 	constructor(
 		readonly partId: SINGLE_WINDOW_PARTS,
@@ -599,6 +600,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return;
 		}
 
+		// Remember the dimension as provided by the grid (before the floating inset is
+		// applied) so relayouts triggered by internal changes (title/header/footer) feed
+		// back this original dimension instead of a repeatedly shrunk one.
+		this.floatingLayoutDimension = new Dimension(width, height);
+
 		// When the floating panels experiment is enabled, shrink the content to
 		// leave room for the card margin and border applied via CSS on the part.
 		const floatingInset = this.getFloatingInset();
@@ -609,6 +615,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.contentDimension = new Dimension(width, height);
 
+		// Reflect whether the primary side bar sits at the window edge so the matching
+		// doubled outer gutter can be applied in CSS (kept in sync with `getFloatingInset`).
+		const outerEdge = this.getFloatingSideBarOuterEdge();
+		this.element.classList.toggle('floating-sidebar-outer-left', outerEdge === Position.LEFT);
+		this.element.classList.toggle('floating-sidebar-outer-right', outerEdge === Position.RIGHT);
+
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 
@@ -617,6 +629,24 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Add empty pane message
 		this.layoutEmptyMessage();
+	}
+
+	/**
+	 * When the primary side bar sits directly at the window edge (the activity bar is
+	 * not in its default position) it becomes the outermost card on its side and adopts
+	 * the same doubled gutter the other floating cards use. Returns the edge that needs
+	 * the extra margin, or `undefined` when the side bar is not at the window edge.
+	 */
+	private getFloatingSideBarOuterEdge(): Position | undefined {
+		if (!this.layoutService.isFloatingPanelsEnabled() || this.partId !== Parts.SIDEBAR_PART || this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			return undefined;
+		}
+
+		return this.layoutService.getSideBarPosition();
+	}
+
+	protected override getRelayoutDimension(): Dimension | undefined {
+		return this.floatingLayoutDimension ?? super.getRelayoutDimension();
 	}
 
 	/**
@@ -635,9 +665,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
 		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
-		const rightMargin = this.partId === Parts.AUXILIARYBAR_PART ? margin + AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT : margin;
+		let leftMargin = margin;
+		let rightMargin = margin;
+		if (this.partId === Parts.AUXILIARYBAR_PART) {
+			rightMargin = margin + AbstractPaneCompositePart.FLOATING_AUXBAR_EXTRA_RIGHT;
+		} else {
+			const outerEdge = this.getFloatingSideBarOuterEdge();
+			if (outerEdge === Position.LEFT) {
+				leftMargin = margin * 2;
+			} else if (outerEdge === Position.RIGHT) {
+				rightMargin = margin * 2;
+			}
+		}
 		return {
-			width: margin + rightMargin + borderTotal,
+			width: leftMargin + rightMargin + borderTotal,
 			height: topMargin + margin + borderTotal
 		};
 	}

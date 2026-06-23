@@ -52,10 +52,36 @@
 	margin-right: calc(var(--vscode-spacing-size60) * 2);
 }
 
+/*
+ * When the primary side bar sits at the window edge (the activity bar is not in its
+ * default position) it becomes the outermost card and adopts the same doubled gutter.
+ * Kept in sync with the inset reservation in `AbstractPaneCompositePart`.
+ */
+.monaco-workbench.floating-panels .part.sidebar.floating-sidebar-outer-left {
+	margin-left: calc(var(--vscode-spacing-size60) * 2);
+}
+
+.monaco-workbench.floating-panels .part.sidebar.floating-sidebar-outer-right {
+	margin-right: calc(var(--vscode-spacing-size60) * 2);
+}
+
 /* Main editor: float like the other cards, but stay flush with the title bar. */
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: var(--vscode-spacing-size60);
 	margin-top: 0;
+}
+
+/*
+ * When the editor becomes the outermost card on a side (no floating part sits
+ * between it and the window edge) it adopts the same doubled gutter the side/aux
+ * bars use. Kept in sync with the margin reservation in `EditorPart.layout`.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-flush-left {
+	margin-left: calc(var(--vscode-spacing-size60) * 2);
+}
+
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-flush-right {
+	margin-right: calc(var(--vscode-spacing-size60) * 2);
 }
 
 /* The shell backdrop behind the floating cards matches the editor background. */
