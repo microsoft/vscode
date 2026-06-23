@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -18,11 +19,11 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { ChatSessionSupportsDeleteContext, ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -32,20 +33,6 @@ import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-
-//  Constants
-
-const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
-//  Keybindings
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: ACTION_ID_NEW_SESSION,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	// Don't shadow Ctrl/Cmd+N when focus is in the editor area so the standard
-	// `workbench.action.files.newUntitledFile` command handles the shortcut.
-	when: EditorAreaFocusContext.negate(),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-});
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -66,7 +53,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.SessionsContrib,
 	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
@@ -125,7 +112,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
-		weight: KeybindingWeight.WorkbenchContrib + 1,
+		weight: KeybindingWeight.SessionsContrib,
 		when: IsSessionsWindowContext,
 		primary: KeyMod.Alt | digitToKeyCode(visibleIndex),
 		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
@@ -189,7 +176,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
 				// keeps the editor's "Move Line Up" intact while still navigating from
 				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -224,7 +211,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
 				// keeps the editor's "Move Line Down" intact while still navigating from
 				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
@@ -554,53 +541,49 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 	}
 });
 
-registerAction2(class UnarchiveSectionAction extends Action2 {
+//  Group Header Actions
+
+registerAction2(class RenameGroupAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsView.sectionUnarchive',
-			title: localize2('unarchiveSection', "Restore All"),
-			icon: Codicon.discard,
+			id: 'sessionsView.renameGroup',
+			title: localize2('renameGroup', "Rename"),
+			icon: Codicon.edit,
 			menu: [{
-				id: SessionSectionToolbarMenuId,
+				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'archived'),
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISessionSection): Promise<void> {
-		if (!context || !context.sessions || context.sessions.length === 0) {
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
 			return;
 		}
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.sessionsControl?.beginRenameGroup(context.group.id);
+	}
+});
 
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const dialogService = accessor.get(IDialogService);
-		const storageService = accessor.get(IStorageService);
-
-		if (context.sessions.length > 1) {
-			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
-			if (!skipConfirmation) {
-				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to restore {0} sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Restore All"),
-					checkbox: {
-						label: localize('doNotAskAgain2', "Do not ask me again")
-					}
-				});
-
-				if (!confirmed.confirmed) {
-					return;
-				}
-
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
-			}
+registerAction2(class DeleteGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.deleteGroup',
+			title: localize2('deleteGroup', "Delete Group"),
+			icon: Codicon.trash,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 1,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
 		}
-
-		for (const session of context.sessions) {
-			await sessionsManagementService.unarchiveSession(session);
-		}
+		accessor.get(ISessionGroupsService).deleteGroup(context.group.id);
 	}
 });
 
@@ -768,7 +751,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: ChatSessionSupportsRenameContext,
 			}]
 		});
 	}
@@ -792,8 +775,54 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
+				await sessionsManagementService.renameSession(session, trimmedTitle);
 			}
+		}
+	}
+});
+
+registerAction2(class DeleteSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.deleteSession',
+			title: localize2('deleteSession', "Delete..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 4,
+				when: ChatSessionSupportsDeleteContext,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
+		if (sessions.length === 0) {
+			return;
+		}
+
+		const dialogService = accessor.get(IDialogService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		const confirmed = await dialogService.confirm({
+			message: sessions.length === 1
+				? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
+				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
+			detail: localize('deleteSession.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteSession.delete', "Delete")
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		try {
+			await sessionsManagementService.deleteSessions(sessions);
+		} catch (err) {
+			dialogService.error(sessions.length === 1
+				? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
+				: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
 		}
 	}
 });

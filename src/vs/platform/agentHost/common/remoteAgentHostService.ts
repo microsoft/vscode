@@ -10,7 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 import type { UnsupportedProtocolVersionErrorData } from './state/protocol/errors.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from './state/sessionProtocol.js';
-import type { UnsupportedProtocolVersionErrorMeta, IVscodeUpgradeResult } from './state/protocolUpgrade.js';
+import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
 /**
@@ -80,9 +80,9 @@ export namespace RemoteAgentHostConnectionStatus {
 	 */
 	export function fromConnectError(err: unknown, supportedByClient: readonly string[]): RemoteAgentHostConnectionStatus | undefined {
 		if (err instanceof ProtocolError && err.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
-			const data = err.data as (Partial<UnsupportedProtocolVersionErrorData> & { _meta?: UnsupportedProtocolVersionErrorMeta }) | undefined;
+			const data = err.data as Partial<UnsupportedProtocolVersionErrorData> | undefined;
 			const offeredByServer = Array.isArray(data?.supportedVersions) ? data.supportedVersions : undefined;
-			const vscodeUpgradeMethod = typeof data?._meta?.vscodeUpgradeMethod === 'string' ? data._meta.vscodeUpgradeMethod : undefined;
+			const vscodeUpgradeMethod = readUnsupportedProtocolVersionErrorMeta(err.data)?.vscodeUpgradeMethod;
 			return incompatible(err.message, supportedByClient, offeredByServer, vscodeUpgradeMethod);
 		}
 		return undefined;
@@ -241,6 +241,16 @@ export interface IRemoteAgentHostService {
 	getConnection(address: string): IAgentConnection | undefined;
 
 	/**
+	 * Get a per-connection {@link IAgentConnection} by its sanitized
+	 * connection authority (as produced by `agentHostAuthority`), rather than
+	 * its raw address. Useful for callers that only have the authority
+	 * component of a remote session URI scheme (`remote-<authority>-<provider>`).
+	 *
+	 * Returns `undefined` if no active connection matches the authority.
+	 */
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
+
+	/**
 	 * Adds or updates a configured remote host and resolves once a connection
 	 * to that host is available.
 	 */
@@ -335,6 +345,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	getConnection(): IAgentConnection | undefined { return undefined; }
+	getConnectionByAuthority(): IAgentConnection | undefined { return undefined; }
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

@@ -69,6 +69,9 @@ open existing:  view.openSession(uri, { preserveFocus })
                   → view arranges visible slot (activeSession = active slot) + focuses    // focus skipped when preserveFocus
 new session:    composer → view.openNewSession({ folderUri, ... })  // view: management.createNewSession() (model draft) + activates it
                   → view observes activeSession == draft → shows draft slot
+delegate:       command → management.createNewSession({ providerId, sessionTypeId })
+                  → view.insertAt(draft, sourceSessionId, 'right', true)  // show beside source
+                  → management.sendNewChatRequest(draft, transcript attachments)
 send:           composer → management.sendNewChatRequest()  // model: provider calls + events
                   → view reacts (onDidReplaceSession + active-session chats) → swaps slot / active chat
 focus a slot:   part.onDidFocusSession → view.setActive → updates active visible slot
@@ -89,6 +92,8 @@ src/vs/sessions/contrib/providers/
 ```
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
+
+The sessions-layer `AgentHostCustomizationService` adapts the workbench customization service contract to `IAgentHostSessionsProvider`. It reads session MCP servers through the owning provider and writes root MCP server definitions by merging the provider's current root `mcpServers` config map before calling `setRootConfigValue`, so additions preserve existing host-level servers.
 
 #### Provider internals stay in the provider (`IAgentSessionsService`)
 
@@ -120,6 +125,7 @@ ISession
 ├── mainChat: IObservable<IChat>   ← primary (first) chat (settable by provider when committing a new session)
 ├── chats: IObservable<IChat[]>    ← all chats in creation order
 ├── capabilities.supportsMultipleChats
+├── capabilities.supportsRename     ← gates the header/list rename UI
 └── session-level observables      ← derived from chats
 ```
 
@@ -186,9 +192,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
    → Provider creates the backend chat model and returns an IChat
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
-  → ChatView locks the embedded ChatWidget to the contributed chat session type
-    (for example agent-host-codex) before setting the model, so follow-up turns
-    keep routing to the provider that owns the session; local chat sessions unlock
+  → ChatView clears the embedded ChatWidget before loading a different chat,
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -236,6 +243,111 @@ just appears in the sessions list once the provider commits it. It shares the
 underlying commit helper with the composer's background send; if the send fails
 it disposes the stranded draft via `deleteNewSession` and rejects so the caller
 can react.
+
+### Adding a Chat to an Existing Session (Agent Host Multi-Chat)
+
+Providers that set `capabilities.supportsMultipleChats` can host several peer
+chats inside one session that share a single backend scope (workspace, model,
+config). For the local agent host provider this is enabled for the
+`copilotcli` session type only.
+
+```
+1. User adds a chat to a running session
+   → SessionsManagementService.createNewChat(session)
+   → Provider.createNewChat(sessionId)
+   → (existing running session, not a draft) → _createAdditionalChat:
+       • mint a client-chosen chat URI: buildChatUri(sessionUri, uuid)
+         (ahp-chat://<chatId>/<base64(session)>; the chatId also rides in the
+          IChat.resource URI fragment so the chat view opens a distinct widget)
+       • connection.createChat(sessionUri, chatUri, { model })
+       • host adds the chat to the session's catalog and emits SessionChatAdded
+       • the session-state subscription stays alive, so the catalog change flows
+         into applyChatCatalog and surfaces the new IChat in ISession.chats
+       • waitForState resolves once the new chat appears; getOrCreateChatSession
+         opens its widget
+   → Returns the new IChat
+```
+
+On the host, `AgentHostStateManager` keeps an authoritative multi-chat catalog
+per session: `addChat`/`removeChat` create/delete a per-chat `ChatState` and
+dispatch `SessionChatAdded`/`SessionChatRemoved`; the default chat (whose
+resource equals the session resource) cannot be removed and is deleted only when
+the whole session is removed. Each AHP `SessionState` therefore carries a `chats`
+array plus a `defaultChat` pointer.
+
+`AgentService.createChat`/`disposeChat` resolve the owning agent via
+`_findProviderForSession` — **not** the `_sessionToProvider` map directly. That
+map is only populated by `createSession`, so a session **restored** after a host
+restart (present in the state manager but never created in this process) is
+absent from it. `_findProviderForSession` falls back to the session URI's scheme
+provider (e.g. `copilotcli`), so adding a peer chat to a restored session works
+just like sending it a message. Using the raw map here would throw
+`no provider for session` and silently break Add Chat for restored sessions.
+
+The provider's `applyChatCatalog(state)` reconciles that catalog into observables:
+the default chat maps to the session's primary `IChat` (`mainChat`); every other
+catalog entry becomes an `AdditionalChat` keyed by its `chatId`, disposed when it
+leaves the catalog. Single-chat sessions (or non-multi-chat types) degrade to
+`[defaultChat]`.
+
+`AdditionalChat` is a disposable. The owning `AgentHostSessionAdapter` extends
+`Disposable` and holds its peers in a `DisposableMap`, so peers are disposed both
+when reconciliation drops them and when the adapter itself is evicted from
+`_sessionCache` (session removed/deleted) or the provider is disposed. Never drop
+a peer with `map.clear()`/`map.delete()` — use `clearAndDisposeAll()`/
+`deleteAndDispose()` so the `AdditionalChat` is actually torn down.
+
+The session handler (`agentHostSessionHandler.ts`) routes each chat widget to its
+own AHP chat channel. Session-scoped reads (`summary`/`config`/`activeClient`)
+stay on the session URI, while conversation reads/dispatches
+(`turns`/`activeTurn`/`queuedMessages`/`steeringMessage`/`inputRequests`,
+tool-call confirmations, input requests) are threaded through the resolved chat
+URI so peer chats run concurrently without cross-talk. `_resolveSessionUri`
+ignores the fragment to find the parent session; `_resolveChatUri` returns the
+fragment's chat URI (or the default chat URI when there is no fragment).
+
+#### Renaming: session vs chat are independent
+
+The session title and each chat's title are independent:
+
+- **`ISessionsManagementService.renameSession(session, title)` → `ISessionsProvider.renameSession`**
+  renames the *session* only. The agent host provider dispatches
+  `SessionTitleChanged` on the **session URI**; the host persists it as the
+  session's `customTitle`. Used by the sessions-list "Rename Session" action and
+  the session header inline-rename.
+- **`renameChat(session, chatUri, title)`** renames a single *chat tab*. The
+  provider dispatches `SessionTitleChanged` on that **chat channel**
+  (`buildChatUri`/`buildDefaultChatUri`). The host detects the chat channel
+  (`chatChannel` is set in `agentSideEffects.handleAction`) and translates it to a
+  per-chat `SessionChatUpdated` via `AgentHostStateManager.updateChatTitle`, so the
+  session title is untouched. Used by the chat composite bar (per-tab rename).
+
+The default chat starts with an **empty** catalog title so it *inherits* the
+session title for display (`_ensureDefaultChat` seeds `title: ''`). The provider's
+`mainChat.title` is `derived(_defaultChatTitleOverride ?? session.title)`, and
+`applyChatCatalog` only sets the override when the default chat's catalog title is
+non-empty (i.e. it was renamed independently). The moment a session gains its first
+additional chat, `AgentHostStateManager.addChat` **snapshots the current session
+title onto the still-inheriting default chat** (via `updateChatTitle`), so once a
+session is multi-chat the session title and the default chat tab title are fully
+independent — renaming the session no longer moves the default chat tab and
+vice-versa. Auto-titling from the first message
+titles the *session* for the default chat and the *chat itself* (via
+`updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
+
+Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
+`renameSession` by renaming their single main chat. `renameSession` is a mandatory
+`ISessionsProvider` method (no optional methods — see the interface guideline).
+
+Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
+on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
+and the sessions-list "Rename..." action (gated on the
+`chatSessionSupportsRename` context-menu-overlay key, set from
+`element.capabilities.supportsRename` in `sessionsList`) both read this flag.
+Providers declare it truthfully: agent-host and `localChatSessions` sessions are
+always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
+session types, since `renameChat` throws for other backends. Omitting the flag means
+the session is not renameable.
 
 ### Session Change Propagation
 

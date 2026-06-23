@@ -67,11 +67,16 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 strict priority order:
 
 1. **No resource / no workspace** → do nothing.
-2. **Untitled session** → open the Files container (`SESSIONS_FILES_CONTAINER_ID`), leave visibility as is.
+2. **Untitled session (new-session view)** → all untitled sessions share a single state object
+   (`_newSessionViewState`, persisted to workspace storage under `sessions.newSessionViewState`): if
+   the user explicitly hid the aux bar on a new session it stays hidden (across switches *and*
+   reloads); otherwise the default container (§3.2 step 4) is shown. This is what makes hiding the aux
+   bar on one new session "stick" when the next new session is opened (each untitled session has a
+   distinct resource, so per-resource saved state can't carry the choice).
 3. **Saved state exists**:
    - was **hidden** → hide the aux bar and stop.
    - was visible with an active container → reopen that container and stop.
-4. **No saved state (first visit) — defaults**:
+4. **No saved state (first visit) — defaults** (`_openDefaultAuxiliaryBarContainer`):
    - session **has changes** → open the Changes view (`CHANGES_VIEW_ID`).
    - otherwise → open the Files container.
 
@@ -89,18 +94,26 @@ advances past `submittedAt`:
 This only applies to the single-visible-session case; the pending state is dropped when multiple
 sessions are visible.
 
-### 3.4 Editor / aux-bar invariant
+### 3.4 Live visibility tracking
 
-The editor part must not be left visible without the auxiliary bar
-(`_enforceAuxiliaryBarWhenEditorVisible`): when the editor part *becomes* visible the aux bar is
-revealed. So opening a file from chat reveals the editor **and** the secondary side bar.
+Aux-bar visibility is also tracked **live** (not only on session switch) via an
+`onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` (skipped on mobile web and while
+multiple sessions are visible). For a titled active session it re-runs `_captureViewState`; for an
+untitled active session it updates the shared `_newSessionViewState` (§3.2 step
+2). Without this, the sync autorun — which re-evaluates whenever the session's changes/workspace
+state updates, not just on switch — would find no saved state and re-run the default visibility logic
+(§3.2), re-revealing a side bar the user had just hidden.
 
-The one exception is **working-set restoration on session switch** (§5): that editor reveal is
-programmatic, so the invariant is suppressed (`_suppressAuxiliaryBarEnforcement`) and the
-session's saved aux-bar visibility wins. A side bar the user hid for a session therefore stays
-hidden when they return to it. The suppression is a synchronous re-entrancy guard around the
-`setPartHidden(false, EDITOR_PART)` call — the part-visibility event fires synchronously, so the
-guard reliably covers exactly that reveal.
+### 3.5 Editor reveal on session switch
+
+The editor part is revealed programmatically when a session's editor working set is restored on a
+session **switch** (`_revealEditorPartForWorkingSet`, §5). It is **not** revealed on the initial
+restore after a reload (§5.2) — the editor part visibility the workbench restored is preserved, so a
+session whose editor part was hidden (e.g. by closing the Side Panel, which hides both the auxiliary
+bar and the editor part while keeping the editors open) stays hidden. The editor part visibility
+otherwise follows direct editor open/close events and the user's chevron toggle. Each session's
+saved aux-bar visibility wins on switch — a side bar the user hid for a session stays hidden when
+they return to it.
 
 ---
 
@@ -144,22 +157,33 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
 
 On initial load (no previous session) the controller only applies a working set if one is already
 saved for the incoming session — it never applies `'empty'`, to avoid closing editors being restored.
+On this initial restore the working set is applied under `suppressEditorPartAutoVisibility()` and the
+editor part is **not** revealed, so whatever visibility the workbench restored (possibly hidden,
+because the user closed the Side Panel) is preserved across reloads.
 
 ### 5.3 Cleanup
 
-`onDidChangeSessions` removes working sets for **archived** or **deleted** sessions
-(`_deleteWorkingSet`, which also drops the corresponding view state).
+`onDidChangeSessions` removes working sets **and** per-session view state for **archived** or
+**deleted** sessions. View-state removal is done explicitly in that handler — `_deleteWorkingSet`
+only drops the editor working set. (It must **not** drop the view state, because it is also called
+from `_saveWorkingSet` on every switch-away / shutdown; coupling the two would wipe a session's
+saved aux-bar visibility whenever it had editors but no longer does, causing the aux bar to fall
+back to the default-visible logic (§3.2) on the next reload.)
 
 ---
 
 ## 6. Persistence
 
-- All state serializes to the workspace-scoped key `sessions.layoutState` on
+- All per-session state serializes to the workspace-scoped key `sessions.layoutState` on
   `IStorageService.onWillSaveState` (`_saveState`), with a `StorageTarget.MACHINE` target.
 - `_saveState` captures the active session's current view state and working set (skipping untitled /
   multi-session cases) and writes one `ISessionLayoutEntry` per known session resource.
-- `_loadState` reads `sessions.layoutState`; if absent it performs a one-time migration from the
-  legacy `sessions.workingSets` key and then removes it. Corrupted data is dropped defensively.
+- The shared new-session view state (§3.2 step 2) is persisted separately under the workspace-scoped
+  key `sessions.newSessionViewState` as an `INewSessionViewState` object, written immediately whenever
+  the user toggles the aux bar on the new-session view (not on shutdown).
+- `_loadState` reads `sessions.newSessionViewState` and `sessions.layoutState`; if the latter is
+  absent it performs a one-time migration from the legacy `sessions.workingSets` key and then removes
+  it. Corrupted data is dropped defensively.
 
 ---
 
@@ -169,7 +193,4 @@ saved for the incoming session — it never applies `'empty'`, to avoid closing 
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
 - **Default visibility** (§3.2 step 4) only applies when a session has no saved aux-bar state.
-- The **editor part implies the auxiliary bar** when it *becomes* visible (e.g. opening a file from
-  chat), **except** during working-set restoration on session switch, where the session's saved
-  aux-bar visibility wins (so a hidden side bar is respected).
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.

@@ -84,11 +84,11 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true, trailingSeparator: false },
+			{ hasTitle: true, trailingSeparator: true },
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -111,6 +111,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

@@ -11,8 +11,8 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
-import { type IChangesetOperationHandler } from '../common/changesetOperation.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 
@@ -25,7 +25,7 @@ export interface PullRequestCreatedEvent {
  * Server-side handler for the `create-pr` and `create-draft-pr` changeset
  * operations advertised on git-backed sessions whose working directory has
  * a GitHub remote. Operation availability is recomputed by
- * `AgentHostChangesetOperationContributionService.updateOperations`.
+ * `AgentHostChangesetOperationService.updateOperations`.
  *
  * The flow mirrors the Copilot CLI extension's `createPullRequest` helper
  * (`extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLIChatSessionsContribution.ts`):
@@ -107,7 +107,10 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		// `getDefaultBranch` may return `origin/<branch>` — `pulls` API wants the bare name.
 		const base = baseBranchName.startsWith('origin/') ? baseBranchName.substring('origin/'.length) : baseBranchName;
 
-		const authToken = this._agentService.getAuthToken(GITHUB_REPO_PROTECTED_RESOURCE);
+		const authToken = this._agentService.getAuthToken({
+			resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+			scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+		});
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
@@ -142,7 +145,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
-			await this._gitService.pushBranch(workingDirectory, branchName, !upstreamPresent);
+			await this._gitService.push(workingDirectory, { ref: branchName, setUpstream: !upstreamPresent });
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to push branch '${branchName}': ${err instanceof Error ? err.message : String(err)}`);
