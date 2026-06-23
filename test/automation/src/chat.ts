@@ -13,7 +13,10 @@ const CHAT_SEND_BUTTON_ENABLED = `${CHAT_VIEW} .chat-input-toolbars > .chat-exec
 const CHAT_RESPONSE = `${CHAT_VIEW} .interactive-item-container.interactive-response`;
 const CHAT_REQUEST = `${CHAT_VIEW} .interactive-item-container.interactive-request`;
 const CHAT_RESPONSE_COMPLETE = `${CHAT_RESPONSE}:not(.chat-response-loading)`;
-const DIALOG_PRIMARY_BUTTON = '.monaco-dialog-box .dialog-buttons .monaco-button';
+// Primary dialog button — explicitly excludes the `.secondary` class so we don't accidentally
+// click Cancel. Button order is platform-dependent (see `Dialog.rearrangeButtons`), but the
+// `secondary` class is always set to `!primary` regardless of order, so this is reliable.
+const DIALOG_PRIMARY_BUTTON = '.monaco-dialog-box .dialog-buttons .monaco-button:not(.secondary)';
 const CHAT_CHECKPOINT_TOOLBAR = `${CHAT_VIEW} .checkpoint-container .monaco-toolbar`;
 const CHAT_CHECKPOINT_FORK_BUTTON = `${CHAT_CHECKPOINT_TOOLBAR} .action-label.codicon-repo-forked`;
 const CHAT_CHECKPOINT_REWIND_BUTTON = `${CHAT_CHECKPOINT_TOOLBAR} .action-label.codicon-discard`;

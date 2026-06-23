@@ -61,7 +61,9 @@ export function setup(logger: Logger) {
 
 		it('rewinds the most recent turn out of the conversation', async function () {
 			const app = this.app as Application;
-			const requestSelector = '.interactive-item-container.interactive-request';
+			// Scope to the panel chat view so we don't accidentally count request rows from
+			// other chat surfaces (e.g. an editor chat that happens to be open).
+			const requestSelector = 'div[id="workbench.panel.chat"] .interactive-item-container.interactive-request';
 
 			try {
 				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');

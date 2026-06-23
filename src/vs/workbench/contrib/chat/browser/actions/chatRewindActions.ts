@@ -67,9 +67,13 @@ export class RewindConversationAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 4,
+					// `precondition` only disables the item; gate visibility via `when` so the button
+					// disappears (rather than greys out) while a turn is streaming — matching the PR
+					// intent of "hides while a request is in progress".
 					when: ContextKeyExpr.and(
 						ChatContextKeys.isRequest,
 						ChatContextKeys.isFirstRequest.negate(),
+						ChatContextKeys.requestInProgress.negate(),
 						ContextKeyExpr.or(
 							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 							ChatContextKeys.chatSessionSupportsFork
