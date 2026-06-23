@@ -337,7 +337,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
-						parts.push({ kind: 'thinking', value: rp.content });
+						parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
 					}
 					break;
 				case ResponsePartKind.SystemNotification:
@@ -593,7 +593,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			case ResponsePartKind.Reasoning:
 				if (rp.content) {
-					parts.push({ kind: 'thinking', value: rp.content });
+					parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
 				}
 				break;
 			case ResponsePartKind.ToolCall: {
