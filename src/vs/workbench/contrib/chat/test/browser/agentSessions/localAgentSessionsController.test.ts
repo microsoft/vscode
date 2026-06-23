@@ -19,7 +19,7 @@ import { IChatService, ResponseModelState } from '../../../common/chatService/ch
 import { chatModelToChatDetail } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatRequestRemovalReason, IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
@@ -41,6 +41,7 @@ interface MockChatModel extends IChatModel {
 	setCustomTitle(title: string): void;
 	setRequestInProgress(inProgress: boolean): void;
 	addFirstRequest(): void;
+	removeRequests(): void;
 }
 
 function createMockChatModel(options: {
@@ -141,8 +142,17 @@ function createMockChatModel(options: {
 				return;
 			}
 			hasRequests = true;
-			requests.push(createRequest());
-			_onDidChange.fire({ kind: 'addRequest' } as IChatChangeEvent);
+			const request = createRequest();
+			requests.push(request);
+			_onDidChange.fire({ kind: 'addRequest', request });
+		},
+		removeRequests: () => {
+			if (!hasRequests) {
+				return;
+			}
+			hasRequests = false;
+			const [request] = requests.splice(0, requests.length);
+			_onDidChange.fire({ kind: 'removeRequest', requestId: request.id, reason: ChatRequestRemovalReason.Removal });
 		},
 	} as Partial<IChatModel> as MockChatModel;
 }
@@ -710,6 +720,37 @@ suite('LocalAgentsSessionsController', () => {
 				assert.strictEqual(controller.items.length, 1, 'session should appear as soon as it has a request');
 				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
 				assert.ok(addedResources.includes(sessionResource.toString()), 'new session should appear in addedOrUpdated without a manual refresh');
+			});
+		});
+
+		test('should remove a listed session once its requests are removed', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('emptied-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				const removedResources: URI[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => {
+					if (delta.removed) {
+						removedResources.push(...delta.removed);
+					}
+				}));
+
+				// All requests are removed, so the session no longer qualifies as a list item.
+				mockModel.removeRequests();
+				await timeout(0);
+
+				assert.strictEqual(controller.items.length, 0, 'session should be dropped once it has no requests');
+				assert.ok(removedResources.some(r => r.toString() === sessionResource.toString()), 'emptied session should be removed without a manual refresh');
 			});
 		});
 

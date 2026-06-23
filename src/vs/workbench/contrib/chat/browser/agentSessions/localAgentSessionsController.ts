@@ -134,7 +134,12 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
 		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
 		if (!updated) {
-			// The session does not (yet) qualify as a list item, e.g. it has no requests yet.
+			// The session no longer qualifies as a list item (e.g. it has no requests
+			// yet, or its requests were removed). Drop any stale item we were showing.
+			if (this._items.has(model.sessionResource)) {
+				this._items.delete(model.sessionResource);
+				this._onDidChangeChatSessionItems.fire({ removed: [model.sessionResource] });
+			}
 			return;
 		}
 
