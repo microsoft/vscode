@@ -18,6 +18,7 @@ import {
 	IParsedHookCommand,
 	makeMcpServerCustomization,
 	parseComponentPathConfig,
+	parseHooksJson,
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
 	shellQuotePluginRootInCommand,
@@ -390,6 +391,66 @@ suite('pluginParsers', () => {
 		test('two servers declared in the same file get distinct ids', () => {
 			const uri = URI.file('/workspace/.mcp.json');
 			assert.notStrictEqual(makeMcpServerCustomization(uri, 'a').id, makeMcpServerCustomization(uri, 'b').id);
+		});
+	});
+
+	// ---- parseHooksJson -------------------------------------------------
+
+	suite('parseHooksJson', () => {
+
+		const hookUri = URI.file('/workspace/.claude/settings.json');
+		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, '/home');
+
+		test('returns [] for a non-object, a missing hooks block, or disableAllHooks', () => {
+			assert.deepStrictEqual(parse(undefined), []);
+			assert.deepStrictEqual(parse({ model: 'x' }), []);
+			assert.deepStrictEqual(parse({ disableAllHooks: true, hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'echo' }] }] } }), []);
+		});
+
+		test('canonicalizes event names (camelCase → PascalCase) and ignores unrecognized events', () => {
+			const groups = parse({
+				hooks: {
+					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
+					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
+				},
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+		});
+
+		test('extracts commands from the nested matcher form and drops empty groups', () => {
+			const groups = parse({
+				hooks: {
+					PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo run' }] }],
+					Stop: [{ matcher: 'X', hooks: [{ type: 'not-a-command' }] }],
+				},
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PreToolUse']);
+			assert.deepStrictEqual(groups[0].commands.map(c => c.command), ['echo run']);
+		});
+
+		test('extracts commands from the flat (non-nested) command form', () => {
+			const groups = parse({
+				hooks: { PostToolUse: [{ type: 'command', command: 'echo flat' }] },
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+			assert.deepStrictEqual(groups[0].commands.map(c => c.command), ['echo flat']);
+		});
+
+		test('all groups from one file share a single file-level customization', () => {
+			const groups = parse({
+				hooks: {
+					PreToolUse: [{ hooks: [{ type: 'command', command: 'a' }] }],
+					PostToolUse: [{ hooks: [{ type: 'command', command: 'b' }] }],
+				},
+			});
+			assert.strictEqual(groups.length, 2);
+			assert.strictEqual(groups[0].customization, groups[1].customization);
+			assert.deepStrictEqual(groups[0].customization, {
+				type: CustomizationType.Hook,
+				id: customizationId(hookUri.toString()),
+				uri: hookUri.toString(),
+				name: 'settings.json',
+			});
 		});
 	});
 });
