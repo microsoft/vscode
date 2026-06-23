@@ -575,7 +575,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				if (voiceState === 'idle' && visible.length === 0 && showTranscript) {
+				const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
+				if (voiceState === 'idle' && visible.length === 0 && showTranscript && autoSendDelay < 0) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
