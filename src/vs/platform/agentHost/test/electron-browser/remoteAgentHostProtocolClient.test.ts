@@ -34,6 +34,24 @@ function isPingRequest(msg: ProtocolTransportMessage): msg is JsonRpcRequest & {
 	return hasKey(msg, { method: true, id: true }) && msg.method === 'ping';
 }
 
+/**
+ * Locate the `dispatchAction` notification that forwards a particular root
+ * config key. The connect flow sends several `RootConfigChanged` notifications
+ * (telemetry, session sync, terminal auto-approve), so matching on the config
+ * key is more robust than indexing into `sentMessages` by position.
+ */
+function findRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
+	const match = messages.find((msg): msg is JsonRpcNotification => {
+		if (!hasKey(msg, { method: true }) || msg.method !== 'dispatchAction') {
+			return false;
+		}
+		const params = (msg as JsonRpcNotification).params as { action?: { type?: string; config?: Record<string, unknown> } } | undefined;
+		return params?.action?.type === ActionType.RootConfigChanged && !!params.action.config && configKey in params.action.config;
+	});
+	assert.ok(match, `Expected a RootConfigChanged notification carrying '${configKey}'`);
+	return match;
+}
+
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -469,13 +487,17 @@ suite('RemoteAgentHostProtocolClient', () => {
 				},
 			},
 		});
-		const terminalAutoApproveEnabled = transport.sentMessages[3] as JsonRpcNotification;
-		assert.deepStrictEqual(terminalAutoApproveEnabled.params, {
-			channel: ROOT_STATE_URI,
-			clientSeq: 0,
-			action: {
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
+		const terminalAutoApproveEnabled = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey);
+		assert.deepStrictEqual(terminalAutoApproveEnabled, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
+				},
 			},
 		});
 	});
