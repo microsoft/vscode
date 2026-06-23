@@ -21,7 +21,7 @@ interface IVoiceSessionPickItem extends IQuickPickItem {
 }
 
 const setTargetButton: IQuickInputButton = {
-	iconClass: ThemeIcon.asClassName(Codicon.mic),
+	iconClass: ThemeIcon.asClassName(Codicon.voiceMode),
 	tooltip: localize('voiceSessions.setTarget', "Set as voice target")
 };
 
