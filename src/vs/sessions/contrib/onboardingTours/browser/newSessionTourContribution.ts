@@ -108,6 +108,16 @@ class NewSessionTourContribution extends Disposable implements IWorkbenchContrib
 		const pulse = new DisposableStore();
 		pulse.add(pulseOnboardingTarget(target));
 		pulse.add(addDisposableListener(target, EventType.CLICK, () => {
+			if (this._trigger.get()) {
+				return;
+			}
+			this._pulse.clear();
+			this._trigger.set(true, undefined);
+		}));
+		pulse.add(addDisposableListener(target, 'tap', () => {
+			if (this._trigger.get()) {
+				return;
+			}
 			this._pulse.clear();
 			this._trigger.set(true, undefined);
 		}));
