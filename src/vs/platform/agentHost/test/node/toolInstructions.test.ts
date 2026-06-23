@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { appendUniversalToolInstructions, composeToolInstructions, resolveToolInstructionsOverride, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { resolveToolInstructionsOverride, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /** Builds a `hasTool` predicate backed by the given available tool names. */
@@ -28,15 +28,37 @@ suite('toolInstructions', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('a', 'c'), [lineFor('a'), lineFor('b'), lineFor('c')]), 'use a\nuse c');
 		});
 
-		test('returns undefined when no line applies (including the empty registry)', () => {
+		test('returns undefined when no line applies (including the default registry when its lines do not apply)', () => {
 			assert.strictEqual(universalToolInstructions(hasTools('x'), [lineFor('a')]), undefined);
 			assert.strictEqual(universalToolInstructions(hasTools('a')), undefined);
 		});
+
+		test('renders the registered browser line from the default registry only when openBrowserPage + an agentic browser tool are present', () => {
+			assert.deepStrictEqual(
+				[
+					universalToolInstructions(hasTools('openBrowserPage', 'readPage')),
+					universalToolInstructions(hasTools('openBrowserPage')),
+					universalToolInstructions(hasTools('readPage')),
+				],
+				[
+					'Use the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.',
+					undefined,
+					undefined,
+				]
+			);
+		});
 	});
 
-	suite('composeToolInstructions', () => {
-		test('appends to the foundation section when there is no per-model override', () => {
-			assert.deepStrictEqual(composeToolInstructions(undefined, 'LINE'), { action: 'append', content: '\nLINE' });
+	// `composeToolInstructions` is module-private; its composition/spacing
+	// behavior is exercised here through the public `resolveToolInstructionsOverride`
+	// (injecting synthetic lines via the `lines` seam).
+	suite('resolveToolInstructionsOverride', () => {
+		test('returns undefined (keep existing) when no line applies', () => {
+			assert.strictEqual(resolveToolInstructionsOverride(hasTools('x'), { action: 'append', content: 'A' }, [lineFor('a')]), undefined);
+		});
+
+		test('with no per-model override, appends the rendered line after the foundation section', () => {
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), undefined, [lineFor('a')]), { action: 'append', content: '\nuse a' });
 		});
 
 		test('folds into a per-model string override, preserving action and foundation spacing', () => {
@@ -46,42 +68,18 @@ suite('toolInstructions', () => {
 				{ action: 'replace', content: 'OWN' },// owns the section → no padding
 				{ action: 'replace', content: '' },   // empty replace → no spurious leading newline
 			];
-			assert.deepStrictEqual(overrides.map(o => composeToolInstructions(o, 'LINE')), [
-				{ action: 'append', content: '\nA\nLINE' },
-				{ action: 'prepend', content: 'P\nLINE\n' },
-				{ action: 'replace', content: 'OWN\nLINE' },
-				{ action: 'replace', content: 'LINE' },
+			assert.deepStrictEqual(overrides.map(o => resolveToolInstructionsOverride(hasTools('a'), o, [lineFor('a')])), [
+				{ action: 'append', content: '\nA\nuse a' },
+				{ action: 'prepend', content: 'P\nuse a\n' },
+				{ action: 'replace', content: 'OWN\nuse a' },
+				{ action: 'replace', content: 'use a' },
 			]);
 		});
 
 		test('preserves a remove or transform-function override untouched', () => {
 			const transform = (s: string) => s;
-			assert.deepStrictEqual(composeToolInstructions({ action: 'remove' }, 'LINE'), { action: 'remove' });
-			assert.deepStrictEqual(composeToolInstructions({ action: transform }, 'LINE'), { action: transform });
-		});
-	});
-
-	suite('resolveToolInstructionsOverride', () => {
-		test('returns undefined (keep existing) when no line applies', () => {
-			const existing: SectionOverride = { action: 'append', content: 'A' };
-			assert.strictEqual(resolveToolInstructionsOverride(hasTools('x'), existing, [lineFor('a')]), undefined);
-		});
-
-		test('composes the rendered lines with the existing override', () => {
-			assert.deepStrictEqual(
-				resolveToolInstructionsOverride(hasTools('a'), { action: 'append', content: 'A' }, [lineFor('a')]),
-				{ action: 'append', content: '\nA\nuse a' }
-			);
-		});
-	});
-
-	suite('appendUniversalToolInstructions', () => {
-		test('returns the prompt unchanged while no lines apply (empty registry)', () => {
-			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a')), 'FULL PROMPT');
-		});
-
-		test('appends the rendered lines after a blank line when a line applies', () => {
-			assert.strictEqual(appendUniversalToolInstructions('FULL PROMPT', hasTools('a'), [lineFor('a')]), 'FULL PROMPT\n\nuse a');
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
+			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
 		});
 	});
 });
