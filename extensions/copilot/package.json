@@ -1835,7 +1835,10 @@
       },
       {
         "vendor": "ollama",
-        "displayName": "Ollama",
+        "displayName": "Ollama (Deprecated)",
+        "deprecation": {
+          "link": "vscode:extension/Ollama.ollama"
+        },
         "configuration": {
           "type": "object",
           "properties": {

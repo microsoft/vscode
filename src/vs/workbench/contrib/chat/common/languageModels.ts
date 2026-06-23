@@ -601,6 +601,16 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		deprecation: {
+			type: 'object',
+			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
+			properties: {
+				link: {
+					type: 'string',
+					description: localize('vscode.extension.contributes.languageModels.deprecation.link', "A URL opened when the user clicks the deprecation link shown next to the provider name. Use a 'vscode:extension/<publisher>.<name>' URI to open a replacement extension in the Extensions view.")
+				}
+			}
+		},
 		when: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.when', "Condition which must be true to show this language model chat provider in the Manage Models list.")
@@ -608,7 +618,14 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+	/**
+	 * Marks a provider as deprecated. The Manage Models view renders a link
+	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
+	 * next to the provider name. Optional so existing provider descriptors are unaffected.
+	 */
+	readonly deprecation?: { readonly link?: string };
+};
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
@@ -841,6 +858,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				displayName: item.displayName,
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
+				deprecation: item.deprecation,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};

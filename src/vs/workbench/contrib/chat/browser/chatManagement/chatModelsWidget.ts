@@ -26,6 +26,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { settingsTextInputBorder } from '../../../preferences/common/settingsEditorColorRegistry.js';
@@ -179,13 +180,21 @@ export function buildAddModelsDropdownActions(
 		return [];
 	}
 
-	// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
-	// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
+	// Sort vendors alphabetically by displayName, but sink deprecated providers (those declaring a
+	// `deprecation.link`, e.g. Ollama) to the end of the list. "OpenAI Compatible (Deprecated)" (customoai)
+	// is pinned after the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
 	const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
 	const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
 	const sortedVendors = configurableVendors
 		.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
-		.sort((a, b) => a.displayName.localeCompare(b.displayName));
+		.sort((a, b) => {
+			const aDeprecated = a.deprecation?.link ? 1 : 0;
+			const bDeprecated = b.deprecation?.link ? 1 : 0;
+			if (aDeprecated !== bDeprecated) {
+				return aDeprecated - bDeprecated;
+			}
+			return a.displayName.localeCompare(b.displayName);
+		});
 	if (customOaiVendor) {
 		sortedVendors.push(customOaiVendor);
 	}
@@ -493,6 +502,8 @@ interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly modelStatusIcon: HTMLElement;
+	readonly deprecationLinkContainer: HTMLElement;
+	readonly deprecationLink: Link;
 }
 
 class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumnTemplateData> {
@@ -501,7 +512,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	readonly templateId: string = ModelNameColumnRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -512,12 +524,17 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
+		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
+		deprecationLinkContainer.style.display = 'none';
+		const deprecationLink = disposables.add(this.instantiationService.createInstance(Link, deprecationLinkContainer, { label: '', href: '' }, {}));
 		const modelStatusIcon = DOM.append(nameContainer, $('.model-status-icon'));
 		return {
 			container,
 			statusIcon,
 			nameLabel,
 			modelStatusIcon,
+			deprecationLinkContainer,
+			deprecationLink,
 			disposables,
 			elementDisposables
 		};
@@ -526,11 +543,24 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.modelStatusIcon);
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
+		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
+
+		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
+		if (deprecationLink) {
+			const icon = $('span');
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
+			templateData.deprecationLink.link = {
+				label: icon,
+				href: deprecationLink,
+				title: localize('models.deprecation.link.tooltip', "This provider is deprecated. Open the replacement extension.")
+			};
+			templateData.deprecationLinkContainer.style.display = '';
+		}
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IModelNameColumnTemplateData): void {
