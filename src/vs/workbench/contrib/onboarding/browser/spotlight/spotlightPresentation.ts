@@ -18,6 +18,7 @@ import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '
 /** How long to wait for a step's target element to appear before skipping it. */
 const TARGET_RESOLVE_TIMEOUT = 2000;
 const TARGET_POLL_INTERVAL = 50;
+const TARGET_ANIMATION_SETTLE_TIMEOUT = 600;
 
 type StepAction = 'next' | 'back' | 'skip' | 'abort';
 
@@ -59,7 +60,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			store.add(context.onAbort(() => { aborted = true; }));
 
 			// Keep the callout glued to the target as the workbench re-layouts.
-			store.add(this.layoutService.onDidLayoutContainer(() => overlay.layout()));
+			// Schedule the measurement so it runs after the layout event's DOM work
+			// has settled, including position-only shifts that ResizeObserver misses.
+			store.add(this.layoutService.onDidLayoutContainer(() => overlay.scheduleLayout()));
 
 			let index = 0;
 			let direction: 1 | -1 = 1;
@@ -88,6 +91,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				if (!target) {
 					index += direction;
 					continue;
+				}
+
+				await this._waitForTargetReady(context.targetWindow, target);
+				if (aborted) {
+					break;
 				}
 
 				const action = await this._runStep(overlay, context, step, target, index, steps.length);
@@ -121,6 +129,29 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			element = findOnboardingTarget(targetWindow, targetId);
 		}
 		return element;
+	}
+
+	private async _waitForTargetReady(targetWindow: Window, target: HTMLElement): Promise<void> {
+		const animations = this._getActiveFiniteAnimations(target);
+		if (animations.length > 0) {
+			await Promise.race([
+				Promise.allSettled(animations.map(animation => animation.finished.catch(() => undefined))),
+				timeout(TARGET_ANIMATION_SETTLE_TIMEOUT),
+			]);
+		}
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	}
+
+	private _getActiveFiniteAnimations(target: HTMLElement): Animation[] {
+		const animations: Animation[] = [];
+		for (let element: HTMLElement | null = target; element; element = element.parentElement) {
+			for (const animation of element.getAnimations()) {
+				if ((animation.playState === 'running' || animation.playState === 'pending') && animation.effect?.getTiming().iterations !== Infinity) {
+					animations.push(animation);
+				}
+			}
+		}
+		return animations;
 	}
 
 	private _runStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: HTMLElement, index: number, stepCount: number): Promise<StepAction> {

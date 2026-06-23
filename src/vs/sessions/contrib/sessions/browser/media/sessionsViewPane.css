@@ -159,7 +159,7 @@
 		font-size: var(--vscode-agents-fontSize-label1, 12px);
 		line-height: 18px;
 		border-radius: var(--vscode-cornerRadius-small);
-		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+		border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
 		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
 		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
 		width: auto;
@@ -228,7 +228,6 @@
 		overflow: hidden;
 	}
 }
-
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }

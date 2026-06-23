@@ -48,6 +48,7 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -338,6 +339,9 @@ export class SessionsView extends ViewPane {
 			supportIcons: true,
 		}));
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
+		// Onboarding target — id is referenced by the "new session" tour prelude
+		// in vs/sessions/contrib/onboardingTours.
+		this._register(markOnboardingTarget(newSessionButton.element, 'sessions.newSession.button'));
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
 			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);

@@ -21,7 +21,7 @@ import { OnboardingScenarioService } from '../../browser/onboardingService.js';
 import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../../common/onboardingScenario.js';
-import { ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
+import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../common/onboardingScenarioService.js';
 
 /** Records every scenario it renders, then resolves with a fixed outcome. */
 class RecordingPresentation implements IOnboardingPresentation {
@@ -66,9 +66,8 @@ suite('OnboardingScenarioService', () => {
 	let idSeed = 0;
 	function uniqueKind(): string { return `test-presentation-${idSeed++}`; }
 
-	function createService(configValues: Record<string, unknown> = {}, assignment?: IWorkbenchAssignmentService): { service: OnboardingScenarioService; contextKeyService: IContextKeyService; config: TestConfigurationService; lifecycle: TestLifecycleService } {
+	function createService(configValues: Record<string, unknown> = {}, assignment?: IWorkbenchAssignmentService, storage = disposables.add(new InMemoryStorageService())): { service: OnboardingScenarioService; contextKeyService: IContextKeyService; config: TestConfigurationService; lifecycle: TestLifecycleService } {
 		const store = disposables;
-		const storage = store.add(new InMemoryStorageService());
 		const config = new TestConfigurationService(configValues);
 		const contextKeyService = store.add(new ContextKeyService(config));
 		const lifecycle = store.add(new TestLifecycleService());
@@ -107,6 +106,26 @@ suite('OnboardingScenarioService', () => {
 			{ runs: presentation.runs, shown: service.hasBeenShown('auto-1') },
 			{ runs: ['auto-1'], shown: true }
 		);
+	});
+
+	test('developer mode ignores previously shown state for auto scenarios', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'dev-repeat-1', trigger: { kind: 'auto' }, presentation: { kind: presentation.kind, payload: undefined } });
+
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = createService({}, undefined, storage).service;
+		first.start();
+		await timeout(0);
+
+		const { service: second, contextKeyService } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: true }, undefined, storage);
+		second.start();
+		await timeout(0);
+
+		contextKeyService.createKey('onboardingTestDevModeReevaluate', false).set(true);
+		await timeout(0);
+
+		assert.deepStrictEqual(presentation.runs, ['dev-repeat-1', 'dev-repeat-1']);
 	});
 
 	test('does not run automatically when onboarding.enabled is false', async () => {
