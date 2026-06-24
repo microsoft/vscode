@@ -771,7 +771,8 @@ suite('ChatSessionOperationLog', () => {
 			// must instead truncate and succeed.
 			const big = 'x'.repeat(2 * 1024 * 1024); // 2 MiB, over the 1 MiB per-string cap
 			let calls = 0;
-			const value = {
+			const value: { huge: string; label: string; toJSON(): { huge: string; label: string } } = {
+				huge: big,
 				label: 'ok',
 				toJSON() {
 					calls++;
@@ -781,7 +782,7 @@ suite('ChatSessionOperationLog', () => {
 					return { huge: big, label: 'ok' };
 				},
 			};
-			const clone = Adapt.deepCloneWithFallback(value) as { huge: string; label: string };
+			const clone = Adapt.deepCloneWithFallback(value);
 			assert.strictEqual(calls, 2, 'should have been called twice (initial + retry)');
 			assert.strictEqual(clone.label, 'ok');
 			assert.notStrictEqual(clone.huge, big);
@@ -803,8 +804,8 @@ suite('ChatSessionOperationLog', () => {
 					return { dump: big, kept: 'meta' };
 				},
 			};
-			const transform = Adapt.value<typeof huge, typeof huge>();
-			const extracted = transform.extract(huge) as unknown as { dump: string; kept: string };
+			const transform = Adapt.value<typeof huge, { dump: string; kept: string }>((a, b) => a.dump === b.dump && a.kept === b.kept);
+			const extracted = transform.extract(huge);
 			assert.strictEqual(calls, 2);
 			assert.strictEqual(extracted.kept, 'meta');
 			assert.ok(extracted.dump.startsWith('[VS Code:'));

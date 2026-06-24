@@ -246,7 +246,7 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		try {
-			const content = JSON.stringify(session, undefined, 2);
+			const content = stringifyEntryWithFallback(session);
 			const storageLocation = this.getTransferredSessionStorageLocation(session.sessionResource);
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 		} catch (e) {
