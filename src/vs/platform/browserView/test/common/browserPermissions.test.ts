@@ -140,5 +140,10 @@ suite('toOriginKey', () => {
 		assert.strictEqual(toOriginKey('file:///C:/Users/me/index.html'), 'file:///C:/Users/me/index.html');
 		assert.strictEqual(toOriginKey(undefined), '');
 		assert.strictEqual(toOriginKey('  not a url  '), 'not a url');
+		// Whitespace is trimmed before parsing so valid URLs still normalize.
+		assert.strictEqual(toOriginKey('  https://example.com/a  '), 'https://example.com');
+		// Opaque origins reported as the literal "null" have no real host.
+		assert.strictEqual(toOriginKey('null'), '');
+		assert.strictEqual(toOriginKey('   '), '');
 	});
 });

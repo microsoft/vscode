@@ -79,6 +79,10 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	private _storage: IApplicationStorageMainService | undefined;
 	private _persistable = false;
 
+	/** While set, store changes are coalesced into a single deferred flush. */
+	private _batching = false;
+	private _batchDirty = false;
+
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserSessionPermissionRequest>());
 	readonly onDidRequestPermission = this._onDidRequestPermission.event;
 
@@ -95,6 +99,12 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 
 		this._register(this._permissionStore.onDidChange(() => {
 			this._resolvePending();
+			// During a batched `set()` defer the write so several category
+			// changes collapse into a single storage flush.
+			if (this._batching) {
+				this._batchDirty = true;
+				return;
+			}
 			if (this._persistable) {
 				this._flushNow();
 			}
@@ -151,8 +161,18 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	}
 
 	set(origin: string, grants: readonly IPermissionCategoryState[]): void {
-		// Mutating the store fires onDidChange, which persists immediately.
-		this._permissionStore.setMany(origin, grants);
+		// Coalesce the per-category onDidChange flushes into a single write for
+		// the whole batch so persisting from the management UI isn't N writes.
+		this._batching = true;
+		this._batchDirty = false;
+		try {
+			this._permissionStore.setMany(origin, grants);
+		} finally {
+			this._batching = false;
+		}
+		if (this._batchDirty && this._persistable) {
+			this._flushNow();
+		}
 	}
 
 	clear(): void {
@@ -181,12 +201,14 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 			return false;
 		}
 
-		// At least one category is undecided: prompt for each undecided one.
-		await Promise.all(categories.map(category =>
-			this._permissionStore.getDecision(origin, category)
-				? Promise.resolve()
-				: this._prompt(webContents, origin, category)
-		));
+		// At least one category is undecided: prompt for each undecided one. Do
+		// this sequentially so we never surface two modal prompts at once (e.g.
+		// a single `media` request maps to both Camera and Microphone).
+		for (const category of categories) {
+			if (!this._permissionStore.getDecision(origin, category)) {
+				await this._prompt(webContents, origin, category);
+			}
+		}
 
 		return categories.every(category => this._permissionStore.isAllowed(origin, category));
 	}

@@ -243,11 +243,17 @@ function resolveMediaCategories(mediaKinds?: ReadonlyArray<'video' | 'audio'>): 
  * Falls back to the trimmed raw input if it cannot be parsed.
  */
 export function toOriginKey(url: string | undefined | null): string {
-	if (!url) {
+	// Trim first so leading/trailing whitespace doesn't push otherwise valid
+	// URLs into the catch path. Electron also reports opaque/unique origins
+	// (sandboxed frames, data: URLs, etc.) as the literal string "null"; that is
+	// not a real host, so treat it as no origin to keep category defaults from
+	// applying to it.
+	const trimmed = url?.trim();
+	if (!trimmed || trimmed === 'null') {
 		return '';
 	}
 	try {
-		const parsed = new URL(url);
+		const parsed = new URL(trimmed);
 		// Host-less schemes such as file: have no meaningful origin (it is
 		// reported as "null" in Node but "file://" in Chromium), so key off the
 		// scheme and full path instead -- query and fragment are dropped.
@@ -256,7 +262,7 @@ export function toOriginKey(url: string | undefined | null): string {
 		}
 		return parsed.origin;
 	} catch {
-		return url.trim();
+		return trimmed;
 	}
 }
 
