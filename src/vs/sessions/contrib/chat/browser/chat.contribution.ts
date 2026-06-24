@@ -77,11 +77,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 1,
-					// Surface a quick "new session" affordance in the titlebar only
-					// when the sessions list (sidebar) is hidden, since the list has
-					// its own new-session button. Gated behind an A/B experiment
-					// (SessionsTitleBarNewSessionEnabledContext) so we can measure how
-					// the affordance moves new-session metrics before rolling it out.
+					// Show in the titlebar only when the sidebar is hidden, gated behind an A/B experiment.
 					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
 				}
 			]

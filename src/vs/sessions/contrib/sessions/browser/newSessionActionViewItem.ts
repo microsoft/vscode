@@ -32,9 +32,8 @@ import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import './media/newSessionActionViewItem.css';
 
 /**
- * Renders the new-session action ({@link NEW_SESSION_ACTION_ID}) as the compact "New" pill
- * with an inline keybinding hint. Used wherever the action is contributed — the sessions
- * sidebar header and the titlebar — so both surfaces render the exact same affordance.
+ * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
+ * header and the titlebar.
  */
 class NewSessionActionViewItem extends BaseActionViewItem {
 
@@ -68,10 +67,7 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(markOnboardingTarget(newSessionButton.element, 'sessions.newSession.button'));
 		this._register(newSessionButton.onDidClick(e => {
-			// The inner button lives inside this view item's <li>, whose click
-			// listener (installed by BaseActionViewItem) would also run the action.
-			// Stop propagation so the command runs exactly once, and run through the
-			// action runner so the action's enabled state is respected.
+			// Stop propagation so the parent <li> click handler doesn't run the action twice.
 			EventHelper.stop(e, true);
 			if (!this.action.enabled) {
 				return;
@@ -141,22 +137,14 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Registers {@link NewSessionActionViewItem} for the new-session action in every menu that
- * surfaces it (the sessions sidebar header and the titlebar's left toolbar). The factory is
- * announced once right after registration so a toolbar that was built before this contribution
- * ran re-renders and picks the widget up.
- *
- * The titlebar entry is additionally gated behind an A/B experiment: this contribution resolves
- * the {@link NEW_SESSION_TITLEBAR_TREATMENT} treatment and reflects it into
- * {@link SessionsTitleBarNewSessionEnabledContext}, which the titlebar menu's `when` clause
- * checks. The control group keeps the prior behaviour (no titlebar button) so we can measure how
- * the affordance moves new-session metrics before rolling it out.
+ * Registers {@link NewSessionActionViewItem} in the sessions sidebar header and the titlebar.
+ * The titlebar entry is gated behind an A/B experiment via {@link SessionsTitleBarNewSessionEnabledContext}.
  */
 export class NewSessionActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.newSessionActionViewItem';
 
-	/** ExP treatment that, when enabled, shows the new-session button in the titlebar. */
+	/** ExP treatment that shows the new-session button in the titlebar. */
 	private static readonly NEW_SESSION_TITLEBAR_TREATMENT = 'agentSessionsTitleBarNewSession';
 
 	private readonly titleBarEnabledContext: IContextKey<boolean>;
@@ -183,7 +171,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		}
 		onDidRegister.fire();
 
-		// Resolve the titlebar experiment now and whenever the assignment service refetches.
+		// Resolve the titlebar experiment now and on refetch.
 		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTitleBarTreatment()));
 		this.updateTitleBarTreatment();
 	}

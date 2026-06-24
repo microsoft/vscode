@@ -170,7 +170,7 @@
 	display: flex;
 }
 
-/* Give the left toolbar's actions breathing room from one another and the titlebar edges. */
+/* Spacing between the left toolbar's actions. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
 	gap: 4px;
 }
