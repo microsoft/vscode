@@ -607,7 +607,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// closing it discards it entirely. Established chats are only hidden from
 		// the tab strip (reopenable from the session header's chats dropdown).
 		if (this.isEmptyChat(chat)) {
-			await this.sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			await this.sessionsManagementService.deleteChat(session, chat.resource);
 		} else {
 			this._visibility.closeChat(session, chat);
 		}

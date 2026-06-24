@@ -11,7 +11,6 @@ import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -103,7 +102,6 @@ interface ITestFixture {
 	chatService: MockChatService;
 	storage: TestStorageService;
 	config: TestConfigurationService;
-	dialog: { confirmResult: boolean; confirmCount: number };
 }
 
 function createFixture(store: DisposableStore): ITestFixture {
@@ -113,15 +111,10 @@ function createFixture(store: DisposableStore): ITestFixture {
 	const config = new TestConfigurationService();
 	config.setUserConfiguration(LOCAL_SESSION_ENABLED_SETTING, true);
 
-	const dialog = { confirmResult: true, confirmCount: 0 };
-
 	instantiationService.stub(IChatService, chatService as unknown as IChatService);
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(IConfigurationService, config);
 	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
-		override async confirm() { dialog.confirmCount++; return { confirmed: dialog.confirmResult }; }
-	}());
 	instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
 		override getUriLabel(uri: URI): string { return uri.fsPath; }
 	}());
@@ -132,7 +125,7 @@ function createFixture(store: DisposableStore): ITestFixture {
 	}());
 	instantiationService.stub(IFileService, new class extends mock<IFileService>() { }());
 	instantiationService.stub(IInstantiationService, instantiationService);
-	return { instantiationService, chatService, storage, config, dialog };
+	return { instantiationService, chatService, storage, config };
 }
 
 const TEST_FOLDER = URI.file('/test/folder');
@@ -345,9 +338,9 @@ suite('LocalChatSessionsProvider', () => {
 		assert.strictEqual(restored[0].chats.get().length, 2);
 	});
 
-	test('deleteChat removes a child chat but keeps the session after confirmation', async () => {
+	test('deleteChat removes a child chat but keeps the session', async () => {
 		const store = leaks.add(new DisposableStore());
-		const { instantiationService, dialog } = createFixture(store);
+		const { instantiationService } = createFixture(store);
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 
 		const session = await commitNewSession(provider);
@@ -355,24 +348,8 @@ suite('LocalChatSessionsProvider', () => {
 		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
 
 		await provider.deleteChat(session.sessionId, childResource);
-		assert.strictEqual(dialog.confirmCount, 1);
 		assert.strictEqual(provider.getSessions().length, 1);
 		assert.strictEqual(provider.getSessions()[0].chats.get().length, 1);
-	});
-
-	test('deleteChat keeps the child chat when the confirmation is cancelled', async () => {
-		const store = leaks.add(new DisposableStore());
-		const { instantiationService, dialog } = createFixture(store);
-		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
-
-		const session = await commitNewSession(provider);
-		const childResource = await addChat(provider, session);
-		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
-
-		dialog.confirmResult = false;
-		await provider.deleteChat(session.sessionId, childResource);
-		assert.strictEqual(dialog.confirmCount, 1);
-		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
 	});
 
 	test('deleteChat with an unknown chat URI is a no-op', async () => {
