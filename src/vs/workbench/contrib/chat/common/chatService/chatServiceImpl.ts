@@ -1917,6 +1917,49 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	async sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
+		if (!model) {
+			return;
+		}
+
+		const pendingRequests = model.getPendingRequests();
+		const target = pendingRequests.find(r => r.request.id === requestId);
+		if (!target) {
+			return;
+		}
+
+		if (this._isServerManagedQueue(sessionResource)) {
+			// Agent host sessions drain their queue on the server, and the
+			// server intentionally does not consume pending messages on
+			// cancellation. So the local reorder/process dance is a no-op and
+			// the message would be dropped. Instead, remove the targeted
+			// message from the queue (clearing it server-side) and re-send it
+			// as a normal turn once the active turn has been cancelled.
+			const message = target.request.message.text;
+			const sendOptions: IChatSendRequestOptions = {
+				...target.sendOptions,
+				queue: undefined,
+				attachedContext: target.request.variableData.variables.slice(),
+			};
+			this.removePendingRequest(sessionResource, requestId);
+			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+			await this.sendRequest(sessionResource, message, sendOptions);
+			return;
+		}
+
+		// Local sessions: move the targeted message to the front (keeping its
+		// kind), cancel the in-flight request, then let the queue processor
+		// dequeue and send it.
+		const reordered = [
+			{ requestId: target.request.id, kind: target.kind },
+			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),
+		];
+		this.setPendingRequests(sessionResource, reordered);
+		await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		this.processPendingRequests(sessionResource);
+	}
+
 	public hasSessions(): boolean {
 		return this._chatSessionStore.hasSessions();
 	}
