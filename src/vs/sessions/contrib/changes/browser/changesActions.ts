@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, reset } from '../../../../base/browser/dom.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -16,10 +16,12 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
+import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ChangesViewModel } from './changesViewModel.js';
 
@@ -31,7 +33,7 @@ class ViewAllChangesAction extends Action2 {
 	constructor() {
 		super({
 			id: ViewAllChangesAction.ID,
-			title: localize2('agentSessions.viewChanges', 'View All Changes'),
+			title: localize2('agentSessions.changes', 'Changes'),
 			f1: false,
 			// Diff stats shown in the session header meta row
 			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
@@ -39,7 +41,7 @@ class ViewAllChangesAction extends Action2 {
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				when: SessionHasChangesContext
 			},
 		});
@@ -76,15 +78,20 @@ interface IDiffStats {
 }
 
 /**
- * Renders the session's aggregate diff stats (`+insertions -deletions`) as the label of the
- * {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row). Activating the item runs the action, which opens the
- * multi-file diff editor.
+ * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
+ * (the session header meta row) as a `Changes +insertions -deletions` pill. It extends the generic
+ * {@link SessionHeaderMetaActionViewItem} (so the `Changes` title renders consistently with other
+ * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
+ * action, which opens the multi-file diff editor.
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
- * are shown even when several session views are visible at once.
+ * are shown even when several session views are visible at once. The counts always reflect
+ * the session's **Branch Changes** changeset (the branch-vs-base diff), located by id in
+ * {@link IActiveSession.changesets}, so the header is independent of whichever changeset the
+ * Changes view currently has selected. When no branch changeset is present, it falls back to
+ * the session's top-level {@link IActiveSession.changes}.
  */
-export class ViewAllChangesActionViewItem extends ActionViewItem {
+export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	private readonly _diffStatsObs: IObservable<IDiffStats>;
 
@@ -93,10 +100,12 @@ export class ViewAllChangesActionViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
 	) {
-		super(undefined, action, { ...options, icon: false, label: true });
+		super(undefined, action, options);
 
 		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const changes = sessionContext.session.read(reader)?.changes.read(reader) ?? [];
+			const session = sessionContext.session.read(reader);
+			const branchChangeset = session?.changesets.read(reader)?.find(c => c.id === BRANCH_CHANGES_CHANGESET_ID);
+			const changes = (branchChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
 			let insertions = 0;
 			let deletions = 0;
 			for (const change of changes) {
@@ -113,21 +122,12 @@ export class ViewAllChangesActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-composite-bar-meta-diff');
-	}
-
-	protected override updateLabel(): void {
-		if (!this.label) {
-			return;
-		}
+	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
 		const { insertions, deletions } = this._diffStatsObs.get();
-		reset(
-			this.label,
+		return [
 			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
 			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
-		);
+		];
 	}
 
 	protected override getTooltip(): string {

@@ -29,14 +29,6 @@ unscoped so the widget renders identically wherever it is mounted. */
 	cursor: pointer;
 }
 
-/* When mounted in the titlebar, add breathing room from the adjacent
-sidebar toggle and the surrounding titlebar edges. */
-.sessions-titlebar-new-session-item {
-	display: inline-flex;
-	align-items: center;
-	margin: 0 4px;
-}
-
 .agent-sessions-compact-new-button.monaco-button.default-colors:hover {
 	background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 }
