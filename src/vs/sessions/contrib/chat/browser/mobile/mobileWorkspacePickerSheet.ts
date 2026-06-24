@@ -6,7 +6,7 @@
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_CONFIRM, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspacePickerItem } from '../sessionWorkspacePicker.js';
 import { SubmenuAction, IAction } from '../../../../../base/common/actions.js';
@@ -18,6 +18,9 @@ import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/com
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
 
+/** Id for the synthetic row that confirms the currently browsed folder. */
+const USE_CURRENT_FOLDER_ID = 'useFolder:';
+
 /**
  * Plan for translating an action-widget picker entry into mobile sheet
  * rows. Each plan entry pairs the row(s) we'll show in the bottom sheet
@@ -25,6 +28,12 @@ const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
  */
 type MobilePickerRow = {
 	readonly sheetItem: IMobilePickerSheetItem;
+	readonly run: () => void;
+};
+
+type BrowsedFolder = {
+	readonly query: string;
+	readonly label: string;
 	readonly run: () => void;
 };
 
@@ -192,6 +201,7 @@ export async function showMobileWorkspacePickerSheet(
 	// the sheet can resolve folder taps back to a provider selection.
 	const folderRunById = new Map<string, () => void>();
 	const folderLabelById = new Map<string, string>();
+	let currentFolder: BrowsedFolder | undefined;
 	// Track the current search query so drill-down can append to it.
 	let currentSearchQuery = '';
 	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0
@@ -218,6 +228,15 @@ export async function showMobileWorkspacePickerSheet(
 				}
 				const flattened = results.flat();
 				const sheetItems: IMobilePickerSheetItem[] = [];
+				if (currentFolder?.query === query) {
+					folderRunById.set(USE_CURRENT_FOLDER_ID, currentFolder.run);
+					sheetItems.push({
+						id: USE_CURRENT_FOLDER_ID,
+						label: localize('mobileWorkspacePicker.openCurrentFolder', "Open “{0}”", currentFolder.label),
+						icon: Codicon.folderOpened,
+						checked: true,
+					});
+				}
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					const folderUri = entry.workspace.folders[0]?.root;
@@ -263,8 +282,18 @@ export async function showMobileWorkspacePickerSheet(
 						headerBrowseActions[idx]?.invoke();
 						return;
 					}
+					if (id === USE_CURRENT_FOLDER_ID) {
+						const run = folderRunById.get(id);
+						if (run) {
+							run();
+							lastSearchFolderRun = undefined;
+							return MOBILE_PICKER_SHEET_CONFIRM;
+						}
+						return;
+					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
-						lastSearchFolderRun = folderRunById.get(id);
+						const run = folderRunById.get(id);
+						lastSearchFolderRun = run;
 						// Drill down: build a path query from the
 						// current query prefix + this folder's name,
 						// e.g. "projects/" → "projects/subfolder/".
@@ -275,7 +304,11 @@ export async function showMobileWorkspacePickerSheet(
 							// append the tapped folder name + `/`.
 							const lastSlash = currentSearchQuery.lastIndexOf('/');
 							const prefix = lastSlash >= 0 ? currentSearchQuery.slice(0, lastSlash + 1) : '';
-							return `${prefix}${folderName}/`;
+							const query = `${prefix}${folderName}/`;
+							if (run) {
+								currentFolder = { query, label: folderName, run };
+							}
+							return query;
 						}
 						return;
 					}
@@ -285,6 +318,7 @@ export async function showMobileWorkspacePickerSheet(
 					if (row) {
 						row.run();
 						lastSearchFolderRun = undefined;
+						currentFolder = undefined;
 					}
 					return;
 				},

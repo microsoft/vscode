@@ -90,9 +90,13 @@ export interface IMobilePickerSheetOptions {
 	 * drill-down navigation where tapping a folder replaces the query
 	 * with `folderName/` to list its children.
 	 *
+	 * If the callback returns {@link MOBILE_PICKER_SHEET_CONFIRM}, the
+	 * tapped row is treated as confirmed: the sheet resolves with that
+	 * row's id and closes immediately.
+	 *
 	 * Ignored when `stayOpenOnSelect` is false.
 	 */
-	readonly onDidSelect?: (id: string) => string | void;
+	readonly onDidSelect?: (id: string) => string | typeof MOBILE_PICKER_SHEET_CONFIRM | void;
 }
 
 export interface IMobilePickerSheetHeaderAction {
@@ -174,6 +178,11 @@ export interface IMobileContentSheetOptions {
  * regular row selections.
  */
 export const MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX = 'headerAction:';
+
+/**
+ * Return from `onDidSelect` to confirm the tapped row and close the sheet while `stayOpenOnSelect` is enabled.
+ */
+export const MOBILE_PICKER_SHEET_CONFIRM = Symbol('mobilePickerSheetConfirm');
 
 /**
  * Show a phone-friendly bottom sheet for picker-style choices.
@@ -266,10 +275,12 @@ export function showMobilePickerSheet(
 						}
 					}
 				}
-				const drillDown = options.onDidSelect!(id);
-				if (typeof drillDown === 'string' && searchInput && setSearchQuery) {
-					searchInput.value = drillDown;
-					setSearchQuery(drillDown);
+				const selectResult = options.onDidSelect!(id);
+				if (selectResult === MOBILE_PICKER_SHEET_CONFIRM) {
+					finish(id);
+				} else if (typeof selectResult === 'string' && searchInput && setSearchQuery) {
+					searchInput.value = selectResult;
+					setSearchQuery(selectResult);
 				}
 			}
 			: (id: string, _row: HTMLElement, _sectionIndex: number) => { finish(id); };
