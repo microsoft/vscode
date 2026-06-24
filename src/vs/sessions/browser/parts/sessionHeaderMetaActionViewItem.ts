@@ -83,7 +83,19 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateAriaLabel(): void {
-		this.button?.element.setAttribute('aria-label', this.getTooltip() ?? '');
+		const ariaLabel = this.getTooltip();
+		if (ariaLabel) {
+			this.button?.element.setAttribute('aria-label', ariaLabel);
+		} else {
+			this.button?.element.removeAttribute('aria-label');
+		}
+	}
+
+	protected override getTooltip(): string | undefined {
+		// `MenuItemAction.tooltip` defaults to '' when not provided, which would
+		// leave the pill without a managed hover and an empty aria-label. Fall
+		// back to the action label so the pill is always labelled.
+		return this._action.tooltip || this._action.label || undefined;
 	}
 
 	private getLabelContent(): Array<HTMLElement | string> {
