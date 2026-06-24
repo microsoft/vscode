@@ -30,7 +30,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isSubagentSession, parseSubagentSessionUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { IAgentHostGitService } from '../agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -321,7 +321,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
-			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent } });
+			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			// Stale-write guard: if `authenticate()` rotated the token
 			// while we were awaiting the model list, a newer refresh has
 			// already published the right value — don't overwrite it.

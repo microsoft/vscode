@@ -118,7 +118,7 @@ class SurveyAccessibilityHelp implements IAccessibleViewImplementation {
 		const helpText = [
 			localize('survey.help.overview', "You are in a survey form. Use Tab to move between questions and options."),
 			localize('survey.help.select', "Use arrow keys within a question to navigate between options, and Space or Enter to select."),
-			localize('survey.help.submit', "Tab to the Submit button and press Enter once all questions are answered."),
+			localize('survey.help.submit', "Tab to the Submit button and press Enter once the required question is answered. Additional questions are optional."),
 		].join('\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Survey,

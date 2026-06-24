@@ -46,7 +46,13 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { isObject } from '../../../base/common/types.js';
+import * as json from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -665,6 +671,23 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+/** Human-readable label for a managed-settings {@link ManagedSettingsSource} in the diagnostics report. */
+function managedSettingsSourceLabel(source: ManagedSettingsSource): string {
+	switch (source) {
+		case 'server': return 'GitHub Server API';
+		case 'nativeMdm': return 'Native MDM';
+		case 'none': return 'None (no managed settings active)';
+	}
+}
+
+/** Render a value as a fenced JSON code block for the diagnostics report. */
+function jsonBlock(value: unknown): string {
+	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
+}
+
+/** Header row + separator for the report's two-column `Property | Value` tables. */
+const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
+
 class PolicyDiagnosticsAction extends Action2 {
 
 	constructor() {
@@ -685,14 +708,22 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
+		// Native MDM is a desktop-only channel, registered in the renderer service collection on
+		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
+		// accessor is only valid before the first `await` below.
+		let copilotManagedSettingsService: ICopilotManagedSettingsService | undefined;
+		try {
+			copilotManagedSettingsService = accessor.get(ICopilotManagedSettingsService);
+		} catch {
+			// no native MDM channel in this window (e.g. web)
+		}
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 		let content = '# VS Code Policy Diagnostics\n\n';
 		content += '*WARNING: This file may contain sensitive information.*\n\n';
 		content += '## System Information\n\n';
-		content += '| Property | Value |\n';
-		content += '|----------|-------|\n';
+		content += PROPERTY_VALUE_TABLE_HEADER;
 		content += `| Generated | ${new Date().toISOString()} |\n`;
 		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
 		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
@@ -726,8 +757,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				content += `**Account Label**: ${accountLabel}\n\n`;
 
 				content += '### Detailed Account Properties\n\n';
-				content += '| Property | Value |\n';
-				content += '|----------|-------|\n';
+				content += PROPERTY_VALUE_TABLE_HEADER;
 
 				// Iterate through all properties of the account object
 				for (const [key, value] of Object.entries(account)) {
@@ -762,8 +792,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		try {
 			const gateInfo = accountPolicyGateService.gateInfo;
 			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
-			content += '| Property | Value |\n';
-			content += '|----------|-------|\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += `| State | \`${gateInfo.state}\` |\n`;
 			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
 			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
@@ -783,31 +812,86 @@ class PolicyDiagnosticsAction extends Action2 {
 		content += '## Managed Settings\n\n';
 		try {
 			const policyData = defaultAccountService.policyData;
+			const serverManagedSettings = policyData?.managedSettings;
 
-			content += '| Property | Value |\n';
-			content += '|----------|-------|\n';
+			const nativeManagedSettings: ManagedSettingsData | undefined = copilotManagedSettingsService?.managedSettings;
+
+			// Reuse the same precedence as policy evaluation so this report can never drift from the
+			// source AccountPolicyService actually applies.
+			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings);
+
+			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
+
+			// Collect non-fatal issues from every managed-settings parsing/normalization callback
+			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
+			// jsonc-style: accumulate every error instead of failing on the first.
+			const parseErrors: { stage: string; message: string }[] = [];
+
+			content += '### GitHub Server API\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
-			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
-			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
-			content += '\n';
+			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n\n`;
 
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
-			if (rawResponse !== null && rawResponse !== undefined) {
-				content += '### Raw Response\n\n';
-				content += '```json\n';
-				content += JSON.stringify(rawResponse, null, 2);
-				content += '\n```\n\n';
+			if (isObject(rawResponse)) {
+				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
+				content += '**Raw response** (last successful fetch)\n\n';
+				content += jsonBlock(rawResponse);
 			}
 
-			content += '### Processed (after projection)\n\n';
-			const managedSettingsData = {
-				managedSettings: policyData?.managedSettings,
-			};
-			content += '```json\n';
-			content += JSON.stringify(managedSettingsData, null, 2);
-			content += '\n```\n\n';
+			content += '**Normalized bag**\n\n';
+			content += jsonBlock(serverManagedSettings);
+
+			content += '### Native MDM\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no'} |\n`;
+			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
+			if (copilotManagedSettingsService) {
+				content += jsonBlock(nativeManagedSettings);
+			}
+
+			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
+			// so the report shows exactly what reaches `policy.value(...)`.
+			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
+			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
+				const declared = property.policy?.managedSettings;
+				if (declared) {
+					Object.assign(declaredDefinitions, declared);
+				}
+			}
+			const effective = projectManagedSettings(selection.values ?? {}, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+
+			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
+			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
+			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
+			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
+				const value = effective[key];
+				if (typeof value !== 'string') {
+					continue;
+				}
+				const jsonErrors: json.ParseError[] = [];
+				json.parse(value, jsonErrors);
+				for (const e of jsonErrors) {
+					parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
+				}
+			}
+
+			content += '### Effective\n\n';
+			content += jsonBlock(effective);
+
+			content += `### Parse Errors (${parseErrors.length})\n\n`;
+			if (parseErrors.length > 0) {
+				content += '| Stage | Message |\n';
+				content += '|-------|---------|\n';
+				for (const { stage, message } of parseErrors) {
+					content += `| ${stage} | ${message.replace(/\|/g, '\\|')} |\n`;
+				}
+				content += '\n';
+			}
 		} catch (error) {
 			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
 		}

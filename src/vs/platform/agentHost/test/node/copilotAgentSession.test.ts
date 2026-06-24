@@ -21,6 +21,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -3621,7 +3622,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
-		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
+		test('handleExitPlanModeRequest produces a plan-review input request with fallback question', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-plan');
 
@@ -3632,9 +3633,37 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 
-			// The plan summary and "View full plan" link are emitted as a
-			// markdown response part before the input request, so the
-			// client renders them inline above the question.
+			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
+			assert.deepStrictEqual(planReview, {
+				title: 'Review Plan',
+				content: '## Plan summary',
+				canProvideFeedback: true,
+				answerQuestionId: request.questions?.[0].id,
+				planUri: URI.file('/sessions/abc/plan.md').toString(),
+				actions: [
+					{
+						id: 'autopilot',
+						label: 'Implement with Autopilot',
+						description: 'Auto-approve all tool calls and continue until done.',
+						default: true,
+						permissionLevel: 'autopilot',
+					},
+					{
+						id: 'interactive',
+						label: 'Implement Plan',
+						description: 'Implement the plan, asking for input and approval for each action.',
+					},
+					{
+						id: 'exit_only',
+						label: 'Approve Plan Only',
+						description: 'Approve the plan without executing it. I will implement it myself.',
+					},
+				],
+			});
+
+			// The summary is now carried by the plan-review payload so the
+			// renderer can dock the richer plan review widget without duplicating
+			// the content as a separate markdown response part.
 			const deltaContent = signals.flatMap(s => {
 				if (s.kind !== 'action') { return []; }
 				if (s.action.type === ActionType.ChatResponsePart) {
@@ -3646,8 +3675,7 @@ suite('CopilotAgentSession', () => {
 				}
 				return [];
 			}).join('');
-			assert.ok(deltaContent.includes('Plan summary'), `expected delta to include plan summary; got: ${deltaContent}`);
-			assert.ok(deltaContent.includes('plan.md'), 'delta should include a link to the plan file');
+			assert.strictEqual(deltaContent, '');
 
 			const question = request.questions?.[0];
 			assert.strictEqual(question?.kind, ChatInputQuestionKind.SingleSelect);
