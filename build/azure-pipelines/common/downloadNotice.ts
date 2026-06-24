@@ -350,8 +350,10 @@ async function main(): Promise<void> {
 	installDiagnostics();
 
 	// Feature flag = instant rollback. Default ON during the cutover validation;
-	// set VSCODE_OVERWRITE_TPN=false to force the legacy mixin notice.
-	if (process.env['VSCODE_OVERWRITE_TPN'] === 'false') {
+	// set VSCODE_OVERWRITE_TPN=false to force the legacy mixin notice. Check is
+	// case-insensitive on purpose so YAML casing (true/false vs True/False) can't
+	// silently break the rollback lever.
+	if ((process.env['VSCODE_OVERWRITE_TPN'] ?? '').trim().toLowerCase() === 'false') {
 		log('RESULT=disabled feature flag off (VSCODE_OVERWRITE_TPN=false); keeping legacy notice.');
 		return;
 	}
