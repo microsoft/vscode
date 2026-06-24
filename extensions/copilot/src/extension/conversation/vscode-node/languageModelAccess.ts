@@ -85,7 +85,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge
@@ -373,11 +373,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.inputPrice,
 				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.outputPrice,
 				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				cacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheWriteTokenPrice,
 				longContextInputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.inputPrice,
 				longContextOutputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.outputPrice,
 				longContextCacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				longContextCacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheWriteTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
+				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
@@ -831,14 +834,19 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			}
 			if (delta.copilotToolCalls) {
 				for (const call of delta.copilotToolCalls) {
+					// Anthropic models send "" (empty string) for tools with no parameters.
+					let parameters: object;
 					try {
-						// Anthropic models send "" (empty string) for tools with no parameters.
-						const parameters = JSON.parse(call.arguments || '{}');
-						progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
+						parameters = JSON.parse(call.arguments || '{}');
 					} catch (err) {
+						// The model can stream malformed JSON for tool arguments. Log it for
+						// diagnostics and fall back to empty parameters so the tool call is still
+						// surfaced to the extension (matching other tool-call consumers) instead of
+						// leaking an unhandled rejection out of this fire-and-forget callback.
 						this._logService.error(err, `Got invalid JSON for tool call: ${call.arguments}`);
-						throw new Error('Invalid JSON for tool call');
+						parameters = {};
 					}
+					progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
 				}
 			}
 

@@ -292,7 +292,9 @@ export interface ITokenPriceTier {
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
-	readonly cacheReadTokenPrice: number;
+	readonly cacheReadTokenPrice: number | undefined;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
 	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
@@ -345,6 +347,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
+	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

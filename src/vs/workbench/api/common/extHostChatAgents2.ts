@@ -453,6 +453,7 @@ export class ChatAgentResponseStream {
 						promptTokens: usage.promptTokens,
 						completionTokens: usage.completionTokens,
 						outputBuffer: usage.outputBuffer,
+						copilotCredits: usage.copilotCredits,
 						promptTokenDetails: usage.promptTokenDetails
 					};
 					_report(dto);
@@ -851,6 +852,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				badgeTooltip: item.badgeTooltip,
 				extensionId: item.extensionId,
 				pluginUri: item.pluginUri,
+				pluginLabel: item.pluginLabel,
 				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {

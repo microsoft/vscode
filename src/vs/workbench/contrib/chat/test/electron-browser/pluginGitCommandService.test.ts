@@ -39,12 +39,17 @@ suite('NativePluginGitCommandService', () => {
 	});
 
 	test('pull delegates to ILocalGitService and returns result', async () => {
+		let allowHardResetOnDivergence: boolean | undefined;
 		const service = new NativePluginGitCommandService(createLocalGitStub({
-			pull: async () => true,
+			pull: async (_operationId, _repoPath, options) => {
+				allowHardResetOnDivergence = options?.allowHardResetOnDivergence;
+				return true;
+			},
 		}));
 
 		const result = await service.pull(URI.file('/tmp/repo'));
 		assert.strictEqual(result, true);
+		assert.strictEqual(allowHardResetOnDivergence, true);
 	});
 
 	test('checkout delegates to ILocalGitService with detached flag', async () => {

@@ -142,6 +142,7 @@ import '../workbench/services/inlineCompletions/common/inlineCompletionsUnificat
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
+import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -448,7 +449,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
-import './services/sessions/browser/sessionsViewService.js';
+import './services/sessions/browser/sessionsService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
@@ -462,6 +463,7 @@ import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.cont
 import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './services/sessions/browser/sessionsListModelService.js';
+import './services/sessions/browser/sessionGroupsService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
@@ -480,6 +482,11 @@ import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+
+// Onboarding: the engine + spotlight presentation (from the workbench layer) and
+// the Agents window scenario data.
+import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
+import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

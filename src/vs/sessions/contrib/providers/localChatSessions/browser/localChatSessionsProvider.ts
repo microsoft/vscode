@@ -43,7 +43,7 @@ export const LocalSessionType: ISessionType = {
 /** Setting key controlling whether Local VS Code chat sessions are available in the Agents app. */
 export const LOCAL_SESSION_ENABLED_SETTING = 'sessions.chat.localAgent.enabled';
 
-const LOCAL_PROVIDER_ID = 'local-chat';
+export const LOCAL_PROVIDER_ID = 'local-chat';
 const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 const STORAGE_KEY_MIGRATED = 'sessions.localChat.migrated';
 
@@ -395,7 +395,7 @@ class LocalSession extends Disposable {
 export class LocalChatSessionsProvider extends Disposable implements ISessionsProvider {
 
 	readonly id = LOCAL_PROVIDER_ID;
-	readonly label = localize('localChatSessionsProvider', "Local Chat");
+	readonly label = localize('localChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.vm;
 	readonly order = 0;
 	readonly browseActions: readonly [] = [];
@@ -805,6 +805,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
 
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
@@ -852,6 +858,13 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			session.setTitle(title);
 			this._updateStoredSession(session);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(session)] });
+		}
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.resource, title);
 		}
 	}
 
@@ -1195,6 +1208,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			mainChat: primary.mainChat,
 			capabilities: {
 				supportsMultipleChats: true,
+				supportsRename: true,
+				supportsDelete: true,
 			},
 		};
 	}

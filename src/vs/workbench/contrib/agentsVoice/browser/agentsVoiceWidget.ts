@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { html, render, nothing } from '../../../../base/common/lit-html/lit-html.js';
-import { signal, effect, computed } from '../../../../base/common/signals-core/signals-core.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { observableValue, derived, autorun, type ISettableObservable, type IReader } from '../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT } from '../common/agentsVoice.js';
-import { renderHeader } from './components/headerComponent.js';
-import { renderStatusRows } from './components/statusRowsComponent.js';
-import { renderTranscript, updateTranscriptOverflowState } from './components/transcriptComponent.js';
-import { renderSessionList, type SessionRowData, type SessionGroupData } from './components/sessionListComponent.js';
-import { renderFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
-import { renderOnboarding } from './components/onboardingComponent.js';
-import { FONT_SIZE } from './components/tokens.js';
+import { createHeader } from './components/headerComponent.js';
+import { createStatusRows } from './components/statusRowsComponent.js';
+import { createTranscript } from './components/transcriptComponent.js';
+import { createSessionList, type SessionRowData, type SessionGroupData } from './components/sessionListComponent.js';
+import { createFeedbackDialog, type FeedbackDialogState } from './components/feedbackDialog.js';
+import { createOnboarding } from './components/onboardingComponent.js';
+import { createVoiceBar } from './components/voiceBarComponent.js';
+import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
+	readonly hideDisconnect: boolean;
 	connect(): void;
 	disconnect(): void;
 	pttDown(): void;
@@ -42,6 +45,12 @@ export interface VoiceWidgetCallbacks {
 	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
 	/** Called when the user dismisses the onboarding card. */
 	onOnboardingCompleted?(): void;
+	/**
+	 * Optional — when provided, the expand chevron opens this picker instead of
+	 * the inline session list. Used by the floating window to show the agent
+	 * sessions quickpick with a "set as voice target" action.
+	 */
+	showSessionsPicker?(): void;
 }
 
 /**
@@ -90,6 +99,13 @@ export interface VoiceWidgetOptions {
 	 * (collapsed) to match the legacy floating aux-window behavior.
 	 */
 	readonly defaultExpanded?: boolean;
+	/**
+	 * When true, renders the widget in a chat-input-box style layout:
+	 * a rounded bordered container for transcript/placeholder text with a
+	 * toolbar row below for action icons. Matches the chat panel input box
+	 * appearance.
+	 */
+	readonly inputBoxLayout?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
@@ -107,40 +123,68 @@ const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
 	showOnboarding: false,
 	reshowOnboardingOnDisconnect: false,
 	defaultExpanded: false,
+	inputBoxLayout: false,
 };
 
 export class AgentsVoiceWidget extends Disposable {
 
 	// --- Reactive state ---
-	private readonly _isConnected = signal(false);
-	private readonly _isConnecting = signal(false);
-	private readonly _isReconnecting = signal(false);
-	private readonly _voiceState = signal<VoiceState>('idle');
-	private readonly _expanded = signal(false);
-	private readonly _workingCount = signal(0);
-	private readonly _needsInputCount = signal(0);
-	private readonly _doneCount = signal(0);
-	private readonly _pendingToolConfirmations = signal<readonly IPendingToolConfirmation[]>([]);
-	private readonly _speakingSession = signal<URI | undefined>(undefined);
-	private readonly _speakingSessionLabel = signal<string | undefined>(undefined);
-	private readonly _sessions = signal<readonly SessionRowData[]>([]);
-	private readonly _sessionGroups = signal<readonly SessionGroupData[] | undefined>(undefined);
-	private readonly _selectedTargetSession = signal<URI | undefined>(undefined);
-	private readonly _glowIntensity = signal(0);
-	private readonly _glowPhase = signal(0);
-	private readonly _transcriptTurns = signal<readonly ITranscriptTurn[]>([]);
-	private readonly _pttKeyLabel = signal<string | undefined>(undefined);
-	private readonly _statusText = signal('');
-	private readonly _popoutAvailable = signal(true);
-	private readonly _feedbackDialogState = signal<FeedbackDialogState | null>(null);
-	private readonly _showOnboarding = signal(false);
-	private readonly _onboardingPendingConnect = signal(false);
+	private readonly _isConnected: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _isConnecting: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _isReconnecting: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _voiceState: ISettableObservable<VoiceState> = observableValue(this, 'idle');
+	private readonly _expanded: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _workingCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _needsInputCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _doneCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _pendingToolConfirmations: ISettableObservable<readonly IPendingToolConfirmation[]> = observableValue(this, []);
+	private readonly _speakingSession: ISettableObservable<URI | undefined> = observableValue(this, undefined);
+	private readonly _speakingSessionLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
+	private readonly _sessions: ISettableObservable<readonly SessionRowData[]> = observableValue(this, []);
+	private readonly _sessionGroups: ISettableObservable<readonly SessionGroupData[] | undefined> = observableValue(this, undefined);
+	private readonly _selectedTargetSession: ISettableObservable<URI | undefined> = observableValue(this, undefined);
+	private readonly _transcriptTurns: ISettableObservable<readonly ITranscriptTurn[]> = observableValue(this, []);
+	private readonly _pttKeyLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
+	private readonly _statusText: ISettableObservable<string> = observableValue(this, '');
+	private readonly _popoutAvailable: ISettableObservable<boolean> = observableValue(this, true);
+	private readonly _feedbackDialogState: ISettableObservable<FeedbackDialogState | null> = observableValue(this, null);
+	private readonly _showOnboarding: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _onboardingPendingConnect: ISettableObservable<boolean> = observableValue(this, false);
 
 	// --- Derived state ---
-	private readonly _shouldShowExpanded = computed(() => this._expanded.value);
+	private readonly _shouldShowExpanded = derived(this, reader => this._expanded.read(reader));
 
-	// --- Animation ---
-	private _animationFrameId: number | undefined;
+	// --- DOM components ---
+	private readonly _headerComponent = createHeader();
+	private readonly _onboardingComponent = createOnboarding();
+	private readonly _feedbackDialogComponent = createFeedbackDialog();
+	private readonly _voiceBarComponent = createVoiceBar();
+	private readonly _transcriptComponent = this._register(createTranscript());
+	private readonly _inputBoxTranscriptComponent = this._register(createTranscript());
+	private readonly _statusRowsComponent = createStatusRows();
+	private readonly _sessionListComponent = createSessionList();
+
+	// --- Stable DOM elements ---
+	private readonly _rootDiv: HTMLElement;
+	private readonly _glowDiv: HTMLElement;
+	private readonly _titleRow: HTMLElement;
+	private readonly _contentDiv: HTMLElement;
+	private readonly _statusTextDiv: HTMLElement;
+	private readonly _sessionListWrapper: HTMLElement;
+	private readonly _expandSpacer: HTMLElement;
+	private readonly _chevronWrapper: HTMLElement;
+	private readonly _chevronIcon: HTMLElement;
+
+	// --- Input box layout elements (created only when inputBoxLayout=true) ---
+	private readonly _inputBoxContainer: HTMLElement | undefined;
+	private readonly _inputBoxPlaceholder: HTMLElement | undefined;
+	private readonly _inputBoxToolbar: HTMLElement | undefined;
+	private readonly _inputBoxMicBtn: HTMLElement | undefined;
+	private readonly _inputBoxGearBtn: HTMLElement | undefined;
+	private readonly _inputBoxConnIndicator: HTMLElement | undefined;
+	private readonly _inputBoxFeedbackBtn: HTMLElement | undefined;
+	private readonly _inputBoxSessionsBtn: HTMLElement | undefined;
+	private readonly _inputBoxCloseBtn: HTMLElement | undefined;
 
 	private readonly _options: Required<VoiceWidgetOptions>;
 
@@ -152,8 +196,216 @@ export class AgentsVoiceWidget extends Disposable {
 		super();
 
 		this._options = { ...DEFAULT_OPTIONS, ...options };
-		this._showOnboarding.value = this._options.showOnboarding;
-		this._expanded.value = this._options.defaultExpanded;
+		this._showOnboarding.set(this._options.showOnboarding, undefined);
+		this._expanded.set(this._options.defaultExpanded, undefined);
+
+		// Build stable DOM structure
+		const opts = this._options;
+		const widthStyle = opts.width === 'auto'
+			? 'width:100%;position:relative;'
+			: `position:absolute;top:0;left:0;width:${opts.width}px;${opts.inputBoxLayout ? '' : `min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`}`;
+
+		this._rootDiv = dom.$('div');
+		this._rootDiv.style.cssText = `${widthStyle}display:flex;flex-direction:column;user-select:none;font-family:inherit;font-size:${FONT_SIZE.base};color:var(--vscode-foreground);box-sizing:border-box;margin:0;${opts.inputBoxLayout && opts.draggable ? '-webkit-app-region:drag;' : ''}`;
+
+		this._glowDiv = dom.$('div');
+		this._glowDiv.style.cssText = 'position:absolute;top:0;left:0;right:0;height:50px;pointer-events:none;z-index:0;';
+
+		this._titleRow = dom.$('div');
+		this._titleRow.style.cssText = 'display:flex;align-items:baseline;gap:6px;padding:8px 14px 0;overflow:hidden;white-space:nowrap;position:relative;z-index:1;';
+		if (opts.title) {
+			const titleSpan = dom.$('span');
+			titleSpan.style.cssText = `font-size:${FONT_SIZE.micro};font-weight:700;color:var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;user-select:none;`;
+			titleSpan.textContent = opts.title;
+			this._titleRow.append(titleSpan);
+			if (opts.subtitle) {
+				const subtitleSpan = dom.$('span');
+				subtitleSpan.style.cssText = `font-size:${FONT_SIZE.micro};font-weight:400;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;`;
+				subtitleSpan.textContent = opts.subtitle;
+				this._titleRow.append(subtitleSpan);
+			}
+		}
+
+		this._contentDiv = dom.$('div');
+		this._contentDiv.style.cssText = 'display:flex;flex-direction:column;flex:1;padding:8px 14px 2px;position:relative;z-index:1;';
+
+		this._statusTextDiv = dom.$('div');
+		this._statusTextDiv.style.cssText = `text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;`;
+
+		this._sessionListWrapper = dom.$('div');
+		this._sessionListWrapper.style.cssText = 'display:flex;flex-direction:column;-webkit-app-region:no-drag;overflow:hidden;';
+		this._sessionListWrapper.append(this._sessionListComponent.element);
+
+		this._expandSpacer = dom.$('div');
+		this._expandSpacer.style.cssText = 'flex:1;';
+
+		this._chevronWrapper = dom.$('div');
+		this._chevronWrapper.role = 'button';
+		this._chevronWrapper.tabIndex = 0;
+		this._chevronWrapper.style.cssText = 'display:flex;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;';
+		this._chevronIcon = dom.$('span.codicon');
+		this._chevronIcon.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);`;
+		this._register(dom.addDisposableListener(this._chevronIcon, 'mouseenter', () => { this._chevronIcon.style.color = 'var(--vscode-foreground)'; }));
+		this._register(dom.addDisposableListener(this._chevronIcon, 'mouseleave', () => { this._chevronIcon.style.color = 'var(--vscode-descriptionForeground)'; }));
+		this._chevronWrapper.append(this._chevronIcon);
+		this._register(dom.addDisposableListener(this._chevronWrapper, 'click', (e) => {
+			e.preventDefault(); e.stopPropagation();
+			if (this.callbacks.showSessionsPicker) {
+				this.callbacks.showSessionsPicker();
+			} else {
+				this._expanded.set(!this._expanded.get(), undefined);
+			}
+		}));
+		this._register(dom.addDisposableListener(this._chevronWrapper, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._chevronWrapper.click(); }
+		}));
+
+		// --- Input box layout elements ---
+		if (opts.inputBoxLayout) {
+			// Inject processing animation CSS into the document head
+			// (@property must be at document level to work)
+			const styleEl = dom.$('style');
+			styleEl.textContent = `
+				@property --voice-processing-angle { syntax: '<angle>'; inherits: false; initial-value: 135deg; }
+				@keyframes voice-processing-spin { from { --voice-processing-angle: 135deg; } to { --voice-processing-angle: 495deg; } }
+				@keyframes agents-voice-input-icon-pulse {
+					0%, 100% { box-shadow: 0 0 4px rgba(var(--agents-voice-input-icon-rgb, 88,166,255), 0.45); }
+					50% { box-shadow: 0 0 10px rgba(var(--agents-voice-input-icon-rgb, 88,166,255), 0.75); }
+				}
+				.monaco-workbench.monaco-enable-motion .agents-voice-mode-button.agents-voice-mode-active {
+					animation: agents-voice-input-icon-pulse 1.4s ease-in-out infinite;
+				}
+				.processing { overflow: visible !important; }
+				.processing::before {
+					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
+					background: conic-gradient(from var(--voice-processing-angle),
+						transparent 0deg, rgba(88,166,255,0.9) 20deg, rgba(88,166,255,1) 30deg,
+						rgba(88,166,255,0.6) 50deg, transparent 90deg, transparent 360deg);
+					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					-webkit-mask-composite: xor; mask-composite: exclude;
+					animation: voice-processing-spin 3s linear infinite;
+					pointer-events: none; z-index: 2;
+				}
+				.processing::after {
+					content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px;
+					background: conic-gradient(from var(--voice-processing-angle),
+						transparent 0deg, rgba(88,166,255,0.5) 25deg, rgba(88,166,255,0.3) 50deg, transparent 90deg, transparent 360deg);
+					-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+					-webkit-mask-composite: xor; mask-composite: exclude;
+					filter: blur(1.5px); animation: voice-processing-spin 3s linear infinite;
+					pointer-events: none; z-index: 1;
+				}
+			`;
+			getWindow(this.container).document.head.append(styleEl);
+
+			// Rounded bordered container for transcript/placeholder (matches chat-input-container)
+			this._inputBoxContainer = dom.$('div');
+			this._inputBoxContainer.style.cssText = 'box-sizing:border-box;background-color:var(--vscode-input-background);border:1px solid var(--vscode-input-border, transparent);border-radius:var(--vscode-cornerRadius-large, 8px);padding:10px 12px;width:100%;position:relative;min-height:32px;display:flex;align-items:center;-webkit-app-region:no-drag;';
+
+			this._inputBoxPlaceholder = dom.$('span');
+			this._inputBoxPlaceholder.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;`;
+			this._inputBoxTranscriptComponent.element.style.width = '100%';
+			this._inputBoxTranscriptComponent.element.style.display = 'none';
+			this._inputBoxContainer.append(this._inputBoxPlaceholder, this._inputBoxTranscriptComponent.element);
+
+			// Toolbar row below the input box
+			this._inputBoxToolbar = dom.$('div');
+			this._inputBoxToolbar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px 2px;-webkit-app-region:no-drag;';
+
+			const toolbarBtn = (className: string, ariaLabel: string, title: string): HTMLElement => {
+				const el = dom.$(`span.codicon.${className}`);
+				el.role = 'button';
+				el.tabIndex = 0;
+				el.ariaLabel = ariaLabel;
+				el.title = title;
+				el.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
+				this._register(dom.addDisposableListener(el, 'mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; }));
+				this._register(dom.addDisposableListener(el, 'mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; }));
+				addKeyboardActivation(el);
+				return el;
+			};
+
+			// Mic button
+			this._inputBoxMicBtn = dom.$('span.codicon.codicon-voice-mode.agents-voice-mode-button');
+			this._inputBoxMicBtn.role = 'button';
+			this._inputBoxMicBtn.tabIndex = 0;
+			this._inputBoxMicBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
+			this._inputBoxMicBtn.title = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
+			this._inputBoxMicBtn.style.cssText = `font-size:${FONT_SIZE.iconMd};cursor:pointer;-webkit-app-region:no-drag;border-radius:4px;padding:2px;`;
+
+			// Connection indicator
+			this._inputBoxConnIndicator = toolbarBtn('codicon-debug-connected',
+				localize('agentsVoice.disconnect', "Disconnect"),
+				localize('agentsVoice.disconnect', "Disconnect"));
+
+			// Gear button
+			this._inputBoxGearBtn = toolbarBtn('codicon-gear',
+				localize('agentsVoice.configureKeybinding', "Configure keybinding"),
+				localize('agentsVoice.configureKeybinding', "Configure keybinding"));
+
+			// Feedback button
+			this._inputBoxFeedbackBtn = toolbarBtn('codicon-feedback',
+				localize('agentsVoice.sendFeedback', "Send feedback"),
+				localize('agentsVoice.sendFeedback', "Send feedback"));
+
+			// Sessions dropdown button
+			this._inputBoxSessionsBtn = toolbarBtn('codicon-list-tree',
+				localize('agentsVoice.sessions', "Sessions"),
+				localize('agentsVoice.sessions', "Sessions"));
+			this._register(dom.addDisposableListener(this._inputBoxSessionsBtn, 'click', (e) => {
+				e.preventDefault(); e.stopPropagation();
+				this._expanded.set(!this._expanded.get(), undefined);
+			}));
+
+			// Close button
+			this._inputBoxCloseBtn = toolbarBtn('codicon-chrome-minimize',
+				localize('agentsVoice.minimize', "Minimize"),
+				localize('agentsVoice.minimize', "Minimize"));
+
+			const toolbarSpacer = dom.$('span');
+			toolbarSpacer.style.flex = '1';
+
+			this._inputBoxToolbar.append(
+				this._inputBoxMicBtn,
+				this._inputBoxConnIndicator,
+				this._inputBoxGearBtn,
+				toolbarSpacer,
+				this._inputBoxFeedbackBtn,
+				this._inputBoxSessionsBtn,
+				this._inputBoxCloseBtn
+			);
+		}
+
+		// Assemble: all children are in the DOM; visibility is toggled via display
+		if (opts.inputBoxLayout) {
+			this._contentDiv.append(
+				this._onboardingComponent.element,
+				this._feedbackDialogComponent.element,
+				this._inputBoxToolbar!,
+				this._transcriptComponent.element,
+				this._sessionListWrapper,
+				this._statusRowsComponent.element,
+				this._inputBoxContainer!,
+			);
+		} else {
+			this._contentDiv.append(
+				this._onboardingComponent.element,
+				this._headerComponent.element,
+				this._voiceBarComponent.element,
+				this._feedbackDialogComponent.element,
+				this._statusTextDiv,
+				this._transcriptComponent.element,
+				this._statusRowsComponent.element,
+				this._sessionListWrapper,
+				this._expandSpacer,
+				this._chevronWrapper
+			);
+		}
+
+		this._rootDiv.append(this._glowDiv, this._titleRow, this._contentDiv);
+		this.container.append(this._rootDiv);
 
 		if (this._options.focusable) {
 			this.container.tabIndex = 0;
@@ -168,20 +420,20 @@ export class AgentsVoiceWidget extends Disposable {
 			win.document.addEventListener('keydown', onDocKeydown, true);
 			this._register(toDisposable(() => win.document.removeEventListener('keydown', onDocKeydown, true)));
 
-			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
+			this._register(dom.addDisposableListener(this.container, 'keydown', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
 					// Prevent repeat keydowns from activating focused child
 					// buttons (role="button" elements fire click on Space).
 					e.preventDefault();
 				}
-			});
-			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
+			}));
+			this._register(dom.addDisposableListener(this.container, 'keyup', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
 					e.preventDefault();
 					pttKeyCode = undefined;
 					this.callbacks.pttUp();
 				}
-			});
+			}));
 
 			// Hook into pttDown to snapshot which key started PTT.
 			const origPttDown = this.callbacks.pttDown;
@@ -203,17 +455,15 @@ export class AgentsVoiceWidget extends Disposable {
 		};
 		this._register(toDisposable(() => pttChannel.close()));
 
-		// Auto-render on signal changes
-		const disposeRender = effect(() => {
-			render(this._view(), this.container);
-			// Schedule resize + overflow detection after render
+		// Auto-render on observable changes (but NOT glow — that's in RAF)
+		const renderDisposable = autorun(reader => {
+			this._updateDOM(reader);
 			getWindow(this.container).requestAnimationFrame(() => {
-				updateTranscriptOverflowState(this.container);
 				this.callbacks.onResize();
 			});
 		});
-		this._register(toDisposable(disposeRender));
-		this._register(toDisposable(() => render(nothing, this.container)));
+		this._register(renderDisposable);
+		this._register(toDisposable(() => dom.clearNode(this.container)));
 
 		// Handle the onboarding "Get Started → connect" flow: dismiss once
 		// connection succeeds, reset only on actual failure.
@@ -223,19 +473,19 @@ export class AgentsVoiceWidget extends Disposable {
 		let sawConnecting = false;
 		let failureCheckPending = false;
 		let disposed = false;
-		const disposeOnboardingConnect = effect(() => {
-			if (!this._onboardingPendingConnect.value) {
+		const onboardingConnectDisposable = autorun(reader => {
+			if (!this._onboardingPendingConnect.read(reader)) {
 				sawConnecting = false;
 				return;
 			}
-			if (this._isConnected.value) {
-				this._onboardingPendingConnect.value = false;
+			if (this._isConnected.read(reader)) {
+				this._onboardingPendingConnect.set(false, undefined);
 				sawConnecting = false;
-				this._showOnboarding.value = false;
+				this._showOnboarding.set(false, undefined);
 				this.callbacks.onOnboardingCompleted?.();
 				return;
 			}
-			if (this._isConnecting.value) {
+			if (this._isConnecting.read(reader)) {
 				sawConnecting = true;
 				return;
 			}
@@ -244,17 +494,15 @@ export class AgentsVoiceWidget extends Disposable {
 				queueMicrotask(() => {
 					failureCheckPending = false;
 					if (disposed) { return; }
-					if (this._onboardingPendingConnect.value && !this._isConnected.value && !this._isConnecting.value) {
-						this._onboardingPendingConnect.value = false;
+					if (this._onboardingPendingConnect.read(undefined) && !this._isConnected.read(undefined) && !this._isConnecting.read(undefined)) {
+						this._onboardingPendingConnect.set(false, undefined);
 						sawConnecting = false;
 					}
 				});
 			}
 		});
-		this._register(toDisposable(() => {
-			disposed = true;
-			disposeOnboardingConnect();
-		}));
+		this._register(toDisposable(() => { disposed = true; }));
+		this._register(onboardingConnectDisposable);
 
 		// Always-on-when-disconnected onboarding: when the host opts in via
 		// ``reshowOnboardingOnDisconnect``, the onboarding card re-appears any
@@ -264,18 +512,18 @@ export class AgentsVoiceWidget extends Disposable {
 		// the Get Started button; that dismissal is honored until the next
 		// disconnect transition.
 		if (this._options.reshowOnboardingOnDisconnect) {
-			const disposeReshow = effect(() => {
-				const connected = this._isConnected.value;
-				const connecting = this._isConnecting.value;
-				const reconnecting = this._isReconnecting.value;
-				const pendingConnect = this._onboardingPendingConnect.value;
+			const reshowDisposable = autorun(reader => {
+				const connected = this._isConnected.read(reader);
+				const connecting = this._isConnecting.read(reader);
+				const reconnecting = this._isReconnecting.read(reader);
+				const pendingConnect = this._onboardingPendingConnect.read(reader);
 				if (!connected && !connecting && !reconnecting && !pendingConnect) {
-					if (!this._showOnboarding.value) {
-						this._showOnboarding.value = true;
+					if (!this._showOnboarding.read(reader)) {
+						this._showOnboarding.set(true, undefined);
 					}
 				}
 			});
-			this._register(toDisposable(disposeReshow));
+			this._register(reshowDisposable);
 		}
 
 		// Start waveform animation
@@ -283,188 +531,401 @@ export class AgentsVoiceWidget extends Disposable {
 		this._register(toDisposable(() => this._stopWaveformAnimation()));
 	}
 
-	private _view() {
-		const onboarding = this._showOnboarding.value;
-		const glowActive = onboarding || this._voiceState.value === 'speaking' || this._voiceState.value === 'listening';
-		const intensity = onboarding ? 0.6 : this._glowIntensity.value;
-		const baseOpacity = 0.15 + intensity * 0.4;
-		const r = (onboarding || this._voiceState.value === 'speaking') ? '163,113,247' : '88,166,255';
+	private _updateDOM(reader: IReader): void {
+		if (this._options.inputBoxLayout) {
+			this._updateDOMInputBoxLayout(reader);
+		} else {
+			this._updateDOMClassicLayout(reader);
+		}
+	}
+
+	private _updateDOMInputBoxLayout(reader: IReader): void {
+		const onboarding = this._showOnboarding.read(reader);
+		const voiceState = this._voiceState.read(reader);
+		const isConnected = this._isConnected.read(reader);
+		const isConnecting = this._isConnecting.read(reader);
+		const isReconnecting = this._isReconnecting.read(reader);
+		const showConnected = isConnected || isReconnecting;
 		const opts = this._options;
+		const showExpanded = this._shouldShowExpanded.read(reader) && opts.showExpandChevron;
 
-		const widthStyle = opts.width === 'auto'
-			? 'width:100%;position:relative;'
-			: `position:absolute;top:0;left:0;width:${opts.width}px;min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`;
+		// Adjust root width when sessions are expanded
+		const baseWidth = typeof opts.width === 'number' ? opts.width : AGENTS_VOICE_WINDOW_DEFAULT_WIDTH;
+		this._rootDiv.style.width = `${baseWidth}px`;
 
-		const showExpanded = this._shouldShowExpanded.value && opts.showExpandChevron;
-		const hasTitle = !!opts.title;
+		// Title row: hidden during onboarding
+		this._titleRow.style.display = (onboarding || !opts.title) ? 'none' : 'flex';
 
-		const titleRow = hasTitle ? html`
-			<div style="display:flex;align-items:baseline;gap:6px;padding:8px 14px 0;overflow:hidden;white-space:nowrap;position:relative;z-index:1;">
-				<span style="font-size:${FONT_SIZE.micro};font-weight:700;color:var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;user-select:none;">${opts.title}</span>
-				${opts.subtitle ? html`<span style="font-size:${FONT_SIZE.micro};font-weight:400;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;">${opts.subtitle}</span>` : nothing}
-			</div>
-		` : nothing;
+		if (onboarding) {
+			this._onboardingComponent.element.style.display = '';
+			this._feedbackDialogComponent.element.style.display = 'none';
+			this._inputBoxContainer!.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+			this._inputBoxToolbar!.style.display = 'none';
 
-		return html`
-			<div style="${widthStyle}display:flex;flex-direction:column;user-select:none;font-family:inherit;font-size:${FONT_SIZE.base};color:var(--vscode-foreground);box-sizing:border-box;margin:0;">
-				${glowActive ? html`<div style="position:absolute;top:0;left:0;right:0;height:50px;pointer-events:none;background:radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%);z-index:0;"></div>` : nothing}
-				${onboarding ? nothing : titleRow}
-				<div style="display:flex;flex-direction:column;flex:1;padding:8px 14px 2px;position:relative;z-index:1;">
-					${this._showOnboarding.value ? renderOnboarding({
-			pttKeyLabel: this._pttKeyLabel.value,
-			isConnecting: this._onboardingPendingConnect.value || this._isConnecting.value,
-			onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
-			onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
-			onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
-		}) : html`
-					${renderHeader({
-			copilotIconSrc: this.callbacks.copilotIconSrc,
-			showCopilotIcon: opts.showCopilotIcon,
-			isConnected: this._isConnected.value,
-			isConnecting: this._isConnecting.value,
-			isReconnecting: this._isReconnecting.value,
-			voiceState: this._voiceState.value,
-			draggable: opts.draggable,
-			showClose: opts.showClose,
-			showPopout: !!this.callbacks.openPopout && this._popoutAvailable.value,
-			centerConnectButton: opts.centerConnectButton,
-			onMicDown: (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); },
-			onMicUp: () => { this.callbacks.pttUp(); },
-			onConnectClick: (e: MouseEvent) => {
-				e.preventDefault();
-				e.stopPropagation();
-				if (this._isConnecting.value) { return; }
-				if (this._isConnected.value) {
-					this.callbacks.disconnect();
+			this._onboardingComponent.update({
+				pttKeyLabel: this._pttKeyLabel.read(reader),
+				isConnecting: this._onboardingPendingConnect.read(reader) || isConnecting,
+				onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
+				onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
+				onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
+			});
+			return;
+		}
+
+		this._onboardingComponent.element.style.display = 'none';
+
+		const feedbackState = this._feedbackDialogState.read(reader);
+		if (feedbackState) {
+			this._feedbackDialogComponent.element.style.display = '';
+			this._feedbackDialogComponent.update({
+				onSubmit: (text) => this._submitFeedback(text),
+				onCancel: () => { this._feedbackDialogState.set(null, undefined); },
+			}, feedbackState);
+			this._inputBoxContainer!.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+			this._inputBoxToolbar!.style.display = 'none';
+			return;
+		}
+
+		this._feedbackDialogComponent.element.style.display = 'none';
+
+		// Input box container — show transcript inside or placeholder
+		this._inputBoxContainer!.style.display = 'flex';
+		const transcriptTurns = this._transcriptTurns.read(reader);
+		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
+		if (!showConnected || (voiceState !== 'listening' && voiceState !== 'speaking')) {
+			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
+			this._inputBoxContainer!.style.boxShadow = 'none';
+		}
+
+		// Toggle processing comet animation when agent is thinking
+		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
+
+		if (hasTranscript) {
+			if (showExpanded) {
+				// When expanded, show full transcript component with chat-like styling
+				this._transcriptComponent.element.style.display = '';
+				this._transcriptComponent.element.style.padding = '8px 12px';
+				this._transcriptComponent.element.style.borderBottom = '1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent))';
+				this._transcriptComponent.update({ turns: transcriptTurns, chatStyle: true });
+				this._inputBoxPlaceholder!.style.display = 'none';
+				this._inputBoxTranscriptComponent.element.style.display = 'none';
+			} else {
+				this._inputBoxPlaceholder!.style.display = 'none';
+				this._transcriptComponent.element.style.display = 'none';
+				this._transcriptComponent.element.style.padding = '';
+				this._transcriptComponent.element.style.borderBottom = '';
+				this._inputBoxTranscriptComponent.element.style.display = '';
+				this._inputBoxTranscriptComponent.update({ turns: transcriptTurns, chatStyle: true, scrollToTop: true });
+			}
+		} else {
+			// Show placeholder
+			this._inputBoxPlaceholder!.style.display = '';
+			this._inputBoxTranscriptComponent.element.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			const keyLabel = this._pttKeyLabel.read(reader);
+			if (showConnected) {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
+			} else if (keyLabel) {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
+			} else {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.clickMicToTalk', "Click voice mode to talk");
+			}
+		}
+
+		// Status rows — hide in inputBoxLayout (no "No active sessions" text needed)
+		if (!showExpanded) {
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+		} else {
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = '';
+			// Constrain session list height so toolbar and transcript always remain visible
+			this._sessionListWrapper.style.maxHeight = '200px';
+			this._sessionListWrapper.style.overflowY = 'auto';
+			this._sessionListWrapper.style.scrollbarWidth = 'none';
+			this._sessionListComponent.update({
+				sessions: this._sessions.read(reader),
+				groups: this._sessionGroups.read(reader),
+				selectedTarget: this._selectedTargetSession.read(reader),
+				onOpenSession: (r) => this.callbacks.openSession(r),
+				onStopSession: (r) => this.callbacks.stopSession(r),
+				onCancelSession: (r) => this.callbacks.cancelSession(r),
+				onSelectTarget: (r) => { this._selectedTargetSession.set(r, undefined); this.callbacks.selectTargetSession(r); },
+				onNewSession: () => this.callbacks.newSessionAsTarget(),
+			});
+		}
+
+		// Toolbar — always visible
+		this._inputBoxToolbar!.style.display = 'flex';
+
+		// Mic button — always visible (primary action)
+		this._inputBoxMicBtn!.style.display = '';
+		const keyLabel = this._pttKeyLabel.read(reader);
+		const micTooltip = keyLabel
+			? localize('agentsVoice.pushToTalkKey', "Push to talk ({0})", keyLabel)
+			: localize('agentsVoice.pushToTalk', "Push to talk");
+		this._inputBoxMicBtn!.title = micTooltip;
+		this._inputBoxMicBtn!.ariaLabel = micTooltip;
+		const micColor = voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
+			: voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
+				: voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
+					: 'var(--vscode-descriptionForeground)';
+		this._inputBoxMicBtn!.style.color = micColor;
+		const micIsActive = voiceState === 'listening' || voiceState === 'speaking';
+		this._inputBoxMicBtn!.classList.toggle('agents-voice-mode-active', micIsActive);
+		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+		this._inputBoxMicBtn!.style.borderRadius = '50%';
+		if (!micIsActive) {
+			this._inputBoxMicBtn!.style.boxShadow = 'none';
+		}
+		this._inputBoxMicBtn!.onmousedown = (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); };
+		this._inputBoxMicBtn!.onmouseup = () => { this.callbacks.pttUp(); };
+
+		// Connection indicator — visible when connected
+		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
+		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
+
+		// Gear button — always visible
+		this._inputBoxGearBtn!.style.display = '';
+		this._inputBoxGearBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); };
+
+		// Feedback button — always visible
+		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
+
+		// Sessions button — always visible, icon toggles with expanded state
+		this._inputBoxSessionsBtn!.style.display = '';
+		this._inputBoxSessionsBtn!.className = `codicon codicon-${showExpanded ? 'chevron-up' : 'list-tree'}`;
+		this._inputBoxSessionsBtn!.title = showExpanded
+			? localize('agentsVoice.collapseSessions', "Collapse sessions")
+			: localize('agentsVoice.sessions', "Sessions");
+
+		// Close button
+		this._inputBoxCloseBtn!.style.display = opts.showClose ? '' : 'none';
+		this._inputBoxCloseBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); };
+	}
+
+	private _updateDOMClassicLayout(reader: IReader): void {
+		const onboarding = this._showOnboarding.read(reader);
+		const voiceState = this._voiceState.read(reader);
+		const opts = this._options;
+		const showExpanded = this._shouldShowExpanded.read(reader) && opts.showExpandChevron;
+
+		// Title row: hidden during onboarding
+		this._titleRow.style.display = (onboarding || !opts.title) ? 'none' : 'flex';
+
+		// Onboarding vs main UI
+		if (onboarding) {
+			this._onboardingComponent.element.style.display = '';
+			this._headerComponent.element.style.display = 'none';
+			this._voiceBarComponent.element.style.display = 'none';
+			this._feedbackDialogComponent.element.style.display = 'none';
+			this._statusTextDiv.style.display = 'none';
+			this._transcriptComponent.element.style.display = 'none';
+			this._statusRowsComponent.element.style.display = 'none';
+			this._sessionListWrapper.style.display = 'none';
+			this._expandSpacer.style.display = 'none';
+			this._chevronWrapper.style.display = 'none';
+
+			this._onboardingComponent.update({
+				pttKeyLabel: this._pttKeyLabel.read(reader),
+				isConnecting: this._onboardingPendingConnect.read(reader) || this._isConnecting.read(reader),
+				onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
+				onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
+				onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
+			});
+		} else {
+			this._onboardingComponent.element.style.display = 'none';
+			this._headerComponent.element.style.display = '';
+
+			const feedbackState = this._feedbackDialogState.read(reader);
+
+			this._headerComponent.update({
+				copilotIconSrc: this.callbacks.copilotIconSrc,
+				showCopilotIcon: opts.showCopilotIcon,
+				isConnected: this._isConnected.read(reader),
+				isConnecting: this._isConnecting.read(reader),
+				isReconnecting: this._isReconnecting.read(reader),
+				voiceState,
+				draggable: opts.draggable,
+				showClose: opts.showClose,
+				showPopout: !!this.callbacks.openPopout && this._popoutAvailable.read(reader),
+				hideDisconnect: this.callbacks.hideDisconnect,
+				centerConnectButton: opts.centerConnectButton,
+				onMicDown: (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); },
+				onMicUp: () => { this.callbacks.pttUp(); },
+				onConnectClick: (e: MouseEvent) => {
+					e.preventDefault();
+					e.stopPropagation();
+					if (this._isConnecting.get()) { return; }
+					if (this._isConnected.get()) {
+						this.callbacks.disconnect();
+					} else {
+						this.callbacks.connect();
+					}
+				},
+				onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
+				onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
+				onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); },
+				onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
+				onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },
+				onFeedbackClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); },
+				pttKeyLabel: this._pttKeyLabel.read(reader),
+				expanded: showExpanded,
+			});
+
+			if (feedbackState) {
+				this._voiceBarComponent.element.style.display = 'none';
+				this._feedbackDialogComponent.element.style.display = '';
+				this._feedbackDialogComponent.update({
+					onSubmit: (text) => this._submitFeedback(text),
+					onCancel: () => { this._feedbackDialogState.set(null, undefined); },
+				}, feedbackState);
+				// Hide everything below when feedback dialog is open
+				this._statusTextDiv.style.display = 'none';
+				this._transcriptComponent.element.style.display = 'none';
+				this._statusRowsComponent.element.style.display = 'none';
+				this._sessionListWrapper.style.display = 'none';
+				this._expandSpacer.style.display = 'none';
+				this._chevronWrapper.style.display = 'none';
+			} else {
+				this._feedbackDialogComponent.element.style.display = 'none';
+
+				// Voice bar (listening/speaking indicator with stop button)
+				this._voiceBarComponent.update({
+					voiceState,
+					speakingSessionLabel: this._speakingSessionLabel.read(reader),
+					speakingSession: this._speakingSession.read(reader),
+					onStopSpeech: () => this.callbacks.stopPlayback(),
+				});
+
+				// Status text — always show when in error state (e.g. mic denied)
+				const statusText = this._statusText.read(reader);
+				const isError = voiceState === 'error';
+				if ((opts.showStatusText || isError) && statusText) {
+					this._statusTextDiv.style.display = '';
+					this._statusTextDiv.textContent = statusText;
+					this._statusTextDiv.style.color = isError ? 'var(--vscode-editorError-foreground)' : 'var(--vscode-foreground)';
 				} else {
-					this.callbacks.connect();
+					this._statusTextDiv.style.display = 'none';
 				}
-			},
-			onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
-			onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
-			onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.value = !this._expanded.value; },
-			onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
-			onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },
-			onFeedbackClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); },
-			pttKeyLabel: this._pttKeyLabel.value,
-			expanded: showExpanded,
-		})}
-					${this._feedbackDialogState.value ? renderFeedbackDialog({
-			onSubmit: (text) => this._submitFeedback(text),
-			onCancel: () => { this._feedbackDialogState.value = null; },
-		}, this._feedbackDialogState.value) : html`
-					${opts.showStatusText && this._statusText.value
-				? html`<div style="text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;">${this._statusText.value}</div>`
-				: nothing}
-					${renderTranscript({ turns: this._transcriptTurns.value })}
-					${!showExpanded ? renderStatusRows({
-					workingCount: this._workingCount.value,
-					needsInputCount: this._needsInputCount.value,
-					doneCount: this._doneCount.value,
-					showCounters: opts.showStatusCounters,
-					speakingSessionLabel: this._speakingSessionLabel.value,
-					pendingToolConfirmations: this._pendingToolConfirmations.value,
-					onOpenSession: (r) => this.callbacks.openSession(r),
-				}) : nothing}
-					${showExpanded ? html`
-						<div style="display:flex;flex-direction:column;">
-							${renderSessionList({
-					sessions: this._sessions.value,
-					groups: this._sessionGroups.value,
-					selectedTarget: this._selectedTargetSession.value,
-					onOpenSession: (r) => this.callbacks.openSession(r),
-					onStopSession: (r) => this.callbacks.stopSession(r),
-					onCancelSession: (r) => this.callbacks.cancelSession(r),
-					onSelectTarget: (r) => { this._selectedTargetSession.value = r; this.callbacks.selectTargetSession(r); },
-					onNewSession: () => this.callbacks.newSessionAsTarget(),
-				})}
-						</div>
-					` : nothing}
-					<div style="flex:1;"></div>
-					${opts.showExpandChevron ? html`<div style="display:flex;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;"
-						title="${showExpanded ? 'Collapse sessions' : 'Expand sessions'}"
-						@click=${(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.value = !this._expanded.value; }}>
-						<span
-							class="codicon codicon-${showExpanded ? 'chevron-up' : 'chevron-down'}"
-							style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);"
-							@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
-							@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; }}></span>
-					</div>` : nothing}
-					`}`}
-				</div>
-			</div>
-		`;
+
+				// Transcript
+				this._transcriptComponent.update({ turns: this._transcriptTurns.read(reader) });
+
+				// Status rows (collapsed) or session list (expanded)
+				if (!showExpanded) {
+					this._statusRowsComponent.element.style.display = '';
+					this._statusRowsComponent.update({
+						workingCount: this._workingCount.read(reader),
+						needsInputCount: this._needsInputCount.read(reader),
+						doneCount: this._doneCount.read(reader),
+						showCounters: opts.showStatusCounters,
+						speakingSessionLabel: this._speakingSessionLabel.read(reader),
+						speakingSessionResource: this._speakingSession.read(reader),
+						pendingToolConfirmations: this._pendingToolConfirmations.read(reader),
+						onOpenSession: (r) => this.callbacks.openSession(r),
+					});
+					this._sessionListWrapper.style.display = 'none';
+				} else {
+					this._statusRowsComponent.element.style.display = 'none';
+					this._sessionListWrapper.style.display = '';
+					this._sessionListComponent.update({
+						sessions: this._sessions.read(reader),
+						groups: this._sessionGroups.read(reader),
+						selectedTarget: this._selectedTargetSession.read(reader),
+						onOpenSession: (r) => this.callbacks.openSession(r),
+						onStopSession: (r) => this.callbacks.stopSession(r),
+						onCancelSession: (r) => this.callbacks.cancelSession(r),
+						onSelectTarget: (r) => { this._selectedTargetSession.set(r, undefined); this.callbacks.selectTargetSession(r); },
+						onNewSession: () => this.callbacks.newSessionAsTarget(),
+					});
+				}
+
+				this._expandSpacer.style.display = '';
+				this._chevronWrapper.style.display = opts.showExpandChevron ? 'flex' : 'none';
+				this._chevronWrapper.title = showExpanded ? 'Collapse sessions' : 'Expand sessions';
+				this._chevronIcon.className = `codicon codicon-${showExpanded ? 'chevron-up' : 'chevron-down'}`;
+			}
+		}
 	}
 
 	// --- Public state setters (called by the service) ---
 
 	setConnected(connected: boolean): void {
-		this._isConnected.value = connected;
+		this._isConnected.set(connected, undefined);
 	}
 
 	setConnecting(connecting: boolean): void {
-		this._isConnecting.value = connecting;
+		this._isConnecting.set(connecting, undefined);
 	}
 
 	setReconnecting(reconnecting: boolean): void {
-		this._isReconnecting.value = reconnecting;
+		this._isReconnecting.set(reconnecting, undefined);
 	}
 
 	setVoiceState(state: VoiceState): void {
-		this._voiceState.value = state;
+		this._voiceState.set(state, undefined);
 	}
 
 	setStatusCounts(working: number, needsInput: number, done: number): void {
-		this._workingCount.value = working;
-		this._needsInputCount.value = needsInput;
-		this._doneCount.value = done;
+		this._workingCount.set(working, undefined);
+		this._needsInputCount.set(needsInput, undefined);
+		this._doneCount.set(done, undefined);
 	}
 
 	setPendingToolConfirmations(confirmations: readonly IPendingToolConfirmation[]): void {
-		this._pendingToolConfirmations.value = confirmations;
+		this._pendingToolConfirmations.set(confirmations, undefined);
 	}
 
 	setSpeakingSession(session: URI | undefined, label: string | undefined): void {
-		this._speakingSession.value = session;
-		this._speakingSessionLabel.value = label;
+		this._speakingSession.set(session, undefined);
+		this._speakingSessionLabel.set(label, undefined);
 	}
 
 	setSessions(sessions: readonly SessionRowData[]): void {
-		this._sessions.value = sessions;
+		this._sessions.set(sessions, undefined);
 	}
 
 	setSelectedTargetSession(resource: URI | undefined): void {
-		this._selectedTargetSession.value = resource;
+		this._selectedTargetSession.set(resource, undefined);
 	}
 
 	setSessionGroups(groups: readonly SessionGroupData[] | undefined): void {
-		this._sessionGroups.value = groups;
+		this._sessionGroups.set(groups, undefined);
 	}
 
 	setPttKeyLabel(label: string | undefined): void {
-		this._pttKeyLabel.value = label;
+		this._pttKeyLabel.set(label, undefined);
 	}
 
 	setTranscriptTurns(turns: readonly ITranscriptTurn[]): void {
-		this._transcriptTurns.value = turns;
+		this._transcriptTurns.set(turns, undefined);
 	}
 
 	setStatusText(text: string): void {
-		this._statusText.value = text;
+		this._statusText.set(text, undefined);
 	}
 
 	setPopoutAvailable(available: boolean): void {
-		this._popoutAvailable.value = available;
+		this._popoutAvailable.set(available, undefined);
 	}
 
 	// --- Feedback dialog ---
 
 	private _toggleFeedbackDialog(): void {
-		if (this._feedbackDialogState.value) {
-			this._feedbackDialogState.value = null;
+		if (this._feedbackDialogState.get()) {
+			this._feedbackDialogState.set(null, undefined);
 		} else {
-			this._showOnboarding.value = false;
-			this._feedbackDialogState.value = { isSubmitting: false, submitted: false };
+			this._showOnboarding.set(false, undefined);
+			this._feedbackDialogState.set({ isSubmitting: false, submitted: false }, undefined);
 		}
 	}
 
@@ -474,18 +935,18 @@ export class AgentsVoiceWidget extends Disposable {
 		if (connect) {
 			// Don't dismiss yet — kick off connection, wait for it to succeed
 			// via the effect that watches isConnected/isConnecting.
-			if (this._isConnected.value) {
+			if (this._isConnected.get()) {
 				// Already connected somehow — just dismiss.
-				this._showOnboarding.value = false;
+				this._showOnboarding.set(false, undefined);
 				this.callbacks.onOnboardingCompleted?.();
 				return;
 			}
-			if (!this._isConnecting.value && !this._onboardingPendingConnect.value) {
-				this._onboardingPendingConnect.value = true;
+			if (!this._isConnecting.get() && !this._onboardingPendingConnect.get()) {
+				this._onboardingPendingConnect.set(true, undefined);
 				this.callbacks.connect();
 			}
 		} else {
-			this._showOnboarding.value = false;
+			this._showOnboarding.set(false, undefined);
 			this.callbacks.onOnboardingCompleted?.();
 		}
 	}
@@ -497,44 +958,91 @@ export class AgentsVoiceWidget extends Disposable {
 	 * doesn't re-trigger the completion callback.
 	 */
 	dismissOnboarding(): void {
-		this._onboardingPendingConnect.value = false;
-		if (this._showOnboarding.value) {
-			this._showOnboarding.value = false;
+		this._onboardingPendingConnect.set(false, undefined);
+		if (this._showOnboarding.get()) {
+			this._showOnboarding.set(false, undefined);
 		}
 	}
 
 	private _submitFeedback(text: string): void {
-		this._feedbackDialogState.value = { isSubmitting: true, submitted: false };
+		this._feedbackDialogState.set({ isSubmitting: true, submitted: false }, undefined);
 		this.callbacks.submitFeedback(text).then(result => {
 			if (result.ok) {
-				this._feedbackDialogState.value = { isSubmitting: false, submitted: true };
-				setTimeout(() => { this._feedbackDialogState.value = null; }, 3000);
+				this._feedbackDialogState.set({ isSubmitting: false, submitted: true }, undefined);
+				setTimeout(() => { this._feedbackDialogState.set(null, undefined); }, 3000);
 			} else {
-				this._feedbackDialogState.value = { isSubmitting: false, submitted: false, error: result.error ?? 'Failed to submit' };
+				this._feedbackDialogState.set({ isSubmitting: false, submitted: false, error: result.error ?? localize('agentsVoice.feedbackError', "Failed to submit") }, undefined);
 			}
 		});
 	}
 
-	// --- Glow animation ---
+	// --- Glow animation (decoupled from autorun — direct DOM updates) ---
+
+	private _animationFrameId: number | undefined;
 
 	private _startWaveformAnimation(): void {
 		if (this._animationFrameId !== undefined) { return; }
 		const animate = () => {
 			this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
-			const analyser = this.callbacks.getAnalyserNode();
-			if (!analyser) {
-				this._glowIntensity.value = 0;
+			const onboarding = this._showOnboarding.get();
+			const voiceState = this._voiceState.get();
+			const glowActive = onboarding || voiceState === 'speaking' || voiceState === 'listening';
+
+			if (!glowActive) {
+				this._glowDiv.style.display = 'none';
+				if (this._inputBoxContainer) {
+					this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
+					this._inputBoxContainer.style.boxShadow = 'none';
+				}
+				if (this._inputBoxMicBtn) {
+					this._inputBoxMicBtn.style.boxShadow = 'none';
+				}
 				return;
 			}
-			const dataArray = new Uint8Array(analyser.frequencyBinCount);
-			analyser.getByteFrequencyData(dataArray);
-			let sum = 0;
-			for (let i = 0; i < dataArray.length; i++) {
-				sum += dataArray[i];
+
+			const analyser = this.callbacks.getAnalyserNode();
+			let intensity: number;
+			if (onboarding) {
+				intensity = 0.6;
+			} else if (!analyser) {
+				intensity = 0.3;
+			} else {
+				const dataArray = new Uint8Array(analyser.frequencyBinCount);
+				analyser.getByteFrequencyData(dataArray);
+				let sum = 0;
+				for (let i = 0; i < dataArray.length; i++) {
+					sum += dataArray[i];
+				}
+				intensity = Math.min(1, (sum / dataArray.length) / 80);
 			}
-			const avg = sum / dataArray.length;
-			this._glowIntensity.value = Math.min(1, avg / 80);
-			this._glowPhase.value += 0.02;
+
+			// Animate input box container border/shadow (inputBoxLayout)
+			if (this._inputBoxContainer) {
+				const r = (voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+				const borderAlpha = 0.4 + intensity * 0.5;
+				const shadowSpread = 4 + intensity * 12;
+				const shadowAlpha = 0.15 + intensity * 0.35;
+				this._inputBoxContainer.style.borderColor = `rgba(${r},${borderAlpha})`;
+				this._inputBoxContainer.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${r},${shadowAlpha * 0.3})`;
+			}
+
+			if (this._inputBoxMicBtn) {
+				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
+				if (iconGlowActive) {
+					const r = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
+					const shadowSpread = 3 + intensity * 8;
+					const shadowAlpha = 0.2 + intensity * 0.45;
+					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha})`;
+				} else {
+					this._inputBoxMicBtn.style.boxShadow = 'none';
+				}
+			}
+
+			// Classic layout glow div
+			this._glowDiv.style.display = '';
+			const baseOpacity = 0.15 + intensity * 0.4;
+			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}

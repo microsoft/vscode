@@ -74,7 +74,7 @@ No new dependencies. No SDK version change. The smoke harness scripts (`launch-s
 
 - All 18 unit tests in §5.2 pass.
 - Integration test in §5.3 passes against the local proxy.
-- `npm run compile-check-ts-native` reports zero errors.
+- `npm run typecheck-client` reports zero errors.
 - `npm run gulp compile-extensions` reports zero errors.
 - `npm run valid-layers-check` reports zero new layer violations.
 - Existing Phase 6 tests still pass (`respondToPermissionRequest: TODO Phase 7` throw assertion at [claudeAgent.test.ts:797-832](../../test/node/claudeAgent.test.ts#L797) is replaced, not removed-and-orphaned).
@@ -886,7 +886,7 @@ Extend [claudeAgent.integration.test.ts](../../test/node/claudeAgent.integration
 
 1. The 18 new unit tests in §5.2 pass. Existing Phase-6 tests still pass.
 2. The integration test in §5.3 exercises a one-tool round-trip end-to-end against the proxy.
-3. `npm run compile-check-ts-native` reports zero errors. `npm run gulp compile-extensions` reports zero errors (no extension changes, but the agent platform shares declarations with extensions).
+3. `npm run typecheck-client` reports zero errors. `npm run gulp compile-extensions` reports zero errors (no extension changes, but the agent platform shares declarations with extensions).
 4. `npm run valid-layers-check` reports zero new layer violations.
 5. **Live-system smoke run.** Phase 7 extends the existing live-smoke procedure documented at [smoke.md](smoke.md) — the canonical operator-driven E2E for `ClaudeAgent`, harnessed by [`launch-smoke.sh`](scripts/launch-smoke.sh) and [`verify-claude-logs.sh`](scripts/verify-claude-logs.sh). Smoke.md is keyed by phase; Phase 7 adds a row to the "When to run" table and a set of new log assertions to `verify-claude-logs.sh --phase=7`. The run produces a tool-call screenshot + log artifacts attached to the PR.
 

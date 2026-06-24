@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotClient } from '@github/copilot-sdk';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
+import { joinPath, dirname as uriDirname } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { basename, isAbsolute } from '../../../../base/common/path.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { AgentsDiscoverRequest } from './copilotRCP.js';
+import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
+import { ChildCustomizationType } from '../../common/state/protocol/state.js';
+import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -24,6 +30,7 @@ export const enum DiscoveredType {
 	Agent = 'agent',
 	Skill = 'skill',
 	Instruction = 'instruction',
+	Hook = 'hook',
 	AgentInstruction = 'agentInstruction',
 }
 
@@ -31,6 +38,7 @@ export interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
 	readonly name: string;
+	readonly writable: boolean;
 	readonly files: readonly IDiscoveredFile[];
 }
 
@@ -83,14 +91,24 @@ function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
 	return compareStrings(a.uri.toString(), b.uri.toString());
 }
 
+function compareDirectoryCustomization(a: DirectoryCustomization, b: DirectoryCustomization): number {
+	const byUri = compareStrings(a.uri, b.uri);
+	if (byUri !== 0) {
+		return byUri;
+	}
+	return compareStrings(a.contents, b.contents);
+}
+
 /**
  * Maximum recursion depth when traversing subdirectories for instruction files.
  */
 const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+const MAX_HOOKS_RECURSION_DEPTH = 8;
 
 const AGENT_FILE_SUFFIX = '.agent.md';
 const MARKDOWN_SUFFIX = '.md';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
+const HOOK_FILE_SUFFIX = '.json';
 const SKILL_FILENAME = 'SKILL.md';
 const README_FILENAME = 'README.md';
 
@@ -101,15 +119,16 @@ interface ISearchRoot {
 	readonly name: string;
 }
 
-interface IInstructionFile {
+interface IFixedDiscoveryFile {
 	readonly path: readonly string[];
 	readonly filenames: string[];
+	readonly type: DiscoveredType;
 }
 
 /**
  * Builds the list of search roots for a given working directory and user home.
- * Skills require a depth-2 scan (`<skillDir>/SKILL.md`); agents and instructions
- * are flat single-directory scans.
+ * Skills require a depth-2 scan (`<skillDir>/SKILL.md`), agents are scanned at
+ * a single directory depth, and instructions/hooks are recursively scanned.
  */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
@@ -120,11 +139,14 @@ const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents/skills' },
 		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude/skills' },
 		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github/instructions' },
+		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github/hooks' },
+
 	],
 	user: [
 		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot/agents' },
 		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents/skills' },
 		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot/instructions' },
+		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot/hooks' },
 	],
 };
 
@@ -135,16 +157,21 @@ const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
  * Returns paths with filenames for workspace and user-home
  * locations
  */
-const agentInstructions: { workspace: IInstructionFile[]; user: IInstructionFile[] } = {
+const fixedDiscoveryFiles: { workspace: IFixedDiscoveryFile[]; user: IFixedDiscoveryFile[] } = {
 	workspace: [
-		{ path: ['.github'], filenames: ['copilot-instructions.md'] },
-		{ path: [], filenames: ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'] },
-		{ path: ['.claude'], filenames: ['CLAUDE.md'] },
+		{ path: ['.github'], filenames: ['copilot-instructions.md'], type: DiscoveredType.AgentInstruction },
+		{ path: [], filenames: ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'], type: DiscoveredType.AgentInstruction },
+		{ path: ['.claude'], filenames: ['CLAUDE.md'], type: DiscoveredType.AgentInstruction },
+		{ path: ['.github', 'copilot'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
+		{ path: ['.claude'], filenames: ['settings.json', 'settings.local.json'], type: DiscoveredType.Hook },
 	],
 	user: [
-		{ path: ['.copilot'], filenames: ['copilot-instructions.md'] },
+		{ path: ['.copilot'], filenames: ['copilot-instructions.md'], type: DiscoveredType.AgentInstruction },
 	],
 };
+
+// Back-compat alias for tests and callers that referenced the old symbol name.
+const agentInstructions = fixedDiscoveryFiles;
 
 function throwIfCancelled(token: CancellationToken): void {
 	if (token.isCancellationRequested) {
@@ -175,7 +202,7 @@ function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolea
 }
 
 /**
- * Discovers customization files (agents, skills, and instructions)
+ * Discovers customization files (agents, skills, instructions, and hooks)
  * under well-known directories of the session's working directory and the
  * user's home, and emits {@link onDidChange} when any of those directories
  * change on disk.
@@ -215,6 +242,89 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._onDidChange.fire();
 	}
 
+	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly DirectoryCustomization[]> {
+		throwIfCancelled(token);
+
+		const p: AgentsDiscoverRequest = { projectPaths: [this._workingDirectory.fsPath] };
+
+		try {
+			const agents: AgentCustomization[] = [];
+
+			const agentDiscovery = await client.rpc.agents.discover(p);
+			for (const agent of agentDiscovery.agents) {
+				if (agent.path) {
+					const uri = URI.file(agent.path);
+					agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
+				}
+			}
+
+			const rules: RuleCustomization[] = [];
+
+			const instructionDiscovery = await client.rpc.instructions.discover(p);
+			for (const instruction of instructionDiscovery.sources) {
+				let uri: URI;
+				if (isAbsolute(instruction.sourcePath)) {
+					uri = URI.file(instruction.sourcePath);
+				} else {
+					uri = joinPath(this._workingDirectory, instruction.sourcePath);
+				}
+				rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
+			}
+
+			const skills: SkillCustomization[] = [];
+
+			const skillDiscovery = await client.rpc.skills.discover(p);
+			for (const skill of skillDiscovery.skills) {
+				if (skill.path) {
+					const uri = URI.file(skill.path);
+					skills.push({ type: CustomizationType.Skill, uri: uri.toString(), id: skill.path, name: skill.name, description: skill.description });
+				}
+			}
+
+			const result: DirectoryCustomization[] = [];
+			this.toDirectoryCustomizations(CustomizationType.Agent, agents, result);
+			this.toDirectoryCustomizations(CustomizationType.Rule, rules, result);
+			this.toDirectoryCustomizations(CustomizationType.Skill, skills, result);
+			return result.sort(compareDirectoryCustomization);
+		} catch (err) {
+			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
+	}
+
+	private toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], result: DirectoryCustomization[]): void {
+		const byParent = new ResourceMap<{ readonly uri: URI; readonly children: ChildCustomization[] }>();
+		for (const customization of customizations) {
+			if (customization.type !== type) {
+				continue;
+			}
+			const childUri = URI.parse(customization.uri);
+			const parentUri = uriDirname(childUri);
+			let entry = byParent.get(parentUri);
+			if (!entry) {
+				entry = { uri: parentUri, children: [] };
+				byParent.set(parentUri, entry);
+			}
+			entry.children.push(customization);
+		}
+
+		for (const { uri, children } of byParent.values()) {
+			children.sort((a, b) => compareStrings(a.uri, b.uri));
+			result.push({
+				type: CustomizationType.Directory,
+				id: customizationId(uri.toString()),
+				uri: uri.toString(),
+				name: basename(uri.path),
+				enabled: true,
+				contents: type,
+				writable: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children,
+			});
+		}
+	}
+
+
 	/**
 	 * Returns the list of discovered customization directories and files in a sorted way.
 	 * Also sets up watchers for all discovered root directories (recursively if specified by the root or if already watching recursively).
@@ -231,8 +341,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		await Promise.all([
 			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris, token)),
 			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, token)),
-			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result, nextWatchRootUris, token),
-			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result, nextWatchRootUris, token)
+			this._scanFixedDiscoveryFiles(this._workingDirectory, fixedDiscoveryFiles.workspace, seen, result, nextWatchRootUris, token),
+			this._scanFixedDiscoveryFiles(this._userHome, fixedDiscoveryFiles.user, seen, result, nextWatchRootUris, token)
 		]);
 
 		throwIfCancelled(token);
@@ -311,10 +421,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	/**
-	 * For agent instructions, create a single root for the base directory.
+	 * For fixed discovery files (e.g. AGENTS.md, copilot-instructions.md,
+	 * settings.json), create one discovered directory per type at the base.
 	 */
-	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
-		const files: IDiscoveredFile[] = [];
+	private async _scanFixedDiscoveryFiles(base: URI, roots: IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
+		const filesByType = new Map<DiscoveredType, IDiscoveredFile[]>();
 		for (const root of roots) {
 			throwIfCancelled(token);
 
@@ -346,13 +457,18 @@ export class SessionCustomizationDiscovery extends Disposable {
 					const uri = joinPath(rootUri, entry.name);
 					if (!seen.has(uri)) {
 						seen.add(uri);
+						const files = filesByType.get(root.type) ?? [];
 						files.push({ uri, etag: entry.etag });
+						filesByType.set(root.type, files);
 					}
 				}
 			}
 		}
-		if (files.length > 0) {
-			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files: files.sort(compareDiscoveredFile), name: basename(base) });
+
+		for (const [type, files] of filesByType.entries()) {
+			if (files.length > 0) {
+				result.push({ uri: base, type, files: files.sort(compareDiscoveredFile), name: '', writable: false });
+			}
 		}
 	}
 
@@ -395,7 +511,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 		} else if (root.type === DiscoveredType.Agent) {
 			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
@@ -411,7 +527,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 
 		} else if (root.type === DiscoveredType.Instruction) {
 			const files: IDiscoveredFile[] = [];
@@ -444,7 +560,40 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (stat) {
 				await findInstructions(stat, 0);
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
+		} else if (root.type === DiscoveredType.Hook) {
+			const files: IDiscoveredFile[] = [];
+			// hooks are recursively discovered as `*.json` under the root.
+			const findHooks = async (directoryStat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
+				throwIfCancelled(token);
+
+				for (const child of directoryStat.children ?? []) {
+					throwIfCancelled(token);
+
+					if (child.isFile) {
+						const name = child.name.toLowerCase();
+						if (name.endsWith(HOOK_FILE_SUFFIX) && !seen.has(child.resource)) {
+							seen.add(child.resource);
+							files.push({ uri: child.resource, etag: child.etag });
+						}
+					} else if (child.isDirectory && recursionLevel < MAX_HOOKS_RECURSION_DEPTH) {
+						let childStat: IFileStatWithMetadata | undefined = undefined;
+						try {
+							childStat = await this._fileService.resolve(child.resource, { resolveMetadata: true });
+						} catch {
+							// Ignore unreadable subdirectories.
+						}
+						if (childStat) {
+							await findHooks(childStat, recursionLevel + 1);
+						}
+					}
+				}
+			};
+			if (stat) {
+				await findHooks(stat, 0);
+			}
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
+
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}
@@ -458,5 +607,8 @@ export const _internal = {
 	INSTRUCTION_FILE_SUFFIX,
 	SKILL_FILENAME,
 	searchRoots,
+	fixedDiscoveryFiles,
 	agentInstructions,
 };
+
+

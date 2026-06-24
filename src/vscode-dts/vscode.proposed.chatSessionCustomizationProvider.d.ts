@@ -107,6 +107,13 @@ declare module 'vscode' {
 		readonly pluginUri?: Uri;
 
 		/**
+		 * Human-readable name of the plugin that contributed this customization, if any.
+		 * Used to qualify plugin-scoped slash command names when `pluginUri` points to
+		 * an implementation-specific install directory.
+		 */
+		readonly pluginLabel?: string;
+
+		/**
 		 * Optional group key for display grouping. Items sharing the same
 		 * `groupKey` are placed under a shared collapsible header in the
 		 * management UI.

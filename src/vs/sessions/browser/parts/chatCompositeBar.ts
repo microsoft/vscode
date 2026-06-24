@@ -6,22 +6,26 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
+import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -29,6 +33,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 interface IChatTab {
 	readonly chat: IChat;
 	readonly element: HTMLElement;
+	readonly inputContainer: HTMLElement;
 }
 
 /**
@@ -50,6 +55,8 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _editingTab: IChatTab | undefined;
 	private _session: IActiveSession | undefined;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
@@ -75,9 +82,9 @@ export class ChatCompositeBar extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
@@ -148,18 +155,47 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
+		// Tab-strip visibility is sticky per opened session: once shown it stays
+		// shown for the session's lifetime. We never hide it again when chats are
+		// later removed or renamed, so the experience stays consistent.
+		this._setVisible(false);
+		let shown = false;
 		store.add(autorun(reader => {
 			const chats = session.chats.read(reader);
+			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = session.mainChat.read(reader).resource.toString();
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+			const mainChatUri = mainChat.resource.toString();
+			// Keep the provider's order, but move untitled (in-composer) chats
+			// to the end so a just-completed background chat never jumps last.
+			// Partition so each chat's status is read exactly once (tracked) and
+			// relative order is preserved by construction.
+			const committed: IChat[] = [];
+			const untitled: IChat[] = [];
+			for (const chat of chats) {
+				(chat.status.read(reader) === SessionStatus.Untitled ? untitled : committed).push(chat);
+			}
+			const orderedChats = untitled.length === 0 ? chats : [...committed, ...untitled];
+			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
 
-			// Only show the tab strip once the session is created and has multiple chats.
-			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
+			if (shown) {
+				return;
+			}
+			// Show once the session is created and either has multiple chats, or
+			// its single (default) chat carries a title that differs from the
+			// session title (both independent titles must stay visible).
+			const mainChatTitle = mainChat.title.read(reader);
+			const defaultChatDiverged = chats.length === 1
+				&& !!mainChatTitle
+				&& mainChatTitle !== session.title.read(reader);
+			if (session.isCreated.read(reader) && (chats.length > 1 || defaultChatDiverged)) {
+				shown = true;
+				this._setVisible(true);
+			}
 		}));
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId?: string): void {
+		this._cancelTabEditing();
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
@@ -193,6 +229,10 @@ export class ChatCompositeBar extends Disposable {
 			labelEl.textContent = title;
 		}));
 		tab.appendChild(labelEl);
+
+		// Empty rename host; an InputBox is created inside it only while editing.
+		const inputContainer = $('.chat-composite-bar-tab-input-container');
+		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
 		this._tabDisposables.add(this._hoverService.setupManagedHover(
@@ -260,7 +300,11 @@ export class ChatCompositeBar extends Disposable {
 
 		this._tabsContainer.appendChild(tab);
 
+		const chatTab: IChatTab = { chat, element: tab, inputContainer };
+
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CLICK, () => {
+			// Cancel any in-progress rename before switching to the clicked tab.
+			this._cancelTabEditing();
 			this._onTabClicked(chat);
 		}));
 
@@ -272,13 +316,17 @@ export class ChatCompositeBar extends Disposable {
 		}));
 
 		const renameAction = this._tabDisposables.add(new Action('sessionCompositeBar.renameChat', localize('renameChat', "Rename"), undefined, true, async () => {
-			const newTitle = await this._quickInputService.input({
-				value: chat.title.get(),
-				prompt: localize('renameChat.prompt', "Rename Chat"),
-			});
-			if (newTitle && this._session) {
-				await this._sessionsManagementService.renameChat(this._session, chat.resource, newTitle);
+			this._startTabEditing(chatTab);
+		}));
+
+		// Double-click the tab to start an inline rename, mirroring the session title.
+		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
+			if (chat.status.get() === SessionStatus.Untitled) {
+				return;
 			}
+			e.preventDefault();
+			e.stopPropagation();
+			this._startTabEditing(chatTab);
 		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: MouseEvent) => {
@@ -298,12 +346,94 @@ export class ChatCompositeBar extends Disposable {
 			});
 		}));
 
-		this._tabs.push({ chat: chat, element: tab });
+		this._tabs.push(chatTab);
 	}
 
 	private _onTabClicked(chat: IChat): void {
 		if (this._session) {
-			this._sessionsViewService.openChat(this._session, chat.resource);
+			this._sessionsService.openChat(this._session, chat.resource);
+		}
+	}
+
+	/**
+	 * Start an inline rename for the given tab. Enter commits via
+	 * {@link ISessionsManagementService.renameChat}; Escape or blur cancels.
+	 */
+	private _startTabEditing(chatTab: IChatTab): void {
+		const session = this._session;
+		if (!session || this._editingTab) {
+			return;
+		}
+
+		const { chat, element: tab, inputContainer } = chatTab;
+		const initialTitle = chat.title.get();
+
+		this._editingTab = chatTab;
+		tab.classList.add('editing');
+
+		const store = new DisposableStore();
+		this._editingDisposables.value = store;
+
+		const inputBox = store.add(new InputBox(inputContainer, this._contextViewService, {
+			ariaLabel: localize('renameChat.aria', "Rename chat"),
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		inputBox.element.classList.add('chat-composite-bar-tab-input');
+		inputBox.value = initialTitle;
+		inputBox.focus();
+		inputBox.select();
+
+		let finished = false;
+		const finish = (commit: boolean) => {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			const newTitle = inputBox.value.trim();
+			this._endTabEditing();
+			if (commit && newTitle && newTitle !== initialTitle) {
+				this._sessionsManagementService
+					.renameChat(session, chat.resource, newTitle)
+					.catch(onUnexpectedError);
+			}
+		};
+
+		store.add(addStandardDisposableListener(inputBox.inputElement, EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				e.preventDefault();
+				e.stopPropagation();
+				finish(true);
+			} else if (e.equals(KeyCode.Escape)) {
+				e.preventDefault();
+				e.stopPropagation();
+				finish(false);
+			} else {
+				// Don't let typing leak out to workbench shortcuts (e.g. Space).
+				e.stopPropagation();
+			}
+		}));
+
+		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
+
+		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
+		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));
+	}
+
+	private _cancelTabEditing(): void {
+		if (!this._editingTab) {
+			return;
+		}
+		this._endTabEditing();
+	}
+
+	private _endTabEditing(): void {
+		const editingTab = this._editingTab;
+		this._editingTab = undefined;
+		this._editingDisposables.clear();
+		if (editingTab) {
+			editingTab.element.classList.remove('editing');
+			// InputBox.dispose() does not detach its node, so empty the container.
+			reset(editingTab.inputContainer);
 		}
 	}
 
