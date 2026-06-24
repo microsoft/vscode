@@ -202,6 +202,27 @@
 }
 
 /*
+ * Size the "Additional Views" overflow control (`.codicon-more`) to a 24px
+ * square so it matches the other 24px composite controls. `box-sizing` keeps the
+ * 16px glyph centered within the box.
+ */
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+}
+
+/*
+ * Center the 24px overflow control within its item. The item is wider than the
+ * label where its width is not pinned to 24px, so without this the label sits at
+ * the flex start (left) and the glyph reads as horizontally off-center.
+ */
+.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before, .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:has(.codicon-more)::before{
+	position: relative;
+}
+
+/*
  * Drop the divider between the horizontal activity bar and the part body. The
  * rounded box gives the active item its own shape, so the full-width rule under
  * the top (header) bar — and over the bottom (footer) bar — is removed for the
