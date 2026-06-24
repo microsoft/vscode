@@ -194,6 +194,16 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 						}
 
 						const filePath = path.join(outputPath, entry.fileName);
+
+						// Zip-slip guard: ensure the resolved entry path stays within
+						// outputPath. A crafted zip could use ../ segments to escape and
+						// overwrite repo files used later in the build.
+						const resolvedOutput = path.resolve(outputPath);
+						const resolvedTarget = path.resolve(filePath);
+						if (resolvedTarget !== resolvedOutput && !resolvedTarget.startsWith(resolvedOutput + path.sep)) {
+							return reject(new Error(`Zip entry escapes output directory (zip-slip): ${entry.fileName}`));
+						}
+
 						fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
 						const ostream = fs.createWriteStream(filePath);
@@ -201,6 +211,7 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 							result.push(filePath);
 							zipfile!.readEntry();
 						});
+						ostream.on('error', err => reject(err));
 						istream?.on('error', err => reject(err));
 						istream!.pipe(ostream);
 					});
