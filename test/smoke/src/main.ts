@@ -14,23 +14,24 @@ import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
 
-import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
-import { setup as setupSearchTests } from './areas/search/search.test';
-import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
-import { setup as setupLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
-import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupExtensionHostRestartTests } from './areas/extensions/extension-host-restart.test';
-import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
-import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
-import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
-import { setup as setupTaskTests } from './areas/task/task.test';
-import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
-import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
+// NOTE: Temporarily disabled to flush out flaky Chat Sessions / Agents Window smoke tests. Do not merge.
+// import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
+// import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
+// import { setup as setupSearchTests } from './areas/search/search.test';
+// import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
+// import { setup as setupLanguagesTests } from './areas/languages/languages.test';
+// import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
+// import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
+// import { setup as setupExtensionHostRestartTests } from './areas/extensions/extension-host-restart.test';
+// import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
+// import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
+// import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+// import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
+// import { setup as setupTaskTests } from './areas/task/task.test';
+// import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
+// import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
 import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test';
-import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
+// import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
 import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
@@ -407,22 +408,23 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
-	setupPreferencesTests(logger);
-	setupSearchTests(logger);
-	if (!opts.web) { setupNotebookTests(logger); }
-	setupLanguagesTests(logger);
-	setupTerminalTests(logger);
-	setupTaskTests(logger);
-	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
-	if (!opts.web && !opts.remote) { setupExtensionHostRestartTests(logger); }
-	if (!(opts.web && process.platform === 'win32' /* TODO@bpasero flaky */)) { setupMultirootTests(logger); }
-	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
-	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
-	if (!opts.web) { setupChatTests(logger); }
-	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
+	// NOTE: Temporarily disabled to flush out flaky Chat Sessions / Agents Window smoke tests. Do not merge.
+	// if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
+	// setupPreferencesTests(logger);
+	// setupSearchTests(logger);
+	// if (!opts.web) { setupNotebookTests(logger); }
+	// setupLanguagesTests(logger);
+	// setupTerminalTests(logger);
+	// setupTaskTests(logger);
+	// setupStatusbarTests(logger);
+	// if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
+	// if (!opts.web && !opts.remote) { setupExtensionHostRestartTests(logger); }
+	// if (!(opts.web && process.platform === 'win32' /* TODO@bpasero flaky */)) { setupMultirootTests(logger); }
+	// if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
+	// if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
+	// if (!opts.web) { setupChatTests(logger); }
+	// if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
-	setupAccessibilityTests(logger, opts, quality);
+	// setupAccessibilityTests(logger, opts, quality);
 });

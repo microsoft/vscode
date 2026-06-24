@@ -367,8 +367,14 @@ jobs:
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        timeout-minutes: 120
+        run: |
+          # NOTE: Temporarily looping smoke tests to flush out flaky Chat Sessions / Agents Window tests. Do not merge.
+          for i in $(seq 1 10); do
+            echo "::group::Smoke test run $i of 10"
+            npm run smoketest-no-compile -- --tracing
+            echo "::endgroup::"
+          done
         env:
           DISPLAY: ":10"
 
