@@ -92,10 +92,14 @@ function refreshSummaryStatus(state: ChatState): ChatState {
 
 /**
  * Merge an incoming usage report into the turn's existing usage. Overlapping
- * top-level fields take the incoming value (assign-last-wins), while the
- * well-known `_meta` bag is shallow-merged so a credit-only amend does not drop
- * previously reported token counts and a token report does not drop previously
- * reported credits. Re-emitting a running total is therefore idempotent.
+ * top-level fields take the incoming value (assign-last-wins). The well-known
+ * `_meta` bag is shallow-merged so a credit-only amend does not drop previously
+ * reported token counts and a token report does not drop previously reported
+ * credits. The one nested object that is amended incrementally —
+ * `_meta.copilotUsage` (e.g. a later `final` marker carrying only the running
+ * `totalNanoAiu`) — is itself shallow-merged rather than wholesale-replaced, so
+ * sibling fields under it are preserved. Re-emitting a running total is
+ * therefore idempotent.
  */
 function mergeUsageInfo(existing: UsageInfo | undefined, incoming: UsageInfo): UsageInfo {
 	if (!existing) {
@@ -103,9 +107,21 @@ function mergeUsageInfo(existing: UsageInfo | undefined, incoming: UsageInfo): U
 	}
 	const merged: UsageInfo = { ...existing, ...incoming };
 	if (existing._meta || incoming._meta) {
-		merged._meta = { ...existing._meta, ...incoming._meta };
+		const existingMeta = existing._meta;
+		const incomingMeta = incoming._meta;
+		const meta: Record<string, unknown> = { ...existingMeta, ...incomingMeta };
+		const existingCopilotUsage = existingMeta?.copilotUsage;
+		const incomingCopilotUsage = incomingMeta?.copilotUsage;
+		if (isPlainObject(existingCopilotUsage) && isPlainObject(incomingCopilotUsage)) {
+			meta.copilotUsage = { ...existingCopilotUsage, ...incomingCopilotUsage };
+		}
+		merged._meta = meta;
 	}
 	return merged;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

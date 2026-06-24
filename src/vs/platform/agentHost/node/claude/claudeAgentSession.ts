@@ -701,16 +701,15 @@ export class ClaudeAgentSession extends Disposable {
 	 * permission / user-input requests so the SDK's `canUseTool`
 	 * callback (and any interactive tool waiting on user input) unwinds
 	 * with a deny / cancel result instead of leaving stale UI behind.
+	 *
+	 * A cancelled turn produces no SDK `result`, so its credits are finalized
+	 * here instead: flush the running total, then mark it `final` once the proxy
+	 * reports the session has drained (immediately if already idle, else via
+	 * {@link _tryFinalizeTurnCredits} on settle). This avoids both undercounting
+	 * and finalizing before the SDK's in-flight `/v1/messages` requests settle.
 	 */
 	abort(): void {
-		// On an aborted turn the SDK emits no `result` with subtype `success`,
-		// so `mapResult` produces no `ChatUsage` and `_enrichSignalWithCredits`
-		// never runs. Mark the turn inactive, push the running total now, then
-		// try to finalize: if the proxy already reports no in-flight requests for
-		// this session the credits are marked `final` immediately; otherwise the
-		// proxy's `onDidSettleSession` (or a late `recordTurnCredits`) finalizes
-		// once the SDK's in-flight `/v1/messages` requests drain — so the cost is
-		// neither dropped (undercount) nor finalized early.
+		// Finalize credits before tearing down (see method doc for why).
 		this._turnActive = false;
 		this._turnCancelled = true;
 		if (this._currentTurnNanoAiu > 0) {

@@ -246,7 +246,7 @@ suite('chatReducer – ChatUsage credit attribution', () => {
 		return { _meta: { copilotUsage: { totalNanoAiu } } };
 	}
 
-	test('credits flushed after a turn is cancelled attach to the terminal turn', () => {
+	test('credits flushed after a turn is cancelled are attributed to the terminal turn', () => {
 		let state = startTurn(makeChat());
 		// Turn ends (cancel) before any usage arrives — usage is flushed afterwards.
 		state = chatReducer(state, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
@@ -283,6 +283,27 @@ suite('chatReducer – ChatUsage credit attribution', () => {
 			inputTokens: 10,
 			outputTokens: 20,
 			_meta: { copilotUsage: { totalNanoAiu: 1_250_000_000 } },
+		});
+	});
+
+	test('a credit-only amend preserves sibling fields nested under copilotUsage', () => {
+		let state = startTurn(makeChat());
+		// First report carries extra nested detail alongside the credit total.
+		state = chatReducer(state, {
+			type: ActionType.ChatUsage,
+			turnId: 'turn-1',
+			usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000, tokenDetails: [{ tokenType: 'input', tokenCount: 7 }] } } },
+		});
+		// A later credit-only amend (e.g. the `final` marker) updates the total
+		// without re-sending the nested detail, which must survive the merge.
+		state = chatReducer(state, {
+			type: ActionType.ChatUsage,
+			turnId: 'turn-1',
+			usage: { _meta: { copilotUsage: { totalNanoAiu: 1_250_000_000, final: true } } },
+		});
+
+		assert.deepStrictEqual(state.activeTurn?.usage, {
+			_meta: { copilotUsage: { totalNanoAiu: 1_250_000_000, final: true, tokenDetails: [{ tokenType: 'input', tokenCount: 7 }] } },
 		});
 	});
 
