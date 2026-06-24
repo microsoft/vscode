@@ -2077,6 +2077,57 @@ suite('AgentHostChatContribution', () => {
 			);
 		}));
 
+		test('subagent credits are accumulated into parent turn usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			// Parent turn reports its own usage.
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { cost: 2.0 } } } as ChatAction);
+
+			// Spawn a subagent tool call.
+			const parentToolCallId = 'tc-sub-cost';
+			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'research' },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
+				confirmed: 'not-needed',
+			} as ChatAction);
+
+			await timeout(50);
+
+			// Child session reports usage with credits.
+			const childTurnId = 'child-turn-1';
+			const fireChild = (action: SessionAction | ChatAction) => {
+				agentHostService.fireAction({ channel: childSessionUri, action, serverSeq: 1000, origin: undefined });
+			};
+			fireChild({
+				type: 'chat/turnStarted',
+				turnId: childTurnId,
+				message: { text: '', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			fireChild({
+				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
+				usage: { inputTokens: 800, outputTokens: 200, model: 'gpt-5', _meta: { cost: 5.0 } },
+			} as ChatAction);
+
+			await timeout(50);
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// The parent usage should include both the parent's own credits (2.0) and the subagent's (5.0).
+			const usageParts = collected.flat().filter((p): p is IChatUsage => p.kind === 'usage');
+			const lastUsage = usageParts.at(-1);
+			assert.ok(lastUsage, 'should have emitted usage');
+			assert.strictEqual(lastUsage!.copilotCredits, 7.0, 'session cost should sum parent + subagent credits');
+		}));
+
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
