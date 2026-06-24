@@ -263,7 +263,7 @@ The MCP Servers section combines locally known MCP servers with MCP servers repo
 
 The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
 
-When the harness selector dropdown is disabled in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
+With the harness selector dropdown hidden in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
 
 ### Item Badges
 
@@ -306,8 +306,4 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-User-facing settings use the `chat.customizations.` namespace:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |
+User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor harness selector.
