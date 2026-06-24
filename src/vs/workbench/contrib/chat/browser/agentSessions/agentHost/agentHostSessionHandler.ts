@@ -2645,72 +2645,100 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		parentSession: URI,
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
+		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string }[] = [];
 
 		for (const item of history) {
 			if (item.type !== 'response') {
 				continue;
 			}
 
-			// Collect subagent tool calls from this response's parts
-			const subagentInsertions: { index: number; toolCallId: string }[] = [];
 			for (let i = 0; i < item.parts.length; i++) {
 				const part = item.parts[i];
 				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
-					subagentInsertions.push({ index: i, toolCallId: part.toolCallId });
-				}
-			}
-
-			// Process insertions in reverse order so indices remain valid
-			for (let j = subagentInsertions.length - 1; j >= 0; j--) {
-				const { index, toolCallId } = subagentInsertions[j];
-				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
-
-				try {
-					const childSub = this._ensureSessionSubscription(childSessionUri);
-					let childState = this._getSessionState(childSessionUri);
-					if (!childState) {
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						await new Promise<void>(resolve => {
-							const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
-						});
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						childState = this._getSessionState(childSessionUri);
-					}
-					if (childState) {
-						const innerParts: IChatProgress[] = [];
-						for (const turn of childState.turns) {
-							for (const rp of turn.responseParts) {
-								if (rp.kind === ResponsePartKind.ToolCall) {
-									const tc = rp.toolCall;
-									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-										const completedTc = tc as ICompletedToolCall;
-										const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-										if (fileEditParts.length > 0) {
-											serialized.presentation = ToolInvocationPresentation.Hidden;
-										}
-										innerParts.push(serialized);
-										innerParts.push(...fileEditParts);
-									}
-								}
-							}
-						}
-						if (innerParts.length > 0) {
-							// Insert inner tool calls right after the subagent tool call
-							item.parts.splice(index + 1, 0, ...innerParts);
-						}
-					}
-				} catch (err) {
-					this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
-				} finally {
-					this._releaseSessionSubscription(childSessionUri);
+					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId });
 				}
 			}
 		}
+
+		if (subagentInsertions.length === 0) {
+			return;
+		}
+
+		const childStateByUri = new Map<string, Promise<ISessionWithDefaultChat | undefined>>();
+		const getChildState = (childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> => {
+			let existing = childStateByUri.get(childSessionUri);
+			if (!existing) {
+				existing = this._loadSubagentState(childSessionUri);
+				childStateByUri.set(childSessionUri, existing);
+			}
+			return existing;
+		};
+
+		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId }) => {
+			const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+			try {
+				const childState = await getChildState(childSessionUri);
+				return { item, index, innerParts: childState ? this._getSubagentInnerParts(childSessionUri, toolCallId, childState) : [] };
+			} catch (err) {
+				this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
+				return { item, index, innerParts: [] };
+			}
+		}));
+
+		for (const { item, index, innerParts } of enrichedInsertions.sort((a, b) => b.index - a.index)) {
+			if (innerParts.length > 0) {
+				item.parts.splice(index + 1, 0, ...innerParts);
+			}
+		}
+	}
+
+	private async _loadSubagentState(childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> {
+		const childSub = this._ensureSessionSubscription(childSessionUri);
+		// `_ensureSessionSubscription` already subscribes to the child's default
+		// chat in lockstep; grab a handle so we can await it too. After the
+		// multi-chat protocol split, `turns` live on the chat channel, so we
+		// must wait for BOTH the session summary and its default-chat state to
+		// hydrate. Awaiting only the session subscription would read the merged
+		// state while `turns` is still empty, yielding no subagent inner tool
+		// calls. This mirrors the main `provideChatSessionContent` path.
+		const childChatSub = this._ensureDefaultChatSubscription(childSessionUri);
+		try {
+			await Promise.all([
+				this._whenSubscriptionHydrated(childSub, CancellationToken.None),
+				this._whenSubscriptionHydrated(childChatSub, CancellationToken.None),
+			]);
+			if (childSub.value instanceof Error) {
+				throw childSub.value;
+			}
+			if (childChatSub.value instanceof Error) {
+				throw childChatSub.value;
+			}
+			return this._getSessionState(childSessionUri);
+		} finally {
+			this._releaseSessionSubscription(childSessionUri);
+		}
+	}
+
+	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
+		const innerParts: IChatProgress[] = [];
+		for (const turn of childState.turns) {
+			for (const rp of turn.responseParts) {
+				if (rp.kind === ResponsePartKind.ToolCall) {
+					const tc = rp.toolCall;
+					if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+						const completedTc = tc as ICompletedToolCall;
+						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
+						const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
+						if (fileEditParts.length > 0) {
+							serialized.presentation = ToolInvocationPresentation.Hidden;
+						}
+						innerParts.push(serialized);
+						innerParts.push(...fileEditParts);
+					}
+				}
+			}
+		}
+		return innerParts;
 	}
 
 	/**

@@ -842,6 +842,22 @@ export interface IMcpNotification {
 }
 
 /**
+ * A subagent child session discovered in a parent session's event log,
+ * returned by {@link IAgent.getSubagentSessions} so a parent restore can
+ * register the child's state up-front.
+ */
+export interface IRestoredSubagentSession {
+	/** Child subagent session URI (subscribable by clients). */
+	readonly resource: URI;
+	/** Parent tool call id that spawned the subagent. */
+	readonly toolCallId: string;
+	/** Display title for the subagent session. */
+	readonly title: string;
+	/** Reconstructed turns for the subagent's transcript. */
+	readonly turns: readonly Turn[];
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -928,6 +944,17 @@ export interface IAgent {
 	 * child session's turns).
 	 */
 	getSessionMessages(session: URI): Promise<readonly Turn[]>;
+
+	/**
+	 * Returns the subagent child sessions discoverable in a session's event
+	 * log so a parent restore can eagerly register them in a single pass.
+	 * Without this, every child is restored separately by re-fetching and
+	 * re-reconstructing the full parent event log (one pass per subagent).
+	 * Agents that serve this from the same reconstruction they already
+	 * produced for the parent turns avoid that redundant work entirely.
+	 * Optional; agents without subagents omit it.
+	 */
+	getSubagentSessions?(session: URI): Promise<readonly IRestoredSubagentSession[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;

@@ -27,7 +27,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../co
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
+import { AgentSignal, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
@@ -37,7 +37,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -72,6 +72,8 @@ const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 30_000;
+
+type IMappedSessionEvents = { turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> };
 
 function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image' | 'resource' }[] | undefined): string {
 	if (!binaryResults?.length) {
@@ -985,6 +987,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
+		this._subscribeForMemoInvalidation();
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
@@ -1268,18 +1271,80 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getEvents();
-		let db: ISessionDatabase | undefined;
-		try {
-			db = this._databaseRef.object;
-		} catch {
-			// Database may not exist yet — that's fine
-		}
-		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
+		const result = await this._getMappedEvents();
 		return result.turns;
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
+		const result = await this._getMappedEvents();
+		const turns = result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
+		return turns;
+	}
+
+	/**
+	 * Returns the subagent child sessions discoverable in this session's event
+	 * log, derived from the same {@link mapSessionEvents} reconstruction used
+	 * for {@link getMessages}/{@link getSubagentMessages}. Lets a parent
+	 * restore register every child up-front instead of each child re-fetching
+	 * and re-reconstructing the full parent event log.
+	 */
+	async getSubagentSessions(): Promise<readonly IRestoredSubagentSession[]> {
+		const result = await this._getMappedEvents();
+		if (result.subagentTurnsByToolCallId.size === 0) {
+			return [];
+		}
+		const parentSessionStr = this.sessionUri.toString();
+		const out: IRestoredSubagentSession[] = [];
+		for (const turn of result.turns) {
+			for (const rp of turn.responseParts) {
+				if (rp.kind !== ResponsePartKind.ToolCall) {
+					continue;
+				}
+				const tc = rp.toolCall;
+				const childTurns = result.subagentTurnsByToolCallId.get(tc.toolCallId);
+				if (!childTurns || childTurns.length === 0) {
+					continue;
+				}
+				const content = (tc as { content?: readonly ToolResultContent[] }).content;
+				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
+				out.push({
+					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
+					toolCallId: tc.toolCallId,
+					title: subagentContent?.title ?? 'Subagent',
+					turns: childTurns,
+				});
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * Memoized `getEvents()` + {@link mapSessionEvents} result, shared by
+	 * {@link getMessages}, {@link getSubagentMessages} and
+	 * {@link getSubagentSessions}. A single session open reads and
+	 * reconstructs the full parent event log once instead of once per
+	 * subagent. The memo is scoped to the resume/restore wave: it is dropped
+	 * whenever the persisted event log could change (see
+	 * {@link _invalidateMappedEvents}) and on dispose, so it never serves
+	 * stale turns for an actively-running session.
+	 */
+	private _mappedEventsMemo: Promise<IMappedSessionEvents> | undefined;
+
+	private _getMappedEvents(): Promise<IMappedSessionEvents> {
+		if (!this._mappedEventsMemo) {
+			const pending = this._computeMappedEvents();
+			this._mappedEventsMemo = pending;
+			// Don't cache a rejected reconstruction — let the next caller retry.
+			pending.catch(() => {
+				if (this._mappedEventsMemo === pending) {
+					this._mappedEventsMemo = undefined;
+				}
+			});
+		}
+		return this._mappedEventsMemo;
+	}
+
+	private async _computeMappedEvents(): Promise<IMappedSessionEvents> {
 		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -1288,7 +1353,12 @@ export class CopilotAgentSession extends Disposable {
 			// Database may not exist yet — that's fine
 		}
 		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
-		return result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
+		return result;
+	}
+
+	/** Drop the memoized event reconstruction; the next read rebuilds it. */
+	private _invalidateMappedEvents(): void {
+		this._mappedEventsMemo = undefined;
 	}
 
 	async abort(): Promise<void> {
@@ -2824,6 +2894,29 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(err, `[Copilot:${this.sessionId}] exitPlanMode.request handler failed: rpcId=${requestId}`);
 			return { approved: false };
 		}
+	}
+
+	/**
+	 * Drop the memoized event reconstruction whenever the persisted event log
+	 * could have changed, so {@link _getMappedEvents} never serves stale turns
+	 * once the session resumes activity. While the session is idle (e.g. during
+	 * a historical session open) none of these fire, so the whole restore wave
+	 * coalesces to a single reconstruction.
+	 */
+	private _subscribeForMemoInvalidation(): void {
+		const wrapper = this._wrapper;
+		const invalidate = () => this._invalidateMappedEvents();
+		// New content appended to the log.
+		this._register(wrapper.onUserMessage(invalidate));
+		this._register(wrapper.onTurnStart(invalidate));
+		this._register(wrapper.onTurnEnd(invalidate));
+		this._register(wrapper.onToolComplete(invalidate));
+		this._register(wrapper.onSubagentCompleted(invalidate));
+		this._register(wrapper.onSubagentFailed(invalidate));
+		// In-place rewrites of the persisted log.
+		this._register(wrapper.onSessionCompactionComplete(invalidate));
+		this._register(wrapper.onSessionTruncation(invalidate));
+		this._register(wrapper.onSessionSnapshotRewind(invalidate));
 	}
 
 	private _subscribeForLogging(): void {
