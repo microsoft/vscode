@@ -1,6 +1,6 @@
 {
   "name": "copilot-chat",
-  "displayName": "GitHub Copilot Chat",
+  "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
   "version": "0.55.0",
   "build": "1",
