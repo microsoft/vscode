@@ -155,14 +155,42 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
+		// Tab-strip visibility is sticky per opened session: once shown it stays
+		// shown for the session's lifetime. We never hide it again when chats are
+		// later removed or renamed, so the experience stays consistent.
+		this._setVisible(false);
+		let shown = false;
 		store.add(autorun(reader => {
 			const chats = session.chats.read(reader);
+			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = session.mainChat.read(reader).resource.toString();
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+			const mainChatUri = mainChat.resource.toString();
+			// Keep the provider's order, but move untitled (in-composer) chats
+			// to the end so a just-completed background chat never jumps last.
+			// Partition so each chat's status is read exactly once (tracked) and
+			// relative order is preserved by construction.
+			const committed: IChat[] = [];
+			const untitled: IChat[] = [];
+			for (const chat of chats) {
+				(chat.status.read(reader) === SessionStatus.Untitled ? untitled : committed).push(chat);
+			}
+			const orderedChats = untitled.length === 0 ? chats : [...committed, ...untitled];
+			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
 
-			// Only show the tab strip once the session is created and has multiple chats.
-			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
+			if (shown) {
+				return;
+			}
+			// Show once the session is created and either has multiple chats, or
+			// its single (default) chat carries a title that differs from the
+			// session title (both independent titles must stay visible).
+			const mainChatTitle = mainChat.title.read(reader);
+			const defaultChatDiverged = chats.length === 1
+				&& !!mainChatTitle
+				&& mainChatTitle !== session.title.read(reader);
+			if (session.isCreated.read(reader) && (chats.length > 1 || defaultChatDiverged)) {
+				shown = true;
+				this._setVisible(true);
+			}
 		}));
 	}
 

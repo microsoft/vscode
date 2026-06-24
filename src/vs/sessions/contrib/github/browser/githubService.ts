@@ -3,20 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IGitHubChangedFile, IGitHubPullRequest } from '../common/types.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IGitHubChangedFile } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
-import { GitHubPullRequestStateCache, IPullRequestStateSnapshot } from './githubPullRequestStateCache.js';
 import { getPullRequestKey } from '../common/utils.js';
-import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+
+/**
+ * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
+ * the session PR status icons. Filter the logs on this token to follow the
+ * whole flow end-to-end (lookup -> fetch -> poll -> icon).
+ */
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
+
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 
@@ -59,29 +67,6 @@ export interface IGitHubService {
 	 * not cached, so a later retry can succeed once a PR is created.
 	 */
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined>;
-
-	/**
-	 * Observable of the last-seen state for a pull request, used to render the
-	 * sessions list PR icon for any session — not just the active one. Seeded
-	 * from global storage so the icon shows instantly on reload, and updated
-	 * by {@link fetchPullRequestState} / {@link pollPullRequestState}.
-	 */
-	getCachedPullRequestState(owner: string, repo: string, prNumber: number): IObservable<IPullRequestStateSnapshot | undefined>;
-
-	/**
-	 * Fetch a pull request's state once and write it to the cache. Use when a
-	 * session's PR number first resolves (or changes) so its icon updates even
-	 * when the session is not being polled.
-	 */
-	fetchPullRequestState(owner: string, repo: string, prNumber: number): Promise<void>;
-
-	/**
-	 * Refresh a pull request's state immediately, then keep it fresh by polling,
-	 * writing every update through to the cache. Returns a disposable that stops
-	 * polling (the last-seen state is retained in the cache). Use only for the
-	 * limited set of sessions worth polling (visible + most recently updated).
-	 */
-	pollPullRequestState(owner: string, repo: string, prNumber: number): IDisposable;
 }
 
 export const IGitHubService = createDecorator<IGitHubService>('sessionsGitHubService');
@@ -100,7 +85,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
 	private readonly _apiClient: GitHubApiClient;
-	private readonly _stateCache: GitHubPullRequestStateCache;
 
 	/**
 	 * Cache of in-flight / resolved `findPullRequestNumberByHeadBranch`
@@ -114,6 +98,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -126,7 +111,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
 		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
-		this._stateCache = this._register(instantiationService.createInstance(GitHubPullRequestStateCache));
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
@@ -221,6 +205,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const key = `${owner}/${repo}#${branch}`;
 		let promise = this._findPRByBranchCache.get(key);
 		if (!promise) {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache MISS for ${key}; starting lookup`);
 			promise = this._fetchPullRequestNumberByHeadBranch(owner, repo, branch);
 			this._findPRByBranchCache.set(key, promise);
 			// Only cache successful, numeric results indefinitely; the PR number
@@ -230,13 +215,19 @@ export class GitHubService extends Disposable implements IGitHubService {
 			promise.then(
 				value => {
 					if (typeof value !== 'number') {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved with NO pr number; dropping cache entry so a later call retries`);
 						this._findPRByBranchCache.delete(key);
+					} else {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved PR #${value}; caching indefinitely`);
 					}
 				},
-				() => {
+				err => {
+					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry.`, err);
 					this._findPRByBranchCache.delete(key);
 				},
 			);
+		} else {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache HIT for ${key}`);
 		}
 		return promise.catch(() => undefined);
 	}
@@ -247,47 +238,14 @@ export class GitHubService extends Disposable implements IGitHubService {
 		// surfaces the PR after the agent run finishes and the PR is merged.
 		// `per_page=1` + `sort=updated` gives us the most recent match.
 		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] Fetching PR number for head ${owner}:${branch} via GET ${path}`);
 		const response = await this._apiClient.request<readonly { readonly number: number }[]>(
 			'GET',
 			path,
 			'githubApi.findPullRequestByHeadBranch',
 		);
 		const first = response.data?.[0];
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] PR number lookup for ${owner}:${branch} -> ${first ? `#${first.number}` : 'no match'} (status ${response.statusCode}, ${response.data?.length ?? 0} result(s))`);
 		return first ? first.number : undefined;
-	}
-
-	getCachedPullRequestState(owner: string, repo: string, prNumber: number): IObservable<IPullRequestStateSnapshot | undefined> {
-		return this._stateCache.getState(owner, repo, prNumber);
-	}
-
-	async fetchPullRequestState(owner: string, repo: string, prNumber: number): Promise<void> {
-		const modelRef = this.createPullRequestModelReference(owner, repo, prNumber);
-		try {
-			await modelRef.object.refresh();
-			this._writeStateFromModel(owner, repo, prNumber, modelRef.object.pullRequest.get());
-		} finally {
-			modelRef.dispose();
-		}
-	}
-
-	pollPullRequestState(owner: string, repo: string, prNumber: number): IDisposable {
-		const store = new DisposableStore();
-		const modelRef = store.add(this.createPullRequestModelReference(owner, repo, prNumber));
-		const model = modelRef.object;
-		model.refresh();
-		store.add(model.startPolling());
-		// Mirror every refresh/poll update into the cache so the icon stays
-		// current while polling and retains its last value once polling stops.
-		store.add(autorun(reader => {
-			this._writeStateFromModel(owner, repo, prNumber, model.pullRequest.read(reader));
-		}));
-		return store;
-	}
-
-	private _writeStateFromModel(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest | undefined): void {
-		if (!pullRequest) {
-			return;
-		}
-		this._stateCache.setState(owner, repo, prNumber, { iconState: pullRequest.isDraft ? 'draft' : pullRequest.state });
 	}
 }

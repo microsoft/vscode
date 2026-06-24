@@ -18,7 +18,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowConte
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -40,7 +40,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
 		});
@@ -196,7 +196,7 @@ registerAction2(class GoBackAction extends Action2 {
 			keybinding: {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
@@ -238,7 +238,7 @@ registerAction2(class GoForwardAction extends Action2 {
 			keybinding: {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
@@ -275,7 +275,7 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 				// Must outrank the workbench `workbench.action.chat.open` binding
 				// (WorkbenchContrib) so that in the sessions window the chord
 				// focuses the active session. Using the normal open chat action will not work for new session views.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
 			},
@@ -306,7 +306,7 @@ for (let index = 0; index < 9; index++) {
 				f1: true,
 				category: SessionsCategories.Sessions,
 				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
+					weight: KeybindingWeight.SessionsContrib,
 					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
 					when: IsSessionsWindowContext,
 				},
@@ -341,7 +341,7 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			precondition: IsSessionsWindowContext,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyW),
 				// Only fire from the keyboard while a session (its chat view) has focus.
 				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext),
@@ -431,7 +431,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}],
 		});
 	}

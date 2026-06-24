@@ -26,6 +26,7 @@ import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { SessionInfo } from '../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { ICloudBackendInstrumentation } from './cloudBackendTelemetry';
 import {
 	ITaskApiClient,
 	ListTaskEventsOptions,
@@ -198,6 +199,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		private readonly _taskApiClient: ITaskApiClient,
 		private readonly _logService: ILogService,
 		private readonly _octoKitService: IOctoKitService,
+		private readonly _instrumentation: ICloudBackendInstrumentation,
 	) { }
 
 	parseSessionId(resource: vscode.Uri): CloudSessionIdentity | undefined {
@@ -232,7 +234,15 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			...(params.partnerAgentId !== undefined && { agent_id: params.partnerAgentId }),
 		};
 
-		const task = await this._taskApiClient.createTask(params.owner, params.repo, request);
+		const createStart = Date.now();
+		let task: AgentTask;
+		try {
+			task = await this._taskApiClient.createTask(params.owner, params.repo, request);
+		} catch (e) {
+			this._instrumentation.sessionCreated('failure', Date.now() - createStart, e);
+			throw e;
+		}
+		this._instrumentation.sessionCreated('success', Date.now() - createStart);
 
 		// Return immediately. The pull artifact (if any) may not exist yet; the provider
 		// resolves it asynchronously via `resolvePullArtifactWithRetry` so creation isn't
@@ -252,18 +262,32 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		const tasksWithRepo: { task: AgentTask; repo: { owner: string; name: string } | undefined }[] = [];
 
 		if (!repoIds || repoIds.length === 0) {
+			// The global `agents/tasks` endpoint is already scoped to the authenticated user, so
+			// no creator filter is needed here.
 			const response = await this._taskApiClient.listTasks(listOpts);
 			for (const task of response.tasks) {
 				tasksWithRepo.push({ task, repo: undefined });
 			}
 		} else {
+			// The repo-scoped endpoint returns every collaborator's tasks by default. Scope it to
+			// the current user's own tasks via `creator_id`, matching the github.com/copilot/agents
+			// repo page. Fail closed: if the user id can't be resolved we skip the repo fetch and
+			// return no tasks rather than reverting to the unscoped list, which would expose other
+			// collaborators' tasks during transient auth/API failures.
+			const creatorId = await this._resolveCurrentUserId();
+			if (creatorId === undefined) {
+				this._logService.warn('Skipping repo-scoped cloud task list because the current user id could not be resolved; returning no sessions to avoid exposing other users\' tasks.');
+				return [];
+			}
+			const repoListOpts: ListTasksOptions = { ...listOpts, creator_id: creatorId };
 			const responses = await Promise.all(
 				repoIds.map(async repo => {
 					try {
-						const r = await this._taskApiClient.listTasksForRepo(repo.org, repo.repo, listOpts);
+						const r = await this._taskApiClient.listTasksForRepo(repo.org, repo.repo, repoListOpts);
 						return { repo: { owner: repo.org, name: repo.repo }, response: r };
 					} catch (e: unknown) {
 						this._logService.warn(`Failed to fetch tasks for ${repo.org}/${repo.repo}: ${e}`);
+						this._instrumentation.operationFailed('fetchSessionList', e);
 						return { repo: { owner: repo.org, name: repo.repo }, response: { tasks: [] as readonly AgentTask[] } satisfies AgentTaskListResponse };
 					}
 				}),
@@ -284,6 +308,20 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			}));
 	}
 
+	/**
+	 * Resolve the authenticated user's numeric GitHub id for the repo task `creator_id` filter.
+	 * Returns undefined (and logs) on failure; callers fail closed rather than listing unscoped.
+	 */
+	private async _resolveCurrentUserId(): Promise<number | undefined> {
+		try {
+			const user = await this._octoKitService.getCurrentAuthedUser();
+			return user?.id;
+		} catch (e: unknown) {
+			this._logService.warn(`Failed to resolve current user id for task creator filter: ${e}`);
+			return undefined;
+		}
+	}
+
 	async fetchTaskContent(taskId: string): Promise<TaskContent | undefined> {
 		try {
 			const task = await this._taskApiClient.getTask(taskId);
@@ -294,6 +332,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			};
 		} catch (e) {
 			this._logService.warn(`Failed to fetch task ${taskId}: ${e}`);
+			this._instrumentation.operationFailed('fetchContent', e);
 			return undefined;
 		}
 	}
@@ -313,6 +352,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			return events;
 		} catch (e) {
 			this._logService.warn(`Failed to fetch events for task ${taskId}: ${e}`);
+			this._instrumentation.operationFailed('fetchEvents', e);
 			return events;
 		}
 	}
@@ -330,6 +370,12 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
 				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
 				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
+					// First turn appearing (baseline had none) is the v2 "session activated" signal —
+					// the task has started producing output. Mirrors v1's PR-ready activation.
+					if (since.turnCount === 0 && turnCount >= 1) {
+						const createdAtMs = task.created_at ? Date.parse(task.created_at) : NaN;
+						this._instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
+					}
 					return {
 						task,
 						turns: [],
@@ -338,6 +384,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 				}
 			} catch (e) {
 				this._logService.warn(`Failed to poll task ${taskId}: ${e}`);
+				this._instrumentation.operationFailed('pollUpdate', e);
 			}
 			await new Promise(resolve => setTimeout(resolve, TASK_SESSION_POLL_INTERVAL_MS));
 		}
@@ -347,9 +394,11 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 	async sendFollowUpToTask(taskId: string, prompt: string): Promise<FollowUpResult | undefined> {
 		try {
 			await this._taskApiClient.steerTask(taskId, { content: prompt, type: 'user_message' });
+			this._instrumentation.followUp('success');
 			return {};
 		} catch (e) {
 			this._logService.error(`Failed to steer task ${taskId}: ${e}`);
+			this._instrumentation.followUp('failure', e);
 			return undefined;
 		}
 	}
@@ -366,6 +415,7 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			return response.tasks[0]?.id;
 		} catch (e) {
 			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
+			this._instrumentation.operationFailed('findTaskForPullRequest', e);
 			return undefined;
 		}
 	}
@@ -375,7 +425,12 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		if (!repo) {
 			throw new Error(l10n.t('Unable to determine the repository for this task.'));
 		}
-		return this._taskApiClient.createPRForTask(repo.owner, repo.name, task.id);
+		try {
+			return await this._taskApiClient.createPRForTask(repo.owner, repo.name, task.id);
+		} catch (e) {
+			this._instrumentation.operationFailed('createPullRequest', e);
+			throw e;
+		}
 	}
 
 	/**
@@ -397,6 +452,17 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			this._logService.warn(`Could not resolve repository ${repoId} for task ${task.id}.`);
 		}
 		return undefined;
+	}
+}
+
+/**
+ * Error thrown by {@link TaskApiHttpClient} for non-2xx Task API responses. Carries the HTTP
+ * `status` so backend catch sites can surface it to telemetry (the per-backend-version guardrail dimension).
+ */
+export class TaskApiError extends Error {
+	constructor(message: string, readonly status: number, readonly action: string) {
+		super(message);
+		this.name = 'TaskApiError';
 	}
 }
 
@@ -450,7 +516,7 @@ export class TaskApiHttpClient implements ITaskApiClient {
 			let body = '';
 			try { body = await response.text(); } catch { /* ignore */ }
 			this._logService.warn(`Task API ${action} failed: ${response.status} ${response.statusText} (owner=${opts.owner ?? 'n/a'}, repo=${opts.repo ?? 'n/a'}, taskId=${opts.taskId ?? 'n/a'}); body=${body.slice(0, 200)}`);
-			throw new Error(l10n.t('Task API request failed: {0} {1}', response.status, response.statusText));
+			throw new TaskApiError(l10n.t('Task API request failed: {0} {1}', response.status, response.statusText), response.status, action);
 		}
 		if (response.status === 204 || response.status === 202) {
 			return undefined;
