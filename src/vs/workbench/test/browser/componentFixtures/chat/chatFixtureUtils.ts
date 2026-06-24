@@ -20,6 +20,7 @@ import { ISharedWebContentExtractorService } from '../../../../../platform/webCo
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -126,6 +127,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
 	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+	reg.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() { override onDidChangeTrust = Event.None; override readonly workspaceTrustInitialized = Promise.resolve(); override isWorkspaceTrusted() { return true; } }());
+	reg.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() { override async requestWorkspaceTrust() { return true; } }());
 	reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { override onDidChangePartVisibility = Event.None; override onDidChangeWindowMaximized = Event.None; override isVisible() { return true; } }());
 	reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override onDidChangeLocation = Event.None; }());
 	reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
