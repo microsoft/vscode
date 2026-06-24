@@ -34,6 +34,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
@@ -295,13 +296,14 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
-				order: 10
+				order: -9
 			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
+		const preferencesService = accessor.get(IPreferencesService);
 
 		const items = [
 			{
@@ -323,7 +325,7 @@ registerAction2(class extends Action2 {
 			if (selection.id === 'selectMic') {
 				await commandService.executeCommand('agentsVoice.selectMicrophone');
 			} else if (selection.id === 'openSettings') {
-				await commandService.executeCommand('workbench.action.openSettings', '@id:agents.voice');
+				await preferencesService.openSettings({ jsonEditor: false, query: '@id:agents.voice' });
 			}
 		}
 	}
