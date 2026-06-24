@@ -1937,14 +1937,29 @@ export class ChatService extends Disposable implements IChatService {
 			// message from the queue (clearing it server-side) and re-send it
 			// as a normal turn once the active turn has been cancelled.
 			const message = target.request.message.text;
+			const attachedContext = target.request.variableData.variables.slice();
 			const sendOptions: IChatSendRequestOptions = {
 				...target.sendOptions,
 				queue: undefined,
-				attachedContext: target.request.variableData.variables.slice(),
+				attachedContext,
 			};
+			// Remove before sending so the server does not also auto-drain the
+			// same message when the cancelled turn settles (which would send it
+			// twice). The trade-off is that a failed re-send would otherwise
+			// drop the message entirely, so on failure we restore it to the
+			// queue with its original kind rather than losing it silently.
 			this.removePendingRequest(sessionResource, requestId);
 			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
-			await this.sendRequest(sessionResource, message, sendOptions);
+			let result: ChatSendResult | undefined;
+			try {
+				result = await this.sendRequest(sessionResource, message, sendOptions);
+			} catch (err) {
+				this.logService.error('sendPendingRequestImmediately: re-send failed', err);
+			}
+			if (!result || result.kind === 'rejected') {
+				this.info('sendPendingRequestImmediately', `Re-send was not accepted (${result?.kind ?? 'error'}); restoring pending message to the queue`);
+				await this.sendRequest(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind });
+			}
 			return;
 		}
 
