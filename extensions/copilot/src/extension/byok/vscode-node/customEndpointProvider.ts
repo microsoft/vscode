@@ -152,8 +152,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
+			toolCalling: !!model.capabilities?.toolCalling,
+			vision: !!model.capabilities?.imageInput,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,

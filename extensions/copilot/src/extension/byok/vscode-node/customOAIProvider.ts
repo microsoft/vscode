@@ -61,6 +61,7 @@ interface _CustomOAIModelConfig {
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
+	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses';
@@ -138,23 +139,31 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
+			toolCalling: !!model.capabilities?.toolCalling,
+			vision: !!model.capabilities?.imageInput,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
+			supportedEndpoints: modelConfiguration?.supportedEndpoints,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		if (modelCapabilities?.supportedEndpoints?.length) {
+			modelInfo.supported_endpoints = Array.from(new Set([
+				...(modelInfo.supported_endpoints ?? []),
+				...modelCapabilities.supportedEndpoints
+			]));
+		}
 		if (modelCapabilities?.url?.includes('/responses')) {
-			modelInfo.supported_endpoints = [
+			modelInfo.supported_endpoints = Array.from(new Set([
+				...(modelInfo.supported_endpoints ?? []),
 				ModelSupportedEndpoint.ChatCompletions,
 				ModelSupportedEndpoint.Responses
-			];
+			]));
 		}
 		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
