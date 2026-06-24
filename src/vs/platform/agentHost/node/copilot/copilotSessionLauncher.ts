@@ -148,7 +148,7 @@ function isReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
-export function isContextTier(value: unknown): value is ContextTier {
+function isContextTier(value: unknown): value is ContextTier {
 	return ContextTiers.some(contextTier => contextTier === value);
 }
 
