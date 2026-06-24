@@ -8,14 +8,14 @@ a separate "Implementation notes" section); the code and tests reference these r
 | File | Spec | Rules |
 |------|------|-------|
 | `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B5` |
-| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D6` |
+| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D7` |
 | `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md) | `M1`–`M2` |
 
 The abstract `BaseLayoutController` owns the platform-agnostic mechanics (panel, editor working sets,
 persistence, multi-session suppression). `LayoutController` (desktop / web desktop) adds auxiliary bar
-management; `MobileLayoutController` (web phone) omits it. The desktop and mobile controllers each
-self-register behind a platform guard and are imported from `sessions.desktop.main.ts` (desktop) and
-`sessions.web.main.ts` (web).
+management; `MobileLayoutController` (web phone) omits it. `contrib/layout/browser/sessions.layout.contribution.ts`
+contributes the correct controller per platform (and registers the experimental responsive-sidebar
+setting); it is imported from `sessions.desktop.main.ts` (desktop) and `sessions.web.main.ts` (web).
 
 It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
 
@@ -206,4 +206,13 @@ back to the default-visible logic (§3.2) on the next reload.)
 - **The side pane is never auto-opened for existing sessions** — it opens automatically only as the
   new-session default (§3.2 step 2). An existing session with no explicit "visible" choice stays
   closed until the user opens it.
+- **The sessions sidebar is auto-managed on a small window (desktop, [D7])** — when the main container is
+  1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
+  again once either closes or the window widens, unless the user closed it themselves. Suspended while
+  multiple sessions are visible, and switching sessions never auto-hides the sidebar: the base-controller
+  restore epoch (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) wraps both the aux-bar restore
+  and the editor working-set apply (`_applyWorkingSet`), so the side-pane / editor reveals a switch causes
+  re-baseline the state instead of triggering an auto-hide. Gated by the
+  experimental setting `sessions.layout.autoCollapseSessionsSidebar` (default on in non-stable builds). See
+  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) D7.
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.
