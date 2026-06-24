@@ -158,6 +158,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
+	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 }
 
 function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService } {
@@ -1084,6 +1085,49 @@ suite('SessionsManagementService', () => {
 			const result = await service.createNewChatInSession(session);
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('forkChatInSession', () => {
+
+		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
+			const sourceChat = URI.parse('test:///source');
+			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
+			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: { supportsMultipleChats: true } });
+			let forkChatArgs: readonly [string, URI, string] | undefined;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+					forkChatArgs = [sessionId, sourceChat, turnId];
+					return forkedChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.forkChatInSession(session, sourceChat, 'turn-1');
+
+			assert.deepStrictEqual({
+				result: result.resource.toString(),
+				args: forkChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+			}, {
+				result: forkedChat.resource.toString(),
+				args: ['fork', sourceChat.toString(), 'turn-1'],
+			});
+		});
+
+		test('throws when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider', capabilities: { supportsMultipleChats: true } });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /Provider 'missing-provider' not found/);
+		});
+
+		test('throws when the session does not support multiple chats', async () => {
+			const session = stubSession({ sessionId: 'single-chat', providerId: 'test', capabilities: { supportsMultipleChats: false } });
+			const { service } = createSessionsManagementService(session, disposables);
+
+			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
 		});
 	});
 });

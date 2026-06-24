@@ -2513,6 +2513,46 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return chat;
 	}
 
+	async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(this._notConnectedSendErrorMessage());
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!rawId || !cached) {
+			throw new Error(`Session '${sessionId}' not found`);
+		}
+		if (!cached.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${sessionId}' does not support multiple chats`);
+		}
+
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const newChatId = generateUuid();
+		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
+		// Map the UI source chat resource to its backend chat URI: a fragment
+		// addresses a peer chat, otherwise the session's default chat.
+		const sourceBackendUri = sourceChat.fragment
+			? URI.parse(buildChatUri(sessionUri, sourceChat.fragment))
+			: sessionUri;
+
+		// Keep the session-state subscription alive so the `chatAdded` it emits
+		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
+		this._keepSessionStateAlive(cached.sessionId);
+		await connection.createChat(sessionUri, chatUri, {
+			model: cached.modelSelection,
+			fork: { source: sourceBackendUri, turnId },
+		});
+
+		const chat = await waitForState(
+			cached.chats.map(chats => chats.find(c => c.resource.fragment === newChatId)),
+			c => !!c,
+		);
+
+		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
+		return chat;
+	}
+
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {

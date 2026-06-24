@@ -444,7 +444,7 @@ export class AgentHostStateManager extends Disposable {
 	 * is a no-op (returning the existing summary) when a chat with the same URI
 	 * already exists.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[] }): ChatSummary | undefined {
 		const sessionState = this._sessionStates.get(session);
 		if (!sessionState) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -471,7 +471,7 @@ export class AgentHostStateManager extends Disposable {
 			title: options?.title ?? '',
 			status: SessionStatus.Idle,
 		};
-		this._chatStates.set(chatUri, createChatState(chatSummary));
+		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options?.turns ?? [] });
 		this.dispatchServerAction(session, { type: ActionType.SessionChatAdded, summary: chatSummary });
 		return chatSummary;
 	}

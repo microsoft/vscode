@@ -846,6 +846,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			channel: session.toString(),
 			chat: chat.toString(),
 			model: options?.model,
+			...(options?.fork ? { source: { chat: options.fork.source.toString(), turnId: options.fork.turnId } } : {}),
 		});
 	}
 
