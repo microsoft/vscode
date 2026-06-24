@@ -364,10 +364,13 @@ class StorageMap extends Disposable {
 
 		if (!storage) {
 			const result = create();
-			storage = new RefCountedStorage(result.storage, result.onDidClose, () => {
-				this.mapStorage.delete(storageId);
-				this.clearStorageReferences(storageId);
+			const refCountedStorage = new RefCountedStorage(result.storage, result.onDidClose, () => {
+				if (this.mapStorage.get(storageId) === refCountedStorage) {
+					this.mapStorage.delete(storageId);
+					this.clearStorageReferences(storageId);
+				}
 			});
+			storage = refCountedStorage;
 			this.mapStorage.set(storageId, storage);
 		}
 
@@ -505,7 +508,7 @@ class RefCountedStorage extends Disposable {
 
 		this.didClose = true;
 		this.onDidCloseStorage();
-		this.dispose();
+		queueMicrotask(() => this.dispose());
 	}
 
 	override dispose(): void {
