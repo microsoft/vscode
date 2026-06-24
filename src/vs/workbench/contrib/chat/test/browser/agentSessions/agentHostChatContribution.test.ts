@@ -156,7 +156,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			const state: SessionState = {
 				...createSessionState(summary),
 				lifecycle: SessionLifecycle.Ready,
-				activeClient: config.activeClient,
+				activeClients: [config.activeClient],
 			};
 			this.sessionStates.set(session.toString(), state);
 		}
@@ -173,7 +173,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
-	 *  (excludes lifecycle actions like activeClientChanged). */
+	 *  (excludes lifecycle actions like activeClientSet). */
 	get turnActions() {
 		return this.dispatchedActions.filter(d => d.action.type === 'chat/turnStarted');
 	}
@@ -344,7 +344,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
 		// Turn lifecycle actions (turnStarted, toolCallConfirmed, etc.) are applied
 		// later via fireAction when the server echoes them back.
-		if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
+		if (isSessionAction(action) && (
+			action.type === 'session/activeClientSet'
+			|| action.type === 'session/activeClientRemoved'
+			|| action.type === 'session/activeClientToolsChanged'
+		)) {
 			const entry = this._liveSubscriptions.get(channel.toString());
 			if (entry) {
 				const noop = () => { };
@@ -730,7 +734,7 @@ async function startTurn(
 	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 	ds.add(toDisposable(() => chatSession.dispose()));
 
-	// Clear any lifecycle actions (e.g. activeClientChanged from customization setup)
+	// Clear any lifecycle actions (e.g. activeClientSet from customization setup)
 	// so tests only see turn-related dispatches.
 	agentHostService.dispatchedActions.length = 0;
 
@@ -757,7 +761,7 @@ async function startTurn(
 
 	await timeout(10);
 
-	// Filter for turn-related dispatches only (skip activeClientChanged etc.)
+	// Filter for turn-related dispatches only (skip activeClientSet etc.)
 	const turnDispatches = agentHostService.dispatchedActions.filter(d => d.action.type === 'chat/turnStarted');
 	const lastDispatch = turnDispatches[turnDispatches.length - 1] ?? agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
 	const session = lastDispatch?.channel.toString();
@@ -5921,7 +5925,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('customizations', () => {
 
-		test('dispatches activeClientChanged when a new session is created', async () => {
+		test('dispatches activeClientSet when a new session is created', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
@@ -5953,7 +5957,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(createCall!.activeClient!.customizations?.[0].uri, 'file:///plugin-a');
 		});
 
-		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
+		test('re-dispatches activeClientSet when customizations observable changes', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', []);
@@ -5982,15 +5986,15 @@ suite('AgentHostChatContribution', () => {
 			], undefined);
 
 			const activeClientAction = agentHostService.dispatchedActions.find(
-				d => d.action.type === 'session/activeClientChanged'
+				d => d.action.type === 'session/activeClientSet'
 			);
-			assert.ok(activeClientAction, 'should re-dispatch activeClientChanged on change');
+			assert.ok(activeClientAction, 'should re-dispatch activeClientSet on change');
 			const ac = activeClientAction!.action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(ac.activeClient.customizations?.length, 1);
 			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
 
-		test('does not dispatch activeClientChanged when an existing session is restored and this client is already active', async () => {
+		test('does not dispatch activeClientSet when an existing session is restored and this client is already active', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
 			const summary: SessionSummary = {
@@ -6004,11 +6008,11 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
 				lifecycle: SessionLifecycle.Ready,
-				activeClient: {
+				activeClients: [{
 					clientId: agentHostService.clientId,
 					tools: [],
 					customizations: [],
-				},
+				}],
 			});
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -6025,12 +6029,12 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
 			assert.strictEqual(
-				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet').length,
 				0,
 			);
 		});
 
-		test('dispatches activeClientChanged on first turn when restoring a session where another client is active', async () => {
+		test('dispatches activeClientSet on first turn when restoring a session where another client is active', async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
 			const summary: SessionSummary = {
@@ -6044,10 +6048,10 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
 				lifecycle: SessionLifecycle.Ready,
-				activeClient: {
+				activeClients: [{
 					clientId: 'other-client',
 					tools: [],
-				},
+				}],
 			});
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -6067,7 +6071,7 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			assert.strictEqual(
-				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet').length,
 				0,
 				'no dispatch expected on session open',
 			);
@@ -6077,12 +6081,12 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
-			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
 			assert.strictEqual(activeClientActions.length, 1);
 			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
 		});
 
-		test('dispatches activeClientChanged on first turn when restoring a session where current client customizations are stale', async () => {
+		test('dispatches activeClientSet on first turn when restoring a session where current client customizations are stale', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
@@ -6100,11 +6104,11 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
 				lifecycle: SessionLifecycle.Ready,
-				activeClient: {
+				activeClients: [{
 					clientId: agentHostService.clientId,
 					tools: [],
 					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', enabled: true }],
-				},
+				}],
 			});
 
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -6121,7 +6125,7 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 			assert.strictEqual(
-				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet').length,
 				0,
 				'no dispatch expected on session open',
 			);
@@ -6131,11 +6135,11 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
-			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
+			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
 			assert.strictEqual(activeClientActions.length, 1);
-			const activeClientAction = activeClientActions[0].action;
-			assert.strictEqual(activeClientAction.type, 'session/activeClientChanged');
-			assert.deepStrictEqual(activeClientAction.activeClient?.customizations, [
+			const activeClientAction = activeClientActions[0].action as { type: string; activeClient: { customizations?: ClientPluginCustomization[] } };
+			assert.strictEqual(activeClientAction.type, 'session/activeClientSet');
+			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
 		});
