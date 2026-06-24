@@ -16,6 +16,7 @@ import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -153,6 +154,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -177,6 +179,11 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 	}
 
 	private async updateTitleBarTreatment(): Promise<void> {
+		// Always show in dev builds (running from sources) to ease development, regardless of the experiment.
+		if (!this.environmentService.isBuilt) {
+			this.titleBarEnabledContext.set(true);
+			return;
+		}
 		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
 		this.titleBarEnabledContext.set(enabled === true);
 	}
