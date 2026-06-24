@@ -894,10 +894,36 @@
 .agent-sessions-workbench.phone-layout .monaco-dialog-box {
 	width: calc(100% - 32px);
 	max-width: calc(100% - 32px);
+	box-sizing: border-box;
+}
+
+/* Never let the message/title clip on the right — always wrap. */
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message,
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+/* Stack the action buttons vertically and full-width on phone so a
+ * destructive dialog's safe button (e.g. Cancel) can never be pushed
+ * off the right edge by a long primary label. This mirrors the base
+ * dialog's `.align-vertical` layout but is forced regardless of the
+ * widget's button-length heuristic. */
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row {
+	overflow: visible;
+}
+
+.agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row .dialog-buttons {
+	flex-direction: column;
+	align-items: stretch;
+	margin-left: 0;
+	gap: 8px;
 }
 
 .agent-sessions-workbench.phone-layout .monaco-dialog-box .dialog-buttons-row .monaco-button {
 	min-height: 44px;
+	margin: 0;
+	width: 100%;
 	font-size: 16px;
 }
 
