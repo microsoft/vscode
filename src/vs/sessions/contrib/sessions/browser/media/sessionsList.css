@@ -422,6 +422,25 @@
 .agent-sessions-workbench.phone-layout .sessions-list-control .monaco-list-row .session-section .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	width: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
+	height: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
+}
+
+.agent-sessions-workbench.phone-layout .sessions-list-control .monaco-list-row .session-section:not(.session-group) .session-section-toolbar:has(.codicon-plus) {
+	display: block;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-list-control .monaco-list-row:not(:hover):not(.focused) .session-section .session-section-toolbar .action-item.menu-entry:not(:has(.codicon-plus)) {
+	display: none;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-list-control .monaco-list-row .session-section .session-section-toolbar .action-item.menu-entry:has(.codicon-plus) > .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
+	height: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40));
 }
 
 .sessions-list-control {

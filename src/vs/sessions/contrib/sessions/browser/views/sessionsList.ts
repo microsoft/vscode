@@ -168,6 +168,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	 */
 	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
+	private static readonly SECTION_HEIGHT_PHONE = 44;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 
 	constructor(
@@ -177,7 +178,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionSection(element) || isSessionGroupItem(element)) {
-			return SessionsTreeDelegate.SECTION_HEIGHT;
+			return this._isPhone() ? SessionsTreeDelegate.SECTION_HEIGHT_PHONE : SessionsTreeDelegate.SECTION_HEIGHT;
 		}
 		if (isSessionShowMore(element)) {
 			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
@@ -1546,23 +1547,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		// React to phone <-> desktop viewport transitions: refresh heights
-		// for all known sessions so the virtual list reserves the correct
-		// space for the new layout. Iterates `this.sessions` (all known
-		// sessions) — a phone/desktop transition is a rare event so the
-		// extra work over filtered-out sessions is negligible. Relies on
-		// the `IsPhoneLayoutContext` reactive signal already maintained by
-		// the agents workbench.
+		const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			if (node.element) {
+				this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
+			}
+			for (const child of node.children) {
+				updateNodeHeights(child);
+			}
+		};
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			for (const session of this.sessions) {
-				if (this.tree.hasElement(session)) {
-					this.tree.updateElementHeight(session, delegate.getHeight(session));
-				}
-			}
+			updateNodeHeights(this.tree.getNode());
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
