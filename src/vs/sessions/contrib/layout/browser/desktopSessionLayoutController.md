@@ -65,13 +65,29 @@ A running session can produce new file changes at any time.
 When a chat turn produces new file changes for an existing session, the side pane is **not** opened
 automatically — it stays as you left it. Only a new session opens it (D3b).
 
+### Scenario: a cramped (small) window
+On a small window there isn't room for the sessions sidebar, the editor, and the side pane all at once.
+
+#### D7 — Responsive sessions sidebar
+When the window is **small** (main container 1800px wide or narrower) and **both** the editor and the side
+pane (auxiliary bar) are open, the **sessions sidebar** is hidden automatically. As soon as either of
+them closes (or the window grows wide again) the sidebar is shown again. If you closed the sidebar
+yourself it stays closed — auto-show is suppressed until you open it again manually. This is suspended
+while the editor is maximized (D5) and while **multiple sessions are visible**. Switching sessions never
+auto-hides the sidebar: a session-switch that restores the new session's saved side pane re-baselines the
+responsive state instead of reacting to it, so only in-session layout changes drive the auto-hide. The
+whole behaviour is gated by the experimental setting `sessions.layout.autoCollapseSessionsSidebar`, which
+defaults **on** in non-stable builds (Insiders / exploration) and **off** in stable.
+
 ---
 
 ## Implementation notes
 
-- **Registration** — registered as the workbench layout controller (`WorkbenchPhase.AfterRestored`)
-  for every layout except the web phone layout, i.e. when `!(isWeb && isMobile)`. Imported from
-  `sessions.desktop.main.ts` (desktop) and `sessions.web.main.ts` (web desktop). The web phone layout
+- **Registration** — contributed by `sessions.layout.contribution.ts`
+  (`WorkbenchPhase.AfterRestored`) for every layout except the web phone layout, i.e. when
+  `!(isWeb && isMobile)`. The contribution is imported from `sessions.desktop.main.ts` (desktop)
+  and `sessions.web.main.ts` (web) and also registers the experimental
+  `sessions.layout.autoCollapseSessionsSidebar` setting. The web phone layout
   uses the [mobile controller](./mobileSessionLayoutController.md) instead.
 - **Capture [D1]** — `_captureViewState(previousSession)` records `auxiliaryBarVisible` and
   `auxiliaryBarActiveViewContainerId`; also used by the base save-time hook (B4) via
@@ -91,5 +107,22 @@ automatically — it stays as you left it. Only a new session opens it (D3b).
   its previous width.
 - **No auto-reveal [D6]** — the sync logic never opens the side pane in response to changes for a titled
   session; only D3b opens it.
-- **Hooks** — overrides `_registerViewStateManagement` to wire D1/D2/D3/D5 and
+- **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
+  && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
+  `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==
+  'stable'`), `onDidLayoutMainContainer` (width `<= SMALL_WINDOW_MAX_WIDTH`, 1800) and
+  `onDidChangePartVisibility`. An autorun acts only on real transitions of that derived (skipped while the
+  editor is maximized): constrained → `_setSidebarAutoHidden(true)`, un-constrained →
+  `_setSidebarAutoHidden(false)` unless `_userClosedSidebar`. A separate `onDidChangePartVisibility`
+  listener for `SIDEBAR_PART` records manual toggles into `_userClosedSidebar` (a manual open clears it),
+  guarded by `_applyingAutoSidebar` so the controller's own toggles aren't mistaken for user intent;
+  maximize's own sidebar enter/restore toggles self-cancel through this listener. While restoring a
+  session's layout the autorun re-baselines instead of reacting. The restore epoch lives in the base
+  controller (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) and wraps **both** the desktop
+  [D3] aux-bar restore (`_onNewSessionSubmitted`, `_syncAuxiliaryBarVisibility`) **and** the base [B2]
+  editor working-set apply (`_applyWorkingSet`). It holds `_restoringSessionLayoutDepth > 0` until the
+  work settles — synchronously for void work, and until the returned promise settles for async work — so
+  the editor part reveal that `_applyWorkingSet` performs *after* an `await` (and the aux-bar reveal that
+  lands in a later autorun run) is absorbed rather than triggering an auto-hide on navigation.
+- **Hooks** — overrides `_registerViewStateManagement` to wire D1/D2/D3/D5/D7 and
   `_captureActiveSessionViewState` (B4) to delegate to `_captureViewState`.
