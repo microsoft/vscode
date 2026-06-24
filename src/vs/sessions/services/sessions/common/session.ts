@@ -151,6 +151,14 @@ export interface ISessionChangesSummary {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+/**
+ * Well-known id of the changeset that holds the diff between a session's branch
+ * and its base (e.g. `main...feature`). Shared so that consumers which always
+ * want the branch diff — regardless of the changeset currently selected in the
+ * Changes view — can locate it in {@link ISession.changesets} by id.
+ */
+export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
