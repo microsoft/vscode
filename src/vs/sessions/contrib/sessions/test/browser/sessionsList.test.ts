@@ -186,6 +186,22 @@ suite('Sessions - SessionsList Helpers', () => {
 			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
+
+		test('sorts pinned sessions using supplied sort keys', () => {
+			const first = createSession('first', { createdAt: new Date('2024-01-01') });
+			const second = createSession('second', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[first, second],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+				session => session.sessionId === first.sessionId ? 200 : 100,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'pinned', sessions: ['first', 'second'] },
+			]);
+		});
 	});
 
 	suite('computeReorderSortChanges', () => {
