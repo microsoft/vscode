@@ -505,11 +505,14 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 				this.outputContentProvider.watch();
 				this.modelDisposable.value.add(toDisposable(() => this.outputContentProvider.unwatch()));
 				this.modelDisposable.value.add(this.model.onWillDispose(() => {
-					this.outputContentProvider.reset();
-					this.modelDisposable.value = undefined;
-					this.cancelModelUpdate();
-					this.model = null;
-					this.loadModelPromise = null;
+					try {
+						this.outputContentProvider.reset();
+						this.modelDisposable.value = undefined;
+						this.cancelModelUpdate();
+						this.model = null;
+					} finally {
+						this.loadModelPromise = null;
+					}
 				}));
 				c(this.model);
 			} catch (error) {
