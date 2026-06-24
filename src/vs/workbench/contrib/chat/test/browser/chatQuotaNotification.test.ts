@@ -766,7 +766,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				actions: notification.actions.length,
 				autoDismissOnMessage: notification.autoDismissOnMessage,
 			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${tryAutoLink} or ${learnMoreLink}`,
+				message: `You're likely to exhaust your AI credits before your billing period. ${tryAutoLink} or ${learnMoreLink}.`,
 				severity: ChatInputNotificationSeverity.Info,
 				actions: 0,
 				autoDismissOnMessage: false,
@@ -798,7 +798,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				message: typeof message === 'string' ? message : message.value,
 				enrollmentTelemetry: telemetryService.events[0],
 			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}`,
+				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}.`,
 				enrollmentTelemetry: {
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
 					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'alreadyAuto' },
@@ -830,42 +830,12 @@ suite('ChatQuotaNotificationContribution', () => {
 					text: 'Learn about optimizing usage',
 					id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
 					tooltip: 'Learn about optimizing usage',
-				})}`,
+				})}.`,
 				enrollmentTelemetry: {
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
 					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'autoIneligible' },
 				},
 			});
-		});
-
-		test('shows for Pro+ users', async () => {
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.ProPlus,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { trajectoryTreatment: true });
-
-			await flushPromises();
-
-			assert.ok(notificationMock.getNotification());
-		});
-
-		test('shows for Max users', async () => {
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Max,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { trajectoryTreatment: true });
-
-			await flushPromises();
-
-			assert.ok(notificationMock.getNotification());
 		});
 
 		test('does not show when projected daily usage is below threshold', async () => {
@@ -1031,8 +1001,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('does not show for Edu, Business, Enterprise, Free, or Unknown users', async () => {
-			for (const entitlement of [ChatEntitlement.EDU, ChatEntitlement.Business, ChatEntitlement.Enterprise, ChatEntitlement.Free, ChatEntitlement.Unknown]) {
+		test('does not enforce SKU eligibility outside experiment assignment', async () => {
+			const results: Record<string, boolean> = {};
+			for (const entitlement of [ChatEntitlement.Pro, ChatEntitlement.ProPlus, ChatEntitlement.Max, ChatEntitlement.EDU, ChatEntitlement.Business, ChatEntitlement.Enterprise, ChatEntitlement.Free, ChatEntitlement.Unknown]) {
 				const { notificationMock } = createContribution({
 					entitlement,
 					quotas: {
@@ -1045,8 +1016,19 @@ suite('ChatQuotaNotificationContribution', () => {
 
 				await flushPromises();
 
-				assert.strictEqual(notificationMock.getNotification(), undefined, `Expected no trajectory notification for ${entitlement}`);
+				results[ChatEntitlement[entitlement]] = !!notificationMock.getNotification();
 			}
+
+			assert.deepStrictEqual(results, {
+				Pro: true,
+				ProPlus: true,
+				Max: true,
+				EDU: true,
+				Business: true,
+				Enterprise: true,
+				Free: true,
+				Unknown: true,
+			});
 		});
 	});
 

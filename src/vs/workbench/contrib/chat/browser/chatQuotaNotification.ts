@@ -307,7 +307,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
-		if (!this._isTrajectoryEligibleEntitlement() || this._isTrajectoryShownInCurrentPeriod()) {
+		if (this._isTrajectoryShownInCurrentPeriod()) {
 			return undefined;
 		}
 
@@ -627,11 +627,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
-	}
-
-	private _isTrajectoryEligibleEntitlement(): boolean {
-		const entitlement = this._chatEntitlementService.entitlement;
-		return entitlement === ChatEntitlement.Pro || entitlement === ChatEntitlement.ProPlus || entitlement === ChatEntitlement.Max;
 	}
 
 	private _isManagedPlanBlocked(): boolean {
