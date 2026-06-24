@@ -141,8 +141,8 @@ export async function buildClientMcpServers(
 	registry: PendingRequestRegistry<CallToolResult>,
 	sdkService: IClaudeAgentSdkService,
 ): Promise<Record<string, McpSdkServerConfigWithInstance> | undefined> {
-	const { tools } = toolDiff.consume();
-	if (!tools || tools.length === 0) {
+	const tools = toolDiff.consume();
+	if (tools.length === 0) {
 		return undefined;
 	}
 	const server = await buildClientToolMcpServer(tools, id => registry.register(id), sdkService);

@@ -86,10 +86,12 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 
 const $ = DOM.$;
 
@@ -1193,62 +1195,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Partition folders by whether they're under the active project root.
-		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
-		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
-		let matchingFolders;
-		if (target === 'workspace') {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
-						return false;
-					}
-					// When the active harness specifies workspaceSubpaths, only offer
-					// directories whose path includes one of those sub-paths.
-					if (subpaths) {
-						return matchesWorkspaceSubpath(f.uri.path, subpaths);
-					}
-					return true;
-				})
-				: [];
-		} else {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
-				: allFolders;
-
-			// When the active harness restricts user roots, only offer
-			// directories under the harness-accessible user roots
-			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
-			const filter = this.harnessService.getStorageSourceFilter(type);
-			if (filter.includedUserFileRoots) {
-				const roots = filter.includedUserFileRoots;
-				matchingFolders = matchingFolders.filter(f =>
-					roots.some(root => isEqualOrParent(f.uri, root))
-				);
-			}
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
 		}
 
-		// Deduplicate by URI (getSourceFolders may return the same path
-		// from both config-based discovery and the AgenticPromptsService override)
-		const seen = new Set<string>();
-		matchingFolders = matchingFolders.filter(f => {
-			const key = f.uri.toString();
-			if (seen.has(key)) {
-				return false;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (target === 'workspace') {
+				if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
+			} else {
+				if ((!projectRoot || !isEqualOrParent(f.uri, projectRoot)) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
 			}
-			seen.add(key);
-			return true;
-		});
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
@@ -1262,7 +1244,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));

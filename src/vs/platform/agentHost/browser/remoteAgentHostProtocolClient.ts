@@ -846,6 +846,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			channel: session.toString(),
 			chat: chat.toString(),
 			model: options?.model,
+			...(options?.fork ? { source: { chat: options.fork.source.toString(), turnId: options.fork.turnId } } : {}),
 		});
 	}
 
@@ -911,11 +912,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Inspect an outgoing client-dispatched action and grant implicit reads
 	 * for any customization URIs it carries. Today this covers
-	 * `SessionActiveClientChanged`, which is the only client-dispatched
+	 * `SessionActiveClientSet`, which is the only client-dispatched
 	 * action that ships customization URIs to the host.
 	 */
 	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
-		if (action.type === ActionType.SessionActiveClientChanged && action.activeClient?.customizations) {
+		if (action.type === ActionType.SessionActiveClientSet && action.activeClient.customizations) {
 			this._grantImplicitReadsForCustomizations(action.activeClient.customizations);
 		}
 	}
