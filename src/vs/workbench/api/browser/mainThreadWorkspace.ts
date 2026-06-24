@@ -15,6 +15,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../platform/request/common/request.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspace, IWorkspaceContextService, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -55,6 +57,8 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -84,13 +88,50 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void> {
+	$updateWorkspaceFolders(extensionName: string, extensionId: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[], suppressConfirmation?: boolean): Promise<void> {
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
 		this._notificationService.status(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), { hideAfter: 10 * 1000 /* 10s */ });
 
-		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
+		return this._resolveSuppress(extensionName, extensionId, suppressConfirmation).then(effectiveSuppress => {
+			return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true, effectiveSuppress ? { suppressConfirmation: effectiveSuppress } : undefined);
+		});
+	}
+
+	/**
+	 * Resolve whether `suppressConfirmation` should be honoured for the
+	 * given extension.  On first use a one-time consent dialog is shown;
+	 * the decision is persisted per-extension in application-scoped storage.
+	 */
+	private async _resolveSuppress(extensionName: string, extensionId: string, suppressConfirmation?: boolean): Promise<boolean> {
+		if (!suppressConfirmation) {
+			return false;
+		}
+
+		const storageKey = `workspace.suppressConfirmation.trusted.${extensionId}`;
+		const stored = this._storageService.getBoolean(storageKey, StorageScope.APPLICATION);
+		if (stored !== undefined) {
+			return stored;
+		}
+
+		// First-use consent dialog
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize(
+				'suppressConfirmation.title',
+				"'{0}' wants to modify workspace folders silently",
+				extensionName
+			),
+			detail: localize(
+				'suppressConfirmation.detail',
+				"This extension is requesting permission to add, remove, or replace workspace folders without showing the confirmation dialog. This enables automated workflows such as branch-per-chat session switching.\n\nYou can change this later in Settings."
+			),
+			primaryButton: localize('suppressConfirmation.allow', "Allow"),
+			cancelButton: localize('suppressConfirmation.deny', "Don't Allow"),
+		});
+
+		this._storageService.store(storageKey, confirmed, StorageScope.APPLICATION, StorageTarget.USER);
+		return confirmed;
 	}
 
 	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {
