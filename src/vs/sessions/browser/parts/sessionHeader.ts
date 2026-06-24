@@ -10,7 +10,7 @@ import { $, addDisposableGenericMouseDownListener, addDisposableListener, addSta
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -35,11 +35,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { ConversationsDropdownActionViewItem } from './conversationsDropdownActionViewItem.js';
 import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
-
-/** Id of the "Conversations" action contributed to {@link Menus.SessionBarToolbar}. */
-const CONVERSATIONS_ACTION_ID = 'sessions.chatCompositeBar.conversations';
 
 /**
  * An action runner for the session header toolbars that promotes the header's
@@ -90,7 +86,6 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
-	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -180,14 +175,6 @@ export class SessionHeader extends Disposable {
 			// Render every group in the primary slot with a separator between groups
 			// so the actions stay visually grouped.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-			// The "Conversations" action renders as a dropdown: New Chat at the top,
-			// then a checkbox per chat to show (open) or hide (close) it.
-			actionViewItemProvider: (action, _options) => {
-				if (action.id === CONVERSATIONS_ACTION_ID && action instanceof MenuItemAction) {
-					return instantiationService.createInstance(ConversationsDropdownActionViewItem, action, this._sessionObs);
-				}
-				return undefined;
-			},
 		}));
 
 		this._metaRow = $('.chat-composite-bar-meta-row');
@@ -325,7 +312,6 @@ export class SessionHeader extends Disposable {
 		// Cancel any in-flight rename when switching sessions.
 		this._cancelTitleEditing();
 		this._session = session;
-		this._sessionObs.set(session, undefined);
 		this._toolbar.context = session;
 		this._metaToolbar.context = session;
 		this._statusIcon.reset();

@@ -6,13 +6,15 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -354,46 +356,90 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
-registerAction2(class AddChatToSessionBarAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.addChat',
-			title: localize2('chatCompositeBar.addChat', "New Chat"),
-			icon: Codicon.add,
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsService.openNewChatInSession(session);
-		sessionsPartService.focusSession(sessionsService.activeSession.get());
-	}
+// The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
+// opens with a "New Chat" entry, a separator, then every chat in the session with
+// a checkbox. Checked chats are shown as tabs; unchecked chats are closed (hidden
+// from the tab strip). Toggling an entry closes or reopens the corresponding chat.
+// The main chat is always shown and cannot be closed, so its entry is checked and
+// disabled.
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	submenu: Menus.SessionChats,
+	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	icon: Codicon.commentDiscussion,
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 });
 
-registerAction2(class ManageConversationsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.chatCompositeBar.conversations',
-			title: localize2('chatCompositeBar.conversations', "Conversations"),
-			icon: Codicon.commentDiscussion,
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
-				group: 'navigation',
-				order: 10,
-			},
-		});
-	}
+/**
+ * Populates the {@link Menus.SessionChats} submenu for the active session. The
+ * "New Chat" action and one toggle action per chat are (re)registered whenever the
+ * active session or its chat list changes, mirroring the per-session dropdown
+ * contents.
+ */
+export class SessionChatsMenuContribution extends Disposable implements IWorkbenchContribution {
 
-	override async run(): Promise<void> {
-		// The dropdown view item handles interaction; the menu entry exists for
-		// placement and context-key driven visibility only.
+	static readonly ID = 'workbench.contrib.sessions.chatsMenu';
+
+	constructor(
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+	) {
+		super();
+		this._register(autorun(reader => {
+			const session = this._sessionsService.activeSession.read(reader);
+			if (!session) {
+				return;
+			}
+
+			const that = this;
+			reader.store.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: 'sessions.chatCompositeBar.addChat',
+						title: localize2('chatCompositeBar.addChat', "New Chat"),
+						icon: Codicon.add,
+						menu: { id: Menus.SessionChats, group: 'navigation', order: 0 },
+					});
+				}
+				override async run(): Promise<void> {
+					await that._sessionsService.openNewChatInSession(session);
+					that._sessionsPartService.focusSession(session);
+				}
+			}));
+
+			const allChats = session.chats.read(reader);
+			const mainUri = session.mainChat.read(reader).resource.toString();
+			const openUris = new Set(session.openChats.read(reader).map(chat => chat.resource.toString()));
+
+			allChats.forEach((chat, index) => {
+				const chatUri = chat.resource.toString();
+				const isOpen = openUris.has(chatUri);
+				const isMain = chatUri === mainUri;
+				const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
+				reader.store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `sessions.toggleChat.${chatUri}`,
+							title,
+							toggled: isOpen ? ContextKeyExpr.true() : undefined,
+							precondition: isMain ? ContextKeyExpr.false() : undefined,
+							menu: { id: Menus.SessionChats, group: '1_chats', order: index },
+						});
+					}
+					override async run(): Promise<void> {
+						if (isOpen) {
+							await that._sessionsService.closeChat(session, chat);
+						} else {
+							await that._sessionsService.reopenChat(session, chat);
+							await that._sessionsService.openChat(session, chat.resource);
+						}
+					}
+				}));
+			});
+		}));
 	}
-});
+}
 
 registerAction2(class TogglePinSessionAction extends Action2 {
 	constructor() {
