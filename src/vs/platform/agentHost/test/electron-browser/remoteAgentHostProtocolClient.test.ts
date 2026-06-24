@@ -27,9 +27,17 @@ import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } f
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
+type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
+
+interface ITestRootConfigNotificationParams {
+	readonly action?: {
+		readonly type?: string;
+		readonly config?: Record<string, RootConfigValue>;
+	};
+}
 
 function isPingRequest(msg: ProtocolTransportMessage): msg is JsonRpcRequest & { method: 'ping' } {
 	return hasKey(msg, { method: true, id: true }) && msg.method === 'ping';
@@ -46,11 +54,17 @@ function findRootConfigNotification(messages: readonly ProtocolTransportMessage[
 		if (!hasKey(msg, { method: true }) || msg.method !== 'dispatchAction') {
 			return false;
 		}
-		const params = (msg as JsonRpcNotification).params as { action?: { type?: string; config?: Record<string, unknown> } } | undefined;
+		const params = (msg as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
 		return params?.action?.type === ActionType.RootConfigChanged && !!params.action.config && configKey in params.action.config;
 	});
 	assert.ok(match, `Expected a RootConfigChanged notification carrying '${configKey}'`);
 	return match;
+}
+
+function getRootConfig(notification: JsonRpcNotification): Record<string, RootConfigValue> {
+	const params = notification.params as ITestRootConfigNotificationParams | undefined;
+	assert.ok(params?.action?.config);
+	return params.action.config;
 }
 
 function findLastRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
@@ -105,8 +119,8 @@ class CountingLogService extends NullLogService {
 class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 
 	constructor(
-		configuration: Record<string, unknown>,
-		private readonly _terminalAutoApproveInspectValue: IConfigurationValue<Readonly<unknown>>,
+		configuration: Record<string, AgentHostTerminalAutoApproveRules | boolean>,
+		private readonly _terminalAutoApproveInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>,
 	) {
 		super(configuration);
 	}
@@ -586,7 +600,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		await connectClient(client, transport);
 
 		const terminalAutoApproveRules = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual((terminalAutoApproveRules.params as { action: { config: Record<string, unknown> } }).action.config, {
+		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
 			[AgentHostTerminalAutoApproveRulesConfigKey]: {
 				echo: null,
 				python: true,
@@ -605,7 +619,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
 
 		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual((terminalAutoApproveRules.params as { action: { config: Record<string, unknown> } }).action.config, {
+		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
 			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
 		});
 	});
@@ -625,7 +639,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID);
 
 		const terminalAutoApproveRules = findLastRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey);
-		assert.deepStrictEqual((terminalAutoApproveRules.params as { action: { config: Record<string, unknown> } }).action.config, {
+		assert.deepStrictEqual(getRootConfig(terminalAutoApproveRules), {
 			[AgentHostTerminalAutoApproveRulesConfigKey]: { python: true },
 		});
 	});

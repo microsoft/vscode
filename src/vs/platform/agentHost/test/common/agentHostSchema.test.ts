@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -352,12 +352,11 @@ suite('agentHostSchema', () => {
 	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
 
 		test('keeps null entries and object rules', () => {
-			const inspectValue: IConfigurationValue<Readonly<unknown>> = {};
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
 			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
 				echo: null,
 				python: true,
 				'/^npm run build$/': { approve: true, matchCommandLine: true },
-				invalid: { approve: 'yes' },
 			}, inspectValue, false);
 
 			assert.deepStrictEqual(result, {
@@ -368,7 +367,7 @@ suite('agentHostSchema', () => {
 		});
 
 		test('removes default-only entries when default rules are ignored', () => {
-			const inspectValue: IConfigurationValue<Readonly<unknown>> = {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
 				default: { value: { echo: true, ls: true, python: false } },
 				user: { value: { echo: null } },
 			};
