@@ -21,6 +21,7 @@ import { ISessionsService } from '../../services/sessions/browser/sessionsServic
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -34,8 +35,8 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ConversationsDropdownActionViewItem } from './conversationsDropdownActionViewItem.js';
+import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
 
 /** Id of the "Conversations" action contributed to {@link Menus.SessionBarToolbar}. */
 const CONVERSATIONS_ACTION_ID = 'sessions.chatCompositeBar.conversations';
@@ -81,7 +82,6 @@ export class SessionHeader extends Disposable {
 	private readonly _titleTextEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _metaWorkspaceEl: HTMLElement;
-	private readonly _metaSeparatorEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
@@ -193,12 +193,12 @@ export class SessionHeader extends Disposable {
 		this._metaRow = $('.chat-composite-bar-meta-row');
 		main.appendChild(this._metaRow);
 
-		// Workspace label (rebuilt per session) followed by a separator and the
-		// session header meta toolbar. Actions are contributed into the generic
-		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
-		// action (opens the multi-file diff editor) and the GitHub contribution
-		// contributes the pull request pill (opens the PR on GitHub), each rendered
-		// as a clickable menu item.
+		// Workspace label (rebuilt per session) followed by the session header meta
+		// toolbar. Actions are contributed into the generic Menus.SessionHeaderMeta
+		// menu; the changes view contributes the diff-stats action (opens the
+		// multi-file diff editor) and the GitHub contribution contributes the pull
+		// request pill (opens the PR on GitHub), each rendered as a compact secondary
+		// button pill via SessionHeaderMetaActionViewItem.
 		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
 		this._metaRow.appendChild(this._metaWorkspaceEl);
 
@@ -209,9 +209,6 @@ export class SessionHeader extends Disposable {
 			this._metaWorkspaceEl,
 			() => this._buildWorkspaceHover(),
 		));
-
-		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
-		this._metaRow.appendChild(this._metaSeparatorEl);
 
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
@@ -224,6 +221,14 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			actionRunner: metaActionRunner,
+			// Render every meta action as a consistent `icon title` pill unless it
+			// registers its own action view item via IActionViewItemService.
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
+				}
+				return undefined;
+			},
 		}));
 		// The meta row separator/visibility tracks whether the meta toolbar has any
 		// contributed actions, so recompute the header whenever they change.
@@ -346,11 +351,12 @@ export class SessionHeader extends Disposable {
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
 		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
+		// The pull request is surfaced in the meta row, so in terminal/default states the
+		// title shows the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
 		const isRead = this._sessionsListModelService.isSessionRead(session);
 		const isArchived = session.isArchived.read(reader);
-		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		this._statusIcon.setStatus(status, isRead, isArchived, pullRequestIcon);
+		this._statusIcon.setStatus(status, isRead, isArchived);
 
 		// Session title
 		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
@@ -373,12 +379,11 @@ export class SessionHeader extends Disposable {
 		}
 		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
 
-		// Show the meta row separator/row based on whether the meta toolbar has any
-		// contributed actions. Reading the signal re-runs this on menu changes.
+		// Show the meta row based on whether there is a workspace label or the meta
+		// toolbar has any contributed actions. Reading the signal re-runs this on
+		// menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
-
-		this._metaSeparatorEl.style.display = hasWorkspace && hasMetaActions ? '' : 'none';
 
 		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
 		this._onDidChangeHeight.fire();

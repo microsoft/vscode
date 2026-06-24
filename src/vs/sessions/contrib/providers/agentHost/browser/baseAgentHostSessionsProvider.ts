@@ -48,10 +48,11 @@ import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, I
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
-import { computePullRequestIcon } from '../../../github/common/types.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -343,6 +344,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		private readonly _options: IAgentHostAdapterOptions,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -420,19 +422,34 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
+			const prLink = baseGitHubInfo.pullRequest.uri.toString();
 			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(
 				baseGitHubInfo.owner, baseGitHubInfo.repo, baseGitHubInfo.pullRequest.number));
 			const livePR = prModelRef.object.pullRequest.read(reader);
 
 			if (!livePR) {
-				return baseGitHubInfo;
+				// The live model hasn't been fetched yet (e.g. right after startup). Show
+				// the last known icon from the persistent cache so the row isn't icon-less
+				// while the first fetch is in flight.
+				const cachedIcon = this._pullRequestIconCache.get(prLink);
+				if (!cachedIcon) {
+					return baseGitHubInfo;
+				}
+				return {
+					...baseGitHubInfo,
+					pullRequest: { ...baseGitHubInfo.pullRequest, icon: cachedIcon }
+				};
 			}
 
+			const icon = computeLivePullRequestIcon(reader, this._gitHubService, baseGitHubInfo.owner, baseGitHubInfo.repo, livePR);
+			// Remember the freshly computed icon so the next startup can show it instantly.
+			// The cache de-duplicates unchanged icons, so this is a no-op when nothing changed.
+			this._pullRequestIconCache.set(prLink, icon);
 			return {
 				...baseGitHubInfo,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state)
+					icon
 				}
 			};
 		});

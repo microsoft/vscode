@@ -37,6 +37,7 @@ import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaud
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
+import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
@@ -838,11 +839,12 @@ export class ClaudeAgentSession extends Disposable {
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
-		const [discovered, rules, mcpServers, hooks] = await Promise.all([
+		const [discovered, rules, mcpServers, hooks, nativePlugins] = await Promise.all([
 			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
 			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
 			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
 			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+			scanClaudeNativePlugins(this.workingDirectory, userHome, this._fileService, this._logService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to
@@ -862,7 +864,7 @@ export class ClaudeAgentSession extends Disposable {
 		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
 		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
 		// both agents and skills, so the SDK-vs-curated decision lives in one place.
-		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, this.workingDirectory, userHome, sdk);
+		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, nativePlugins, this.workingDirectory, userHome, sdk);
 
 		// Final projection: the client-pushed tier (with the per-id enablement
 		// overlay) first, then the discovered tier appended verbatim — the

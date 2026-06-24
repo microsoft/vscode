@@ -6,9 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
@@ -57,8 +55,6 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly sessionTypeId?: string;
 }
-
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
