@@ -133,10 +133,10 @@
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
 	z-index: 0;
-	top: 5px;
-	left: 2px;
-	width: calc(100% - 4px);
-	height: calc(100% - 10px);
+	top: 4px;
+	left: 0px;
+	width: 26px;
+	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
@@ -149,11 +149,11 @@
 .style-override .pane-composite-part > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
 	z-index: 0;
-	top: 5px;
-	left: 2px;
-	width: calc(100% - 4px);
-	height: calc(100% - 10px);
-	border-radius: var(--vscode-cornerRadius-medium);
+	top: 4px;
+	left: 0px;
+	width: 26px;
+	height: 26px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -216,7 +216,12 @@
 
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before {
-	left: 3px;
+	left: 1px;
+	top: 1px
+}
+
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
+	padding: 4px 0;
 }
 
 /*
@@ -226,8 +231,14 @@
  */
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	height: 24px;
-	padding: 0 2px;
+	height: 26px;
+	padding: 0;
+	width: 26px;
+}
+
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .active-item-indicator,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .active-item-indicator {
+	display: none;
 }
 
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
