@@ -47,8 +47,10 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this.activeChat = this._activeChat;
 
 		// Seed the closed set from persisted state, but never hide the chat that
-		// is being restored as active.
+		// is being restored as active, nor the main chat (which can never be
+		// closed and must always remain in the tab strip).
 		const seed = new Set(initialClosedChatUris);
+		seed.delete(_session.mainChat.get().resource.toString());
 		const activeUri = initialChat?.resource.toString();
 		if (activeUri) {
 			seed.delete(activeUri);

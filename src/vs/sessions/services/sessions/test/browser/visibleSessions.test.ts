@@ -1009,4 +1009,17 @@ suite('VisibleSession - open/close chats', () => {
 			active: 'b',
 		});
 	});
+
+	test('a seeded main chat is never hidden even if persisted as closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The main chat can never be closed, so a corrupt/legacy closed set that
+		// contains the main chat URI must not hide it from the tab strip.
+		const { visible, ids } = createSession([main, b], [main.resource.toString(), b.resource.toString()]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: ['b'],
+			active: 'main',
+		});
+	});
 });

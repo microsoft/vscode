@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { hash } from '../../../../base/common/hash.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
@@ -14,6 +15,7 @@ import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -387,6 +389,7 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 	constructor(
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._register(autorun(reader => {
@@ -401,6 +404,7 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 	private _registerSessionConversations(session: IActiveSession, reader: IReader): IDisposable {
 		const store = new DisposableStore();
 		const that = this;
+		const extUri = this._uriIdentityService.extUri;
 
 		// Scope every entry to this session's toolbar: the submenu is rendered once
 		// per session view against its own scoped context key service, where
@@ -424,18 +428,21 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		}));
 
 		const allChats = session.chats.read(reader);
-		const mainUri = session.mainChat.read(reader).resource.toString();
-		const openUris = new Set(session.openChats.read(reader).map(chat => chat.resource.toString()));
+		const mainResource = session.mainChat.read(reader).resource;
+		const openChats = session.openChats.read(reader);
 
 		allChats.forEach((chat, index) => {
-			const chatUri = chat.resource.toString();
-			const isOpen = openUris.has(chatUri);
-			const isMain = chatUri === mainUri;
+			const chatResource = chat.resource;
+			const isOpen = openChats.some(c => extUri.isEqual(c.resource, chatResource));
+			const isMain = extUri.isEqual(chatResource, mainResource);
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
+			// Action IDs are global, so scope them to the session and a hash of the
+			// chat resource (which is stable per chat) rather than embedding the raw
+			// URI, which is long and can contain `:`, `/`, `#`.
 			store.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `sessions.toggleChat.${chatUri}`,
+						id: `sessions.toggleChat.${session.sessionId}.${hash(chatResource.toString())}`,
 						title,
 						toggled: isOpen ? ContextKeyExpr.true() : undefined,
 						precondition: isMain ? ContextKeyExpr.false() : undefined,
@@ -444,11 +451,11 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 				}
 				override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
 					const target = forwardedSession ?? session;
-					const targetChat = target.chats.get().find(c => c.resource.toString() === chatUri);
+					const targetChat = target.chats.get().find(c => extUri.isEqual(c.resource, chatResource));
 					if (!targetChat) {
 						return;
 					}
-					if (target.openChats.get().some(c => c.resource.toString() === chatUri)) {
+					if (target.openChats.get().some(c => extUri.isEqual(c.resource, chatResource))) {
 						await that._sessionsService.closeChat(target, targetChat);
 					} else {
 						// Opening a closed chat also un-hides it in the tab strip.
