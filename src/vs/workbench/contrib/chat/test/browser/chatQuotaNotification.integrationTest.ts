@@ -233,7 +233,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 						},
 					}),
 					expectedText: 'Credits at 75%',
-					expectedTelemetryId: 'quotaApproaching',
+					expectedTelemetryId: 'quotaApproaching75',
 					afterCreate: ({ entitlementService }) => {
 						(entitlementService.service as IChatEntitlementService & { quotas: IChatEntitlementService['quotas'] }).quotas = {
 							...entitlementService.service.quotas,

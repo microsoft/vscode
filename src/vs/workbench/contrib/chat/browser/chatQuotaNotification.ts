@@ -318,7 +318,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
-			telemetryId: 'quotaApproaching',
+			telemetryId: `quotaApproaching${warning.percentUsed}`,
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
