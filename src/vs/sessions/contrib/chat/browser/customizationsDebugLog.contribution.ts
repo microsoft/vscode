@@ -14,6 +14,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../../../workbe
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 
 const PROMPT_SECTIONS: { section: AICustomizationManagementSection; type: PromptsType }[] = [
 	{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
@@ -34,6 +35,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger('customizationsDebug', { name: 'Customizations Debug' }));
@@ -70,6 +72,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 
 	private async _doLogSnapshot(): Promise<void> {
 		const root = this._workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)';
+		const descriptor = this._harnessService.getActiveDescriptor();
 
 		this._logger.info('');
 		this._logger.info('=== Customizations Snapshot ===');
@@ -82,7 +85,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 		this._logger.info(`  ${'--------'.padEnd(16)} ${'-----'.padStart(6)} ${'----'.padStart(6)} ${'---'.padStart(6)} ${'-----'.padStart(7)}`);
 
 		for (const { section, type } of PROMPT_SECTIONS) {
-			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const filter = descriptor.getStorageSourceFilter(type);
 			await this._logSectionRow(section, type, filter);
 		}
 
@@ -90,7 +93,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 
 		// Details per section
 		for (const { section, type } of PROMPT_SECTIONS) {
-			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const filter = descriptor.getStorageSourceFilter(type);
 			await this._logSectionDetails(section, type, filter);
 		}
 

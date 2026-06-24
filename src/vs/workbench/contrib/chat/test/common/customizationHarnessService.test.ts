@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath, ICustomizationItem } from '../../common/customizationHarnessService.js';
+import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -205,7 +205,7 @@ suite('CustomizationHarnessService', () => {
 
 			store.add(service.registerExternalHarness(externalDescriptor));
 			service.setActiveSession(activeSessionResource);
-			assert.deepStrictEqual(service.getStorageSourceFilter(PromptsType.agent), customFilter);
+			assert.deepStrictEqual(service.getActiveDescriptor().getStorageSourceFilter(PromptsType.agent), customFilter);
 		});
 
 		test('external harness item provider returns items', async () => {
@@ -239,32 +239,6 @@ suite('CustomizationHarnessService', () => {
 			assert.strictEqual(items?.length, 1);
 			assert.strictEqual(items![0].name, 'Test Skill');
 			assert.strictEqual(items![0].type, 'skill');
-		});
-
-		test('external harness with hidden sections and workspace subpaths', () => {
-			const service = createService();
-			const emitter = new Emitter<void>();
-			store.add(emitter);
-			const externalDescriptor: IHarnessDescriptor = {
-				id: 'test-ext',
-				label: 'Test Extension',
-				icon: ThemeIcon.fromId('extensions'),
-				hiddenSections: ['agents', 'prompts'],
-				workspaceSubpaths: ['.test-ext'],
-				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
-				itemProvider: {
-					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
-				},
-			};
-
-			store.add(service.registerExternalHarness(externalDescriptor));
-			const activeSessionResource = URI.parse('test-ext://session');
-			service.setActiveSession(activeSessionResource);
-
-			const descriptor = service.getActiveDescriptor();
-			assert.deepStrictEqual(descriptor.hiddenSections, ['agents', 'prompts']);
-			assert.deepStrictEqual(descriptor.workspaceSubpaths, ['.test-ext']);
 		});
 
 		test('external harness with same id as static harness replaces it', () => {
@@ -528,23 +502,4 @@ suite('CustomizationHarnessService', () => {
 		});
 	});
 
-	suite('matchesWorkspaceSubpath', () => {
-		test('matches segment boundary', () => {
-			assert.ok(matchesWorkspaceSubpath('/workspace/.claude/skills/SKILL.md', ['.claude']));
-			assert.ok(matchesWorkspaceSubpath('/workspace/.github/instructions.md', ['.github']));
-		});
-
-		test('does not match partial segment', () => {
-			assert.ok(!matchesWorkspaceSubpath('/workspace/not.claude/file.md', ['.claude']));
-		});
-
-		test('matches path ending with subpath', () => {
-			assert.ok(matchesWorkspaceSubpath('/workspace/.claude', ['.claude']));
-		});
-
-		test('matches any of multiple subpaths', () => {
-			assert.ok(matchesWorkspaceSubpath('/workspace/.copilot/file.md', ['.github', '.copilot']));
-			assert.ok(matchesWorkspaceSubpath('/workspace/.github/file.md', ['.github', '.copilot']));
-		});
-	});
 });

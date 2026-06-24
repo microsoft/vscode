@@ -134,12 +134,6 @@ export interface IAICustomizationWorkspaceService {
 	readonly managementSections: readonly AICustomizationManagementSection[];
 
 	/**
-	 * Returns the storage source filter for a given customization type.
-	 * Controls which storage groups and user file roots are visible.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
-
-	/**
 	 * Whether this is a sessions window (vs core VS Code).
 	 */
 	readonly isSessionsWindow: boolean;

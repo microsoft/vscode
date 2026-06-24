@@ -34,8 +34,8 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -285,10 +285,6 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 		override readonly availableHarnesses = constObservable(descriptors);
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
-		}
-		override getStorageSourceFilter(type: PromptsType) {
-			const d = descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
-			return d.getStorageSourceFilter(type);
 		}
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
@@ -557,7 +553,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
-		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
+		createVSCodeHarnessDescriptor([]),
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
@@ -633,7 +629,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter(type: PromptsType) { return harnessService.getStorageSourceFilter(type); }
 				override clearOverrideProjectRoot() { }
 				override setOverrideProjectRoot() { }
 				override readonly managementSections = managementSections;
@@ -875,9 +870,6 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter() {
-					return { sources: AICustomizationSources.all };
-				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
@@ -1095,9 +1087,6 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter() {
-					return { sources: AICustomizationSources.all };
-				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
@@ -1281,7 +1270,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
-				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+				createVSCodeHarnessDescriptor([BUILTIN_STORAGE]),
 			],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
@@ -1303,7 +1292,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
-				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+				createVSCodeHarnessDescriptor([BUILTIN_STORAGE]),
 			],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
