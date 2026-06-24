@@ -290,4 +290,16 @@ export interface PreCompactHookInput {
 	readonly custom_instructions?: string;
 }
 
+/**
+ * Input passed to the Notification hook. Notification hooks are fire-and-forget.
+ */
+export interface NotificationHookInput {
+	/** Human-readable notification text. */
+	readonly message: string;
+	/** Short title (e.g. "Permission needed"). */
+	readonly title?: string;
+	/** Notification kind, e.g. 'permission_prompt' or 'elicitation_dialog'. */
+	readonly notification_type: string;
+}
+
 //#endregion

@@ -660,9 +660,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					return toolResult;
 				}
 
-				if (preparedInvocation?.confirmationMessages?.title) {
+				const confirmationTitle = preparedInvocation?.confirmationMessages?.title;
+				if (confirmationTitle) {
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
+						if (model && dto.chatRequestId) {
+							const confirmationMessage = preparedInvocation?.confirmationMessages?.message;
+							model.notifyUserAttention(
+								dto.chatRequestId,
+								'permission_prompt',
+								renderAsPlaintext(confirmationMessage ?? confirmationTitle),
+								renderAsPlaintext(confirmationTitle),
+							);
+						}
 					}
 					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
 					this._logToolApprovalTelemetry(tool, dto, userConfirmed);

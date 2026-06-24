@@ -25,6 +25,7 @@ Hooks from all configured locations are collected and executed; workspace and us
 | `SubagentStart` | Subagent starts |
 | `SubagentStop` | Subagent ends |
 | `Stop` | Agent session ends |
+| `Notification` | When the user's attention is required, e.g. a tool permission prompt or an elicitation dialog. Fire-and-forget; never blocks. |
 
 ## Configuration Format
 
@@ -55,6 +56,8 @@ Hooks receive JSON on stdin and can return JSON on stdout.
 - Common output: `continue`, `stopReason`, `systemMessage`
 - `PreToolUse` permissions are read from `hookSpecificOutput.permissionDecision` (`allow` | `ask` | `deny`)
 - `PostToolUse` output can block further processing with `decision: block`
+- `Notification` receives `{ message, title?, notification_type }` (`notification_type` is `permission_prompt`, `elicitation_dialog`, `agent_completed`, `shell_completed`, or `shell_detached_completed`; `shell_detached_completed` currently behaves the same as `shell_completed`); it is fire-and-forget and its output is ignored
+- Background shell completions can fire frequently — each one spawns a separate `Notification` hook process
 
 `PreToolUse` example output:
 

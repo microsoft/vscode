@@ -8,7 +8,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import type { ChatRequest, ChatResponseReferencePart, ChatResponseStream, ChatResult, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
-import { IChatHookService, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
+import { IChatHookService, NotificationHookInput, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
 import { CanceledResult, ChatFetchError, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
@@ -351,6 +351,21 @@ export class DefaultIntentRequestHandler {
 			responseHandlers.push(promise);
 			return promise;
 		}, this));
+
+		if (this.request.onDidRequestUserAttention) {
+			store.add(this.request.onDidRequestUserAttention(e => {
+				const input: NotificationHookInput = { message: e.message, title: e.title, notification_type: e.notificationType };
+				// Fire-and-forget: Notification hooks never block the request.
+				void this._chatHookService.executeHook('Notification', this.request.hooks, input, this.conversation.sessionId, this.token);
+			}));
+		}
+
+		if (this.request.notification) {
+			const n = this.request.notification;
+			const input: NotificationHookInput = { message: n.message, title: n.title, notification_type: n.notificationType };
+			// Fire-and-forget: Notification hooks never block the request.
+			void this._chatHookService.executeHook('Notification', this.request.hooks, input, this.conversation.sessionId, this.token);
+		}
 
 		try {
 			// Execute start hooks first (SessionStart/SubagentStart), then UserPromptSubmit

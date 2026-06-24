@@ -60,7 +60,7 @@ export class ChatResponseThinkingProgressPart {
 	}
 }
 
-export type ChatHookType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'SubagentStart' | 'SubagentStop' | 'Stop';
+export type ChatHookType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'SubagentStart' | 'SubagentStop' | 'Stop' | 'Notification';
 
 export class ChatResponseHookPart {
 	hookType: ChatHookType;

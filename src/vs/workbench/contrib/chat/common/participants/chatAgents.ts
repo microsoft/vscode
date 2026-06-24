@@ -92,6 +92,7 @@ export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	setRequestTools?(requestId: string, tools: UserSelectedTools): void;
 	setYieldRequested?(requestId: string, value: boolean): void;
+	notifyUserAttention?(requestId: string, attention: { notificationType: string; message: string; title?: string }): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideChatSummary?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
@@ -192,6 +193,12 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+
+	/**
+	 * When set, the editor initiated this request to surface a status notification
+	 * (e.g. a background terminal command completed). Delivered to the agent as request metadata.
+	 */
+	notification?: { notificationType: string; message: string; title?: string };
 }
 
 export interface IChatQuestion {
@@ -254,6 +261,7 @@ export interface IChatAgentService {
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	setRequestTools(agent: string, requestId: string, tools: UserSelectedTools): void;
 	setYieldRequested(agent: string, requestId: string, value: boolean): void;
+	notifyUserAttention(agent: string, requestId: string, attention: { notificationType: string; message: string; title?: string }): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
@@ -558,6 +566,15 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		data.impl.setYieldRequested?.(requestId, value);
 	}
 
+	notifyUserAttention(id: string, requestId: string, attention: { notificationType: string; message: string; title?: string }): void {
+		const data = this._agents.get(id);
+		if (!data?.impl) {
+			return;
+		}
+
+		data.impl.notifyUserAttention?.(requestId, attention);
+	}
+
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 		const data = this._agents.get(id);
 		if (!data?.impl?.provideFollowups) {
@@ -674,6 +691,10 @@ export class MergedChatAgent implements IChatAgent {
 
 	setYieldRequested(requestId: string, value: boolean): void {
 		this.impl.setYieldRequested?.(requestId, value);
+	}
+
+	notifyUserAttention(requestId: string, attention: { notificationType: string; message: string; title?: string }): void {
+		this.impl.notifyUserAttention?.(requestId, attention);
 	}
 
 	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
