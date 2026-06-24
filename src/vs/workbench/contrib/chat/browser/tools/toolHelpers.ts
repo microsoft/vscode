@@ -27,8 +27,12 @@ export interface ISymbolToolInput {
  * Resolves a URI from tool input. Accepts either a full URI string or a
  * workspace-relative file path. When a {@link workingDirectory} is provided
  * (agents window), relative paths are resolved against it first.
+ *
+ * Relative paths that escape the resolution base directory via parent-directory
+ * segments (e.g. `../outside.ts`) are rejected and `undefined` is returned, so a
+ * `filePath` cannot traverse out of the working directory boundary.
  */
-export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, workingDirectory?: URI): URI | undefined {
+export function resolveSymbolToolFileUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, workingDirectory?: URI): URI | undefined {
 	if (input.uri) {
 		return URI.parse(input.uri);
 	}

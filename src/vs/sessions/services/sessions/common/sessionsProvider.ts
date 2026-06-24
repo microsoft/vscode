@@ -44,6 +44,15 @@ export interface ISessionModelPickerOptions {
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
 	readonly showManageModelsAction: boolean;
+	/**
+	 * Whether the synthetic "Auto" model is available for this session type, so
+	 * it can fall back to Auto when no explicit model is selected. Defaults to
+	 * `true` when omitted. When `false` and the provider offers no models, the
+	 * core picker stays visible and shows a "No models available" state (with an
+	 * upgrade prompt for Copilot Free / Student users) instead of hiding the
+	 * picker or offering Auto.
+	 */
+	readonly showAutoModel?: boolean;
 }
 
 /**
@@ -159,6 +168,14 @@ export interface ISessionsProvider {
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
 
 	/**
+	 * Rename the session itself, independently of its chats. Single-chat
+	 * providers may implement this by renaming their main chat.
+	 * @param sessionId The ID of the session to rename.
+	 * @param title The new title for the session.
+	 */
+	renameSession(sessionId: string, title: string): Promise<void>;
+
+	/**
 	 * Get the language models that can be selected for a session. The sessions
 	 * core renders these in a single {@link ModelPickerActionItem}-based picker
 	 * and persists the user's choice per provider per session type. Returns an
@@ -213,6 +230,14 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to delete.
 	 */
 	deleteSession(sessionId: string): Promise<void>;
+
+	/**
+	 * Delete multiple sessions at once. Implementations may delete the
+	 * sessions more efficiently in a batch, or simply delegate to
+	 * {@link deleteSession} for each id.
+	 * @param sessionIds The IDs of the sessions to delete.
+	 */
+	deleteSessions(sessionIds: readonly string[]): Promise<void>;
 
 	/**
 	 * Delete a single chat from a session.

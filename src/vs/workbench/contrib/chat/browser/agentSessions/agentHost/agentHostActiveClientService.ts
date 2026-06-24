@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -20,10 +21,12 @@ import { ICustomizationSyncProvider } from '../../../common/customizationHarness
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -67,6 +70,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -91,7 +96,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
+				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, bundler, sessionType);
 				if (seq !== updateSeq) {
 					return;
 				}
@@ -103,14 +108,29 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				onUnexpectedError(err);
 			}
 		};
-		store.add(syncProvider.onDidChange(() => updateCustomizations()));
+		// Many of the events below can fire in quick succession (e.g. during
+		// initialization or when a config change touches several providers at
+		// once), so debounce the re-resolution into a single update.
+		const updateDelayer = store.add(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
+		const scheduleUpdate = () => {
+			updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+		};
+		store.add(syncProvider.onDidChange(() => scheduleUpdate()));
 		store.add(Event.any(
 			this._promptsService.onDidChangeCustomAgents,
 			this._promptsService.onDidChangeSlashCommands,
 			this._promptsService.onDidChangeSkills,
 			this._promptsService.onDidChangeInstructions,
-		)(() => updateCustomizations()));
-		updateCustomizations();
+		)(() => scheduleUpdate()));
+		// Re-resolve when MCP servers configured in VS Code change (added,
+		// removed, enabled/disabled, or reconfigured) so they stay in sync.
+		store.add(autorun(reader => {
+			for (const server of this._mcpService.servers.read(reader)) {
+				server.enablement.read(reader);
+				server.readDefinitions().read(reader);
+			}
+			scheduleUpdate();
+		}));
 		store.add(this._setCustomizations(sessionType, customizations));
 		return {
 			syncProvider,
@@ -147,5 +167,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 }
 
 const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze([]);
+
+/** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */
+const CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY = 50;
 
 registerSingleton(IAgentHostActiveClientService, AgentHostActiveClientService, InstantiationType.Delayed);

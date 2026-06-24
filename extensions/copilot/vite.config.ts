@@ -5,7 +5,6 @@
 
 import * as path from 'path';
 import { loadEnv } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 import { defineConfig } from 'vitest/config';
 
@@ -31,8 +30,12 @@ export default defineConfig(({ mode }) => ({
 			ignored: exclude,
 		}
 	},
+	oxc: {
+		jsx: {
+			development: false,
+		}
+	},
 	plugins: [
-		wasm(),
-		topLevelAwait()
+		wasm()
 	]
 }));

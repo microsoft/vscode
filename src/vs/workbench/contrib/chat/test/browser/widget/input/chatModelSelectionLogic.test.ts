@@ -10,6 +10,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import {
 	filterModelsForSession,
+	findBestMatchingModel,
 	findDefaultModel,
 	hasModelsTargetingSession,
 	isModelSupportedForInlineChat,
@@ -87,6 +88,20 @@ function createSessionModel(
 		targetChatSessionType: sessionType,
 		...overrides,
 	});
+}
+
+/**
+ * Creates a model served by a specific (typically BYOK) vendor, with the identifier prefixed by that vendor
+ * (e.g. `ollama/deepseek`). Mirrors how the language model registry qualifies non-Copilot models.
+ */
+function createVendorModel(
+	vendor: string,
+	id: string,
+	name: string,
+	overrides?: Partial<ILanguageModelChatMetadata>,
+): ILanguageModelChatMetadataAndIdentifier {
+	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
+	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
 suite('ChatModelSelectionLogic', () => {
@@ -345,6 +360,62 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
+	suite('findBestMatchingModel', () => {
+
+		test('returns undefined when previous is undefined', () => {
+			const pool = [createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli')];
+			assert.strictEqual(findBestMatchingModel(undefined, pool), undefined);
+		});
+
+		test('returns undefined for empty pool', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6');
+			assert.strictEqual(findBestMatchingModel(prev, []), undefined);
+		});
+
+		test('matches across vendors by raw model id (the issue #319583 case)', () => {
+			// Previous selection from the in-extension copilotcli participant,
+			// switching to the agent-host pool where the same model exists with
+			// a different identifier/vendor.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { vendor: 'copilotcli', family: 'claude-sonnet-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			const other = createSessionModel('gpt-5', 'GPT-5', 'agent-host-copilotcli', { family: 'gpt-5' });
+			assert.strictEqual(findBestMatchingModel(prev, [other, target])?.identifier, target.identifier);
+		});
+
+		test('matches by id even when family differs', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Other Name', 'agent-host-copilotcli', { family: 'other' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('prefers id over family when both could match different pool entries', () => {
+			// Family is shared across distinct models (e.g. all Claude variants share `claude`),
+			// so the id match must win over the family match.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const familyMatch = createSessionModel('claude-opus-4.7', 'Claude Opus 4.7', 'agent-host-copilotcli', { family: 'claude' });
+			const idMatch = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet' });
+			assert.strictEqual(findBestMatchingModel(prev, [familyMatch, idMatch])?.identifier, idMatch.identifier);
+		});
+
+		test('falls back to name when neither id nor family match', () => {
+			const prev = createModel('a', 'Claude Sonnet 4.6', { family: 'fa' });
+			const target = createSessionModel('b', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'fb' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const prev = createModel('gpt-5', 'GPT-5', { family: 'gpt-5' });
+			const pool = [createSessionModel('claude', 'Claude', 'agent-host-copilotcli', { family: 'claude' })];
+			assert.strictEqual(findBestMatchingModel(prev, pool), undefined);
+		});
+
+		test('match is case-insensitive', () => {
+			const prev = createModel('Claude-Sonnet-4.6', 'CLAUDE SONNET 4.6', { family: 'CLAUDE-SONNET-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'claude sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+	});
+
 	suite('findDefaultModel', () => {
 
 		test('returns model marked as default for location', () => {
@@ -566,6 +637,20 @@ suite('ChatModelSelectionLogic', () => {
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'apply');
+		});
+
+		test('returns default when current and state share an identifier but neither belongs to the new session pool', () => {
+			// Regression for #319583: switching from a general pool (`local`) to a
+			// session-targeted pool (`agent-host-copilotcli`) while the picker
+			// still holds a general model. The general model's identifier matches
+			// both `currentModel` and the persisted `stateModel`, but it is not
+			// valid for the new pool — the resolver must fall through to
+			// `'default'` rather than short-circuit to `'keep'`.
+			const generalModel = createModel('claude', 'Claude');
+			const sessionModel = createSessionModel('claude', 'Claude', 'agent-host-copilotcli');
+			const allModels = [generalModel, sessionModel];
+			const result = resolveModelFromSyncState(generalModel, generalModel, allModels, 'agent-host-copilotcli');
+			assert.strictEqual(result.action, 'default');
 		});
 	});
 
@@ -1586,6 +1671,65 @@ suite('ChatModelSelectionLogic', () => {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
 				sessionType: undefined,
 			}, allModels), false);
+		});
+
+		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
+		// vendor depends on the Copilot token, which round-trips slower than fast/local BYOK providers (Ollama,
+		// Cerebras). So the Copilot vendor resolves an EMPTY live list first while the BYOK vendors already have live
+		// models. `mergeModelsWithCache` then treats Copilot's empty resolution as authoritative and evicts the cached
+		// Copilot models that were used to restore the selection — leaving only BYOK models, which triggers a
+		// reset-to-default that clobbers the user's persisted Copilot choice.
+		test('startup race #321037: Copilot vendor resolves empty before BYOK, restored selection must survive', () => {
+			// The user's persisted choice (a Copilot model) and its siblings, seeded into the cache from the previous
+			// session.
+			const persistedId = 'copilot/claude-opus-4.6-1m';
+			const cachedCopilot = [
+				createModel('claude-opus-4.6-1m', 'Claude Opus 4.6 (1M)'),
+				createModel('gpt-5.5', 'GPT-5.5'),
+			];
+
+			// Fast/local BYOK providers that publish live models immediately.
+			const liveByok = [
+				createVendorModel('ollama', 'deepseek-v3.1', 'DeepSeek V3.1'),
+				createVendorModel('cerebras', 'zai-glm-4.7', 'GLM 4.7'),
+			];
+
+			// Copilot contributed a vendor but resolved an EMPTY live list (token not ready yet); the BYOK vendors
+			// resolved with models. All three are therefore "resolved".
+			const contributedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+			const resolvedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+
+			const available = computeAvailableModels(
+				liveByok,
+				[...cachedCopilot, ...liveByok],
+				contributedVendors,
+				undefined,
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+				resolvedVendors,
+			);
+
+			// DESIRED: the user's restored Copilot model is still selectable during the race, so no reset-to-BYOK
+			// happens and the persisted choice is kept. CURRENT (bug): Copilot cache is evicted, only BYOK remains, the
+			// model is considered unavailable and gets reset to a BYOK default.
+			assert.ok(
+				available.some(m => m.identifier === persistedId),
+				'restored Copilot model should remain available while its vendor is still activating',
+			);
+			assert.strictEqual(
+				shouldResetOnModelListChange(persistedId, available),
+				false,
+				'must not reset the restored Copilot selection during the startup race',
+			);
+
+			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
+			// choice on the next launch).
+			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
+			assert.notStrictEqual(
+				fallback?.metadata.isBYOK,
+				true,
+				'reset fallback should not be a BYOK model',
+			);
 		});
 	});
 });

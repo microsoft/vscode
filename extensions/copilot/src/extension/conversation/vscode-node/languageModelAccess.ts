@@ -85,7 +85,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const hasLongContextSurcharge = !!pricing.longContext;
 
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
 		{
 			value: fullMax,
 			description: hasLongContextSurcharge
@@ -324,7 +324,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
-				modelTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.');
+				const baseAutoTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance.');
+				if (endpoint.discountRange.high === endpoint.discountRange.low && endpoint.discountRange.low !== 0) {
+					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% discount.', endpoint.discountRange.low * 100)}`;
+				} else if (endpoint.discountRange.high !== endpoint.discountRange.low) {
+					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% to {1}% discount.', endpoint.discountRange.low * 100, endpoint.discountRange.high * 100)}`;
+				} else {
+					modelTooltip = baseAutoTooltip;
+				}
 				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
@@ -366,11 +373,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.inputPrice,
 				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.outputPrice,
 				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				cacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheWriteTokenPrice,
 				longContextInputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.inputPrice,
 				longContextOutputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.outputPrice,
 				longContextCacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				longContextCacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheWriteTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
+				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
@@ -824,14 +834,19 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			}
 			if (delta.copilotToolCalls) {
 				for (const call of delta.copilotToolCalls) {
+					// Anthropic models send "" (empty string) for tools with no parameters.
+					let parameters: object;
 					try {
-						// Anthropic models send "" (empty string) for tools with no parameters.
-						const parameters = JSON.parse(call.arguments || '{}');
-						progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
+						parameters = JSON.parse(call.arguments || '{}');
 					} catch (err) {
+						// The model can stream malformed JSON for tool arguments. Log it for
+						// diagnostics and fall back to empty parameters so the tool call is still
+						// surfaced to the extension (matching other tool-call consumers) instead of
+						// leaking an unhandled rejection out of this fire-and-forget callback.
 						this._logService.error(err, `Got invalid JSON for tool call: ${call.arguments}`);
-						throw new Error('Invalid JSON for tool call');
+						parameters = {};
 					}
+					progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
 				}
 			}
 

@@ -29,7 +29,7 @@ const {
 	robustStats, welchTTest, summarize, markDuration, launchVSCode,
 	getNextExtHostInspectPort, connectToExtHostInspector, getRepoRoot,
 } = require('./common/utils');
-const { getUserTurns, getScenarioIds } = require('./common/mock-llm-server');
+const { getUserTurns, getScenarioIds } = require('./common/mock-llm-server.ts');
 const { registerPerfScenarios, getScenarioDescription } = require('./common/perf-scenarios');
 
 // -- Config (edit config.jsonc to change defaults) ---------------------------
@@ -1340,7 +1340,7 @@ async function main() {
 
 	installSignalHandlers();
 
-	const { startServer } = require('./common/mock-llm-server');
+	const { startServer } = require('./common/mock-llm-server.ts');
 	const mockServer = await startServer(0);
 	activeMockServer = mockServer;
 	console.log(`[chat-simulation] Mock LLM server: ${mockServer.url}`);

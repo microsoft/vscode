@@ -140,6 +140,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
 
+// Surveys
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
+
 // Process Explorer
 import '../workbench/contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
@@ -213,7 +216,7 @@ import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostServ
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
-
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';

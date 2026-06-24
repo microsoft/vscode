@@ -7,7 +7,7 @@ import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { untildify } from '../../../base/common/labels.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -15,6 +15,7 @@ import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
+import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 
 // ---------------------------------------------------------------------------
@@ -251,7 +252,15 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
 	};
 }
 
-function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
+/**
+ * Builds the protocol {@link McpServerCustomization} for an MCP server
+ * declared at `definitionUri` (the manifest / settings / `.mcp.json` file
+ * the server is defined in). The id is disambiguated by server `name` so
+ * multiple servers declared in one file get distinct ids, and the entry
+ * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
+ * consistently with every other MCP customization.
+ */
+export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
 		type: CustomizationType.McpServer,
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
@@ -259,6 +268,7 @@ function makeMcpServerCustomization(definitionUri: URI, name: string): McpServer
 		name,
 		enabled: true,
 		state: { kind: McpServerStatus.Starting },
+		mcpApp: DEFAULT_MCP_APP,
 	};
 }
 
@@ -637,8 +647,15 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 /**
  * Parses hooks from a JSON object (any supported format).
+ *
+ * Handles Claude's `disableAllHooks` short-circuit, the `HOOK_TYPE_MAP`
+ * canonicalization, and the nested `{ matcher, hooks: [...] }` command
+ * form. Returns one {@link IParsedHookGroup} per recognized lifecycle
+ * event; all groups parsed from the same file share a single
+ * {@link IParsedHookGroup.customization} (keyed on `hookUri`), so callers
+ * that only need the file-level customization can read it off any group.
  */
-function parseHooksJson(
+export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,
@@ -779,43 +796,52 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	const seen = new Set<string>();
 	const skills: INamedPluginResource[] = [];
 
-	const addSkill = (name: string, skillMd: URI) => {
-		if (!seen.has(name)) {
-			seen.add(name);
-			skills.push({ uri: skillMd, name });
+	const addSkill = async (name: string, skillMd: URI) => {
+		let description: string | undefined;
+		try {
+			const parsedInfo = await parseSkillFile(skillMd, fileService);
+			description = parsedInfo.description;
+			name = parsedInfo.name || name;
+		} catch {
+			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
+		if (seen.has(name)) {
+			return;
+		}
+		seen.add(name);
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
 	};
 
-	for (const dir of dirs) {
+	await Promise.all(dirs.map(async dir => {
 		const skillMd = URI.joinPath(dir, 'SKILL.md');
 		if (await pathExists(skillMd, fileService)) {
-			addSkill(basename(dir), skillMd);
-			continue;
+			await addSkill(basename(dir), skillMd);
+			return;
 		}
 
 		let stat;
 		try {
 			stat = await fileService.resolve(dir);
 		} catch {
-			continue;
+			return;
 		}
 
 		if (!stat.isDirectory || !stat.children) {
-			continue;
+			return;
 		}
 
-		for (const child of stat.children) {
+		await Promise.all(stat.children.map(async child => {
 			const childSkillMd = URI.joinPath(child.resource, 'SKILL.md');
 			if (await pathExists(childSkillMd, fileService)) {
-				addSkill(basename(child.resource), childSkillMd);
+				await addSkill(basename(child.resource), childSkillMd);
 			}
-		}
-	}
+		}));
+	}));
 
 	if (skills.length === 0) {
 		const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
 		if (await pathExists(rootSkillMd, fileService)) {
-			addSkill(basename(pluginRoot), rootSkillMd);
+			await addSkill(basename(pluginRoot), rootSkillMd);
 		}
 	}
 
@@ -964,28 +990,46 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string }> {
-	// Use regex to strip the trailing `.agent.md` before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
-	const nameFromFile = basename(uri).replace(/\.agent\.md$/i, '');
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean }> {
+	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
+	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
-		return { name, ...(description ? { description } : {}) };
+		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
+		return { name, description, userInvocable };
 	} catch {
 		return { name: nameFromFile };
 	}
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ description?: string }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
-		return { ...(description ? { description } : {}) };
+		const userInvokable = frontmatter?.getBooleanValue('user-invocable');
+		return { name, description, userInvokable };
 	} catch {
-		return {};
+		return { name: basename(dirname(uri)) };
+	}
+}
+
+export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
+	const nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '');
+	try {
+		const content = await fileService.readFile(uri);
+		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
+		const description = frontmatter?.getStringValue('description')?.trim();
+		const globs = frontmatter?.getStringArrayValue('globs') ?? frontmatter?.getStringArrayValue('applyTo') ?? frontmatter?.getStringArrayValue('paths') ?? undefined;
+		const alwaysApply = frontmatter?.getBooleanValue('alwaysApply');
+		return { name, description, globs, alwaysApply };
+	} catch {
+		return { name: nameFromFile };
 	}
 }
 
@@ -1130,15 +1174,16 @@ export async function parsePlugin(
 	};
 }
 
-function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+/** Pairs an agent {@link INamedPluginResource} with its protocol-level {@link AgentCustomization}. */
+export function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link INamedPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 
 function toParsedRule(resource: INamedPluginResource): IParsedRule {
 	return { ...resource, customization: makeRuleCustomization(resource) };
 }
-

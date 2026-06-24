@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ICopilotManagedSettingsService, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, projectManagedSettings, selectManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -69,15 +72,18 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
+	private readonly copilotManagedSettingsService?: ICopilotManagedSettingsService;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		managedPolicyService?: IPolicyService,
+		copilotManagedSettingsService?: ICopilotManagedSettingsService,
 	) {
 		super();
 
 		this.managedPolicyReader = managedPolicyService;
+		this.copilotManagedSettingsService = copilotManagedSettingsService;
 
 		this._updatePolicyDefinitions(this.policyDefinitions);
 		this._register(this.defaultAccountService.onDidChangePolicyData(() => {
@@ -93,6 +99,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				}
 			}));
 		}
+		if (this.copilotManagedSettingsService) {
+			this._register(this.copilotManagedSettingsService.onDidChangeManagedSettings(() => {
+				this._updatePolicyDefinitions(this.policyDefinitions);
+			}));
+		}
 
 		// The initial account load sets `currentDefaultAccount` but does NOT fire
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
@@ -104,9 +115,10 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
+		const managedSettings = await this.updateCopilotManagedSettingDefinitions(policyDefinitions);
 
 		const updated: string[] = [];
-		const policyData = this.defaultAccountService.policyData;
+		const policyData = this.getPolicyData(managedSettings);
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -155,6 +167,38 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		if (gateInfoChanged) {
 			this._onDidChangeGateInfo.fire(this._gateInfo);
 		}
+	}
+
+	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
+		if (!this.copilotManagedSettingsService || !hasManagedSettingsDefinitions(policyDefinitions)) {
+			return this.copilotManagedSettingsService?.managedSettings;
+		}
+
+		return this.copilotManagedSettingsService.updatePolicyDefinitions(policyDefinitions);
+	}
+
+	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
+		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
+		const nativeManagedSettings = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
+
+		// Single authoritative source: server-delivered managed settings win over native MDM.
+		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
+		const selection = selectManagedSettings(accountPolicyData?.managedSettings, nativeManagedSettings);
+		if (!accountPolicyData && selection.source === 'none') {
+			return undefined;
+		}
+
+		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
+		const managedSettingsData = projectManagedSettings(
+			{ ...selection.values },
+			declaredManagedSettings,
+			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
+		);
+
+		return {
+			...accountPolicyData,
+			managedSettings: managedSettingsData,
+		};
 	}
 
 	private computeGateInfo(): IAccountPolicyGateInfo {

@@ -19,12 +19,15 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
+import { FishFeedingStreak } from './fishFeedingStreak.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 
 const FISH_COUNT = 50;
 const FISH_MIN_SIZE = 22;
 const FISH_MAX_SIZE = 48;
+/** Each eaten pellet multiplies the fish's size by this. Unbounded on purpose. */
+const FISH_GROWTH_FACTOR = 1.08;
 
 const SCATTER_RADIUS = 145;
 const SCATTER_RADIUS_SQ = SCATTER_RADIUS * SCATTER_RADIUS;
@@ -78,6 +81,14 @@ export interface IAquariumService {
 	 * the last mount.
 	 */
 	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+
+	/**
+	 * Development/demo hook: force the persisted feeding streak into a specific
+	 * state and refresh the toggle tooltip(s) live. When `alive` is false the
+	 * streak is parked as a died/revivable streak and the revival prompt is
+	 * offered (when an aquarium is active). A `count` of 0 clears the streak.
+	 */
+	simulateStreak(count: number, alive: boolean): void;
 }
 
 export interface IMountedToggleHandle extends IDisposable {
@@ -106,6 +117,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeRef = this._register(new MutableDisposable<IActiveAquarium>());
 	private readonly pendingExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly activeContextKey: IContextKey<boolean>;
+	private readonly streak: FishFeedingStreak;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -120,6 +132,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
+		this.streak = new FishFeedingStreak(storageService);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {
@@ -171,6 +184,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 				this.reconcileActivation();
 			},
 		};
+	}
+
+	simulateStreak(count: number, alive: boolean): void {
+		this.streak.simulate(count, alive);
+		this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 	}
 
 	/**
@@ -235,22 +253,67 @@ export class AquariumService extends Disposable implements IAquariumService {
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
 		const iconSpan = button.ownerDocument.createElement('span');
+		// The icon is purely decorative; the button already has an aria-label.
+		iconSpan.setAttribute('aria-hidden', 'true');
 		if (active) {
 			const iconClasses = ThemeIcon.asClassName(Codicon.close).split(/\s+/).filter(Boolean);
 			for (const cls of iconClasses) {
 				iconSpan.classList.add(cls);
 			}
 		} else {
-			iconSpan.classList.add('agents-aquarium-toggle-logo');
+			const iconClasses = ThemeIcon.asClassName(Codicon.smiley).split(/\s+/).filter(Boolean);
+			for (const cls of iconClasses) {
+				iconSpan.classList.add(cls);
+			}
 		}
 		button.appendChild(iconSpan);
+
+		// Surface the feeding streak as a visible badge beside the icon (not a
+		// notification): a live streak shows the count, while a died streak
+		// shows a quiet hint that feeding a fish will revive it.
+		this.streak.collectExpired();
+		const streak = this.streak.count;
+		const revivable = streak > 0 ? 0 : this.streak.revivableCount;
+		button.classList.toggle('has-streak', streak > 0 || revivable > 0);
+		if (streak > 0 || revivable > 0) {
+			const streakSpan = button.ownerDocument.createElement('span');
+			streakSpan.className = 'agents-aquarium-toggle-streak';
+			streakSpan.setAttribute('aria-hidden', 'true');
+			if (streak > 0) {
+				// allow-any-unicode-next-line
+				streakSpan.textContent = `🔥 ${streak}`;
+			} else {
+				streakSpan.classList.add('revivable');
+				// allow-any-unicode-next-line
+				streakSpan.textContent = localize('aquarium.reviveBadge', "💔 {0} · Feed again to revive", revivable);
+			}
+			button.appendChild(streakSpan);
+		}
+
 		const label = this.getToggleLabel(active);
 		button.setAttribute('aria-pressed', String(active));
 		button.setAttribute('aria-label', label);
 	}
 
 	private getToggleLabel(active: boolean): string {
-		return active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const base = active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const streak = this.streak.count;
+		if (streak > 0) {
+			// The 24h feeding window is playfully announced as a "day" streak.
+			return streak === 1
+				// allow-any-unicode-next-line
+				? localize('aquarium.streakLabel.one', "{0} — 🔥 {1} day feeding streak", base, streak)
+				// allow-any-unicode-next-line
+				: localize('aquarium.streakLabel.other', "{0} — 🔥 {1} days feeding streak", base, streak);
+		}
+		const revivable = this.streak.revivableCount;
+		if (revivable > 0) {
+			// A died streak that comes back to life by feeding a fish again.
+			return revivable === 1
+				? localize('aquarium.reviveLabel.one', "{0} — feed a fish to revive your {1} day streak", base, revivable)
+				: localize('aquarium.reviveLabel.other', "{0} — feed a fish to revive your {1} day streak", base, revivable);
+		}
+		return base;
 	}
 
 	private toggle(): void {
@@ -289,7 +352,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.pendingExit.clear();
 		let active: IActiveAquarium | undefined;
 		try {
-			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService);
+			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService, () => this.handleFishFed());
 		} catch (e) {
 			console.error('[aquarium] failed to activate', e);
 			return;
@@ -304,6 +367,21 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.updateAllToggleButtonsVisual(true);
 		if (persist) {
 			this.setStoredEnabled(true);
+		}
+		// Park a streak that aged out while the aquarium was closed so it shows
+		// up as a revivable badge on the toggle.
+		this.streak.collectExpired();
+		this.updateAllToggleButtonsVisual(true);
+	}
+
+	/** Called whenever a fish eats a pellet — extends the persisted feeding streak. */
+	private handleFishFed(): void {
+		const before = this.streak.count;
+		const result = this.streak.recordFeed();
+		// Refresh the toggle so the streak badge stays in sync (count change or
+		// a died streak revived back to life by this feed).
+		if (result.count !== before || result.revived) {
+			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}
 	}
 
@@ -359,7 +437,7 @@ interface IActiveAquarium extends IDisposable {
  * Returns `undefined` if the chat bar isn't available so callers can bail
  * without leaving the toggle button stuck in an "active but invisible" state.
  */
-function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService): IActiveAquarium | undefined {
+function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService, onFishFed?: () => void): IActiveAquarium | undefined {
 	const targetWindow = getWindow(mainContainer);
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
@@ -671,6 +749,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				const nearestDist = Math.max(Math.sqrt(nearestDistSq), 1);
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
+					f.grow(FISH_GROWTH_FACTOR);
+					onFishFed?.();
 				} else {
 					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
 					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;

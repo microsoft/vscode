@@ -97,6 +97,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidDeleteSession = Event.None;
 	readonly onDidDeleteChat = Event.None;
 	readonly onDidRenameChat = Event.None;
+	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
@@ -126,6 +127,10 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		this.setActiveSession(to);
+	}
+
 	setActiveChat(chat: IChat): void {
 		const active = this.activeSession.get();
 		if (active) {
@@ -143,6 +148,16 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
+	}
+
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this._sessions.values()) {
+			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());
+			if (chat) {
+				return { session, chat };
+			}
+		}
+		return undefined;
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
@@ -195,8 +210,10 @@ class MockSessionStore implements ISessionsManagementService {
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	deleteSessions(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
+	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 }
 
 suite('SessionsNavigation', () => {
@@ -217,6 +234,7 @@ suite('SessionsNavigation', () => {
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
+			store.activeSession,
 			store,
 			recency,
 			contextKeyService,

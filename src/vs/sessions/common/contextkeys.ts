@@ -18,6 +18,8 @@ export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boo
 export const ActiveSessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('activeSessionUsesCombinedConfigPicker', false, localize('activeSessionUsesCombinedConfigPicker', "Whether the active session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
 export const ChatSessionTypeContext = new RawContextKey<string>('chatSessionType', '', localize('chatSessionType', "The session type of a session in context menu overlays"));
+export const ChatSessionSupportsRenameContext = new RawContextKey<boolean>('chatSessionSupportsRename', false, localize('chatSessionSupportsRename', "Whether a session in context menu overlays can be renamed"));
+export const ChatSessionSupportsDeleteContext = new RawContextKey<boolean>('chatSessionSupportsDelete', false, localize('chatSessionSupportsDelete', "Whether a session in context menu overlays can be deleted"));
 
 //#endregion
 
@@ -29,6 +31,8 @@ export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMa
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session is archived (marked as done)"));
+export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
+export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
 
 //#endregion
 
@@ -44,6 +48,12 @@ export const MultipleSessionsVisibleContext = new RawContextKey<boolean>('multip
 //#region < --- Welcome --- >
 
 export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));
+
+//#endregion
+
+//#region < --- Experiments --- >
+
+export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
 
 //#endregion
 
