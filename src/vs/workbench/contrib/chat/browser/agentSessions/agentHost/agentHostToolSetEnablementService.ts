@@ -4,26 +4,81 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IToolEnablementState } from '../../widget/input/toolEnablementHelpers.js';
 
 export const IAgentHostToolSetEnablementService = createDecorator<IAgentHostToolSetEnablementService>('agentHostToolSetEnablementService');
 
 /**
- * The Copilot CLI agent-host session type. Tool enablement in the Agents window is scoped
- * per session type; this is the primary one and is used for the Agents-window tool counters.
+ * The Copilot CLI agent-host session type. Tool enablement is scoped per session type; this is the
+ * only target for the Chat Customizations → Tools section today.
  */
 export const AGENT_HOST_COPILOT_CLI_SESSION_TYPE = 'agent-host-copilotcli';
 
 /**
- * Per-session-type tool / tool-set enablement, mirroring how plugins/skills/instructions/MCP
- * customizations are scoped per session type today.
- *
- * The state shape matches {@link ChatSelectedTools} (a `toolSets` map and a `tools` map);
- * default is enabled, so only explicit `false` (and per-tool `true` overrides) are persisted.
+ * Tool / tool-set enablement state. Both maps are keyed by id and store only deviations from the
+ * default ("enabled"). A tool's effective state resolves child → parent → default:
+ * `tools[toolId] ?? toolSets[setId] ?? true`. Storing the tool-set default (rather than every
+ * member) lets a disabled group also cover member tools that register later.
+ */
+export interface IToolEnablementState {
+	readonly toolSets: ReadonlyMap<string, boolean>;
+	readonly tools: ReadonlyMap<string, boolean>;
+}
+
+export type TriState = boolean | 'mixed';
+
+/** Whether `toolId`, as a member of `toolSetId`, is effectively enabled. */
+export function isToolEnabledInSet(state: IToolEnablementState, toolSetId: string, toolId: string): boolean {
+	return state.tools.get(toolId) ?? state.toolSets.get(toolSetId) ?? true;
+}
+
+/** Aggregate tri-state of a tool set, derived from its member tools' effective states. */
+export function getToolSetTriState(state: IToolEnablementState, toolSetId: string, toolIds: readonly string[]): TriState {
+	let anyOn = false;
+	let anyOff = false;
+	for (const toolId of toolIds) {
+		if (isToolEnabledInSet(state, toolSetId, toolId)) {
+			anyOn = true;
+		} else {
+			anyOff = true;
+		}
+		if (anyOn && anyOff) {
+			return 'mixed';
+		}
+	}
+	return anyOn;
+}
+
+/** The subset of a tool set needed to count its enabled tools. {@link IToolSet} satisfies this shape. */
+export interface ICountableToolSet {
+	readonly id: string;
+	readonly deprecated?: boolean;
+	getTools(reader?: IReader): Iterable<{ readonly id: string }>;
+}
+
+/** Counts the enabled tools across the non-deprecated tool sets surfaced in Chat Customizations → Tools. */
+export function countEnabledCustomizationTools(toolSets: Iterable<ICountableToolSet>, state: IToolEnablementState, reader?: IReader): number {
+	let count = 0;
+	for (const ts of toolSets) {
+		if (ts.deprecated) {
+			continue;
+		}
+		for (const tool of ts.getTools(reader)) {
+			if (isToolEnabledInSet(state, ts.id, tool.id)) {
+				count++;
+			}
+		}
+	}
+	return count;
+}
+
+/**
+ * Per-session-type tool / tool-set enablement for the Chat Customizations → Tools section,
+ * persisted profile-wide. Settings are consumed by the agent host (the only target for Tools
+ * customizations today).
  */
 export interface IAgentHostToolSetEnablementService {
 	readonly _serviceBrand: undefined;
@@ -31,11 +86,14 @@ export interface IAgentHostToolSetEnablementService {
 	/** Observable enablement state for `sessionType`. Missing keys default to enabled. */
 	observe(sessionType: string): IObservable<IToolEnablementState>;
 
-	/** Returns the current enablement state for `sessionType`. */
+	/** Current enablement state for `sessionType`. */
 	getState(sessionType: string): IToolEnablementState;
 
-	/** Replaces the enablement state for `sessionType`. */
-	setState(sessionType: string, next: IToolEnablementState): void;
+	/** Enable/disable a whole tool set; clears any per-tool overrides for its members. */
+	setToolSetEnabled(sessionType: string, toolSetId: string, toolIds: readonly string[], enabled: boolean): void;
+
+	/** Enable/disable a single tool within `toolSetId`. */
+	setToolEnabled(sessionType: string, toolSetId: string, toolId: string, enabled: boolean): void;
 }
 
 const STORAGE_KEY = 'chat.agentHost.toolSetEnablement';
@@ -59,9 +117,9 @@ export class AgentHostToolSetEnablementService extends Disposable implements IAg
 		super();
 		this._state = observableValue('agentHostToolSetEnablement', this._load());
 		const storeForListener = this._register(new DisposableStore());
-		this._storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY, storeForListener)(() => {
+		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY, storeForListener)(() => {
 			this._state.set(this._load(), undefined);
-		});
+		}));
 	}
 
 	observe(sessionType: string): IObservable<IToolEnablementState> {
@@ -72,7 +130,37 @@ export class AgentHostToolSetEnablementService extends Disposable implements IAg
 		return this._state.get().get(sessionType) ?? EMPTY_STATE;
 	}
 
-	setState(sessionType: string, next: IToolEnablementState): void {
+	setToolSetEnabled(sessionType: string, toolSetId: string, toolIds: readonly string[], enabled: boolean): void {
+		const state = this.getState(sessionType);
+		const toolSets = new Map(state.toolSets);
+		const tools = new Map(state.tools);
+		// Default is enabled, so an enabled set is the absence of an entry.
+		if (enabled) {
+			toolSets.delete(toolSetId);
+		} else {
+			toolSets.set(toolSetId, false);
+		}
+		// The set toggle is authoritative: drop any per-tool overrides so members follow it.
+		for (const toolId of toolIds) {
+			tools.delete(toolId);
+		}
+		this._setState(sessionType, { toolSets, tools });
+	}
+
+	setToolEnabled(sessionType: string, toolSetId: string, toolId: string, enabled: boolean): void {
+		const state = this.getState(sessionType);
+		const tools = new Map(state.tools);
+		// Keep storage sparse: only record overrides that differ from the set's default.
+		const setDefault = state.toolSets.get(toolSetId) ?? true;
+		if (enabled === setDefault) {
+			tools.delete(toolId);
+		} else {
+			tools.set(toolId, enabled);
+		}
+		this._setState(sessionType, { toolSets: state.toolSets, tools });
+	}
+
+	private _setState(sessionType: string, next: IToolEnablementState): void {
 		const current = new Map(this._state.get());
 		if (next.toolSets.size === 0 && next.tools.size === 0) {
 			current.delete(sessionType);

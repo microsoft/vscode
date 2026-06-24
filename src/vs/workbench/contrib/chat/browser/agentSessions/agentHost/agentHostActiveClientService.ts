@@ -22,8 +22,7 @@ import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { IAgentHostToolSetEnablementService } from './agentHostToolSetEnablementService.js';
-import { isToolEnabledInSet } from '../../widget/input/toolEnablementHelpers.js';
+import { IAgentHostToolSetEnablementService, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 

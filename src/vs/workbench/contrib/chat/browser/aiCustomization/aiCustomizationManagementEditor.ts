@@ -933,8 +933,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Container for Tools content.
 		if (hasSections.has(AICustomizationManagementSection.Tools)) {
 			this.toolsContentContainer = DOM.append(contentInner, $('.tools-content-container'));
-			const toolsSessionType = this.workspaceService.isSessionsWindow ? AGENT_HOST_COPILOT_CLI_SESSION_TYPE : undefined;
-			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, toolsSessionType));
+			// Tools customizations only target the agent host (Copilot CLI), in both windows.
+			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
 			this.toolsContentContainer.appendChild(this.toolsListWidget.element);
 		}
 

@@ -31,8 +31,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostToolSetEnablementService } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IToolEnablementState } from '../../../browser/widget/input/toolEnablementHelpers.js';
+import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -494,7 +493,8 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentHostToolSetEnablementService, {
 				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
 				getState: () => ({ toolSets: new Map(), tools: new Map() }),
-				setState: () => { },
+				setToolSetEnabled: () => { },
+				setToolEnabled: () => { },
 			});
 
 			// Use the real active-client service so the handler's tools autorun

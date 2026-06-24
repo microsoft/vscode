@@ -26,9 +26,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { IAgentHostToolSetEnablementService } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IChatGlobalToolEnablementStore } from '../widget/input/chatGlobalToolEnablementStore.js';
-import { countEnabledCustomizationTools, getToolSetTriState, isToolEnabledInSet, IToolEnablementState, setToolEnabled, setToolSetEnabled, TriState } from '../widget/input/toolEnablementHelpers.js';
+import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState, TriState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -145,8 +143,8 @@ class ToolsGalleryItemRenderer implements IListRenderer<IExtension, IToolsGaller
 
 /**
  * Chat Customizations → Tools: a searchable, collapsible tree of tool sets and their member
- * tools. Enablement is read/written via {@link IAgentHostToolSetEnablementService} (Agents window,
- * scoped to `sessionType`) or {@link IChatGlobalToolEnablementStore} (editor window).
+ * tools. Enablement is read/written via {@link IAgentHostToolSetEnablementService}, scoped to
+ * `sessionType` (the agent host is the only target for Tools customizations).
  */
 export class ToolsListWidget extends Disposable {
 
@@ -181,10 +179,9 @@ export class ToolsListWidget extends Disposable {
 	private readonly _staticReadOnlySets: readonly IToolSet[];
 
 	constructor(
-		private readonly _sessionType: string | undefined,
+		private readonly _sessionType: string,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _enablementService: IAgentHostToolSetEnablementService,
-		@IChatGlobalToolEnablementStore private readonly _globalStore: IChatGlobalToolEnablementStore,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -293,9 +290,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _readState(reader: IReader): IToolEnablementState {
-		return this._sessionType !== undefined
-			? this._enablementService.observe(this._sessionType).read(reader)
-			: this._globalStore.state.read(reader);
+		return this._enablementService.observe(this._sessionType).read(reader);
 	}
 
 	private _createStaticReadOnlySets(): readonly IToolSet[] {
@@ -525,7 +520,7 @@ export class ToolsListWidget extends Disposable {
 		} else {
 			this._rowStore.add(checkbox.onChange(() => {
 				const enabled = checkbox.checked === true;
-				this._writeState(setToolSetEnabled(this._currentState(), ts.id, vm.allToolIds, enabled));
+				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, enabled);
 			}));
 		}
 
@@ -592,14 +587,14 @@ export class ToolsListWidget extends Disposable {
 			checkbox.setTitle(localize('toolsSetReadOnly', "These are the agent's built-in tools and cannot be changed."));
 		} else {
 			this._rowStore.add(checkbox.onChange(() => {
-				this._writeState(setToolEnabled(this._currentState(), vm.toolSet.id, vm.allToolIds, tool.id, checkbox.checked));
+				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, checkbox.checked);
 			}));
 
 			this._rowStore.add(DOM.addDisposableListener(row, 'click', e => {
 				if (checkbox.domNode.contains(e.target as Node)) {
 					return;
 				}
-				this._writeState(setToolEnabled(this._currentState(), vm.toolSet.id, vm.allToolIds, tool.id, !checkbox.checked));
+				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, !checkbox.checked);
 			}));
 		}
 
@@ -641,17 +636,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _currentState(): IToolEnablementState {
-		return this._sessionType !== undefined
-			? this._enablementService.getState(this._sessionType)
-			: this._globalStore.state.get();
-	}
-
-	private _writeState(next: IToolEnablementState): void {
-		if (this._sessionType !== undefined) {
-			this._enablementService.setState(this._sessionType, next);
-		} else {
-			this._globalStore.setState(next);
-		}
+		return this._enablementService.getState(this._sessionType);
 	}
 }
 
