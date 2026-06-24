@@ -41,6 +41,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -321,6 +322,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
+	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
