@@ -27,7 +27,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { Menus } from '../../../browser/menus.js';
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/contextkeys.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import './media/newSessionActionViewItem.css';
 
@@ -39,6 +39,7 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
+		private readonly telemetrySource: SessionsInteractionSource,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -71,8 +72,7 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			if (!this.action.enabled) {
 				return;
 			}
-			const source = this.element?.closest('.part.titlebar') ? 'titleBar' : 'sidebar';
-			logSessionsInteraction(this.telemetryService, 'newSession', source);
+			logSessionsInteraction(this.telemetryService, 'newSession', this.telemetrySource);
 			this.actionRunner.run(this.action);
 		}));
 
@@ -161,11 +161,12 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		const onDidRegister = this._register(new Emitter<void>());
 		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
 		for (const menu of menus) {
+			const source: SessionsInteractionSource = menu === Menus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
 			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}
-				return instantiationService.createInstance(NewSessionActionViewItem, action);
+				return instantiationService.createInstance(NewSessionActionViewItem, action, source);
 			}, onDidRegister.event));
 		}
 		onDidRegister.fire();
