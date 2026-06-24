@@ -326,7 +326,7 @@ const customizationSearchPaths = {
 		{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
 	],
 	user: [
-		{ path: ['.claue', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+		{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
 		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
 		{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
 	],
