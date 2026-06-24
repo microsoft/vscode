@@ -11,6 +11,10 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+export function getMarkerMessageText(message: string | IMarkdownString): string {
+	return isMarkdownString(message) ? message.plainTextValue || message.value : message;
+}
+
 export interface IMarkerReadOptions {
 	owner?: string;
 	resource?: URI;
@@ -182,7 +186,7 @@ export namespace IMarkerData {
 		// Modifed to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
-			const value = isMarkdownString(markerData.message) ? (markerData.message.plainTextValue || '') : markerData.message;
+			const value = getMarkerMessageText(markerData.message);
 			result.push(value.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);

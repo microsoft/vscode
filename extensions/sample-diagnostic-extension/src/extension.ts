@@ -8,6 +8,7 @@ import * as path from 'path';
 
 export const activate = (context: vscode.ExtensionContext) => {
 	const collection = vscode.languages.createDiagnosticCollection('test');
+	context.subscriptions.push(collection);
 	if (vscode.window.activeTextEditor) {
 		updateDiagnostics(vscode.window.activeTextEditor.document, collection);
 	}

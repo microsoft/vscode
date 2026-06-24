@@ -1,7 +1,7 @@
 {
-  "name": "diagnostic-related-information-sample",
-  "displayName": "Diagnostic Related Information Sample",
-  "description": "Diagnostic Related Information Sample",
+  "name": "diagnostic-markdown-message-sample",
+  "displayName": "Diagnostic Markdown Message Sample",
+  "description": "Demonstrates markdown content in diagnostic messages.",
   "version": "0.0.1",
   "publisher": "vscode-samples",
   "private": true,

@@ -25,12 +25,11 @@ import { IMenuService, MenuId } from '../../../../platform/actions/common/action
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMarker, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 
 class MessageWidget {
 
@@ -104,8 +103,7 @@ class MessageWidget {
 			}
 		}
 
-		const plainTextMessage = isMarkdownString(message) ? (message.plainTextValue || '') : message;
-		const lines = splitLines(plainTextMessage);
+		const lines = splitLines(getMarkerMessageText(message));
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {
@@ -219,8 +217,7 @@ class MessageWidget {
 				break;
 		}
 
-		const plainTextMessage = isMarkdownString(marker.message) ? marker.message.plainTextValue ?? marker.message.value : marker.message;
-		let ariaLabel = nls.localize('marker aria', "{0}: {1} at {2}. ", severityLabel, plainTextMessage, marker.startLineNumber + ':' + marker.startColumn);
+		let ariaLabel = nls.localize('marker aria', "{0}: {1} at {2}. ", severityLabel, getMarkerMessageText(marker.message), marker.startLineNumber + ':' + marker.startColumn);
 		const model = this._editor.getModel();
 		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
 			const lineContent = model.getLineContent(marker.startLineNumber);
