@@ -176,10 +176,10 @@ suite('AbstractFileOutputChannelModel', () => {
 	}
 
 	class TestOutputChannelModel extends AbstractFileOutputChannelModel {
-		readonly source = [];
-		clear(): void { }
-		update(): void { }
-		updateChannelSources(): void { }
+		override readonly source = [];
+		override clear(): void { }
+		override update(): void { }
+		override updateChannelSources(): void { }
 	}
 
 	function createOutputChannelModel(): TestOutputChannelModel {
@@ -199,6 +199,10 @@ suite('AbstractFileOutputChannelModel', () => {
 		// model instead of issuing a duplicate createModel for the same URI.
 		assert.strictEqual(first, second);
 		assert.strictEqual(modelService.getModel(first.uri), first);
+
+		// The model is owned by the model service and is not disposed by the
+		// channel model, so dispose it here to avoid leaking it past the test.
+		first.dispose();
 	});
 
 	test('loadModel creates a fresh model after the previous one is disposed', async () => {
@@ -210,5 +214,7 @@ suite('AbstractFileOutputChannelModel', () => {
 
 		assert.notStrictEqual(first, second);
 		assert.strictEqual(modelService.getModel(second.uri), second);
+
+		second.dispose();
 	});
 });
