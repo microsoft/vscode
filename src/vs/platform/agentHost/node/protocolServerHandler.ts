@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -1471,21 +1472,22 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		// The root channel has two equivalent string forms (`ahp-root://` and
-		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
-		// client that subscribed with either form receives root broadcasts
-		// regardless of which form the envelope carries. See
-		// {@link isAhpRootChannel}.
-		if (isAhpRootChannel(envelope.channel)) {
-			for (const sub of client.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
-					return true;
-				}
-			}
+		const sub = client.subscriptions.get(envelope.channel);
+		if (sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) {
+			return true;
+		}
+		if (!isAhpRootChannel(envelope.channel)) {
 			return false;
 		}
-		const sub = client.subscriptions.get(envelope.channel);
-		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
+		return isActionEnvelopeRelevantToSubscriptionUris(envelope, this._stateAndResourceWatchUris(client));
+	}
+
+	private *_stateAndResourceWatchUris(client: IConnectedClient): Iterable<string> {
+		for (const sub of client.subscriptions.values()) {
+			if (sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch) {
+				yield sub.uri;
+			}
+		}
 	}
 
 	override dispose(): void {
