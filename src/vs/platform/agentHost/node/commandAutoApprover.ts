@@ -139,6 +139,8 @@ const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 export class CommandAutoApprover extends Disposable {
 
 	private _fallbackRules: IAutoApproveRules | undefined;
+	private _cachedRuleConfig: AgentHostTerminalAutoApproveRules | undefined;
+	private _cachedRules: IAutoApproveRules | undefined;
 	private _parser: Parser | undefined;
 	private _bashLanguage: Language | undefined;
 	private _queryClass: typeof Query | undefined;
@@ -352,7 +354,13 @@ export class CommandAutoApprover extends Disposable {
 			return this._fallbackRules;
 		}
 
-		return this._compileRuleEntries(ruleConfig);
+		if (this._cachedRuleConfig === ruleConfig && this._cachedRules) {
+			return this._cachedRules;
+		}
+
+		this._cachedRuleConfig = ruleConfig;
+		this._cachedRules = this._compileRuleEntries(ruleConfig);
+		return this._cachedRules;
 	}
 
 	private _compileRuleEntries(ruleConfig: Readonly<Record<string, AgentHostTerminalAutoApproveRuleValue>>): IAutoApproveRules {
