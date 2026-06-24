@@ -67,6 +67,17 @@ suite('claudeNativePluginScan', () => {
 		assert.deepStrictEqual(plugins.map(p => p.root.path), ['/home/.claude/plugins/cache/m/p/0.0.2']);
 	});
 
+	test('breaks an mtime tie by numeric version order (`0.0.10` beats `0.0.9`)', async () => {
+		await seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'p@m': true } }));
+		// Plain string compare would pick `0.0.9` ('9' > '1'); numeric order picks `0.0.10`.
+		await seed('/home/.claude/plugins/cache/m/p/0.0.9/.claude-plugin/plugin.json', manifest('p'));
+		await seed('/home/.claude/plugins/cache/m/p/0.0.10/.claude-plugin/plugin.json', manifest('p'));
+
+		const plugins = await scanClaudeNativePlugins(workspace, userHome, fileService, logService);
+
+		assert.deepStrictEqual(plugins.map(p => p.root.path), ['/home/.claude/plugins/cache/m/p/0.0.10']);
+	});
+
 	test('surfaces bundled components (skills / MCP) with real URIs', async () => {
 		await seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'tg@m': true } }));
 		const root = '/home/.claude/plugins/cache/m/tg/1.0.0';

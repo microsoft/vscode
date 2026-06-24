@@ -157,9 +157,10 @@ async function resolveMarketplaceCacheRoot(plugin: string, marketplace: string, 
 			continue;
 		}
 		const mtime = child.mtime ?? 0;
-		// Newest install wins; the dir name breaks ties deterministically
-		// (e.g. `0.0.2` over `0.0.1` when both were written in the same ms).
-		if (!best || mtime > best.mtime || (mtime === best.mtime && child.name > best.name)) {
+		// Newest install wins; the dir name breaks ties deterministically when
+		// mtimes collide or are missing. Compare numerically (`{ numeric: true }`)
+		// so version dirs order naturally — `0.0.10` after `0.0.9`, not before.
+		if (!best || mtime > best.mtime || (mtime === best.mtime && child.name.localeCompare(best.name, undefined, { numeric: true }) > 0)) {
 			best = { uri: child.resource, mtime, name: child.name };
 		}
 	}
