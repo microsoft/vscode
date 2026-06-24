@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
@@ -390,6 +391,36 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
 /**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
+ * agent-host shell permission checks may apply terminal auto-approve rules.
+ */
+export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for terminal auto approve enablement. Defined here so
+ * renderer-side agent-host clients can forward it without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
+
+/**
+ * Root config key holding agent-host-level MCP server definitions.
+ *
+ * The value is a map of server name → {@link IMcpServerConfiguration}
+ * (the same `servers` shape used by `mcp.json`). These servers are
+ * exposed to every session created by the host, merged with any
+ * plugin-provided MCP servers when launching the copilot-sdk client.
+ */
+export const AgentHostMcpServersConfigKey = 'mcpServers';
+
+/**
+ * Map of server name → MCP server configuration, as stored in the
+ * {@link AgentHostMcpServersConfigKey} root config value.
+ */
+export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
+
+/**
  * The VS Code setting ID for session sync. Defined here so the platform
  * layer (renderer-side forwarding) can reference it without importing from
  * `workbench/contrib/chat`.
@@ -424,6 +455,71 @@ export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryL
 	}
 }
 
+/**
+ * Field descriptors for a single MCP server entry, shared by the stdio and
+ * http shapes. The agent-host config schema has no `oneOf`, so both variants'
+ * fields are described together; `type` selects which fields apply
+ * (`stdio` uses `command`/`args`/`env`/`cwd`, `http` uses `url`/`headers`).
+ */
+const mcpServerConfigProperties: Record<string, SessionConfigPropertySchema> = {
+	type: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.type.title', "Server Type"),
+		description: localize('agentHost.config.mcpServers.type.description', "The transport used to reach the server: `stdio` for a local command, `http` for a remote endpoint."),
+		enum: ['stdio', 'http'],
+	},
+	command: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.command.title', "Command"),
+		description: localize('agentHost.config.mcpServers.command.description', "For `stdio` servers, the executable to spawn."),
+	},
+	args: {
+		type: 'array',
+		title: localize('agentHost.config.mcpServers.args.title', "Arguments"),
+		description: localize('agentHost.config.mcpServers.args.description', "For `stdio` servers, the arguments passed to the command."),
+		items: { type: 'string', title: localize('agentHost.config.mcpServers.arg.title', "Argument") },
+	},
+	env: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.env.title', "Environment"),
+		description: localize('agentHost.config.mcpServers.env.description', "For `stdio` servers, environment variables set on the spawned process."),
+	},
+	cwd: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.cwd.title', "Working Directory"),
+		description: localize('agentHost.config.mcpServers.cwd.description', "For `stdio` servers, the working directory the command runs in."),
+	},
+	url: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.url.title', "URL"),
+		description: localize('agentHost.config.mcpServers.url.description', "For `http` servers, the endpoint URL of the MCP server."),
+	},
+	headers: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.headers.title', "Headers"),
+		description: localize('agentHost.config.mcpServers.headers.description', "For `http` servers, HTTP headers sent with every request."),
+	},
+};
+
+/**
+ * Documents the value shape of the {@link AgentHostMcpServersConfigKey} map.
+ *
+ * The config value is a map of server name → server config. The schema
+ * language has no `additionalProperties`, so the per-entry shape is attached
+ * under a placeholder key (`<serverName>`) rather than at the map level —
+ * this keeps the field descriptions discoverable without the runtime
+ * validator mistaking a real server named e.g. `command` for the `command`
+ * field. Real entries (keyed by actual server names) are passed through.
+ */
+const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
+	'<serverName>': {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.entry.title', "MCP Server"),
+		description: localize('agentHost.config.mcpServers.entry.description', "A single MCP server entry. The property key is the server name."),
+		properties: mcpServerConfigProperties,
+	},
+};
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
@@ -438,5 +534,18 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
 		default: false,
+	}),
+	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalAutoApproveEnabled.title', "Terminal Auto Approve"),
+		description: localize('agentHost.config.terminalAutoApproveEnabled.description', "Whether terminal auto-approve rules are allowed to apply to agent-host shell permission requests."),
+		default: true,
+	}),
+	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.title', "MCP Servers"),
+		description: localize('agentHost.config.mcpServers.description', "Agent-host-level MCP servers exposed to every session, keyed by server name. Each value is a server configuration (see `<serverName>`)."),
+		properties: mcpServersValueProperties,
+		default: {},
 	}),
 });

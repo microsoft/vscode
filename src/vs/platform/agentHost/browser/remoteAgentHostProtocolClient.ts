@@ -37,11 +37,12 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
+import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -93,6 +94,12 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+}
+
+interface IPendingRequest {
+	readonly deferred: DeferredPromise<unknown>;
+	readonly suppressNotFoundWarning: boolean;
+	readonly sentAt: number;
 }
 
 /**
@@ -215,7 +222,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _state: ClientState = { kind: AgentHostClientState.Connecting };
 
 	/** Pending JSON-RPC requests keyed by request id. */
-	private readonly _pendingRequests = new Map<number, { deferred: DeferredPromise<unknown>; sentAt: number }>();
+	private readonly _pendingRequests = new Map<number, IPendingRequest>();
 	private _nextRequestId = 1;
 
 	/**
@@ -331,6 +338,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 				this._updateSessionSyncEnabled();
 			}
+			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateTerminalAutoApproveEnabled();
+			}
 		}));
 
 		// Detect silently-dead transports — see {@link _resetLivenessTimers}.
@@ -418,6 +431,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._initializeResult = result;
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
+		this._updateTerminalAutoApproveEnabled();
 		this._transitionTo({ kind: AgentHostClientState.Connected });
 	}
 
@@ -1029,7 +1043,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
-					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					if (this._shouldLogFailedRequest(pending, msg.error)) {
+						this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
+					}
 					pending.deferred.error(this._toProtocolError(msg.error));
 				} else {
 					pending.deferred.complete(msg.result);
@@ -1284,6 +1300,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}, this._clientId, 0);
 	}
 
+	private _updateTerminalAutoApproveEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
 	/**
 	 * Common path for outgoing JSON-RPC requests: gate on any in-flight
 	 * reconnect (unless explicitly bypassed for the `reconnect` RPC itself),
@@ -1326,10 +1350,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
+		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._transport.send(request);
 		return deferred.p as Promise<TResult>;
+	}
+
+	private _shouldLogFailedRequest(request: IPendingRequest, error: JsonRpcErrorResponse['error']): boolean {
+		if (error.code === AhpErrorCodes.NotFound && request.suppressNotFoundWarning) {
+			return false;
+		}
+		return true;
 	}
 
 	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {

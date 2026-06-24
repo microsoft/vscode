@@ -722,4 +722,10 @@ export const codiconsLibrary = {
 	runCompact: register('run-compact', 0xecc4),
 	gitPullRequestComment: register('git-pull-request-comment', 0xecc5),
 	gitPullRequestError: register('git-pull-request-error', 0xecc6),
+	rightPanelHide: register('right-panel-hide', 0xecc7),
+	rightPanelShow: register('right-panel-show', 0xecc8),
+	vscodeInsidersOutline: register('vscode-insiders-outline', 0xecc9),
+	vscodeOutline: register('vscode-outline', 0xecca),
+	voiceMode: register('voice-mode', 0xeccb),
+	voiceModeCompact: register('voice-mode-compact', 0xeccc),
 } as const;

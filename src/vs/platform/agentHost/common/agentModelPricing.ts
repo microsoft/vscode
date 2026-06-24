@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { SessionModelInfo } from './state/protocol/state.js';
+import type { IAgentModelInfo } from './agentService.js';
+
 /**
  * Well-known pricing metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /
  * {@link SessionModelInfo._meta}). Agents that know a model's billing details populate these keys so the chat model
@@ -32,6 +35,8 @@ export interface IAgentModelPricingMeta {
 	readonly longContextOutputCost?: number;
 	/** Coarse price bucket (e.g. `low`, `medium`, `high`) for an at-a-glance tag. */
 	readonly priceCategory?: string;
+	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; shown as a "{n}% discount" detail. */
+	readonly discountPercent?: number;
 }
 
 const NUMBER_KEYS = [
@@ -44,6 +49,7 @@ const NUMBER_KEYS = [
 	'longContextCacheCost',
 	'longContextCacheWriteCost',
 	'longContextOutputCost',
+	'discountPercent',
 ] as const satisfies readonly (keyof IAgentModelPricingMeta)[];
 
 /**
@@ -51,7 +57,8 @@ const NUMBER_KEYS = [
  * provider-specific keys and values of the wrong type. Returns an object containing only the keys that were present
  * with a valid value.
  */
-export function readAgentModelPricingMeta(meta: Record<string, unknown> | undefined): IAgentModelPricingMeta {
+export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelPricingMeta {
+	const meta = model._meta;
 	if (!meta) {
 		return {};
 	}
