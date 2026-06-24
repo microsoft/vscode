@@ -196,7 +196,7 @@ export class ToolsListWidget extends Disposable {
 		this._createSearchRow();
 
 		this._treeContainer = DOM.append(this.element, $('.tools-list-tree'));
-		this._treeContainer.setAttribute('role', 'tree');
+		this._treeContainer.setAttribute('role', 'group');
 		this._treeContainer.setAttribute('aria-label', localize('toolsTreeAria', "Tool groups"));
 
 		this._createGallery();
@@ -500,10 +500,6 @@ export class ToolsListWidget extends Disposable {
 	private _renderToolSet(vm: IToolSetViewModel): void {
 		const ts = vm.toolSet;
 		const row = DOM.append(this._treeContainer, $('.tools-list-setrow'));
-		row.setAttribute('role', 'treeitem');
-		row.setAttribute('aria-level', '1');
-		row.setAttribute('aria-expanded', String(vm.expanded));
-		row.setAttribute('aria-checked', vm.triState === 'mixed' ? 'mixed' : String(vm.triState));
 
 		const setName = ts.description ?? ts.referenceName;
 		const toggleExpand = () => this._toggleCollapsed(ts.id);
@@ -545,6 +541,7 @@ export class ToolsListWidget extends Disposable {
 		chevron.classList.add(vm.expanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 		chevron.setAttribute('role', 'button');
 		chevron.setAttribute('tabindex', '0');
+		chevron.setAttribute('aria-expanded', String(vm.expanded));
 		chevron.setAttribute('aria-label', vm.expanded
 			? localize('toolsCollapseAria', "Collapse {0}", setName)
 			: localize('toolsExpandAria', "Expand {0}", setName));
@@ -559,6 +556,7 @@ export class ToolsListWidget extends Disposable {
 		if (vm.expanded) {
 			const group = DOM.append(this._treeContainer, $('.tools-list-children'));
 			group.setAttribute('role', 'group');
+			group.setAttribute('aria-label', setName);
 			for (const tool of vm.visibleTools) {
 				this._renderTool(group, vm, tool);
 			}
@@ -572,9 +570,6 @@ export class ToolsListWidget extends Disposable {
 
 		const row = DOM.append(group, $('.tools-list-toolrow'));
 		row.classList.toggle('readonly', vm.readOnly);
-		row.setAttribute('role', 'treeitem');
-		row.setAttribute('aria-level', '2');
-		row.setAttribute('aria-checked', String(enabled));
 
 		const checkbox = this._rowStore.add(new Checkbox(
 			localize('toolsToolCheckbox', "Enable {0}", toolName),
@@ -679,7 +674,7 @@ const CUSTOM_TOOL_SET_ORDER: Record<string, number> = {
 };
 
 function sortKey(toolSet: IToolSet): string {
-	const sourcePriority = toolSet.source === ToolDataSource.Internal ? '0' : '1';
+	const sourcePriority = toolSet.source.type === 'internal' ? '0' : '1';
 	const order = CUSTOM_TOOL_SET_ORDER[toolSet.id];
 	const orderKey = order !== undefined ? String(order) : `9-${toolSet.description ?? toolSet.referenceName}`;
 	return `${sourcePriority}-${orderKey}`;

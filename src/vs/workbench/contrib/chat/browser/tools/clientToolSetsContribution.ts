@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { browserChatToolReferenceNames } from '../../../browserView/common/browserChatToolReferenceNames.js';
+import { browserChatToolReferenceNames } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 
