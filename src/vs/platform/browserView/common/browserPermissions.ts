@@ -51,6 +51,28 @@ export const enum PermissionCategory {
 	Notifications = 'notifications',
 	Sensors = 'sensors',
 	Clipboard = 'clipboard',
+	Devices = 'devices',
+}
+
+/**
+ * The kinds of hardware-device chooser flows the {@link PermissionCategory.Devices}
+ * category gates. Each maps to a distinct Electron device-selection event but is
+ * surfaced to the user through one unified request/selection flow.
+ */
+export type BrowserDeviceType = 'usb' | 'serial' | 'hid' | 'bluetooth';
+
+/**
+ * A single hardware device offered to the user during a device-chooser flow.
+ * Only plain, user-presentable data crosses the IPC boundary; the opaque
+ * `deviceId` is echoed back verbatim to select the device.
+ */
+export interface IBrowserDeviceCandidate {
+	/** Opaque, device-type-specific identifier echoed back to select the device. */
+	readonly deviceId: string;
+	/** Primary, user-facing label (e.g. product name). */
+	readonly label: string;
+	/** Optional secondary detail (e.g. manufacturer or vendor:product ids). */
+	readonly detail?: string;
 }
 
 /**
@@ -122,6 +144,17 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 		permissions: ['notifications'],
 		defaultState: 'ask',
 	},
+	[PermissionCategory.Devices]: {
+		category: PermissionCategory.Devices,
+		label: localize('browserPermission.devices.label', "Devices"),
+		description: localize('browserPermission.devices.description', "Request access to USB, serial, HID, and Bluetooth devices."),
+		icon: Codicon.plug,
+		// Each device kind has its own native chooser; this decision only gates
+		// whether that chooser is allowed to surface. Bluetooth has no Electron
+		// permission string (it is gated in the chooser handler directly).
+		permissions: ['usb', 'serial', 'hid'],
+		defaultState: 'allow',
+	},
 	/**
 	 * Permissions not listed here are either always allowed (see
 	 * {@link ALWAYS_ALLOWED_PERMISSIONS}) or, by default, always denied:
@@ -138,7 +171,6 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	 *   - Storage Access (`storage-access`, `top-level-storage-access`)
 	 *
 	 * Not currently implemented (in approximate order of 'might want')
-	 *   - USB, Serial, HID, Bluetooth (`usb`, `serial`, `hid`)
 	 *   - Local Network Access (`local-network-access`, `local-network`, `loopback-network`)
 	 *   - Screen Capture, Captured Surface Control (`display-capture`, `captured-surface-control`)
 	 *   - File Writing (`fileSystem`)
