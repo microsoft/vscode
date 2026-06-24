@@ -81,6 +81,7 @@ export enum ChatConfiguration {
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	DefaultConfiguration = 'chat.defaultConfiguration',
+	DefaultModel = 'chat.defaultModel',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -133,9 +134,9 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
 
 /**
  * Shape of the {@link ChatConfiguration.DefaultConfiguration}
- * object setting. Controls the starting `mode`, `approvals` and default `model`
- * for new agent-host sessions (such as Copilot CLI). All properties are optional —
- * a missing property falls back to the per-axis default.
+ * object setting. Controls the starting `mode` and `approvals` for new agent-host
+ * sessions (such as Copilot CLI). All properties are optional — a missing property
+ * falls back to the per-axis default.
  */
 export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
@@ -144,13 +145,6 @@ export interface IChatDefaultConfiguration {
 	readonly mode?: AgentSessionMode;
 	/** Starting approval level: `default` / `autoApprove`. */
 	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
-	/**
-	 * Default chat model for new conversations. Accepts `auto`, a model family name
-	 * (e.g. `opus`, `gemini`) which resolves to the latest available model in that
-	 * family, or a full model id. New conversations start at this model; the user can
-	 * still switch the model within a conversation.
-	 */
-	readonly model?: string;
 }
 
 /**

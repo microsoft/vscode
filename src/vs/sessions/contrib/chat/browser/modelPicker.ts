@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { resolveConfiguredModel } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
-import { ChatConfiguration, IChatDefaultConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -232,7 +232,7 @@ export class ModelPicker extends Disposable {
 			}
 
 			if (!current) {
-				// A configured default model (`chat.defaultConfiguration.model`, which may
+				// A configured default model (`chat.defaultModel`, which may
 				// be set by enterprise policy) starts every new session, taking precedence
 				// over the session's restored model and the remembered last-used model.
 				const configured = resolveConfiguredModel(this._getConfiguredDefaultModel(), [...models]);
@@ -264,7 +264,7 @@ export class ModelPicker extends Disposable {
 	}
 
 	private _getConfiguredDefaultModel(): string | undefined {
-		return this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration)?.model;
+		return this._configurationService.getValue<string>(ChatConfiguration.DefaultModel);
 	}
 
 	render(container: HTMLElement): void {

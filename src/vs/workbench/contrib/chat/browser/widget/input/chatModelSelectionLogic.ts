@@ -357,7 +357,7 @@ function compareModelVersions(a: string | undefined, b: string | undefined): num
 /**
  * Resolve a configured default-model value to a concrete model from the given pool.
  *
- * The configured value (e.g. from `chat.defaultConfiguration.model`, which may be set
+ * The configured value (e.g. from `chat.defaultModel`, which may be set
  * by enterprise policy) is matched case-insensitively in this order:
  * 1. `auto` — the synthetic "Auto" model (id `auto`), when present.
  * 2. A full model id — an exact match on `metadata.id`.

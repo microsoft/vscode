@@ -85,7 +85,7 @@ import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEn
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, IChatDefaultConfiguration, isChatPermissionLevel } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
@@ -569,7 +569,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Whether the user has explicitly picked a model for the current session
 	 * (via the model picker or a model-cycling command). When `true`, the
 	 * configured default model (e.g. enterprise policy
-	 * {@link ChatConfiguration.DefaultConfiguration} `model`) must not override
+	 * {@link ChatConfiguration.DefaultModel}) must not override
 	 * the in-conversation selection. Reset whenever a new session is bound in
 	 * {@link setInputModel}. This is distinct from `model.state.selectedModel`,
 	 * which is also written by automatic selections (init/persisted restore) and
@@ -735,9 +735,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.setPermissionLevel(this.getDefaultPermissionLevel());
 				}
 			}
-			if (e.affectsConfiguration(ChatConfiguration.DefaultConfiguration)) {
+			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
 				// The configured default model (e.g. enterprise policy
-				// `chat.defaultConfiguration.model`) can arrive after this widget was
+				// `chat.defaultModel`) can arrive after this widget was
 				// constructed — desktop policy values are delivered asynchronously
 				// from the main process, so `initSelectedModel` may have read an empty
 				// value at startup. Re-apply it to a fresh empty session when it lands.
@@ -809,7 +809,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
 			}
 			// A configured default model (e.g. enterprise policy
-			// `chat.defaultConfiguration.model`) must win for a fresh empty session as
+			// `chat.defaultModel`) must win for a fresh empty session as
 			// soon as its model registers. This is driven by the model-list change so
 			// it is robust to the configured model loading after `initSelectedModel`
 			// ran (or after `initSelectedModel` already fell back to a persisted
@@ -921,7 +921,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		logChangesToStateModel(this._inputModel, `[INIT-SELECTED-MODEL] storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, persistedSelection=${persistedSelection}, persistedAsDefault=${persistedAsDefault}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, widgetSession=${this._currentSessionKey}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, this._inputModel?.state.get(), undefined, this.logService);
 
 		// A configured default model (e.g. set by enterprise policy via
-		// `chat.defaultConfiguration.model`) is the default for every NEW
+		// `chat.defaultModel`) is the default for every NEW
 		// conversation and takes precedence over a persisted selection. Users can
 		// still switch the model within a conversation (the picker clears the
 		// pending wait below), and reopened conversations re-apply their saved
@@ -1324,7 +1324,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 				// A configured default model (e.g. set by enterprise policy via
-				// `chat.defaultConfiguration.model`) starts every NEW conversation and
+				// `chat.defaultModel`) starts every NEW conversation and
 				// must win over the remembered empty-input draft model. `initSelectedModel`
 				// only re-runs at construction and on session-type changes, so plain local
 				// sessions (whose type never changes) would otherwise keep the draft model.
@@ -1863,7 +1863,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Resolve the configured default chat model (from the
-	 * {@link ChatConfiguration.DefaultConfiguration} `model` property, which may be
+	 * {@link ChatConfiguration.DefaultModel} setting, which may be
 	 * forced by enterprise policy) against the given model pool. Returns `undefined`
 	 * when nothing is configured or no model matches, letting callers fall back to
 	 * the location default.
@@ -1874,17 +1874,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * The raw configured default-model value from the
-	 * {@link ChatConfiguration.DefaultConfiguration} `model` property (which may
+	 * {@link ChatConfiguration.DefaultModel} setting (which may
 	 * be forced by enterprise policy). Returns `undefined` when nothing is
 	 * configured.
 	 */
 	private getConfiguredModelValue(): string | undefined {
-		return this.configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration)?.model;
+		const model = this.configurationService.getValue<string>(ChatConfiguration.DefaultModel)?.trim();
+		return model ? model : undefined;
 	}
 
 	/**
 	 * Apply the configured default model (e.g. enterprise policy
-	 * {@link ChatConfiguration.DefaultConfiguration} `model`) to a fresh, untouched
+	 * {@link ChatConfiguration.DefaultModel}) to a fresh, untouched
 	 * empty session once its model becomes resolvable. Returns `true` when it
 	 * applied the configured default.
 	 *
