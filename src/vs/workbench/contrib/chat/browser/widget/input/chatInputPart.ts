@@ -620,7 +620,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			() => this.getModelConfigurationStorageKey(),
 			this.languageModelsService,
 			this.storageService,
-			this.logService,
 		));
 
 		// Initialize debounced text sync scheduler

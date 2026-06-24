@@ -8,7 +8,6 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { createModelConfigurationActions, ILanguageModelsService } from '../../../common/languageModels.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
@@ -38,7 +37,6 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		private readonly getStorageKey: () => string,
 		private readonly languageModelsService: ILanguageModelsService,
 		private readonly storageService: IStorageService,
-		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -176,21 +174,12 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * the live default.
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		const schema = this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema;
-		const filtered = filterConfigurationToSchema(values, schema);
-		// TODO@troubleshooting (#320393): the model schema may not be available yet
-		// when a session is restored on window reload (language model providers
-		// register asynchronously). When that happens `filterConfigurationToSchema`
-		// drops every captured value, so the restored context size / reasoning
-		// effort silently falls back to the schema default. Log enough to confirm
-		// whether the schema was present and what survived filtering.
-		this.logService.debug(`[ModelConfigRestore][store] restoreModelConfiguration modelId=${modelId}, storageKey=${this.getStorageKey()}, schemaPresent=${!!schema}, schemaKeys=${schema?.properties ? Object.keys(schema.properties).join(',') : '<none>'}, incoming=${JSON.stringify(values)}, filtered=${JSON.stringify(filtered)}`);
+		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every
 		// input-state sync.
 		this._applyLocalModelConfiguration(modelId, filtered);
-		this.logService.debug(`[ModelConfigRestore][store] after restore modelId=${modelId}, resolved=${JSON.stringify(this.getModelConfiguration(modelId))}`);
 	}
 
 	/**
