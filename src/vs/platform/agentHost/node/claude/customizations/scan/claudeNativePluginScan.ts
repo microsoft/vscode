@@ -209,7 +209,7 @@ export async function scanClaudeNativePlugins(
 		}
 		seenRoots.add(root);
 		try {
-			const parsed = await parsePlugin(root, fileService, workingDirectory, userHome.fsPath, root);
+			const parsed = await parsePlugin(root, fileService, workingDirectory, userHome, root);
 			result.push({ id, root, parsed });
 		} catch (err) {
 			logService.warn(`[claudeNativePluginScan] failed to parse plugin '${id}' at '${root.toString()}': ${err instanceof Error ? err.message : String(err)}`);
