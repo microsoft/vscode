@@ -410,7 +410,13 @@ export interface IToolSet {
 	readonly icon: ThemeIcon;
 	readonly source: ToolDataSource;
 	readonly description?: string;
+	/** A longer, human-readable description of what the tool set is for, shown as a subtitle in the Chat Customizations "Tools" section. */
+	readonly detail?: string;
 	readonly legacyFullNames?: string[];
+	/** When true, this tool set is deprecated: it is hidden from the Chat Customizations "Tools" section and these groupings will be removed when the Local harness is dropped. */
+	readonly deprecated?: boolean;
+	/** When true, this tool set is hidden from the chat tools picker (e.g. a customizations-only grouping). */
+	readonly hiddenInToolsPicker?: boolean;
 
 	getTools(r?: IReader): Iterable<IToolData>;
 }
@@ -476,7 +482,10 @@ export class ToolSet implements IToolSet {
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
 		readonly description: string | undefined,
+		readonly detail: string | undefined,
 		readonly legacyFullNames: string[] | undefined,
+		readonly deprecated: boolean | undefined,
+		readonly hiddenInToolsPicker: boolean | undefined,
 		private readonly _contextKeyService: IContextKeyService,
 	) {
 
@@ -532,8 +541,20 @@ export class ToolSetForModel {
 		return this._toolSet.description;
 	}
 
+	public get detail() {
+		return this._toolSet.detail;
+	}
+
 	public get legacyFullNames() {
 		return this._toolSet.legacyFullNames;
+	}
+
+	public get deprecated() {
+		return this._toolSet.deprecated;
+	}
+
+	public get hiddenInToolsPicker() {
+		return this._toolSet.hiddenInToolsPicker;
 	}
 
 	constructor(
@@ -646,7 +667,7 @@ export interface ILanguageModelToolsService {
 	getToolSetsForModel(model: ILanguageModelChatMetadata | undefined, reader?: IReader): Iterable<IToolSet>;
 	getToolSet(id: string): IToolSet | undefined;
 	getToolSetByName(name: string): IToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; detail?: string; legacyFullNames?: string[]; deprecated?: boolean; hiddenInToolsPicker?: boolean }): ToolSet & IDisposable;
 
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;

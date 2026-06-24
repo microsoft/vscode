@@ -458,6 +458,7 @@ export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationS
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
+		hiddenSections: [AICustomizationManagementSection.Tools],
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -527,6 +528,9 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 		{
 			hideGenerateButton: true,
 			requiredAgentId: 'copilotcli',
+			// The Tools section manages tool sets pushed to an agent host; the extension-host
+			// Copilot CLI harness is not an agent host, so it is hidden here.
+			hiddenSections: [AICustomizationManagementSection.Tools],
 			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
 			sectionOverrides: new Map([
 				[AICustomizationManagementSection.Instructions, {

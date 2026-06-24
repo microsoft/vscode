@@ -78,6 +78,53 @@ function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOption
 	}
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function isLinuxMuslRuntime(): boolean {
+	if (process.platform !== 'linux') {
+		return false;
+	}
+
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	return !report?.header?.glibcVersionRuntime;
+}
+
+function getCopilotPlatformPackageCandidates(): string[] {
+	const platformArch = `${process.platform}-${process.arch}`;
+	if (process.platform !== 'linux') {
+		return [platformArch];
+	}
+
+	const linuxCandidates = [`linux-${process.arch}`, `linuxmusl-${process.arch}`];
+	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
+}
+
+async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+	const tried: string[] = [];
+	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
+		tried.push(cliPath);
+		if (await fileExists(cliPath)) {
+			return cliPath;
+		}
+	}
+
+	const oldTopLevelPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+	tried.push(oldTopLevelPath);
+	if (await fileExists(oldTopLevelPath)) {
+		return oldTopLevelPath;
+	}
+
+	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
+}
+
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
@@ -721,7 +768,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
-			const cliPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
