@@ -1,8 +1,21 @@
 # Layout Controller — Per-Session Layout State
 
-This document specifies the behaviour of `LayoutController`
-([contrib/layout/browser/sessionLayoutController.ts](contrib/layout/browser/sessionLayoutController.ts)),
-the contribution that manages workbench layout as the user switches between sessions.
+This document specifies how the session layout controllers manage workbench layout as the user
+switches between sessions. The implementation is split across three files, each with its own
+file-level spec. Each spec states the behaviour as numbered **scenario rules** (and keeps the *how* in
+a separate "Implementation notes" section); the code and tests reference these rules by tag:
+
+| File | Spec | Rules |
+|------|------|-------|
+| `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B5` |
+| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D6` |
+| `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md) | `M1`–`M2` |
+
+The abstract `BaseLayoutController` owns the platform-agnostic mechanics (panel, editor working sets,
+persistence, multi-session suppression). `LayoutController` (desktop / web desktop) adds auxiliary bar
+management; `MobileLayoutController` (web phone) omits it. The desktop and mobile controllers each
+self-register behind a platform guard and are imported from `sessions.desktop.main.ts` (desktop) and
+`sessions.web.main.ts` (web).
 
 It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
 
