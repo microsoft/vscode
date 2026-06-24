@@ -1293,6 +1293,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
 		if (!provider.provideSourceFolders) {
 			return undefined;
+		}
 		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
 		if (!allFolders) {
 			// Provider returned no source folders for this type/session.
