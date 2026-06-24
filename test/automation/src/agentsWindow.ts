@@ -262,8 +262,13 @@ export class AgentsWindow {
 	 * would land in the untitled session and the follow-up never reaches
 	 * the intended conversation. When the check fails the active session is
 	 * re-activated and the prompt is re-typed before sending.
+	 *
+	 * `activeRowMatch` (defaulting to `expectedActiveLabel`) is forwarded to
+	 * {@link activateSessionByLabel} to locate the row on re-activation; pass
+	 * both the first prompt and the response so row matching is robust against
+	 * the asynchronously generated session title (see that method's docs).
 	 */
-	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600, expectedActiveLabel?: string): Promise<void> {
+	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600, expectedActiveLabel?: string, activeRowMatch?: string | string[]): Promise<void> {
 		const typeAndSend = async () => {
 			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
 			await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
@@ -278,7 +283,7 @@ export class AgentsWindow {
 			if (!stillActive) {
 				// The active slot swapped between activation and send. Re-bind
 				// and re-type the prompt before sending.
-				await this.activateSessionByLabel(expectedActiveLabel);
+				await this.activateSessionByLabel(activeRowMatch ?? expectedActiveLabel, expectedActiveLabel);
 				await typeAndSend();
 			}
 		}
@@ -302,11 +307,25 @@ export class AgentsWindow {
 	 * untitled session and spawn a brand new agent session instead of
 	 * continuing the existing conversation.
 	 *
-	 * `label` should be a substring of the session row's text (typically the
-	 * first response text from message 1, e.g. `MOCKED_COPILOT_RESPONSE`).
-	 * We can't simply click the topmost row because the sessions list
-	 * contains workspace folder group headers and historical sessions from
-	 * prior runs.
+	 * `rowMatch` is one (or several) substrings used to locate the row; a row
+	 * matches when its text contains ANY of them. We can't simply click the
+	 * topmost row because the sessions list contains workspace folder group
+	 * headers and historical sessions from prior runs.
+	 *
+	 * Pass BOTH the user's first prompt and the expected response here. The
+	 * row's text is the session title, which is auto-generated asynchronously
+	 * by a utility model after the first turn: until that lands the title is
+	 * the synchronous fallback (the user's prompt), and once it lands the
+	 * title becomes the generated value (which, in the smoke mock, echoes the
+	 * scenario reply because the title prompt embeds the tagged user message).
+	 * Matching on the prompt alone is racy because the generated title can
+	 * replace it; matching on the response alone is racy because the generated
+	 * title may not have landed yet. Accepting either makes activation
+	 * deterministic regardless of when the title generation completes.
+	 *
+	 * `responseLabel` (defaulting to the first `rowMatch` entry) is the text
+	 * the just-completed conversation's response bubble must contain; it is
+	 * verified in the active session view after the row is clicked.
 	 *
 	 * Returns once the active session has loaded and is ready for input.
 	 *
@@ -330,37 +349,39 @@ export class AgentsWindow {
 	 * guarantees the chat widget has actually re-bound to the session we
 	 * intended to activate before the caller types a follow-up.
 	 */
-	async activateSessionByLabel(label: string, timeoutMs: number = 30_000): Promise<void> {
+	async activateSessionByLabel(rowMatch: string | string[], responseLabel?: string, timeoutMs: number = 30_000): Promise<void> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(SESSION_LIST_ROW, undefined, retryCount);
 		const workingStatus = 'Working...';
 		const deadline = Date.now() + timeoutMs;
-		const needle = label.toLowerCase();
+		const rowMatches = Array.isArray(rowMatch) ? rowMatch : [rowMatch];
+		const rowNeedles = rowMatches.map(s => s.toLowerCase());
+		const responseNeedle = (responseLabel ?? rowMatches[0]).toLowerCase();
 		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response .rendered-markdown`;
 		let lastTexts: string[] = [];
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
 			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => t.toLowerCase().includes(needle) && !t.includes(workingStatus));
+			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
 			if (matchIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel("${label}") clicking index ${matchIndex}; all rows:\n${summary}`);
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
 			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
 			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 
 			// Wait until the active session view's chat widget actually shows a
-			// response matching `label`. A bare `is-active` check is not enough
-			// because the workbench may auto-create a fresh untitled session
-			// and route it into the active slot between row-render and click.
+			// response matching `responseLabel`. A bare `is-active` check is not
+			// enough because the workbench may auto-create a fresh untitled
+			// session and route it into the active slot between row-render and click.
 			while (Date.now() < deadline) {
 				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
 				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
-				if (lastActiveTexts.some(t => t.toLowerCase().includes(needle))) {
+				if (lastActiveTexts.some(t => t.toLowerCase().includes(responseNeedle))) {
 					return;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -368,10 +389,10 @@ export class AgentsWindow {
 			const activeSummary = lastActiveTexts.length
 				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
 				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${label}". Active view responses:\n${activeSummary}`);
+			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-		throw new Error(`Timed out waiting for a settled session list row containing "${label}" (without "${workingStatus}"). Last-seen rows:\n${summary}`);
+		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
 	}
 
 	/**
@@ -427,6 +448,14 @@ export class AgentsWindow {
 					// has rendered, so we additionally enforce a small minimum
 					// quiet period before returning.
 					await this.waitForResponseSettled(15_000, 4_000);
+					// Synchronize with the workbench-side untitled → committed
+					// URI swap: the {@link ChatView} sets `data-bound-chat-resource`
+					// on its root element after binding its inner widget to the
+					// loaded chat model, and clears it during rebind. Without this
+					// wait, follow-up typing can land in the about-to-be-replaced
+					// widget while the rebind is still in flight, losing the typed
+					// prompt when the widget swaps to the committed session.
+					await this.waitForActiveChatBoundToCommittedResource();
 					return text;
 				}
 			}
@@ -440,6 +469,32 @@ export class AgentsWindow {
 		const activeViews = await this.code.getElements(ACTIVE_SESSION, /* recursive */ false);
 		const activeSummary = (activeViews ?? []).map((v, i) => `  [${i}] class=${JSON.stringify(v.className)} text=${JSON.stringify((v.textContent ?? '').trim().slice(0, 200))}`).join('\n');
 		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}\nSession list rows at failure:\n${rowsSummary}\nActive session views:\n${activeSummary}`);
+	}
+
+	/**
+	 * Wait until the active session view's {@link ChatView} root advertises
+	 * a non-untitled chat resource via the `data-bound-chat-resource`
+	 * attribute. The Agents Window's `ChatView.setChat` sets this attribute
+	 * after binding its inner chat widget to the loaded chat model, and
+	 * clears it during rebind — so this CSS selector matches precisely
+	 * once the untitled → committed URI swap has landed and the widget is
+	 * bound to the committed chat.
+	 *
+	 * Uses Playwright's `page.waitForSelector` (push-based via
+	 * `MutationObserver` in the renderer) so we don't add any polling on
+	 * the test-driver side. Soft no-op when the selector never matches
+	 * within `timeoutMs` (e.g. for sessions that don't use {@link ChatView}
+	 * such as the local AgentHost smoke tests).
+	 */
+	private async waitForActiveChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
+		const selector = `${ACTIVE_SESSION} .chat-view-chat[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		try {
+			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
+		} catch {
+			// Soft failure: callers have already verified the response text
+			// is on screen, so proceed and let downstream assertions surface
+			// any actual problem.
+		}
 	}
 
 	private async waitForResponseSettled(timeoutMs: number, fallbackQuietMs: number): Promise<void> {

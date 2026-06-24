@@ -12,10 +12,8 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
-import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -26,9 +24,12 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -150,19 +151,6 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 }
 
 // Track whether auto-approve warnings have been shown this VS Code session
-const shownAutoApproveWarnings = new Set<string /* enum value */>();
-
-function hasShownAutoApproveWarning(value: string): boolean {
-	if (shownAutoApproveWarnings.has(value)) {
-		return true;
-	}
-	// Confirming Autopilot implies the user accepted the Bypass risks too
-	if (value === 'autoApprove' && shownAutoApproveWarnings.has('autopilot')) {
-		return true;
-	}
-	return false;
-}
-
 /**
  * Marks bypass/autopilot as disabled if enterprise policy restricts
  * auto-approval. Returns the items and policy state.
@@ -180,54 +168,18 @@ function applyAutoApproveFiltering(
 }
 
 /**
- * Shows a confirmation dialog for elevated auto-approve levels.
- * Returns true if confirmed or if the warning was already shown this session.
+ * Shows a confirmation dialog for elevated auto-approve levels (Bypass
+ * or legacy Autopilot). Delegates to the shared
+ * {@link maybeConfirmElevatedPermissionLevel} so the copy, icons, and
+ * "Don't show again" persistence stay consistent across every permission
+ * picker. Returns `true` when confirmed (or not elevated), `false` when the
+ * user cancels.
  */
-async function confirmAutoApproveLevel(value: string, dialogService: IDialogService): Promise<boolean> {
-	if (hasShownAutoApproveWarning(value)) {
+async function confirmAutoApproveLevel(value: string, dialogService: IDialogService, storageService: IStorageService): Promise<boolean> {
+	if (!isChatPermissionLevel(value)) {
 		return true;
 	}
-
-	const isAutopilot = value === 'autopilot';
-	const result = await dialogService.prompt({
-		type: Severity.Warning,
-		message: isAutopilot
-			? localize('agentHostAutoApprove.autopilot.warning.title', "Enable Autopilot?")
-			: localize('agentHostAutoApprove.bypass.warning.title', "Enable Bypass Approvals?"),
-		buttons: [
-			{
-				label: localize('agentHostAutoApprove.warning.confirm', "Enable"),
-				run: () => true,
-			},
-			{
-				label: localize('agentHostAutoApprove.warning.cancel', "Cancel"),
-				run: () => false,
-			},
-		],
-		custom: {
-			icon: isAutopilot ? Codicon.rocket : Codicon.warning,
-			markdownDetails: [{
-				markdown: new MarkdownString(
-					localize(
-						'agentHostAutoApprove.warning.detailWithDefaultSetting',
-						"{0}\n\nTo make this the starting permission level for new chat sessions, change the [{1}](command:workbench.action.openSettings?%5B%22{1}%22%5D) setting.",
-						isAutopilot
-							? localize('agentHostAutoApprove.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")
-							: localize('agentHostAutoApprove.bypass.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls."),
-						ChatConfiguration.DefaultPermissionLevel,
-					),
-					{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
-				),
-			}],
-		},
-	});
-
-	if (result.result !== true) {
-		return false;
-	}
-
-	shownAutoApproveWarnings.add(value);
-	return true;
+	return maybeConfirmElevatedPermissionLevel(value, dialogService, storageService, { defaultSettingKey: ChatConfiguration.DefaultConfiguration });
 }
 
 /**
@@ -257,6 +209,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
+		@IStorageService protected readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -349,6 +302,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
+			if (property === SessionConfigKey.Isolation) {
+				this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
+			}
 			// `renderPickerTrigger`'s `disabled` flag means "read-only"
 			// (renders a `<span>` with `aria-readonly`). The resolving
 			// state is transient and uses `.disabled` on the slot (see
@@ -475,7 +431,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				});
 
 				if (isAutoApproveProperty && (item.value === 'autoApprove' || item.value === 'autopilot')) {
-					const confirmed = await confirmAutoApproveLevel(item.value, this._dialogService);
+					const confirmed = await confirmAutoApproveLevel(item.value, this._dialogService, this._storageService);
 					if (!confirmed) {
 						return;
 					}

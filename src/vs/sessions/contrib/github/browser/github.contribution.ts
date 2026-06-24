@@ -9,12 +9,17 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
+
+import './pullRequestActions.js';
+
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {
 
@@ -27,6 +32,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -101,7 +107,10 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Removed sessions
 		for (const session of e.removed) {
-			this._sessionTrackers.deleteAndDispose(session.sessionId);
+			if (this._sessionTrackers.has(session.sessionId)) {
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} removed; disposing its poller (PR model no longer kept warm)`);
+				this._sessionTrackers.deleteAndDispose(session.sessionId);
+			}
 		}
 	}
 
@@ -110,6 +119,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			return;
 		}
 
+		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} now tracked; poller will keep its PR model warm once a PR number resolves`);
 		this._sessionTrackers.set(session.sessionId, this._createSessionPoller(session));
 	}
 
@@ -146,10 +156,12 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			const identity = pullRequestIdentityObs.read(reader);
 			if (!identity) {
 				// No PR number yet (or archived); this autorun re-runs once it resolves.
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} has no PR identity yet (no PR number or archived); waiting`);
 				return;
 			}
 
 			const { owner, repo, prNumber } = identity;
+			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} resolved PR identity ${owner}/${repo}#${prNumber}; acquiring model and refreshing`);
 
 			const modelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(owner, repo, prNumber));
 			const model = modelRef.object;
@@ -167,9 +179,11 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			});
 			reader.store.add(autorun(pollReader => {
 				if (!shouldPollObs.read(pollReader)) {
+					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} PR ${owner}/${repo}#${prNumber} is merged and not active; not polling`);
 					return;
 				}
 
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting PR polling for ${owner}/${repo}#${prNumber}`);
 				pollReader.store.add(model.startPolling());
 			}));
 
@@ -181,6 +195,8 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				if (!prDetails || prDetails.isDraft || prDetails.state !== GitHubPullRequestState.Open) {
 					return;
 				}
+
+				this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI + review-thread polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 
 				const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
 				ciModelRef.object.refresh();

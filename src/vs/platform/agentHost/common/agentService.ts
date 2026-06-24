@@ -21,7 +21,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, SessionSummaryMeta } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -55,6 +55,14 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 
 /** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
+
+/**
+ * Configuration key that controls whether Copilot SDK sessions running a Claude
+ * Opus 4.8 model apply the Opus 4.8-tuned system-prompt section overrides.
+ * Forwarded into the agent host's root config (`opus48Prompt`) by
+ * `AgentHostCopilotPromptContribution`.
+ */
+export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -480,6 +488,14 @@ export interface IAgentSessionMetadata {
 	 * file list.
 	 */
 	readonly changesets?: readonly Changeset[];
+	/**
+	 * Side-channel metadata for the session summary, propagated
+	 * to clients via per-session state subscriptions.
+	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
+	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
+	 * `readSessionGitHubState`) for well-known slots.
+	 */
+	readonly _summaryMeta?: SessionSummaryMeta;
 	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.
@@ -920,16 +936,20 @@ export interface IAgent {
 	 * is provided, only that chat's in-flight turn is aborted. */
 	abortSession(session: URI, chat?: URI): Promise<void>;
 
-	/** Change the model for an existing session. */
-	changeModel(session: URI, model: ModelSelection): Promise<void>;
+	/** Change the model for an existing session. When `chat` is provided (an
+	 * additional peer chat's URI), the change targets that chat's conversation
+	 * rather than the session's default chat. */
+	changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void>;
 
 	/**
 	 * Change (or clear) the selected custom agent for an existing session.
 	 * Passing `undefined` clears the selection and resets the session to no
 	 * selected custom agent (provider default behavior). Optional so non-
-	 * Copilot agents can opt out.
+	 * Copilot agents can opt out. When `chat` is provided (an additional peer
+	 * chat's URI), the change targets that chat's conversation rather than the
+	 * session's default chat.
 	 */
-	changeAgent?(session: URI, agent: AgentSelection | undefined): Promise<void>;
+	changeAgent?(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void>;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;

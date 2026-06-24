@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The model picker hover (shared with the main workbench chat) masks its dotted cost-table
+ * leader with an opaque surface color, defaulting to the menu background. In the agents window
+ * the hover sits on the panel surface, so scope the surface color to the panel background here.
+ * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
+.agent-sessions-workbench {
+	--model-hover-surface-background: var(--vscode-agentsPanel-background);
+}
+
 /* ---- Action Bar Items ---- */
 
 /* Default rounded hover/active background for all action bar items in the
@@ -331,15 +339,17 @@
 	--tab-border-top-color: transparent !important;
 }
 
-/* Allow tabs to shrink when space is constrained so the close button stays
- * reachable, while still letting them grow to fit their label when there is
- * space. The default `sizing-fit` rule sets `width: 120px; min-width:
- * fit-content; flex-shrink: 0;` — clearing min-width alone leaves the tab
- * pinned at 120px and prevents it from expanding to its full content width. */
+/* Size tabs to their content and never shrink them, so that when more tabs
+ * exist than fit the container they overflow and the horizontal scrollbar
+ * appears (matching the default editor behaviour). The default `sizing-fit`
+ * rule sets `width: 120px; min-width: fit-content; flex-shrink: 0;` — pinning
+ * tabs at 120px. We instead let the width follow the label (`width: auto`)
+ * while keeping `flex-shrink: 0` so tabs keep their content width and the tab
+ * strip scrolls instead of squashing the tabs. */
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
 	width: auto !important;
 	min-width: 0 !important;
-	flex: 0 1 auto !important;
+	flex: 0 0 auto !important;
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,

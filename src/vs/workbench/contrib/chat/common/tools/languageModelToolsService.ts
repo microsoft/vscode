@@ -415,7 +415,45 @@ export interface IToolSet {
 	getTools(r?: IReader): Iterable<IToolData>;
 }
 
-export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | IToolSet, boolean>;
+
+
+/**
+* Maps tools and tool sets to their enablement state. Use a class to control creation of the map and ensure
+* that it is not mutated after creation.
+*/
+export class ToolAndToolSetEnablementMap implements Iterable<[IToolData | IToolSet, boolean]> {
+
+	static fromEntries(entries: Iterable<[IToolData | IToolSet, boolean]>): ToolAndToolSetEnablementMap {
+		return new ToolAndToolSetEnablementMap(new Map(entries));
+	}
+
+	static fromMap(map: Map<IToolData | IToolSet, boolean>): ToolAndToolSetEnablementMap {
+		return new ToolAndToolSetEnablementMap(new Map(map));
+	}
+
+	private constructor(private readonly _map: Map<IToolData | IToolSet, boolean>) {
+	}
+
+	[Symbol.iterator](): IterableIterator<[IToolData | IToolSet, boolean]> {
+		return this._map[Symbol.iterator]();
+	}
+
+	public get(toolOrToolSet: IToolData | IToolSet): boolean | undefined {
+		return this._map.get(toolOrToolSet);
+	}
+
+	public has(toolOrToolSet: IToolData | IToolSet): boolean {
+		return this._map.has(toolOrToolSet);
+	}
+
+	public get size(): number {
+		return this._map.size;
+	}
+
+	public entries(): IterableIterator<[IToolData | IToolSet, boolean]> {
+		return this._map.entries();
+	}
+}
 
 export function isToolSet(obj: IToolData | IToolSet | undefined): obj is IToolSet {
 	return !!obj && (obj as IToolSet).getTools !== undefined;
@@ -623,9 +661,9 @@ export interface ILanguageModelToolsService {
 	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): ToolAndToolSetEnablementMap;
 
-	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
+	toFullReferenceNames(map: ToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 

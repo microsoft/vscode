@@ -19,6 +19,7 @@ export interface HeaderProps {
 	readonly draggable: boolean;
 	readonly showClose: boolean;
 	readonly showPopout: boolean;
+	readonly hideDisconnect: boolean;
 	readonly centerConnectButton: boolean;
 	readonly onMicDown: (e: MouseEvent) => void;
 	readonly onMicUp: () => void;
@@ -58,8 +59,8 @@ export function createHeader(): HeaderComponent {
 	const copilotIcon = document.createElement('img');
 	copilotIcon.style.cssText = 'width:18px;height:18px;margin-right:4px;';
 
-	// Mic button
-	const micBtn = dom.$('span.codicon.codicon-mic');
+	// Voice mode button
+	const micBtn = dom.$('span.codicon.codicon-voice-mode');
 	micBtn.role = 'button';
 	micBtn.tabIndex = 0;
 	micBtn.ariaLabel = localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)");
@@ -90,6 +91,15 @@ export function createHeader(): HeaderComponent {
 	connIndicator.append(connDot, connDisc);
 	addKeyboardActivation(connIndicator);
 
+	// Placeholder text — clickable, shows PTT keybinding
+	const placeholderText = dom.$('span.voice-placeholder-text');
+	placeholderText.role = 'button';
+	placeholderText.tabIndex = 0;
+	placeholderText.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));cursor:pointer;-webkit-app-region:no-drag;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+	placeholderText.addEventListener('mouseenter', () => { placeholderText.style.color = 'var(--vscode-foreground)'; });
+	placeholderText.addEventListener('mouseleave', () => { placeholderText.style.color = 'var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground))'; });
+	addKeyboardActivation(placeholderText);
+
 	// Spacer
 	const spacer = dom.$('span');
 	spacer.style.flex = '1';
@@ -100,7 +110,7 @@ export function createHeader(): HeaderComponent {
 		localize('agentsVoice.sendFeedback', "Send feedback"));
 
 	// Popout button
-	const popoutBtn = hoverButton('codicon-link-external',
+	const popoutBtn = hoverButton('codicon-open-in-window',
 		localize('agentsVoice.openMiniView', "Open mini-view"),
 		localize('agentsVoice.openMiniView', "Open mini-view"));
 
@@ -114,9 +124,16 @@ export function createHeader(): HeaderComponent {
 	connStyle.textContent = `
 		.voice-conn-indicator:hover .voice-conn-dot { display: none !important; }
 		.voice-conn-indicator:hover .voice-conn-disconnect { display: inline-block !important; color: var(--vscode-errorForeground, #f44) !important; }
+		@keyframes agents-voice-icon-pulse {
+			0%, 100% { box-shadow: 0 0 4px rgba(var(--agents-voice-icon-rgb, 88,166,255), 0.45); }
+			50% { box-shadow: 0 0 10px rgba(var(--agents-voice-icon-rgb, 88,166,255), 0.7); }
+		}
+		.monaco-workbench.monaco-enable-motion .agents-voice-mode-active {
+			animation: agents-voice-icon-pulse 1.4s ease-in-out infinite;
+		}
 	`;
 
-	container.append(copilotIcon, micBtn, gearBtn, connIndicator, spacer, feedbackBtn, popoutBtn, closeBtn, connStyle);
+	container.append(copilotIcon, micBtn, placeholderText, gearBtn, connIndicator, spacer, popoutBtn, closeBtn, connStyle);
 
 	return {
 		element: container,
@@ -127,24 +144,43 @@ export function createHeader(): HeaderComponent {
 			copilotIcon.style.display = props.showCopilotIcon ? '' : 'none';
 			copilotIcon.src = props.copilotIconSrc;
 
-			// Mic color
+			const showConnected = props.isConnected || props.isReconnecting;
+
+			// Mic button — shown only when connected
+			micBtn.style.display = showConnected ? '' : 'none';
 			const micColor = props.voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
 				: props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
 					: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 						: 'var(--vscode-descriptionForeground)';
 			micBtn.style.color = micColor;
+			const micIsActive = props.voiceState === 'listening' || props.voiceState === 'speaking';
+			micBtn.classList.toggle('agents-voice-mode-active', micIsActive);
+			micBtn.style.setProperty('--agents-voice-icon-rgb', props.voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+			micBtn.style.borderRadius = '50%';
+			if (!micIsActive) {
+				micBtn.style.boxShadow = 'none';
+			}
 			micBtn.onmouseenter = () => { micBtn.style.color = 'var(--vscode-foreground)'; };
 			micBtn.onmouseleave = () => { micBtn.style.color = micColor; };
 			micBtn.onmousedown = props.onMicDown;
 			micBtn.onmouseup = () => props.onMicUp();
 
+			// Placeholder text — shown when not connected, displays PTT keybinding
+			placeholderText.style.display = showConnected ? 'none' : '';
+			const keyLabel = props.pttKeyLabel;
+			const holdText = keyLabel
+				? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)
+				: localize('agentsVoice.clickMicToTalk', "Click voice mode to talk");
+			placeholderText.textContent = holdText;
+			placeholderText.ariaLabel = holdText;
+			placeholderText.onclick = props.onConnectClick;
+
 			// Gear
-			const showConnected = props.isConnected || props.isReconnecting;
 			gearBtn.style.display = props.isConnected ? '' : 'none';
 			gearBtn.onclick = props.onPttKeyClick;
 
 			// Connection indicator
-			connIndicator.style.display = showConnected ? 'inline-flex' : 'none';
+			connIndicator.style.display = showConnected && !props.hideDisconnect ? 'inline-flex' : 'none';
 			connIndicator.onclick = props.onDisconnectClick;
 
 			// Spacer / center connect button

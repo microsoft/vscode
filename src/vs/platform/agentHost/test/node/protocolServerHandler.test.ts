@@ -12,10 +12,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -70,11 +70,20 @@ class MockProtocolServer implements IProtocolServer {
 	}
 }
 
+class CountingLogService extends NullLogService {
+	errorCount = 0;
+
+	override error(_message: string, ..._args: unknown[]): void {
+		this.errorCount++;
+	}
+}
+
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
+	readonly readErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 
@@ -155,8 +164,12 @@ class MockAgentService implements IAgentService {
 			],
 		};
 	}
-	async resourceRead(_uri: URI): Promise<ResourceReadResult> {
-		throw new Error('Not implemented');
+	async resourceRead(uri: URI): Promise<ResourceReadResult> {
+		const error = this.readErrors.get(uri.toString());
+		if (error) {
+			throw error;
+		}
+		return { data: '', encoding: ContentEncoding.Utf8 };
 	}
 	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
@@ -222,6 +235,7 @@ suite('ProtocolServerHandler', () => {
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
 	let fileSystemProvider: AgentHostFileSystemProvider;
+	let logService: CountingLogService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -254,6 +268,7 @@ suite('ProtocolServerHandler', () => {
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
+		logService = new CountingLogService();
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
@@ -261,7 +276,7 @@ suite('ProtocolServerHandler', () => {
 			server,
 			{ defaultDirectory: URI.file('/home/testuser').toString() },
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
-			new NullLogService(),
+			logService,
 		));
 	});
 
@@ -881,6 +896,54 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
 	});
 
+	test('overlapping reconnect keeps earlier reverse-RPC requests alive until that transport closes', async () => {
+		const transport1 = connectClient('client-fs-overlap');
+		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
+		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap', '/workspace'));
+		const reverseRequest = await reverseRequestPromise;
+		assert.ok(isJsonRpcRequest(reverseRequest));
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs-overlap',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+
+		transport1.simulateMessage({
+			jsonrpc: '2.0',
+			id: reverseRequest.id,
+			result: { entries: [{ name: 'from-original-transport.txt', type: 'file' as const }] },
+		});
+
+		const result = await readPromise;
+		assert.deepStrictEqual(result, [['from-original-transport.txt', FileType.File]]);
+	});
+
+	test('closing an older overlapping transport rejects its pending reverse-RPC requests', async () => {
+		const transport1 = connectClient('client-fs-overlap-close');
+		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
+		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap-close', '/workspace'));
+		await reverseRequestPromise;
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs-overlap-close',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+
+		transport1.simulateClose();
+
+		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
+	});
+
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -988,6 +1051,97 @@ suite('ProtocolServerHandler', () => {
 
 			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			});
+		});
+	});
+
+	test('owned tool call is not failed when closing the latest overlapping transport falls back to an older one', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			const fallbackTransport = connectClient('client-tools', [sessionUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri]);
+
+			latestTransport.simulateClose();
+
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			fallbackTransport.simulateClose();
+		});
+	});
+
+	test('owned tool call is failed after the last overlapping transport closes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			const fallbackTransport = connectClient('client-tools', [sessionUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri]);
+			latestTransport.simulateClose();
+
+			await new Promise(r => setTimeout(r, 30_001));
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			fallbackTransport.simulateClose();
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
 				status: part.toolCall.status,
 				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
@@ -1327,6 +1481,44 @@ suite('ProtocolServerHandler', () => {
 		assert.match(resp.error!.message, /Directory not found/);
 	});
 
+	test('resourceRead does not log missing file reads', async () => {
+		const transport = connectClient('client-read-missing-file');
+		transport.sent.length = 0;
+
+		const fileUri = URI.file('/missing').toString();
+		agentService.readErrors.set(fileUri, new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${fileUri}`));
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'resourceRead', { uri: fileUri }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: resp.error?.code,
+			errorCount: logService.errorCount,
+		}, {
+			errorCode: AhpErrorCodes.NotFound,
+			errorCount: 0,
+		});
+	});
+
+	test('resourceRead logs missing non-file reads', async () => {
+		const transport = connectClient('client-read-missing-session-db');
+		transport.sent.length = 0;
+
+		const resource = 'session-db:/missing';
+		agentService.readErrors.set(resource, new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${resource}`));
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'resourceRead', { uri: resource }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: resp.error?.code,
+			errorCount: logService.errorCount,
+		}, {
+			errorCode: AhpErrorCodes.NotFound,
+			errorCount: 1,
+		});
+	});
+
 	// ---- Extension methods: auth ----------------------------------------
 
 	test('authenticate returns result via typed request', async () => {
@@ -1382,7 +1574,7 @@ suite('ProtocolServerHandler', () => {
 		const transport1 = connectClient('client-rc');
 		assert.deepStrictEqual(counts, [1]);
 
-		// Reconnect with same clientId (new transport)
+		// Reconnect with same clientId (new active transport)
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
 		transport2.simulateMessage(request(1, 'reconnect', {
@@ -1390,10 +1582,11 @@ suite('ProtocolServerHandler', () => {
 			lastSeenServerSeq: 0,
 			subscriptions: [],
 		}));
-		// Count is unchanged because same clientId was overwritten
+		// Count is unchanged because the logical clientId is already connected.
 		assert.deepStrictEqual(counts, [1, 1]);
 
-		// Old transport closes - should NOT decrement since it's stale
+		// Old transport closes - should NOT decrement because the newer
+		// transport is still connected.
 		transport1.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1]);
 
@@ -1689,6 +1882,32 @@ suite('ProtocolServerHandler', () => {
 
 			transport.simulateClose();
 			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
+		});
+
+		test('overlapping transports release each resource-watch subscription', async () => {
+			const watchChannel = 'ahp-resource-watch:/mock-watch-overlap';
+			agentService.liveWatchDescriptors.set(watchChannel, { root: 'file:///root', recursive: false });
+
+			const transport1 = connectClient('client-watch-overlap');
+			const subPromise1 = waitForResponse(transport1, 200);
+			transport1.simulateMessage(request(200, 'subscribe', { channel: watchChannel }));
+			await subPromise1;
+
+			const transport2 = connectClient('client-watch-overlap');
+			const subPromise2 = waitForResponse(transport2, 201);
+			transport2.simulateMessage(request(201, 'subscribe', { channel: watchChannel }));
+			await subPromise2;
+
+			transport2.simulateClose();
+			transport1.simulateClose();
+
+			assert.deepStrictEqual({
+				subscribes: agentService.watchSubscribeCalls,
+				unsubscribes: agentService.watchUnsubscribeCalls,
+			}, {
+				subscribes: [watchChannel, watchChannel],
+				unsubscribes: [watchChannel, watchChannel],
+			});
 		});
 	});
 });
