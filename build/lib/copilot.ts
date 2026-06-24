@@ -100,6 +100,10 @@ const copilotOptionalNativePayloadDirs = [
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	const files = [
 		'prebuilds/*/computer.node',
+		'prebuilds/*/computer-use-mcp',
+		'prebuilds/*/computer-use-mcp.exe',
+		'prebuilds/*/Copilot Computer Use.app/**',
+		'prebuilds/*/CopilotComputerUse.exe',
 		'prebuilds/*/keytar.node',
 	];
 

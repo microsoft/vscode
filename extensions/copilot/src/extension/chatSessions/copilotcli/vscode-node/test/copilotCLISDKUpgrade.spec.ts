@@ -49,13 +49,22 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('ripgrep', 'bin', 'win32-x64', 'rg.exe'),
 			path.join('prebuilds', 'darwin-arm64', 'spawn-helper'),
 			path.join('prebuilds', 'darwin-x64', 'spawn-helper'),
-			// computer use
-			path.join('prebuilds', 'darwin-arm64', 'computer.node'),
-			path.join('prebuilds', 'darwin-x64', 'computer.node'),
-			path.join('prebuilds', 'linux-arm64', 'computer.node'),
-			path.join('prebuilds', 'linux-x64', 'computer.node'),
-			path.join('prebuilds', 'win32-arm64', 'computer.node'),
-			path.join('prebuilds', 'win32-x64', 'computer.node'),
+			// Computer-use payloads present in the raw package. Root prebuilds
+			// are stripped from the shipped extension by .vscodeignore.
+			path.join('prebuilds', 'darwin-arm64', 'computer-use-mcp'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
+			path.join('prebuilds', 'darwin-x64', 'computer-use-mcp'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
+			path.join('prebuilds', 'win32-arm64', 'CopilotComputerUse.exe'),
+			path.join('prebuilds', 'win32-arm64', 'computer-use-mcp.exe'),
+			path.join('prebuilds', 'win32-x64', 'CopilotComputerUse.exe'),
+			path.join('prebuilds', 'win32-x64', 'computer-use-mcp.exe'),
 			// cli-native to be included
 			path.join('prebuilds', 'darwin-arm64', 'cli-native.node'),
 			path.join('prebuilds', 'darwin-x64', 'cli-native.node'),
@@ -77,12 +86,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('prebuilds', 'win32-x64', 'runtime.node'),
 			// Second copy of native prebuilds re-shipped by the @github/copilot/sdk subpackage
 			// (previously hidden by a broad sdk/prebuilds/** exclusion that masked the node-pty files we used to shim in at test setup).
-			path.join('sdk', 'prebuilds', 'darwin-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'darwin-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'linux-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'linux-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'win32-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'win32-x64', 'computer.node'),
 			path.join('sdk', 'prebuilds', 'darwin-arm64', 'runtime.node'),
 			path.join('sdk', 'prebuilds', 'darwin-x64', 'runtime.node'),
 			path.join('sdk', 'prebuilds', 'linux-arm64', 'runtime.node'),
