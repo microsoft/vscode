@@ -485,12 +485,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._register(autorun(reader => {
 			const defs = this._activeClientService.clientTools.read(reader);
+			const clientId = this._config.connection.clientId;
 			for (const [sessionResource] of this._activeSessions) {
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
-				if (state?.activeClient?.clientId === this._config.connection.clientId) {
+				if (state?.activeClients.some(c => c.clientId === clientId)) {
 					this._dispatchAction(backendSession, {
 						type: ActionType.SessionActiveClientToolsChanged,
+						clientId,
 						tools: [...defs],
 					});
 				}
@@ -533,10 +535,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const customizationsObs = this._activeClientService.getCustomizations(config.sessionType);
 		this._register(autorun(reader => {
 			const refs = customizationsObs.read(reader);
+			const clientId = this._config.connection.clientId;
 			for (const [sessionResource] of this._activeSessions) {
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
-				if (state?.activeClient?.clientId === this._config.connection.clientId && !equals(state.activeClient.customizations ?? [], refs)) {
+				const existing = state?.activeClients.find(c => c.clientId === clientId);
+				if (existing && !equals(existing.customizations ?? [], refs)) {
 					this._dispatchActiveClient(backendSession, [...refs]);
 				}
 			}
@@ -1153,24 +1157,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _ensureActiveClientForMessage(backendSession: URI): void {
 		const state = this._getSessionState(backendSession.toString());
 		const activeClient = this._getCurrentActiveClient();
-		if (equals(state?.activeClient, activeClient)) {
+		const existing = state?.activeClients.find(c => c.clientId === activeClient.clientId);
+		if (equals(existing, activeClient)) {
 			return;
 		}
 		this._dispatchAction(backendSession, {
-			type: ActionType.SessionActiveClientChanged,
+			type: ActionType.SessionActiveClientSet,
 			activeClient,
 		});
 	}
 
 	/**
-	 * Dispatches `session/activeClientChanged` to claim the active client
-	 * role for this session and publish the current customizations and
-	 * client-provided tools.
+	 * Dispatches `session/activeClientSet` to add this connection as an
+	 * active client for this session and publish the current customizations
+	 * and client-provided tools. This client never removes itself.
 	 */
 	private _dispatchActiveClient(backendSession: URI, customizations: ClientPluginCustomization[]): void {
 		const current = this._getCurrentActiveClient();
 		this._dispatchAction(backendSession, {
-			type: ActionType.SessionActiveClientChanged,
+			type: ActionType.SessionActiveClientSet,
 			activeClient: { ...current, customizations },
 		});
 	}
@@ -1328,10 +1333,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		// Claim the active-client slot for this connection before the turn
-		// goes out. We only claim on turn start (not on session open) so
-		// that opening a session doesn't dispossess another client that's
-		// in the middle of a turn.
+		// Add this connection as an active client for the session before the
+		// turn goes out. We only do this on turn start (not on session open)
+		// so that opening a session doesn't eagerly register this client while
+		// another client is in the middle of a turn.
 		this._ensureActiveClientForMessage(session);
 
 		// Model and agent selections are dispatched to the per-chat turn

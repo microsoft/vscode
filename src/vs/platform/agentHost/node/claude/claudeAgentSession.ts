@@ -349,7 +349,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
-				this.toolDiff.model.state.get().clientId,
+				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {
 			dbRef.dispose();
@@ -741,12 +741,24 @@ export class ClaudeAgentSession extends Disposable {
 
 	// #region Phase 10 — client tools
 
-	/** Replace the registered client tools snapshot. */
-	setClientTools(tools: readonly ToolDefinition[], clientId?: string): void {
-		this.toolDiff.model.setTools(tools, clientId);
-		if (this._pipeline) {
-			this._pipeline.setClientId(this.toolDiff.model.state.get().clientId);
-		}
+	/** Replace a client's registered tools (full replacement). */
+	setClientTools(clientId: string, tools: readonly ToolDefinition[]): void {
+		this.toolDiff.model.setTools(clientId, tools);
+	}
+
+	/** This client's registered tools (empty when absent). */
+	getClientTools(clientId: string): readonly ToolDefinition[] {
+		return this.toolDiff.model.getTools(clientId);
+	}
+
+	/** Remove a client's tool contribution from this session. */
+	removeClientTools(clientId: string): void {
+		this.toolDiff.model.removeClient(clientId);
+	}
+
+	/** Remove a client's customization contribution from this session. */
+	removeClientCustomizations(clientId: string): void {
+		this.clientCustomizationsDiff.model.removeClient(clientId);
 	}
 
 	/**
@@ -803,8 +815,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * the resulting snapshot down here. Flips the client-side dirty bit
 	 * so the next {@link send} pre-flight reloads SDK plugins.
 	 */
-	adoptClientCustomizations(synced: readonly ISyncedCustomization[]): void {
-		this.clientCustomizationsDiff.model.setSyncedCustomizations(synced);
+	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
 	}
 
 	/** Toggle a **client-pushed** customization on/off for this session. */

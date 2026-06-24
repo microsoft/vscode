@@ -540,7 +540,7 @@ suite('AgentHostClientTools', () => {
 		test('maps allowlisted tool data to protocol definitions', async () => {
 			const { connection } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
-			// The handler dispatches activeClientChanged in the constructor when
+			// The handler dispatches activeClientSet in the constructor when
 			// customizations observable fires, but here it fires during provideChatSessionContent.
 			// Verify tools are built correctly by checking what would be dispatched.
 			assert.ok(connection);
