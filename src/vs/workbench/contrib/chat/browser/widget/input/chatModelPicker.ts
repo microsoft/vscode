@@ -1185,7 +1185,15 @@ export class ModelPickerWidget extends Disposable {
 		return chatRequiresSetup({
 			completed: !!sentiment.completed,
 			disabled: !!sentiment.disabled,
-			untrusted: !!sentiment.untrusted,
+			// Workspace trust is handled authoritatively and synchronously via the
+			// Restricted branch of getModelPickerUnavailableReason (which checks
+			// isWorkspaceTrusted() and takes precedence). The picker only consults
+			// setup-required once the workspace is already trusted, so `untrusted`
+			// is definitionally false here. We must NOT read it from `sentiment`,
+			// which lags after a Trust grant (it stays true until the chat
+			// extension reactivates) — otherwise a just-trusted, already signed-in
+			// user would briefly see the "Sign in" state instead of "Activating...".
+			untrusted: false,
 			entitlement: this._entitlementService.entitlement,
 			anonymous: this._entitlementService.anonymous,
 			hasByokModels: this._entitlementService.hasByokModels,
