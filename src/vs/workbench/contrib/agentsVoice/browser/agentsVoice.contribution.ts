@@ -29,6 +29,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -274,6 +275,33 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		voiceController.disconnect();
+	}
+});
+
+// --- Voice Mode Settings ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.openSettings',
+			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
+			icon: Codicon.settingsGear,
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: 10
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.action.openSettings', '@id:agents.voice');
 	}
 });
 
