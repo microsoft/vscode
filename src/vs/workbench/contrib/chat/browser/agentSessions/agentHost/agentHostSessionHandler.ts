@@ -2723,57 +2723,82 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// Process insertions in reverse order so indices remain valid
-			for (let j = subagentInsertions.length - 1; j >= 0; j--) {
-				const { index, toolCallId } = subagentInsertions[j];
-				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+			if (subagentInsertions.length === 0) {
+				continue;
+			}
 
+			const childStateByUri = new Map<string, Promise<ISessionWithDefaultChat | undefined>>();
+			const getChildState = (childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> => {
+				let existing = childStateByUri.get(childSessionUri);
+				if (!existing) {
+					existing = this._loadSubagentState(childSessionUri);
+					childStateByUri.set(childSessionUri, existing);
+				}
+				return existing;
+			};
+
+			const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ index, toolCallId }) => {
+				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
 				try {
-					const childSub = this._ensureSessionSubscription(childSessionUri);
-					let childState = this._getSessionState(childSessionUri);
-					if (!childState) {
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						await new Promise<void>(resolve => {
-							const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
-						});
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						childState = this._getSessionState(childSessionUri);
-					}
-					if (childState) {
-						const innerParts: IChatProgress[] = [];
-						for (const turn of childState.turns) {
-							for (const rp of turn.responseParts) {
-								if (rp.kind === ResponsePartKind.ToolCall) {
-									const tc = rp.toolCall;
-									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-										const completedTc = tc as ICompletedToolCall;
-										const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-										if (fileEditParts.length > 0) {
-											serialized.presentation = ToolInvocationPresentation.Hidden;
-										}
-										innerParts.push(serialized);
-										innerParts.push(...fileEditParts);
-									}
-								}
-							}
-						}
-						if (innerParts.length > 0) {
-							// Insert inner tool calls right after the subagent tool call
-							item.parts.splice(index + 1, 0, ...innerParts);
-						}
-					}
+					const childState = await getChildState(childSessionUri);
+					return { index, innerParts: childState ? this._getSubagentInnerParts(childSessionUri, toolCallId, childState) : [] };
 				} catch (err) {
 					this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
-				} finally {
-					this._releaseSessionSubscription(childSessionUri);
+					return { index, innerParts: [] };
+				}
+			}));
+
+			for (const { index, innerParts } of enrichedInsertions.sort((a, b) => b.index - a.index)) {
+				if (innerParts.length > 0) {
+					item.parts.splice(index + 1, 0, ...innerParts);
 				}
 			}
 		}
+	}
+
+	private async _loadSubagentState(childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> {
+		const childSub = this._ensureSessionSubscription(childSessionUri);
+		try {
+			let childState = this._getSessionState(childSessionUri);
+			if (!childState) {
+				if (childSub.value instanceof Error) {
+					throw childSub.value;
+				}
+				await this._whenSubscriptionHydrated(childSub, CancellationToken.None);
+				if (childSub.value instanceof Error) {
+					throw childSub.value;
+				}
+				childState = this._getSessionState(childSessionUri);
+			}
+			if (!childState) {
+				return undefined;
+			}
+			return childState;
+		} finally {
+			this._releaseSessionSubscription(childSessionUri);
+		}
+	}
+
+	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
+		const innerParts: IChatProgress[] = [];
+		for (const turn of childState.turns) {
+			for (const rp of turn.responseParts) {
+				if (rp.kind === ResponsePartKind.ToolCall) {
+					const tc = rp.toolCall;
+					if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+						const completedTc = tc as ICompletedToolCall;
+						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
+						const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
+						if (fileEditParts.length > 0) {
+							serialized.presentation = ToolInvocationPresentation.Hidden;
+						}
+						innerParts.push(serialized);
+						innerParts.push(...fileEditParts);
+					}
+				}
+			}
+		}
+		return innerParts;
 	}
 
 	/**
