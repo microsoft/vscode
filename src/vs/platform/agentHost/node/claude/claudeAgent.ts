@@ -449,28 +449,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Fork an existing session at a protocol `turnId` (the last KEPT turn N,
-	 * keep `[0..N]` INCLUSIVE) into a brand-new session. Unlike the non-fork
-	 * path this materializes EAGERLY: the SDK's `forkSession` writes the
-	 * forked transcript to disk synchronously, so the result is NOT
-	 * provisional (CONTEXT M9). Per M9 the SDK `Query` is NOT started here:
-	 * fork writes the session file and resolves its working directory from
-	 * the SDK record, then materialization is deferred to the first
-	 * {@link sendMessage}, which finds no in-memory entry and resumes from
-	 * disk via {@link _resumeSession}. Starting the `Query` here would fire
-	 * `onDidMaterializeSession` and emit pipeline progress signals before
-	 * `AgentService.createSession` has registered the forked session, each
-	 * landing on a session the service does not know about yet.
-	 *
-	 * The protocol `turnId` is NOT the SDK's `upToMessageId`: the SDK wants
-	 * the envelope `uuid` of the last assistant message of turn N, which
-	 * {@link resolveForkAnchorUuid} reconstructs by walking the source
-	 * transcript on demand (no persisted turn→uuid map — see phase13-plan.md).
-	 *
-	 * `config.fork.turnIdMapping` is intentionally ignored: Copilot's
-	 * `remapTurnIds` rewrites a per-turn SDK-event-id DB that Claude does
-	 * not maintain, and the SDK's `forkSession` already remaps every
-	 * internal message uuid.
+	 * Fork an existing session at a protocol `turnId` (keep `[0..N]`
+	 * INCLUSIVE) into a new, non-provisional session. The SDK `Query` is
+	 * NOT started here (CONTEXT M9): `forkSession` writes the transcript to
+	 * disk and we return; the `Query` materializes lazily on the first
+	 * {@link sendMessage} via {@link _resumeSession}. `turnId` is translated
+	 * to the SDK envelope `uuid` by {@link resolveForkAnchorUuid};
+	 * `config.fork.turnIdMapping` is ignored (the SDK already remaps uuids).
 	 */
 	private async _forkSession(config: IAgentCreateSessionConfig, fork: NonNullable<IAgentCreateSessionConfig['fork']>): Promise<IAgentCreateSessionResult> {
 		if (isSubagentSession(fork.session)) {
@@ -492,12 +477,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const { sessionId: newSessionId } = await this._sdkService.forkSession(sourceSessionId, { upToMessageId });
 			const newSessionUri = AgentSession.uri(this.id, newSessionId);
 
-			// Inherit the source's model / permissionMode / agent (with create-
-			// config overrides) by writing the new session's overlay now, so the
-			// lazy `_resumeSession` on the first `sendMessage` reads it and seeds
-			// `Options` from it. `customizationDirectory` is deliberately NOT
-			// inherited: it points at the source's per-session synced plugin dir
-			// (Phase 11), so the fork re-syncs its own on first materialize.
+			// Inherit the source's model / permissionMode / agent (create-config
+			// overrides win) so the lazy `_resumeSession` seeds `Options` from
+			// it. `customizationDirectory` is NOT inherited — it is the source's
+			// per-session synced plugin dir (Phase 11); the fork re-syncs its own.
 			let sourceOverlay: IClaudeSessionOverlay = {};
 			try {
 				sourceOverlay = await this._metadataStore.read(fork.session);
@@ -513,24 +496,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				...(agent ? { agent } : {}),
 			});
 
-			// Per CONTEXT M9, fork does NOT start the SDK `Query` here. Resolve
-			// the forked session's working directory + project from the freshly
-			// written SDK record and return; the `Query` materializes lazily on
-			// the first `sendMessage`, which finds no in-memory entry and
-			// resumes from disk via `_resumeSession`. Materializing now would
-			// fire `onDidMaterializeSession` and emit pipeline progress signals
-			// (e.g. `serverToolsChanged`) before `AgentService.createSession`
-			// has registered the forked session, each landing on an "unknown
-			// session".
+			// Resolve the forked session's working directory now so we can fail
+			// fast (rather than at the first `sendMessage` when `_resumeSession`
+			// requires a cwd). The Query itself starts lazily — see the JSDoc.
 			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
 			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectory;
+			if (!workingDirectory) {
+				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
+			}
 			let project: IAgentSessionProjectInfo | undefined;
-			if (workingDirectory) {
-				try {
-					project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				} catch (err) {
-					this._logService.warn(`[Claude] fork: project resolution failed for ${newSessionId}; continuing without project`, err);
-				}
+			try {
+				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			} catch (err) {
+				this._logService.warn(`[Claude] fork: project resolution failed for ${newSessionId}; continuing without project`, err);
 			}
 			return {
 				session: newSessionUri,

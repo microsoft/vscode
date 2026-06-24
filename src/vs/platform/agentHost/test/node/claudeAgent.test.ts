@@ -1370,16 +1370,9 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('createSession({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
-		// Phase 6.5 tracer: the protocol `turnId` (u1) is translated to the
-		// SDK envelope uuid of that turn's last assistant message (a1), passed
-		// INCLUSIVE to `forkSession`. Per CONTEXT M9 fork does NOT start the
-		// `Query`: it writes the session file and returns a NON-provisional
-		// result WITHOUT firing `onDidMaterializeSession`. The first
-		// `sendMessage` then resumes the forked session from disk
-		// (`Options.resume`) — that is where the `Query` starts and the
-		// materialize event fires. Materializing at fork time would land
-		// `onDidMaterializeSession` + pipeline signals on a session
-		// `AgentService.createSession` has not registered yet.
+		// Fork translates turnId u1 → its last-assistant uuid a1 (INCLUSIVE),
+		// returns non-provisional WITHOUT starting the Query; the first
+		// sendMessage resumes from disk (Options.resume) — see CONTEXT M9.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
@@ -1506,6 +1499,22 @@ suite('ClaudeAgent', () => {
 			/not found in transcript/,
 		);
 		assert.strictEqual(sdk.forkSessionCalls.length, 0, 'no fork when the anchor cannot be resolved');
+	});
+
+	test('createSession({ fork }) rejects when the forked session has no working directory', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		// No `sessionList` entry → `getSessionInfo('forked-1')` resolves
+		// undefined (no cwd), and no `config.workingDirectory` is supplied.
+		// Fail fast here rather than at the first `sendMessage`.
+		await assert.rejects(
+			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' } }),
+			/no working directory/,
+		);
 	});
 
 	test('createSession({ fork }) rejects a subagent source with no SDK contact', async () => {
