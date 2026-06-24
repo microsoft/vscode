@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -338,11 +338,15 @@ export interface IDiagnosticVariableEntryFilterData {
 export namespace IDiagnosticVariableEntryFilterData {
 	export const icon = Codicon.error;
 
+	function getPlainTextMessage(message: string | IMarkdownString): string {
+		return isMarkdownString(message) ? message.plainTextValue ?? message.value : message;
+	}
+
 	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
 		return {
 			filterUri: marker.resource,
 			owner: marker.owner,
-			problemMessage: marker.message,
+			problemMessage: getPlainTextMessage(marker.message),
 			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
 		};
 	}

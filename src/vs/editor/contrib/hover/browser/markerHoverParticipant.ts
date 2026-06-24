@@ -32,7 +32,7 @@ import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlC
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownHover, renderMarkdown } from './markdownHoverParticipant.js';
-import { ILanguageService } from '../../../common/languages/language.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 const $ = dom.$;
 
@@ -66,7 +66,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		private readonly _editor: ICodeEditor,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ILanguageService private readonly _languageService: ILanguageService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -132,7 +132,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			const renderedMarkdownPart = renderMarkdown(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged);
+			const renderedMarkdownPart = renderMarkdown(this._editor, markerHover, this._markdownRendererService, context.onContentsChanged);
 			disposables.add(renderedMarkdownPart);
 			const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
 			messageElement.append(renderedMarkdownElement);

@@ -219,7 +219,8 @@ class MessageWidget {
 				break;
 		}
 
-		let ariaLabel = nls.localize('marker aria', "{0}: {1} at {2}. ", severityLabel, marker.message, marker.startLineNumber + ':' + marker.startColumn);
+		const plainTextMessage = isMarkdownString(marker.message) ? marker.message.plainTextValue ?? marker.message.value : marker.message;
+		let ariaLabel = nls.localize('marker aria', "{0}: {1} at {2}. ", severityLabel, plainTextMessage, marker.startLineNumber + ':' + marker.startColumn);
 		const model = this._editor.getModel();
 		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
 			const lineContent = model.getLineContent(marker.startLineNumber);
