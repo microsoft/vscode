@@ -12,6 +12,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -107,6 +108,7 @@ export class ModelPicker extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -148,6 +150,18 @@ export class ModelPicker extends Disposable {
 
 		this._initModel();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._initModel()));
+
+		// Re-evaluate when workspace trust changes (or finishes initializing): an
+		// untrusted workspace disables the model providers, and the shared widget
+		// then renders its Restricted Mode state. Visibility is recomputed so the
+		// picker stays visible to surface "Pick Model" + the Trust action instead
+		// of hiding as an empty picker.
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(() => this._initModel()));
+		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			if (!this._store.isDisposed) {
+				this._initModel();
+			}
+		});
 
 		// When the active session changes, re-init (may switch provider or
 		// session type). _initModel() calls _delegate.setModel() which already
@@ -263,12 +277,17 @@ export class ModelPicker extends Disposable {
 
 	/**
 	 * Whether the model picker should be shown for the given session. Visible
-	 * when the session has models, or when its Auto model is unavailable (so the
-	 * widget can render the "No models available" empty state). Otherwise hidden,
-	 * matching the historical behavior for providers that offer no models.
+	 * when the session has models, when its Auto model is unavailable (so the
+	 * widget can render the "No models available" empty state), or when the
+	 * workspace is untrusted (so the widget can render its Restricted Mode state
+	 * with a Trust action). Otherwise hidden, matching the historical behavior
+	 * for providers that offer no models.
 	 */
 	private _shouldShowPicker(session: ISession | undefined): boolean {
 		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
+			return true;
+		}
+		if (this._modelPicker.isRestrictedMode()) {
 			return true;
 		}
 		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;

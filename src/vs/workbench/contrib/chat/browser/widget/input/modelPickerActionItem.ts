@@ -123,6 +123,16 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget.setEnabled(enabled);
 	}
 
+	/**
+	 * Whether the picker has no usable model because the workspace is untrusted
+	 * (Restricted Mode). Lets a host (e.g. the sessions picker) keep the picker
+	 * visible to surface the "Pick Model" placeholder and Trust Workspace action
+	 * instead of hiding it as an empty/no-model picker.
+	 */
+	public isRestrictedMode(): boolean {
+		return this._pickerWidget.isRestrictedMode();
+	}
+
 	private _showPicker(): void {
 		this._pickerWidget.show(this._getAnchorElement());
 	}

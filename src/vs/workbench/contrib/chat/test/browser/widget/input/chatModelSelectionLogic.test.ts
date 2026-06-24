@@ -16,6 +16,7 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	isRestrictedModeState,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldResetModelToDefault,
@@ -1730,6 +1731,40 @@ suite('ChatModelSelectionLogic', () => {
 				true,
 				'reset fallback should not be a BYOK model',
 			);
+		});
+	});
+
+	suite('isRestrictedModeState', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		test('untrusted with no usable models is restricted', () => {
+			assert.strictEqual(isRestrictedModeState(true, false, [], []), true);
+		});
+
+		test('trusted is never restricted', () => {
+			assert.strictEqual(isRestrictedModeState(true, true, [], []), false);
+		});
+
+		test('not restricted until trust has initialized', () => {
+			assert.strictEqual(isRestrictedModeState(false, false, [], []), false);
+		});
+
+		test('untrusted with a live, picker-offered model is not restricted (e.g. BYOK)', () => {
+			assert.strictEqual(isRestrictedModeState(true, false, [gpt], [gpt.identifier]), false);
+		});
+
+		test('stale cached models that are not live do not mask Restricted Mode', () => {
+			// `gpt` is offered by the picker (e.g. from the cross-window cache) but is not in the live registry.
+			assert.strictEqual(isRestrictedModeState(true, false, [gpt], []), true);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask Restricted Mode', () => {
+			// An agent-host session-scoped model is live in the global registry, but the picker does not offer it.
+			assert.strictEqual(isRestrictedModeState(true, false, [], ['agentHost/claude']), true);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(isRestrictedModeState(true, false, [gpt], new Set([gpt.identifier])), false);
 		});
 	});
 });

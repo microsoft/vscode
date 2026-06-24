@@ -324,3 +324,34 @@ export function shouldRestoreLateArrivingModel(
 	);
 	return result.shouldRestore;
 }
+
+/**
+ * Whether a model picker is in Restricted Mode: the workspace is untrusted and
+ * the picker has no usable model, so it should surface a "Pick Model" placeholder
+ * and a Trust Workspace action instead of a misleading lone "Auto".
+ *
+ * A model counts as usable only when it is both offered by this picker
+ * (`pickerModels`, already filtered to the picker's location / session type) AND
+ * currently live in the language model registry (`liveModelIds`). This ignores
+ * two kinds of phantom models that would otherwise mask Restricted Mode:
+ * - stale cross-window machine cache entries (present in `pickerModels` but not live), and
+ * - models registered for other surfaces such as agent-host session-scoped models
+ *   (live in the global registry but not offered by this picker).
+ *
+ * `trusted` reflects `isWorkspaceTrusted()` (which is `true` when trust is
+ * disabled entirely) and is only authoritative once `trustInitialized` is `true`;
+ * until then this returns `false` to avoid a trusted workspace briefly rendering
+ * as restricted at startup.
+ */
+export function isRestrictedModeState(
+	trustInitialized: boolean,
+	trusted: boolean,
+	pickerModels: readonly ILanguageModelChatMetadataAndIdentifier[],
+	liveModelIds: Iterable<string>,
+): boolean {
+	if (!trustInitialized || trusted) {
+		return false;
+	}
+	const live = liveModelIds instanceof Set ? liveModelIds : new Set(liveModelIds);
+	return !pickerModels.some(model => live.has(model.identifier));
+}

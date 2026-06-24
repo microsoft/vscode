@@ -36,6 +36,7 @@ import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageM
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { isRestrictedModeState } from './chatModelSelectionLogic.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
@@ -1101,17 +1102,17 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Whether the picker is empty specifically because the workspace is untrusted
-	 * (Restricted Mode disables the chat model providers). Uses the *live* model
-	 * registry, not the delegate's list, which can include machine-cached models
-	 * from a previous trusted session. `isWorkspaceTrusted()` is `true` when trust
-	 * is disabled entirely, and is only authoritative once
-	 * `workspaceTrustInitialized` resolves.
+	 * Whether the picker has no usable model specifically because the workspace
+	 * is untrusted (Restricted Mode disables the chat model providers). See
+	 * {@link isRestrictedModeState} for how "usable" is determined.
 	 */
 	isRestrictedMode(): boolean {
-		return this._workspaceTrustInitialized
-			&& !this._workspaceTrustManagementService.isWorkspaceTrusted()
-			&& this._languageModelsService.getLanguageModelIds().length === 0;
+		return isRestrictedModeState(
+			this._workspaceTrustInitialized,
+			this._workspaceTrustManagementService.isWorkspaceTrusted(),
+			this._delegate.getModels(),
+			this._languageModelsService.getLanguageModelIds(),
+		);
 	}
 
 	private _clearActivating(): void {
