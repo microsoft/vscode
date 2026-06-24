@@ -44,7 +44,6 @@ const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 const debugContextKey = 'github.copilot.chat.debug';
 
 export const getChatQuotaTrajectoryNudgeEnabledCommand = '_github.copilot.chat.getQuotaTrajectoryNudgeEnabled';
-const getChatQuotaTrajectoryNudgeTreatmentTimeoutMs = 5000;
 
 const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiveSession';
 
@@ -81,7 +80,7 @@ export class ContextKeysContribution extends Disposable {
 			await commands.executeCommand('copilot-chat.focus');
 		}));
 		this._register(commands.registerCommand(getChatQuotaTrajectoryNudgeEnabledCommand, async () => {
-			await this._waitForQuotaTrajectoryTreatments();
+			await this._expService.hasTreatments();
 			const config = ConfigKey.Advanced.ChatQuotaTrajectoryNudge;
 			const configured = this._configService.isConfigured(config);
 			const assigned = this._expService.getTreatmentVariable<boolean>(config.experimentName ?? '');
@@ -110,22 +109,6 @@ export class ContextKeysContribution extends Disposable {
 		this._register(extensions.onDidChange(() => {
 			this._updatePrExtensionInstalledContext();
 		}));
-	}
-
-	private async _waitForQuotaTrajectoryTreatments(): Promise<void> {
-		let timeout: TimeoutHandle | undefined;
-		try {
-			await Promise.race([
-				this._expService.hasTreatments(),
-				new Promise<never>((_, reject) => {
-					timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${ConfigKey.Advanced.ChatQuotaTrajectoryNudge.experimentName} treatments`)), getChatQuotaTrajectoryNudgeTreatmentTimeoutMs);
-				})
-			]);
-		} finally {
-			if (timeout) {
-				clearTimeout(timeout);
-			}
-		}
 	}
 
 	private _scheduleOfflineCheck() {
