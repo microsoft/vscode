@@ -8,13 +8,12 @@ import { createMarkdownCommandLink, MarkdownString } from '../../../../base/comm
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { getSelectedModelIdentifier, getSelectedModelMetadata, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
@@ -25,7 +24,7 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
 const TRAJECTORY_NUDGE_SPEC = {
-	treatment: 'config.chatQuotaTrajectoryNudge',
+	treatmentCommand: '_github.copilot.chat.getQuotaTrajectoryNudgeEnabled',
 	shownStorageKey: 'chat.quotaTrajectory.shownPeriod',
 	averageDailyUsageThreshold: 4.5,
 	minimumPercentUsed: 10,
@@ -110,7 +109,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
@@ -158,7 +157,14 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * the user is actually assigned to a flight.
 	 */
 	private async _resolveTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): Promise<void> {
-		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatment);
+		let treatment: boolean | undefined;
+		try {
+			treatment = await this._commandService.executeCommand<boolean>(TRAJECTORY_NUDGE_SPEC.treatmentCommand);
+		} catch (error) {
+			console.error(`Failed to resolve ${TRAJECTORY_NUDGE_SPEC.treatmentCommand}`, error);
+			this._trajectoryAssignmentRequested = false;
+			return;
+		}
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
 			this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
