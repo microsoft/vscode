@@ -33,6 +33,7 @@ import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitat
 import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { capiModelPricingMeta } from '../shared/capiModelPricing.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -754,9 +755,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					supportsVision: !!m.capabilities?.supports?.vision,
 					configSchema,
 					policyState: m.policy?.state as PolicyState | undefined,
-					_meta: typeof m.billing?.multiplier === 'number' ? {
-						multiplierNumeric: m.billing.multiplier,
-					} : undefined,
+					_meta: capiModelPricingMeta(m),
 				}));
 			this._models.set(models, undefined);
 		} catch (err) {

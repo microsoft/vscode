@@ -34,6 +34,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { capiModelPricingMeta } from '../shared/capiModelPricing.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
@@ -93,7 +94,7 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const multiplier = m.billing?.multiplier;
+	const pricingMeta = capiModelPricingMeta(m);
 	return {
 		provider,
 		// CAPI/endpoint format, dotted version (e.g. `claude-haiku-4.5`) — the
@@ -105,7 +106,7 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		supportsVision: !!supports?.vision,
 		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
-		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
+		...(pricingMeta ? { _meta: pricingMeta } : {}),
 	};
 }
 
