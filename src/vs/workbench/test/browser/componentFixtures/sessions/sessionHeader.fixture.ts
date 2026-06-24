@@ -13,7 +13,7 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService, IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubInfo, ISession, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -116,7 +116,9 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(options.changes ?? []);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([createMockBranchChangeset(options.changes ?? [])]);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly icon = Codicon.account;
 	}();
 }
 
@@ -124,7 +126,7 @@ function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionRead(_session: ISession): boolean { return true; }
-		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
+		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:
 					return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
@@ -136,8 +138,8 @@ function createMockListModelService(): ISessionsListModelService {
 					if (isArchived) {
 						return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 					}
-					if (pullRequestIcon) {
-						return pullRequestIcon;
+					if (completedStateIcon) {
+						return completedStateIcon;
 					}
 					return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 			}
@@ -216,13 +218,13 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 		action instanceof MenuItemAction ? instaService.createInstance(ViewAllChangesActionViewItem, action, options) : undefined);
 
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-	const pullRequest = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest;
-	if (pullRequest) {
-		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: OPEN_PULL_REQUEST_COMMAND_ID, title: 'Open Pull Request' }, group: 'navigation', order: 0 });
-	}
 	const hasChanges = session.changes.get().some(change => change.insertions > 0 || change.deletions > 0);
 	if (hasChanges) {
-		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: VIEW_ALL_CHANGES_COMMAND_ID, title: 'View All Changes' }, group: 'navigation', order: 1 });
+		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: VIEW_ALL_CHANGES_COMMAND_ID, title: 'View All Changes' }, group: 'navigation', order: 0 });
+	}
+	const pullRequest = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest;
+	if (pullRequest) {
+		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: OPEN_PULL_REQUEST_COMMAND_ID, title: 'Open Pull Request' }, group: 'navigation', order: 1 });
 	}
 
 	// The session header reads `--session-view-background/foreground` (set by the
@@ -267,6 +269,15 @@ function createMockChange(insertions: number, deletions: number): ISessionFileCh
 		insertions,
 		deletions,
 	};
+}
+
+function createMockBranchChangeset(changes: readonly ISessionFileChange[]): ISessionChangeset {
+	return new class extends mock<ISessionChangeset>() {
+		override readonly id = BRANCH_CHANGES_CHANGESET_ID;
+		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
+		override readonly isEnabled: IObservable<boolean> = constObservable(true);
+		override readonly isDefault: IObservable<boolean> = constObservable(true);
+	}();
 }
 
 // ============================================================================
