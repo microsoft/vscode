@@ -382,5 +382,20 @@ suite('agentHostSchema', () => {
 				python: true,
 			});
 		});
+
+		test('keeps entries that match defaults when they come from a non-default target', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true } },
+				userValue: { ls: true },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: true,
+				ls: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				ls: true,
+			});
+		});
 	});
 });
