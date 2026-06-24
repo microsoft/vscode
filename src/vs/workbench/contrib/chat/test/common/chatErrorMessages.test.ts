@@ -232,7 +232,7 @@ suite('ChatErrorMessages', () => {
 				ChatEntitlement.EDU,
 				ChatEntitlement.Unknown,
 			].map(getCopilotPlanFromEntitlement);
-			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'individual', undefined]);
+			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'edu', undefined]);
 		});
 	});
 });

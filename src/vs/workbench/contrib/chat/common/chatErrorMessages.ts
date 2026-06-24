@@ -185,6 +185,10 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 				return resetDateString
 					? localize('chatError.quota.ubb.individualDate', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait until your credits reset on {0}.", resetDateString)
 					: localize('chatError.quota.ubb.individual', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait for your credits to reset.");
+			case 'edu':
+				return resetDateString
+					? localize('chatError.quota.ubb.eduDate', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait until your credits reset on {0}.", resetDateString)
+					: localize('chatError.quota.ubb.edu', "You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait for your credits to reset.");
 			case 'individual_pro':
 			case 'individual_max':
 				return resetDateString
@@ -207,6 +211,8 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 			return localize('chatError.quota.free', "You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.");
 		case 'individual':
 			return localize('chatError.quota.individual', "You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.");
+		case 'edu':
+			return localize('chatError.quota.edu', "You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro, or wait for your allowance to renew.");
 		case 'individual_pro':
 		case 'individual_max':
 			return localize('chatError.quota.pro', "You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.");
@@ -391,7 +397,7 @@ export function getCopilotPlanFromEntitlement(entitlement: ChatEntitlement): str
 		case ChatEntitlement.Enterprise:
 			return 'enterprise';
 		case ChatEntitlement.EDU:
-			return 'individual';
+			return 'edu';
 		default:
 			return undefined;
 	}
