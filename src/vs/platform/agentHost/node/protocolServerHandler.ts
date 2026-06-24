@@ -6,12 +6,14 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
+import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -37,7 +39,7 @@ import {
 	type IStateSnapshot,
 	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -1409,21 +1411,11 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		// The root channel has two equivalent string forms (`ahp-root://` and
-		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
-		// client that subscribed with either form receives root broadcasts
-		// regardless of which form the envelope carries. See
-		// {@link isAhpRootChannel}.
-		if (isAhpRootChannel(envelope.channel)) {
-			for (const sub of client.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		const sub = client.subscriptions.get(envelope.channel);
-		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
+		const subscribedUris = Iterable.map(
+			Iterable.filter(client.subscriptions.values(), sub => sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch),
+			sub => sub.uri,
+		);
+		return isActionEnvelopeRelevantToSubscriptionUris(envelope, subscribedUris);
 	}
 
 	override dispose(): void {
