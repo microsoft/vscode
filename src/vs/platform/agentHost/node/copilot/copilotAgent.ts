@@ -27,6 +27,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -2707,10 +2708,10 @@ export function toDiscoveredDirectoryCustomizations(directories: readonly IDisco
 			type: CustomizationType.Directory,
 			id: customizationId(protocolUri),
 			uri: protocolUri,
-			name: resourceBasename(directory.uri),
+			name: directory.name,
 			enabled: true,
 			contents: toDirectoryContentsType(directory.type),
-			writable: false,
+			writable: directory.writable, // whether the new customization can be created in this directory
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
 		};
@@ -2888,6 +2889,7 @@ class PluginController extends Disposable {
 		@IFileService public readonly fileService: IFileService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IInstantiationService public readonly instantiationService: IInstantiationService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 
@@ -2915,8 +2917,8 @@ class PluginController extends Disposable {
 		return this._hostSync;
 	}
 
-	public getUserHome(): string {
-		return process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
+	public getUserHome(): URI {
+		return this._environmentService.userHome;
 	}
 
 	/**
@@ -3355,7 +3357,7 @@ class SessionPluginController extends Disposable {
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = new SessionDiscoveredEntry(
 				this._directory,
-				URI.file(this._parent.getUserHome()),
+				this._parent.getUserHome(),
 				() => this._onDidPublish.fire({
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...this.getCustomizations()],

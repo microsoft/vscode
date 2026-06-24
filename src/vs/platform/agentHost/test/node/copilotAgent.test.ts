@@ -446,7 +446,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
-			userHome: URI.file('/mock-home'),
+			userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -1396,12 +1396,27 @@ suite('CopilotAgent', () => {
 				const customizations = await agent.getSessionCustomizations(session);
 				const discoveredDirectories = customizations.filter(customization => customization.type === CustomizationType.Directory);
 
-				assert.strictEqual(discoveredDirectories.length, 3);
-				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), [
+				// All discovery roots are returned, even if empty or non-existing
+				// Workspace root is included because AGENTS.md was created
+				assert.strictEqual(discoveredDirectories.length, 13);
+				const expectedUris = [
+					// workspace roots
 					workspace.toString(),
 					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.agents', 'agents').toString(),
+					URI.joinPath(workspace, '.claude', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'skills').toString(),
+					URI.joinPath(workspace, '.agents', 'skills').toString(),
+					URI.joinPath(workspace, '.claude', 'skills').toString(),
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
-				].sort());
+					URI.joinPath(workspace, '.github', 'hooks').toString(),
+					// user home roots
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
+				];
+				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), expectedUris.sort());
 
 				const agentDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'agents').toString());
 				assert.ok(agentDirectory);
@@ -1465,16 +1480,24 @@ suite('CopilotAgent', () => {
 				});
 
 				const before = await agent.getSessionCustomizations(session);
-				assert.deepStrictEqual(before.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+				const beforeDirs = before.filter(customization => customization.type === CustomizationType.Directory);
+				const agentsDirBefore = beforeDirs.find(d => d.uri === agentsRoot.toString());
+				assert.ok(agentsDirBefore);
+				assert.strictEqual(agentsDirBefore!.children!.length, 1); // has the helper agent file
 
 				await fileService.del(agentsRoot, { recursive: true });
 
 				let after = await agent.getSessionCustomizations(session);
-				for (let i = 0; i < 20 && after.filter(customization => customization.type === CustomizationType.Directory).length > 0; i++) {
+				let afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
+				for (let i = 0; i < 20 && afterDirs.some(d => d.uri === agentsRoot.toString() && (d.children?.length ?? 0) > 0); i++) {
 					await new Promise(resolve => setTimeout(resolve, 50));
 					after = await agent.getSessionCustomizations(session);
+					afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
 				}
-				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
+				// agentsRoot still appears in discovery (as an empty directory) since it's a discovery root
+				const agentsDirAfter = afterDirs.find(d => d.uri === agentsRoot.toString());
+				assert.ok(agentsDirAfter);
+				assert.strictEqual(agentsDirAfter.children?.length ?? 0, 0); // files are cleared
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -1534,7 +1557,24 @@ suite('CopilotAgent', () => {
 				}
 
 				const after = await agent.getSessionCustomizations(session);
-				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+				const afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
+				// All discovery roots are discovered (workspace root only if it has AGENTS.md)
+				const expectedUris = [
+					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.agents', 'agents').toString(),
+					URI.joinPath(workspace, '.claude', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'skills').toString(),
+					URI.joinPath(workspace, '.agents', 'skills').toString(),
+					URI.joinPath(workspace, '.claude', 'skills').toString(),
+					URI.joinPath(workspace, '.github', 'instructions').toString(),
+					URI.joinPath(workspace, '.github', 'hooks').toString(),
+					// user home roots
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
+				];
+				assert.deepStrictEqual(afterDirs.map(customization => customization.uri).sort(), expectedUris.sort());
 			} finally {
 				await disposeAgent(agent);
 			}
