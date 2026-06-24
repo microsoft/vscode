@@ -65,14 +65,19 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _annotations = new Map<string, AnnotationsState>();
 
 	/**
-	 * Sessions whose authoritative state has an active turn. Derived from
-	 * `state.activeTurn` (the source of truth maintained by the session
-	 * reducer) — never from raw action turn-ids — so that mismatched or
-	 * out-of-order turn lifecycle actions can't desync the count from
-	 * reality. Drives `RootActiveSessionsChanged` and `hasActiveSessions`,
-	 * which together gate `--enable-remote-auto-shutdown`.
+	 * Active turns per session, keyed by session URI string with the value
+	 * being the set of that session's chat channel URIs that currently have an
+	 * active turn. A session is "active" while at least one of its chats is
+	 * streaming — this stays correct for multi-chat sessions whose chats can run
+	 * concurrent turns (e.g. agent-team / sub-agent workers), where the previous
+	 * single-flag-per-session model would clear too early. Active state is
+	 * derived from `state.activeTurn` (the source of truth maintained by the
+	 * session reducer) — never from raw action turn-ids — so that mismatched or
+	 * out-of-order turn lifecycle actions can't desync it from reality. The
+	 * session count (`size`) drives `RootActiveSessionsChanged` and
+	 * `hasActiveSessions`, which together gate `--enable-remote-auto-shutdown`.
 	 */
-	private readonly _sessionsWithActiveTurn = new Set<string>();
+	private readonly _sessionsWithActiveTurn = new Map<string, Set<string>>();
 
 	/** Last summary sent to clients (via sessionAdded or sessionSummaryChanged). */
 	private readonly _lastNotifiedSummaries = new Map<string, SessionSummary>();
@@ -116,6 +121,16 @@ export class AgentHostStateManager extends Disposable {
 
 	get hasActiveSessions(): boolean {
 		return this._sessionsWithActiveTurn.size > 0;
+	}
+
+	/**
+	 * Whether the given session currently has an active turn — i.e. a request is
+	 * in progress on any of its chats. Stays `true` while at least one chat is
+	 * streaming, so it remains correct for multi-chat sessions running
+	 * concurrent turns.
+	 */
+	hasActiveTurn(sessionKey: string): boolean {
+		return this._sessionsWithActiveTurn.has(sessionKey);
 	}
 
 	// ---- State accessors ----------------------------------------------------
@@ -1033,17 +1048,34 @@ export class AgentHostStateManager extends Disposable {
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
 		// Active turn tracking — derive from the reducer's view of state,
 		// never from raw action turn-ids, so out-of-order lifecycle actions
-		// can't desync the count from reality.
+		// can't desync the count from reality. Track active turns per chat so a
+		// session stays active until ALL of its concurrent chat turns finish;
+		// only notify when the session's overall active state actually flips.
 		const hadActive = !!prev.activeTurn;
 		const hasActive = !!next.activeTurn;
 		if (hadActive !== hasActive) {
+			const wasSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
 			if (hasActive) {
-				this._sessionsWithActiveTurn.add(sessionKey);
+				let activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+				if (!activeChats) {
+					activeChats = new Set<string>();
+					this._sessionsWithActiveTurn.set(sessionKey, activeChats);
+				}
+				activeChats.add(chatUri);
 			} else {
-				this._sessionsWithActiveTurn.delete(sessionKey);
+				const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+				if (activeChats) {
+					activeChats.delete(chatUri);
+					if (activeChats.size === 0) {
+						this._sessionsWithActiveTurn.delete(sessionKey);
+					}
+				}
 			}
-			this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: hasActive });
-			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+			const isSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
+			if (wasSessionActive !== isSessionActive) {
+				this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: isSessionActive });
+				this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+			}
 		}
 
 		const sessionState = this._sessionStates.get(sessionKey);
