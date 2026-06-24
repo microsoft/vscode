@@ -17,6 +17,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
+import './pullRequestActions.js';
+
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export class GitHubPullRequestPollingContribution extends Disposable implements IWorkbenchContribution {

@@ -117,6 +117,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
 					pluginUri: skill.pluginUri,
+					pluginLabel: skill.pluginLabel,
 					userInvocable: skill.userInvocable
 				});
 			}
@@ -137,6 +138,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							badgeTooltip: uiTooltip,
 							extensionId: file.extension?.identifier.value,
 							pluginUri: file.pluginUri,
+							pluginLabel: file.pluginLabel,
 							userInvocable: false
 						});
 					}
@@ -157,6 +159,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					enabled: !disabledUris.has(command.uri),
 					extensionId: command.extension?.identifier.value,
 					pluginUri: command.pluginUri,
+					pluginLabel: command.pluginLabel,
 					userInvocable: command.userInvocable
 				});
 				if (command.extension) {

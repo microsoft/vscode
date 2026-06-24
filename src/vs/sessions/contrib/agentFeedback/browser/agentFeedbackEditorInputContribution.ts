@@ -28,6 +28,10 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
 	private static readonly _MAX_WIDTH = 400;
+	// The input should never be wider than the editor itself. Cap it to this
+	// fraction of the editor width so it doesn't render past the editor bounds
+	// on narrow editors.
+	private static readonly _MAX_WIDTH_EDITOR_FRACTION = 0.9;
 
 	readonly allowEditorOverflow = false;
 
@@ -190,14 +194,31 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._measureElement.textContent = text;
 		const textWidth = this._measureElement.scrollWidth;
 
-		// Clamp width between min and max
-		const width = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, Math.min(textWidth + 10, AgentFeedbackInputWidget._MAX_WIDTH));
+		// Clamp width between min and a max that never exceeds the editor width.
+		// On very narrow editors the max can drop below the nominal minimum, so
+		// derive an effective minimum that never exceeds the max and apply it
+		// inline to override the CSS `min-width` (otherwise the textarea would be
+		// forced back up to its CSS minimum and overflow the editor).
+		const maxWidth = this._computeMaxWidth();
+		const minWidth = Math.min(AgentFeedbackInputWidget._MIN_WIDTH, maxWidth);
+		const desiredWidth = Math.max(minWidth, textWidth + 10);
+		const width = Math.min(desiredWidth, maxWidth);
+		this._inputElement.style.minWidth = `${minWidth}px`;
 		this._inputElement.style.width = `${width}px`;
 
 		// Reset height to auto then expand to fit all content, with a minimum of 1 line
 		this._inputElement.style.height = 'auto';
 		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
 		this._inputElement.style.height = `${newHeight}px`;
+	}
+
+	private _computeMaxWidth(): number {
+		// The widget sticks to the editor's content left edge, so the space it
+		// has available is the content area width (to the right of the line
+		// numbers/glyph margin), not the full editor width.
+		const layoutInfo = this._editor.getLayoutInfo();
+		const contentWidth = Math.max(0, layoutInfo.width - layoutInfo.contentLeft);
+		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, contentWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
 	}
 
 }
@@ -225,6 +246,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._store.add(this._editor.onDidScrollChange(() => {
 			if (this._visible) {
+				this._updatePosition();
+			}
+		}));
+		this._store.add(this._editor.onDidLayoutChange(() => {
+			if (this._visible && this._widget) {
+				// The editor resized: re-clamp the input width to the new editor
+				// width and reposition it.
+				this._widget.autoSize();
 				this._updatePosition();
 			}
 		}));
@@ -602,8 +631,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Clamp vertical position within editor bounds
 		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
 
-		// Clamp horizontal position so the widget stays within the editor
-		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+		// Clamp horizontal position so the widget stays within the editor and
+		// never renders on top of the line numbers/glyph margin (content left).
+		// When the editor is scrolled horizontally the cursor position can fall
+		// behind the content area, so stick the widget to the content left edge.
+		// Guard that the left edge (content left) never exceeds the right-most
+		// valid position, otherwise the widget would overflow the editor's right
+		// edge on very narrow editors or with a wide widget.
+		const minLeft = layoutInfo.contentLeft;
+		const maxLeft = Math.max(minLeft, layoutInfo.width - widgetWidth);
+		const left = Math.max(minLeft, Math.min(scrolledPosition.left, maxLeft));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}
