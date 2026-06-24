@@ -76,7 +76,7 @@
 	display: block;
 	position: absolute;
 	z-index: 0;
-	top: 4px;
+	top: 0;
 	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
 	width: calc(var(--activity-bar-action-height, 48px) - 8px);
 	height: calc(var(--activity-bar-action-height, 48px) - 8px);
@@ -229,10 +229,13 @@
 /*
  * Text-label composites (`.action-item` without `.icon`, e.g. panel titles)
  * inherit the base ~35px-tall item via `line-height`. Match the icon items at a
- * compact 24px so both tab styles share the same height.
+ * compact 24px so both tab styles share the same height. `box-sizing` keeps the
+ * inherited 2px top/bottom padding inside the 24px box so the item is exactly
+ * 24px tall.
  */
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon),
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+	box-sizing: border-box;
 	height: 24px;
 	line-height: 24px;
 }
