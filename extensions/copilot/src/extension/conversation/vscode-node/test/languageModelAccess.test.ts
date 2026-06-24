@@ -445,6 +445,22 @@ suite('normalizeTokenPrices', () => {
 		assert.ok(result.longContext, 'long-context tier should be included when cache_write_price differs');
 		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
 	});
+
+	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
+		// Shape returned by the cloud agents endpoint (/agents/swe/models)
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 500_000_000_000,
+			output_price: 2_500_000_000_000,
+			cache_price: 50_000_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 500);
+		assert.strictEqual(result.default.outputPrice, 2500);
+		assert.strictEqual(result.default.cachePrice, 50);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
+		assert.strictEqual(result.longContext, undefined);
+	});
 });
 
 suite('formatPricingLabel', () => {

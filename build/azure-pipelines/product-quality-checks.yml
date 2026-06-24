@@ -20,9 +20,9 @@ jobs:
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -68,7 +68,7 @@ jobs:
           done
         workingDirectory: build
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -78,7 +78,7 @@ jobs:
           SYSROOT_ARCH="amd64" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
         env:
           VSCODE_ARCH: x64
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Download vscode sysroots
 
       - script: |
@@ -100,7 +100,7 @@ jobs:
           VSCODE_ARCH: x64
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -122,7 +122,6 @@ jobs:
       - script: node build/azure-pipelines/common/checkDistroCommit.ts
         displayName: Check distro commit
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
           BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
@@ -131,7 +130,7 @@ jobs:
 
       - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile & Hygiene
 
       - script: npm run download-builtin-extensions-cg
@@ -171,6 +170,26 @@ jobs:
       # run fresh against current HEAD, so extension licenses and
       # cglicenses.json overrides are always current-PR-accurate.
       # =========================================================================
+
+      # Detect up front whether CG produced a usable NOTICE. The cache-download
+      # tasks below run ONLY when it did not -- otherwise they execute on the
+      # happy path and, when no prior cache artifact exists (e.g. the first build
+      # on a branch), fail-with-continueOnError and mark the whole build
+      # partiallySucceeded for no real reason. Uses the same >1KB heuristic as
+      # the "apply NOTICE fallback" step below so the two always agree.
+      - script: |
+          set -u
+          GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
+          if [ -f "$GEN" ] && [ "$(wc -c < "$GEN")" -gt 1024 ]; then
+            echo "##[section]CG NOTICE generation succeeded; skipping cache download."
+            echo "##vso[task.setvariable variable=CG_NOTICE_OK]true"
+          else
+            echo "##[warning]CG NOTICE generation failed or produced empty output; will attempt cache fallback."
+            echo "##vso[task.setvariable variable=CG_NOTICE_OK]false"
+          fi
+        displayName: "Cache: detect whether CG NOTICE needs fallback"
+        continueOnError: true
+
       - task: DownloadPipelineArtifact@2
         displayName: "Cache: download last good NOTICE (same branch)"
         inputs:
@@ -184,6 +203,7 @@ jobs:
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-branch
         continueOnError: true
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
       - task: DownloadPipelineArtifact@2
         displayName: "Cache: download last good NOTICE (main fallback)"
@@ -198,7 +218,7 @@ jobs:
           itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
           targetPath: $(Pipeline.Workspace)/cached-notice-main
         continueOnError: true
-        condition: ne(variables['Build.SourceBranch'], 'refs/heads/main')
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
 
       - script: |
           set -u
@@ -221,7 +241,8 @@ jobs:
             fi
           }
 
-          # `notice@0` succeeded if the file exists and is non-trivial (>1KB).
+          # Safety net: never overwrite a valid NOTICE. If CG produced a good
+          # file, skip the fallback even if we were reached by mistake.
           if [ -f "$GEN" ] && [ "$(wc -c < "$GEN")" -gt 1024 ]; then
             echo "##[section]CG NOTICE generation succeeded; no fallback needed."
             echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]false"
@@ -251,6 +272,7 @@ jobs:
           echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]none"
         displayName: "Cache: apply NOTICE fallback if CG failed"
         continueOnError: true
+        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
       - script: |
           echo "=== CG NOTICE artifact ==="
@@ -292,10 +314,6 @@ jobs:
             --repo "$(Build.SourcesDirectory)" \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
-        displayName: "Scan extension-bundled licenses"
-        continueOnError: true
-
-      - script: |
           node .oss-build-out/merge-notices.js \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
@@ -306,7 +324,7 @@ jobs:
           # Upload all artifacts
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
-        displayName: "Merge CG + extension notices into .new.txt"
+        displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
         continueOnError: true
 
       - task: AzureCLI@2

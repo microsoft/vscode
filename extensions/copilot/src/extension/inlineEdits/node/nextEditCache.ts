@@ -33,6 +33,18 @@ export interface CachedEditOpts {
 	 * the cached entry is not served.
 	 */
 	cursorOffset?: number;
+	/**
+	 * Zero-based index of the model-emitted patch this edit originated from
+	 * (diff-patch response format). `undefined` for formats without an explicit
+	 * patch structure. @see StreamedEdit.patchIndex
+	 */
+	patchIndex?: number;
+	/**
+	 * Patch indices for the bundled `nextEdits`, aligned by position. Stored on the
+	 * first cached entry so that edits served later via rebase (addressed by
+	 * `rebasedEditIndex` into the bundle) can be attributed to the right model patch.
+	 */
+	patchIndices?: readonly (number | undefined)[];
 }
 
 export interface CachedEdit {
@@ -56,6 +68,17 @@ export interface CachedEdit {
 	 * When caching multiple edits, this is the order in which they were applied.
 	 */
 	subsequentN?: number;
+	/**
+	 * Zero-based index of the model-emitted patch this edit originated from
+	 * (diff-patch response format). @see StreamedEdit.patchIndex
+	 */
+	patchIndex?: number;
+	/**
+	 * Patch indices for the bundled `edits`, aligned by position. Present on the
+	 * first cached entry (the one carrying the `edits` bundle) so rebased subsequent
+	 * edits, addressed by `rebasedEditIndex`, can be attributed to the right patch.
+	 */
+	patchIndices?: readonly (number | undefined)[];
 	source: NextEditFetchRequest;
 	cacheTime: number;
 	/**
@@ -236,7 +259,7 @@ class DocumentEditCache {
 
 	public setKthNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, nextEdit: StringReplacement, nextEdits: StringReplacement[] | undefined, userEditSince: StringEdit | undefined, subsequentN: number, source: NextEditFetchRequest, opts: CachedEditOpts): CachedEdit {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
+		const cachedEdit: CachedEdit = { docId: this.docId, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, patchIndex: opts.patchIndex, patchIndices: opts.patchIndices, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
 		if (userEditSince) {
 			if (!checkEditConsistency(cachedEdit.documentBeforeEdit.value, userEditSince, this._doc.value.get().value, this._logger.createSubLogger('setKthNextEdit'))) {
 				cachedEdit.userEditSince = undefined;

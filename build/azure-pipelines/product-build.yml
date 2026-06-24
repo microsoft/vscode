@@ -180,11 +180,49 @@ resources:
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json

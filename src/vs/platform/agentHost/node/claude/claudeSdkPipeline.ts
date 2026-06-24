@@ -68,6 +68,19 @@ export interface ISdkResolvedCustomizations {
 	readonly commands: readonly SlashCommand[];
 	readonly agents: readonly AgentInfo[];
 	readonly mcpServers: readonly McpServerStatus[];
+	/**
+	 * Native plugins the live session actually loaded, as reported by the
+	 * SDK `system/init` message. Used to filter the disk-discovered native
+	 * plugins post-materialize: a plugin declared in `enabledPlugins` but
+	 * absent here (bad path, manifest error, untrusted workspace) is hidden.
+	 *
+	 * `source` is the plugin id (`<plugin>@<marketplace>`) and is the
+	 * authoritative match key — the SDK's `path` is unreliable for
+	 * workspace-`local`-scoped plugins (it can report a non-cache path). The
+	 * SDK `.d.ts` types the element as `{ name, path }` but the runtime adds
+	 * `source`, so it is captured as optional.
+	 */
+	readonly plugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[];
 }
 
 export class ClaudeSdkPipeline extends Disposable {
@@ -99,7 +112,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			query.supportedAgents(),
 			query.mcpServerStatus(),
 		]);
-		return { commands, agents, mcpServers };
+		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
 	/**
@@ -124,6 +137,14 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/** Flips to `true` on the first `system:init` SDK message. Drives `Options.resume` decisions for downstream phases. */
 	private _isResumed = false;
+
+	/**
+	 * Native plugins reported by the most recent `system:init` message.
+	 * Captured on *every* init (including resume) so the post-materialize
+	 * native-plugin filter always reflects the live set. `source` is the
+	 * plugin id and is the reliable match key (see {@link ISdkResolvedCustomizations}).
+	 */
+	private _initPlugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[] = [];
 
 	/** Last model / effort / permission mode applied to the SDK via the runtime setters. Reset on rebind. */
 	private _appliedModel: string | undefined;
@@ -504,8 +525,13 @@ export class ClaudeSdkPipeline extends Disposable {
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
-				if (message.type === 'system' && message.subtype === 'init' && !this._isResumed) {
-					this._isResumed = true;
+				if (message.type === 'system' && message.subtype === 'init') {
+					// Capture the loaded native-plugin list on every init (incl.
+					// resume / post-rebind) so the post-materialize filter is fresh.
+					this._initPlugins = message.plugins ?? [];
+					if (!this._isResumed) {
+						this._isResumed = true;
+					}
 				}
 				const turnId = this._queue.peekParent()?.turnId;
 				try {
