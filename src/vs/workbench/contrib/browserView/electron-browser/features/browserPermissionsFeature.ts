@@ -168,10 +168,10 @@ interface IDevicePickerHandle {
 
 function deviceTypeLabel(deviceType: BrowserDeviceType): string {
 	switch (deviceType) {
-		case 'usb': return localize('browser.device.kind.usb', "USB device");
-		case 'serial': return localize('browser.device.kind.serial', "serial port");
-		case 'hid': return localize('browser.device.kind.hid', "HID device");
-		case 'bluetooth': return localize('browser.device.kind.bluetooth', "Bluetooth device");
+		case 'usb': return localize('browser.device.kind.usb', "a USB device");
+		case 'serial': return localize('browser.device.kind.serial', "a serial port");
+		case 'hid': return localize('browser.device.kind.hid', "an HID device");
+		case 'bluetooth': return localize('browser.device.kind.bluetooth', "a Bluetooth device");
 		default: assertNever(deviceType);
 	}
 }
@@ -180,14 +180,12 @@ function deviceTypeLabel(deviceType: BrowserDeviceType): string {
  * Show a live-updating chooser for a hardware-device request. The list refreshes
  * as devices are discovered (re-fired with the same request id); accepting picks
  * a device and dismissing cancels the request. Exactly one of select/cancel is
- * reported back to the model. If the request is aborted upstream (navigation /
- * teardown) the chooser is left open; a late pick simply no-ops in the main
- * process.
+ * reported back to the model.
  */
 function showDevicePicker(quickInputService: IQuickInputService, model: IBrowserViewModel, origin: string, request: IBrowserViewDeviceRequest, onDone: () => void): IDevicePickerHandle {
 	const disposables = new DisposableStore();
 	const picker = disposables.add(quickInputService.createQuickPick<DevicePickItem>());
-	picker.title = localize('browser.device.title', "{0} wants to connect to a {1}", displayOrigin(origin), deviceTypeLabel(request.deviceType));
+	picker.title = localize('browser.device.title', "{0} wants to connect to {1}", displayOrigin(origin), deviceTypeLabel(request.deviceType));
 	picker.placeholder = localize('browser.device.placeholder', "Select a device to connect to");
 	picker.matchOnDescription = true;
 	picker.ignoreFocusOut = true;

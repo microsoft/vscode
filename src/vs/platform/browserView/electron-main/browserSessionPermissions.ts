@@ -46,9 +46,11 @@ export interface IBrowserSessionPermissionRequest {
  * Fired when a hardware-device chooser ({@link PermissionCategory.Devices}) needs
  * UI, and re-fired as the available device list changes. The owning view
  * {@link claim}s it and surfaces a picker; the user's pick is reported back via
- * {@link IBrowserSessionPermissions.resolveDevice}. If the request is aborted
- * (navigation / teardown) the page promise is settled but the picker is left
- * open; a late pick simply no-ops.
+ * {@link IBrowserSessionPermissions.resolveDevice}. If the originating
+ * webContents is destroyed or the session is disposed, the page promise is
+ * settled and the pending request is removed; a late
+ * {@link IBrowserSessionPermissions.resolveDevice} call is then a no-op. Any
+ * open picker on the workbench side is left open until the user dismisses it.
  */
 export interface IBrowserSessionDeviceRequest {
 	/** The top-level web contents the request originates from. */
