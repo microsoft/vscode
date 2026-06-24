@@ -1555,10 +1555,10 @@ export class ChatService extends Disposable implements IChatService {
 		};
 	}
 
-	processPendingRequests(sessionResource: URI): void {
+	processPendingRequests(sessionResource: URI, force?: boolean): void {
 		const model = this._sessionModels.get(sessionResource);
 		if (model && !this._pendingRequests.has(sessionResource)) {
-			this.processNextPendingRequest(model);
+			this.processNextPendingRequest(model, force);
 		}
 	}
 
@@ -1574,12 +1574,20 @@ export class ChatService extends Disposable implements IChatService {
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
 	 * Multiple consecutive steering requests are combined into a single request.
+	 *
+	 * @param force When `true`, bypasses the server-managed queue short-circuit
+	 * so the next request is dequeued and sent even for agent-host sessions. The
+	 * "Send Immediately" action relies on this because the server only drains its
+	 * queue on natural turn completion, not after the turn is cancelled.
 	 */
-	private processNextPendingRequest(model: ChatModel): void {
+	private processNextPendingRequest(model: ChatModel, force?: boolean): void {
 		// Agent host sessions delegate queue management to the server.
 		// The server dispatches ChatTurnStarted with queuedMessageId when
 		// it consumes a queued message, so the client should not dequeue eagerly.
-		if (this._isServerManagedQueue(model.sessionResource)) {
+		// The `force` path is the exception: an explicit "Send Immediately" cancels
+		// the active turn, and the server does not auto-drain on cancellation, so
+		// the client must dequeue and send the next request itself.
+		if (!force && this._isServerManagedQueue(model.sessionResource)) {
 			return;
 		}
 

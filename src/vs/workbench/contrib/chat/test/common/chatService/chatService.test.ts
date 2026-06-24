@@ -1080,6 +1080,85 @@ suite('ChatService', () => {
 		assert.ok(lastThree[2].includes('queued-3'));
 	});
 
+	test('processPendingRequests forces dequeue for agent-host sessions (Send Immediately)', async () => {
+		// Agent-host sessions delegate queue draining to the server, which only
+		// auto-drains on natural turn completion — not on cancellation. The
+		// "Send Immediately" action cancels the active turn, so the client must
+		// dequeue and send the next request itself via the `force` path.
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
+
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					requestStarted.complete();
+					await completeRequest.p;
+				}
+				return {};
+			},
+		};
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, slowAgent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+		const model = testService.getSession(sessionResource) as ChatModel;
+
+		// Start a blocking request, then queue a second while it is in progress
+		const response = await testService.sendRequest(sessionResource, 'first request', { agentId: sessionType });
+		ChatSendResult.assertSent(response);
+		await requestStarted.p;
+
+		const queued = await testService.sendRequest(sessionResource, 'queued request', { agentId: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+		assert.strictEqual(model.getPendingRequests().length, 1);
+
+		// Cancel the active turn (as the "Send Immediately" action does)
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await testService.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		});
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+
+		// Without force, the server-managed queue is left untouched by the client
+		testService.processPendingRequests(sessionResource);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(invokedMessages.length, 1, 'queued request must not be sent without force');
+		assert.strictEqual(model.getPendingRequests().length, 1);
+
+		// With force, the client dequeues and sends the queued request immediately
+		testService.processPendingRequests(sessionResource, true);
+		const result = await queued.deferred;
+		assert.ok(ChatSendResult.isSent(result));
+		await result.data.responseCompletePromise;
+		assert.deepStrictEqual(invokedMessages, ['first request', 'queued request']);
+	});
+
 	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {
 		const unregisteredScheme = 'unregistered-provider';
 		const sessionResource = URI.from({ scheme: unregisteredScheme, path: '/orphaned-session' });

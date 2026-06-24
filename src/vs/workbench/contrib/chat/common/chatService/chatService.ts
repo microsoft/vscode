@@ -1786,8 +1786,14 @@ export interface IChatService {
 	 * storage or after an error, pending requests may be present without an
 	 * active chat message 'loop' happening. THis triggers the loop to happen
 	 * as needed. Idempotent, safe to call at any time.
+	 *
+	 * @param force When `true`, dequeues and sends the next pending request even
+	 * for agent-host managed sessions whose queue is normally drained by the
+	 * server. Used by the explicit "Send Immediately" action, which cancels the
+	 * active turn and must start the next message right away (the server only
+	 * auto-drains on natural turn completion, not on cancellation).
 	 */
-	processPendingRequests(sessionResource: URI): void;
+	processPendingRequests(sessionResource: URI, force?: boolean): void;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
