@@ -125,7 +125,7 @@ suite('ChatModel', () => {
 			rejectButtonLabel: undefined,
 			state: observableValue('state', ElicitationState.Pending),
 			accept: async () => { },
-		} satisfies Partial<IChatElicitationRequest> as IChatElicitationRequest;
+		} satisfies Partial<IChatElicitationRequest> as unknown as IChatElicitationRequest;
 
 		model.acceptResponseProgress(request, elicitation);
 
