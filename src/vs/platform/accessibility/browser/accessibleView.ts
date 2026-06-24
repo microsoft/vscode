@@ -46,6 +46,8 @@ export const enum AccessibleViewProviderId {
 	WebviewFindHelp = 'webviewFindHelp',
 	OutputFindHelp = 'outputFindHelp',
 	ProblemsFilterHelp = 'problemsFilterHelp',
+	SessionsChat = 'sessionsChat',
+	Survey = 'survey',
 }
 
 export const enum AccessibleViewType {

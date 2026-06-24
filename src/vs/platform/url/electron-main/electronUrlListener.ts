@@ -50,7 +50,7 @@ export class ElectronURLListener extends Disposable {
 
 		// Windows: install as protocol handler
 		// Skip in portable mode: the registered command wouldn't preserve
-		// portable mode settings, causing issues with OAuth flows
+		// portable mode settings, causing issues with OAuth flows.
 		if (isWindows && !environmentMainService.isPortable) {
 			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');

@@ -5,13 +5,10 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { raceCancellation } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -23,38 +20,30 @@ import { IPosition, Position } from '../../../../editor/common/core/position.js'
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
-import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
-import { IChatAttachmentResolveService } from '../../chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
-import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
-import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { INotebookService } from '../../notebook/common/notebookService.js';
-import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
-import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
-import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
+import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService, rephraseInlineChat } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
@@ -102,7 +91,7 @@ function getEditorId(editor: ICodeEditor, model: ITextModel): string {
 
 export class InlineChatController implements IEditorContribution {
 
-	static readonly ID = 'editor.contrib.inlineChatController';
+	static readonly ID = INLINE_CHAT_ID;
 
 	static get(editor: ICodeEditor): InlineChatController | undefined {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
@@ -112,64 +101,77 @@ export class InlineChatController implements IEditorContribution {
 	 * Stores the user's explicitly chosen model (qualified name) from a previous inline chat request in the same session.
 	 * When set, this takes priority over the inlineChat.defaultModel setting.
 	 */
-	private static _userSelectedModel: string | undefined;
+	static #userSelectedModel: string | undefined;
 
-	private readonly _store = new DisposableStore();
-	private readonly _isActiveController = observableValue(this, false);
-	private readonly _renderMode: IObservable<'zone' | 'hover'>;
-	private readonly _zone: Lazy<InlineChatZoneWidget>;
+	readonly #store = new DisposableStore();
+	readonly #isActiveController = observableValue(this, false);
+	readonly #zone: Lazy<InlineChatZoneWidget>;
 	readonly inputOverlayWidget: InlineChatAffordance;
-	private readonly _inputWidget: InlineChatInputWidget;
 
-	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
+	readonly #currentSession: IObservable<IInlineChatSession | undefined>;
+
+	readonly #editor: ICodeEditor;
+	readonly #instaService: IInstantiationService;
+	readonly #notebookEditorService: INotebookEditorService;
+	readonly #inlineChatSessionService: IInlineChatSessionService;
+	readonly #configurationService: IConfigurationService;
+	readonly #editorService: IEditorService;
+	readonly #markerDecorationsService: IMarkerDecorationsService;
+	readonly #languageModelService: ILanguageModelsService;
+	readonly #logService: ILogService;
+	readonly #chatEditingService: IChatEditingService;
+	readonly #chatService: IChatService;
 
 	get widget(): EditorBasedInlineChatWidget {
-		return this._zone.value.widget;
+		return this.#zone.value.widget;
 	}
 
 	get isActive() {
-		return Boolean(this._currentSession.get());
-	}
-
-	get inputWidget(): InlineChatInputWidget {
-		return this._inputWidget;
+		return Boolean(this.#currentSession.get());
 	}
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		editor: ICodeEditor,
+		@IInstantiationService instaService: IInstantiationService,
+		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
-		@IFileService private readonly _fileService: IFileService,
-		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
-		@ILogService private readonly _logService: ILogService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IChatService private readonly _chatService: IChatService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IMarkerDecorationsService markerDecorationsService: IMarkerDecorationsService,
+		@ILanguageModelsService languageModelService: ILanguageModelsService,
+		@ILogService logService: ILogService,
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IChatService chatService: IChatService,
 	) {
-		const editorObs = observableCodeEditor(_editor);
+		this.#editor = editor;
+		this.#instaService = instaService;
+		this.#notebookEditorService = notebookEditorService;
+		this.#inlineChatSessionService = inlineChatSessionService;
+		this.#configurationService = configurationService;
+		this.#editorService = editorService;
+		this.#markerDecorationsService = markerDecorationsService;
+		this.#languageModelService = languageModelService;
+		this.#logService = logService;
+		this.#chatEditingService = chatEditingService;
+		this.#chatService = chatService;
+
+		const editorObs = observableCodeEditor(editor);
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const ctxFileBelongsToChat = CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.bindTo(contextKeyService);
-		const ctxPendingConfirmation = CTX_INLINE_CHAT_PENDING_CONFIRMATION.bindTo(contextKeyService);
 		const ctxTerminated = CTX_INLINE_CHAT_TERMINATED.bindTo(contextKeyService);
-		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
-		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
+		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.NotebookAgent, false, this.#configurationService);
 
 		// Track whether the current editor's file is being edited by any chat editing session
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const model = editorObs.model.read(r);
 			if (!model) {
 				ctxFileBelongsToChat.set(false);
 				return;
 			}
-			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const sessions = this.#chatEditingService.editingSessionsObs.read(r);
 			let hasEdits = false;
 			for (const session of sessions) {
 				const entries = session.entries.read(r);
@@ -186,25 +188,23 @@ export class InlineChatController implements IEditorContribution {
 			ctxFileBelongsToChat.set(hasEdits);
 		}));
 
-		const overlayWidget = this._inputWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
-		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
-		this.inputOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
+		this.inputOverlayWidget = this.#store.add(this.#instaService.createInstance(InlineChatAffordance, this.#editor));
 
-		this._zone = new Lazy<InlineChatZoneWidget>(() => {
+		this.#zone = new Lazy<InlineChatZoneWidget>(() => {
 
-			assertType(this._editor.hasModel(), '[Illegal State] widget should only be created when the editor has a model');
+			assertType(this.#editor.hasModel(), '[Illegal State] widget should only be created when the editor has a model');
 
 			const location: IChatWidgetLocationOptions = {
 				location: ChatAgentLocation.EditorInline,
 				resolveData: () => {
-					assertType(this._editor.hasModel());
-					const wholeRange = this._editor.getSelection();
-					const document = this._editor.getModel().uri;
+					assertType(this.#editor.hasModel());
+					const wholeRange = this.#editor.getSelection();
+					const document = this.#editor.getModel().uri;
 
 					return {
 						type: ChatAgentLocation.EditorInline,
-						id: getEditorId(this._editor, this._editor.getModel()),
-						selection: this._editor.getSelection(),
+						id: getEditorId(this.#editor, this.#editor.getModel()),
+						selection: this.#editor.getSelection(),
 						document,
 						wholeRange
 					};
@@ -214,22 +214,22 @@ export class InlineChatController implements IEditorContribution {
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
 			// if so, update the location and use the notebook specific widget
-			const notebookEditor = this._notebookEditorService.getNotebookForPossibleCell(this._editor);
+			const notebookEditor = this.#notebookEditorService.getNotebookForPossibleCell(this.#editor);
 			if (!!notebookEditor) {
 				location.location = ChatAgentLocation.Notebook;
 				if (notebookAgentConfig.get()) {
 					location.resolveData = () => {
-						assertType(this._editor.hasModel());
+						assertType(this.#editor.hasModel());
 
 						return {
 							type: ChatAgentLocation.Notebook,
-							sessionInputUri: this._editor.getModel().uri,
+							sessionInputUri: this.#editor.getModel().uri,
 						};
 					};
 				}
 			}
 
-			const result = this._instaService.createInstance(InlineChatZoneWidget,
+			const result = this.#instaService.createInstance(InlineChatZoneWidget,
 				location,
 				{
 					enableWorkingSet: 'implicit',
@@ -249,33 +249,33 @@ export class InlineChatController implements IEditorContribution {
 					},
 					defaultMode: ChatMode.Ask
 				},
-				{ editor: this._editor, notebookEditor },
+				{ editor: this.#editor, notebookEditor },
 				() => Promise.resolve(),
 			);
 
-			this._store.add(result);
+			this.#store.add(result);
 
 			result.domNode.classList.add('inline-chat-2');
 
 			return result;
 		});
 
-		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
+		const sessionsSignal = observableSignalFromEvent(this, inlineChatSessionService.onDidChangeSessions);
 
-		this._currentSession = derived(r => {
+		this.#currentSession = derived(r => {
 			sessionsSignal.read(r);
 			const model = editorObs.model.read(r);
-			const session = model && _inlineChatSessionService.getSessionByTextModel(model.uri);
+			const session = model && inlineChatSessionService.getSessionByTextModel(model.uri);
 			return session ?? undefined;
 		});
 
 
-		let lastSession: IInlineChatSession2 | undefined = undefined;
+		let lastSession: IInlineChatSession | undefined = undefined;
 
-		this._store.add(autorun(r => {
-			const session = this._currentSession.read(r);
+		this.#store.add(autorun(r => {
+			const session = this.#currentSession.read(r);
 			if (!session) {
-				this._isActiveController.set(false, undefined);
+				this.#isActiveController.set(false, undefined);
 
 				if (lastSession && !lastSession.chatModel.hasRequests) {
 					const state = lastSession.chatModel.inputModel.state.read(undefined);
@@ -291,23 +291,24 @@ export class InlineChatController implements IEditorContribution {
 
 			let foundOne = false;
 			for (const editor of codeEditorService.listCodeEditors()) {
-				if (Boolean(InlineChatController.get(editor)?._isActiveController.read(undefined))) {
+				const ctrl = InlineChatController.get(editor);
+				if (ctrl && ctrl.#isActiveController.read(undefined)) {
 					foundOne = true;
 					break;
 				}
 			}
 			if (!foundOne && editorObs.isFocused.read(r)) {
-				this._isActiveController.set(true, undefined);
+				this.#isActiveController.set(true, undefined);
 			}
 		}));
 
-		const visibleSessionObs = observableValue<IInlineChatSession2 | undefined>(this, undefined);
+		const visibleSessionObs = observableValue<IInlineChatSession | undefined>(this, undefined);
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 
 			const model = editorObs.model.read(r);
-			const session = this._currentSession.read(r);
-			const isActive = this._isActiveController.read(r);
+			const session = this.#currentSession.read(r);
+			const isActive = this.#isActiveController.read(r);
 
 			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
@@ -322,67 +323,56 @@ export class InlineChatController implements IEditorContribution {
 				: localize('placeholderWithSelection', "Modify selected code");
 		});
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			ctxTerminated.set(!!session?.terminationState.read(r));
 		}));
 
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 
 			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
-			const renderMode = this._renderMode.read(r);
 			if (!session) {
-				this._zone.rawValue?.hide();
-				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
-				_editor.focus();
+				this.#zone.rawValue?.hide();
+				this.#zone.rawValue?.widget.chatWidget.setModel(undefined);
+				editor.focus();
 				ctxInlineChatVisible.reset();
-			} else if (renderMode === 'hover') {
-				// hover mode: set model but don't show zone, keep focus in editor
-				this._zone.value.widget.chatWidget.setModel(session.chatModel);
-				this._zone.rawValue?.hide();
-				ctxInlineChatVisible.set(true);
 			} else {
 				ctxInlineChatVisible.set(true);
-				this._zone.value.widget.chatWidget.setModel(session.chatModel);
-				if (!this._zone.value.position) {
-					this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
-					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
-					this._zone.value.show(session.initialPosition);
+				this.#zone.value.widget.chatWidget.setModel(session.chatModel);
+				if (!this.#zone.value.position) {
+					this.#zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
+					this.#zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
+					this.#zone.value.show(session.initialPosition);
 				}
-				this._zone.value.reveal(this._zone.value.position!);
-				this._zone.value.widget.focus();
+				this.#zone.value.reveal(this.#zone.value.position!);
+				this.#zone.value.widget.focus();
 			}
 		}));
 
-		// Show progress overlay widget in hover mode when a request is in progress or edits are not yet settled
-		this._store.add(autorun(r => {
-			const session = visibleSessionObs.read(r);
-			const renderMode = this._renderMode.read(r);
-			if (!session || renderMode !== 'hover') {
-				ctxPendingConfirmation.set(false);
-				sessionOverlayWidget.hide();
+		// Auto-approve tool confirmations for inline chat. The user implicitly
+		// consents to editing the current file by invoking inline chat on it,
+		// even if the file qualifies as a sensitive file.
+		this.#store.add(autorun(r => {
+			const session = this.#currentSession.read(r);
+			if (!session) {
 				return;
 			}
 			const lastRequest = session.chatModel.lastRequestObs.read(r);
-			const isInProgress = lastRequest?.response?.isInProgress.read(r);
-			const isPendingConfirmation = !!lastRequest?.response?.isPendingConfirmation.read(r);
-			const isError = !!lastRequest?.response?.result?.errorDetails;
-			const isTerminated = !!session.terminationState.read(r);
-			ctxPendingConfirmation.set(isPendingConfirmation);
-			const entry = session.editingSession.readEntry(session.uri, r);
-			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
-			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
-			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
-			if (isInProgress || isNotSettled || isPendingConfirmation || isError || isTerminated) {
-				sessionOverlayWidget.show(session);
-			} else {
-				sessionOverlayWidget.hide();
+			const response = lastRequest?.response;
+			const pending = response?.isPendingConfirmation.read(r);
+			if (pending) {
+				this.#logService.info(`[InlineChat] auto-approving: ${pending.detail ?? 'unknown'}`);
+				for (const part of response!.response.value) {
+					if (part.kind === 'toolInvocation') {
+						IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'inlineChat' });
+					}
+				}
 			}
 		}));
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			if (session) {
 				const entries = session.editingSession.entries.read(r);
@@ -400,7 +390,7 @@ export class InlineChatController implements IEditorContribution {
 				for (const entry of otherEntries) {
 					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
 					// that modifies other files
-					this._editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
+					this.#editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
 				}
 			}
 		}));
@@ -421,40 +411,47 @@ export class InlineChatController implements IEditorContribution {
 		});
 
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			const response = lastResponseObs.read(r);
 			const terminationState = session?.terminationState.read(r);
 
-			this._zone.rawValue?.widget.updateInfo('');
+			this.#zone.rawValue?.widget.updateInfo('');
 
 			if (!response?.isInProgress.read(r)) {
 
+				this.#zone.rawValue?.status.set(response?.result?.details ?? '', undefined);
+
 				if (response?.result?.errorDetails) {
 					// ERROR case
-					this._zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
+					this.#zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
 					alert(response.result.errorDetails.message);
 				} else if (terminationState) {
-					this._zone.rawValue?.widget.updateInfo(`$(info) ${renderAsPlaintext(terminationState)}`);
+					this.#zone.rawValue?.showTerminationCard(terminationState, this.#instaService);
+				}
+
+				if (!terminationState) {
+					this.#zone.rawValue?.hideTerminationCard();
 				}
 
 				// no response or not in progress
-				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
-				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
+				this.#zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', false);
+				this.#zone.rawValue?.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 
 			} else {
-				this._zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
+				this.#zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
+				this.#zone.rawValue?.status.set('', undefined);
 				let placeholder = response.request?.message.text;
 				const lastProgress = lastResponseProgressObs.read(r);
 				if (lastProgress) {
 					placeholder = renderAsPlaintext(lastProgress.content);
 				}
-				this._zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+				this.#zone.rawValue?.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
 			}
 
 		}));
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				return;
@@ -467,25 +464,25 @@ export class InlineChatController implements IEditorContribution {
 		}));
 
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 
 			const session = visibleSessionObs.read(r);
 			const entry = session?.editingSession.readEntry(session.uri, r);
 
 			// make sure there is an editor integration
-			const pane = this._editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this._editor || isNotebookWithCellEditor(candidate, this._editor));
+			const pane = this.#editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this.#editor || isNotebookWithCellEditor(candidate, this.#editor));
 			if (pane && entry) {
 				entry?.getEditorIntegration(pane);
 			}
 
 			// make sure the ZONE isn't inbetween a diff and move above if so
-			if (entry?.diffInfo && this._zone.value.position) {
-				const { position } = this._zone.value;
+			if (entry?.diffInfo && this.#zone.rawValue?.position) {
+				const { position } = this.#zone.rawValue;
 				const diff = entry.diffInfo.read(r);
 
 				for (const change of diff.changes) {
 					if (change.modified.contains(position.lineNumber)) {
-						this._zone.value.updatePositionAndHeight(new Position(change.modified.startLineNumber - 1, 1));
+						this.#zone.rawValue?.updatePositionAndHeight(new Position(change.modified.startLineNumber - 1, 1));
 						break;
 					}
 				}
@@ -494,90 +491,99 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._store.dispose();
+		this.#store.dispose();
 	}
 
 	getWidgetPosition(): Position | undefined {
-		return this._zone.rawValue?.position;
+		return this.#zone.rawValue?.position;
 	}
 
 	focus() {
-		this._zone.rawValue?.widget.focus();
+		this.#zone.rawValue?.widget.focus();
 	}
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
-		assertType(this._editor.hasModel());
-		const uri = this._editor.getModel().uri;
+		assertType(this.#editor.hasModel());
+		const uri = this.#editor.getModel().uri;
 
-		const existingSession = this._inlineChatSessionService.getSessionByTextModel(uri);
+		const existingSession = this.#inlineChatSessionService.getSessionByTextModel(uri);
 		if (existingSession) {
 			await existingSession.editingSession.accept();
 			existingSession.dispose();
 		}
 
-		this._isActiveController.set(true, undefined);
+		this.#isActiveController.set(true, undefined);
 
-		const session = this._inlineChatSessionService.createSession(this._editor);
+		const session = this.#inlineChatSessionService.createSession(this.#editor);
+		return this.#runZone(session, arg);
+	}
+
+	/**
+	 * Zone mode: use the full zone widget and chat widget for request submission.
+	 */
+	async #runZone(session: IInlineChatSession, arg?: InlineChatRunOptions): Promise<boolean> {
+		assertType(this.#editor.hasModel());
+		const uri = this.#editor.getModel().uri;
 
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();
 
 		try {
-			await this._applyModelDefaults(session, sessionStore);
+			await this.#applyModelDefaults(session, sessionStore);
 
 			if (arg) {
-				arg.attachDiagnostics ??= this._configurationService.getValue(InlineChatConfigKeys.RenderMode) === 'zone';
+				arg.attachDiagnostics ??= true;
 			}
 
 			// ADD diagnostics (only when explicitly requested)
 			if (arg?.attachDiagnostics) {
 				const entries: IChatRequestVariableEntry[] = [];
-				for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-					if (range.intersectRanges(this._editor.getSelection())) {
+				for (const [range, marker] of this.#markerDecorationsService.getLiveMarkers(uri)) {
+					if (range.intersectRanges(this.#editor.getSelection())) {
 						const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
 						entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
 					}
 				}
 				if (entries.length > 0) {
-					this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+					this.#zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
 					const msg = entries.length > 1
 						? localize('fixN', "Fix the attached problems")
 						: localize('fix1', "Fix the attached problem");
-					this._zone.value.widget.chatWidget.input.setValue(msg, true);
+					this.#zone.value.widget.chatWidget.input.setValue(msg, true);
 					arg.message = msg;
-					this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+					this.#zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
 				}
 			}
 
 			// Check args
 			if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 				if (arg.initialRange) {
-					this._editor.revealRange(arg.initialRange);
+					this.#editor.revealRange(arg.initialRange);
 				}
 				if (arg.initialSelection) {
-					this._editor.setSelection(arg.initialSelection);
+					this.#editor.setSelection(arg.initialSelection);
 				}
 				if (arg.attachments) {
 					await Promise.all(arg.attachments.map(async attachment => {
-						await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+						await this.#zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
 					}));
 					delete arg.attachments;
 				}
 				if (arg.modelSelector) {
-					const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
+					const id = (await this.#languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
 					if (!id) {
 						throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
 					}
-					const model = this._languageModelService.lookupLanguageModel(id);
+					const model = this.#languageModelService.lookupLanguageModel(id);
 					if (!model) {
 						throw new Error(`Language model not loaded: ${id}.`);
 					}
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+					this.#zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 				}
 				if (arg.message) {
-					this._zone.value.widget.chatWidget.setInput(arg.message);
+					this.#zone.value.widget.chatWidget.setInput(arg.message);
 					if (arg.autoSend) {
-						await this._zone.value.widget.chatWidget.acceptInput();
+						await this.#zone.value.widget.chatWidget.acceptInput();
 					}
 				}
 			}
@@ -603,7 +609,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async acceptSession() {
-		const session = this._currentSession.get();
+		const session = this.#currentSession.get();
 		if (!session) {
 			return;
 		}
@@ -612,52 +618,47 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async rejectSession() {
-		const session = this._currentSession.get();
+		const session = this.#currentSession.get();
 		if (!session) {
 			return;
 		}
-		await this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource, 'inlineChatReject');
+		await this.#chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource, 'inlineChatReject');
 		await session.editingSession.reject();
 		session.dispose();
 	}
 
 	async continueSessionInChat(): Promise<void> {
-		const session = this._currentSession.get();
+		const session = this.#currentSession.get();
 		if (!session) {
 			return;
 		}
 
-		await this._instaService.invokeFunction(continueInPanelChat, session);
+		await this.#instaService.invokeFunction(continueInPanelChat, session);
 	}
 
 	async rephraseSession(): Promise<void> {
-		const session = this._currentSession.get();
+		const session = this.#currentSession.get();
 		if (!session) {
 			return;
 		}
 
-		const requestText = session.chatModel.getRequests().at(-1)?.message.text;
-		session.dispose();
-
-		if (!requestText) {
-			return;
+		// Clear termination state and restore input text in the chat widget.
+		// The autorun watching terminationState will flip the card back automatically.
+		const requestText = this.#instaService.invokeFunction(rephraseInlineChat, session);
+		if (requestText) {
+			this.#zone.rawValue?.widget.chatWidget.setInput(requestText);
 		}
-
-		const selection = this._editor.getSelection();
-		const placeholder = selection && !selection.isEmpty()
-			? localize('placeholderWithSelectionHover', "Describe how to change this")
-			: localize('placeholderNoSelectionHover', "Describe what to generate");
-		await this.inputOverlayWidget.showMenuAtSelection(placeholder, requestText);
+		this.#zone.rawValue?.widget.focus();
 	}
 
-	private async _selectVendorDefaultModel(session: IInlineChatSession2): Promise<void> {
-		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel.get();
+	async #selectVendorDefaultModel(session: IInlineChatSession): Promise<void> {
+		const model = this.#zone.value.widget.chatWidget.input.selectedLanguageModel.get();
 		if (model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
-			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
+			const ids = await this.#languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
 			for (const identifier of ids) {
-				const candidate = this._languageModelService.lookupLanguageModel(identifier);
+				const candidate = this.#languageModelService.lookupLanguageModel(identifier);
 				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
+					this.#zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
 					break;
 				}
 			}
@@ -668,39 +669,39 @@ export class InlineChatController implements IEditorContribution {
 	 * Applies model defaults based on settings and tracks user model changes.
 	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
 	 */
-	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
-		const userSelectedModel = InlineChatController._userSelectedModel;
-		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+	async #applyModelDefaults(session: IInlineChatSession, sessionStore: DisposableStore): Promise<void> {
+		const userSelectedModel = InlineChatController.#userSelectedModel;
+		const defaultModelSetting = this.#configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
 
 		let modelApplied = false;
 
 		// 1. Try user's explicitly chosen model from a previous inline chat in the same session
 		if (userSelectedModel) {
-			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([userSelectedModel]);
+			modelApplied = this.#zone.value.widget.chatWidget.input.switchModelByQualifiedName([userSelectedModel]);
 			if (!modelApplied) {
 				// User's previously selected model is no longer available, clear it
-				InlineChatController._userSelectedModel = undefined;
+				InlineChatController.#userSelectedModel = undefined;
 			}
 		}
 
 		// 2. Try inlineChat.defaultModel setting
 		if (!modelApplied && defaultModelSetting) {
-			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting]);
+			modelApplied = this.#zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting]);
 			if (!modelApplied) {
-				this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+				this.#logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
 			}
 		}
 
 		// 3. Fall back to vendor default
 		if (!modelApplied) {
-			await this._selectVendorDefaultModel(session);
+			await this.#selectVendorDefaultModel(session);
 		}
 
 		// Track model changes - store user's explicit choice in the given sessions.
 		// NOTE: This currently detects any model change, not just user-initiated ones.
 		let initialModelId: string | undefined;
 		sessionStore.add(autorun(r => {
-			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			const newModel = this.#zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
 			if (!newModel) {
 				return;
 			}
@@ -710,152 +711,9 @@ export class InlineChatController implements IEditorContribution {
 			}
 			if (initialModelId !== newModel.identifier) {
 				// User explicitly changed model, store their choice as qualified name
-				InlineChatController._userSelectedModel = ILanguageModelChatMetadata.asQualifiedName(newModel.metadata);
+				InlineChatController.#userSelectedModel = ILanguageModelChatMetadata.asQualifiedName(newModel.metadata);
 				initialModelId = newModel.identifier;
 			}
 		}));
 	}
-
-	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
-		const value = this._currentSession.get();
-		if (!value) {
-			return undefined;
-		}
-		if (attachment.scheme === Schemas.file) {
-			if (await this._fileService.canHandleResource(attachment)) {
-				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
-			}
-		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
-			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
-			if (extractedImages) {
-				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
-			}
-		}
-		return undefined;
-	}
-}
-
-export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken, applyCodeBlockSuggestionId: EditSuggestionId | undefined): Promise<boolean> {
-	if (!editor.hasModel()) {
-		return false;
-	}
-
-	const chatService = accessor.get(IChatService);
-	const uri = editor.getModel().uri;
-	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
-	const chatModel = chatModelRef.object as ChatModel;
-
-	chatModel.startEditingSession(true);
-
-	const store = new DisposableStore();
-	store.add(chatModelRef);
-
-	// STREAM
-	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
-		kind: undefined,
-		modeId: 'applyCodeBlock',
-		modeInstructions: undefined,
-		isBuiltin: true,
-		applyCodeBlockSuggestionId,
-	});
-	assertType(chatRequest.response);
-	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
-	for await (const chunk of stream) {
-
-		if (token.isCancellationRequested) {
-			chatRequest.response.cancel();
-			break;
-		}
-
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: chunk, done: false });
-	}
-	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
-
-	if (!token.isCancellationRequested) {
-		chatRequest.response.complete();
-	}
-
-	const isSettled = derived(r => {
-		const entry = chatModel.editingSession?.readEntry(uri, r);
-		if (!entry) {
-			return false;
-		}
-		const state = entry.state.read(r);
-		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
-	});
-	const whenDecided = waitForState(isSettled, Boolean);
-	await raceCancellation(whenDecided, token);
-	store.dispose();
-	return true;
-}
-
-export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, stream: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, token: CancellationToken): Promise<boolean> {
-
-	const chatService = accessor.get(IChatService);
-	const notebookService = accessor.get(INotebookService);
-	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
-	const chatModel = chatModelRef.object as ChatModel;
-
-	chatModel.startEditingSession(true);
-
-	const store = new DisposableStore();
-	store.add(chatModelRef);
-
-	// STREAM
-	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
-	assertType(chatRequest.response);
-	if (isNotebook) {
-		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: false });
-	} else {
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
-	}
-	for await (const chunk of stream) {
-
-		if (token.isCancellationRequested) {
-			chatRequest.response.cancel();
-			break;
-		}
-		if (chunk.every(isCellEditOperation)) {
-			chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: chunk, done: false });
-		} else {
-			chatRequest.response.updateContent({ kind: 'textEdit', uri: chunk[0], edits: chunk[1], done: false });
-		}
-	}
-	if (isNotebook) {
-		chatRequest.response.updateContent({ kind: 'notebookEdit', uri, edits: [], done: true });
-	} else {
-		chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: true });
-	}
-
-	if (!token.isCancellationRequested) {
-		chatRequest.response.complete();
-	}
-
-	const isSettled = derived(r => {
-		const entry = chatModel.editingSession?.readEntry(uri, r);
-		if (!entry) {
-			return false;
-		}
-		const state = entry.state.read(r);
-		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
-	});
-
-	const whenDecided = waitForState(isSettled, Boolean);
-
-	await raceCancellation(whenDecided, token);
-
-	store.dispose();
-
-	return true;
-}
-
-function isCellEditOperation(edit: URI | TextEdit[] | ICellEditOperation): edit is ICellEditOperation {
-	if (URI.isUri(edit)) {
-		return false;
-	}
-	if (Array.isArray(edit)) {
-		return false;
-	}
-	return true;
 }

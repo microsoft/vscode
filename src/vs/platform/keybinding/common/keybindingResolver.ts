@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from '../../contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, implies } from '../../contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
@@ -103,7 +103,14 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
+
+			// Use implication instead of strict equality so that a removal still matches
+			// when the default keybinding's when clause becomes more specific across
+			// updates (e.g. "inChatInput" → "inChatInput && !withinEditSessionDiff").
+			// See https://github.com/microsoft/vscode/issues/293802
+			const defaultWhen = defaultKb.when.substituteConstants();
+			const removalWhen = when.substituteConstants();
+			if (!KeybindingResolver.whenIsEntirelyIncluded(defaultWhen, removalWhen)) {
 				return false;
 			}
 		}

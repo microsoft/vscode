@@ -11,11 +11,12 @@ import { setup as setupDesktopTests } from './desktop.test.js';
 import { setup as setupServerTests } from './server.test.js';
 import { setup as setupServerWebTests } from './serverWeb.test.js';
 import { setup as setupWSLTests } from './wsl.test.js';
+import { setup as setupDevTunnelTests } from './devTunnel.test.js';
 
 const options = minimist(process.argv.slice(2), {
-	string: ['commit', 'quality', 'screenshots-dir'],
+	string: ['commit', 'quality', 'screenshots-dir', 'crash-dumps-dir'],
 	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
-	alias: { commit: 'c', quality: 'q', verbose: 'v' },
+	alias: { commit: 'c', quality: 'q', verbose: 'v', 'screenshots-dir': 's', 'crash-dumps-dir': 'd' },
 	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
 });
 
@@ -36,6 +37,7 @@ const context = new TestContext({
 	headlessBrowser: options.headless,
 	downloadOnly: !options['detection'],
 	screenshotsDir: options['screenshots-dir'],
+	crashDumpsDir: options['crash-dumps-dir'],
 });
 
 context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);
@@ -52,3 +54,4 @@ setupDesktopTests(context);
 setupServerTests(context);
 setupServerWebTests(context);
 setupWSLTests(context);
+setupDevTunnelTests(context);

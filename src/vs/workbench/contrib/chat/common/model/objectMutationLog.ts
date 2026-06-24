@@ -217,6 +217,79 @@ type Entry =
 const LF = VSBuffer.fromString('\n');
 
 /**
+ * Per-string cap (in UTF-16 code units, matching `string.length`) applied when
+ * {@link stringifyEntryWithFallback} retries after `JSON.stringify` throws
+ * `RangeError: Invalid string length` (V8's max string length is ~512 MiB on
+ * 64-bit). Any single string longer than this is replaced with a marker on
+ * retry. Generous so it triggers only on outliers.
+ */
+export const PERSIST_ENTRY_MAX_STRING_CHARS = 1 * 1024 * 1024;
+
+/**
+ * Total-size budget (sum of `string.length` for tracked strings, in UTF-16
+ * code units) for the retry of {@link stringifyEntryWithFallback}. Once the
+ * cumulative tracked size during serialization exceeds this, remaining values
+ * are replaced with a marker.
+ *
+ * This is an approximation: JSON escaping, property keys, and non-string
+ * payload are not counted, so the actual output may be moderately larger.
+ * The cap is sized well under V8's max string length to leave ample headroom
+ * for that overhead.
+ */
+export const PERSIST_ENTRY_MAX_TOTAL_CHARS = 100 * 1024 * 1024;
+
+const TRUNCATION_MARKER_PREFIX = '[VS Code: value truncated for persistence';
+const TRUNCATION_MARKER_TOTAL = `${TRUNCATION_MARKER_PREFIX}; entry exceeded size budget]`;
+
+/**
+ * Wraps `JSON.stringify(entry)` with a safety net for the V8 max-string-length
+ * limit. The common path is a single `JSON.stringify` with zero overhead. If
+ * stringification throws `RangeError` (the resulting JSON would exceed V8's
+ * ~512 MiB max string length — see microsoft/vscode#308843), retry with a
+ * replacer that truncates oversized strings. Extensions sometimes put very
+ * large content (browser dumps, command output, …) into chat result metadata;
+ * losing the tail of one such value is dramatically better than losing the
+ * entire chat session.
+ */
+export function stringifyEntryWithFallback(entry: unknown): string {
+	try {
+		return JSON.stringify(entry);
+	} catch (e) {
+		if (!(e instanceof RangeError)) {
+			throw e;
+		}
+		return JSON.stringify(entry, makeTruncatingReplacer(PERSIST_ENTRY_MAX_STRING_CHARS, PERSIST_ENTRY_MAX_TOTAL_CHARS));
+	}
+}
+
+/**
+ * Exported for testing only. Builds the stateful `JSON.stringify` replacer
+ * used by {@link stringifyEntryWithFallback} on its retry path.
+ *
+ * Sizes are tracked in UTF-16 code units (`string.length`); JSON escaping,
+ * property keys, and non-string payload are not counted.
+ */
+export function makeTruncatingReplacer(maxStringChars: number, maxTotalChars: number): (key: string, value: unknown) => unknown {
+	let total = 0;
+	return (_key, val) => {
+		if (typeof val === 'string') {
+			let emitted: string;
+			if (val.length > maxStringChars) {
+				emitted = `${TRUNCATION_MARKER_PREFIX}; original ${val.length} chars]`;
+			} else if (total + val.length + 2 > maxTotalChars) {
+				emitted = TRUNCATION_MARKER_TOTAL;
+			} else {
+				total += val.length + 2;
+				return val;
+			}
+			total += emitted.length + 2;
+			return emitted;
+		}
+		return val;
+	};
+}
+
+/**
  * An implementation of an append-based mutation logger. Given a `Transform`
  * definition of an object, it can recreate it from a file on disk. It is
  * then stateful, and given a `write` call it can update the log in a minimal
@@ -225,6 +298,9 @@ const LF = VSBuffer.fromString('\n');
 export class ObjectMutationLog<TFrom, TTo> {
 	private _previous: TTo | undefined;
 	private _entryCount = 0;
+	private _hasPendingWrite = false;
+	private _pendingPrevious: TTo | undefined;
+	private _pendingEntryCount = 0;
 
 	constructor(
 		private readonly _transform: Transform<TFrom, TTo>,
@@ -241,12 +317,18 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 	/**
 	 * Creates an initial log file from the serialized object.
+	 *
+	 * Unlike {@link write}, this commits state immediately without requiring
+	 * {@link confirmWrite}. This is safe because the returned buffer contains
+	 * a self-contained `Initial` entry — if it fails to persist, no
+	 * incremental entries can be appended to a non-existent file.
 	 */
 	createInitialFromSerialized(value: TTo): VSBuffer {
 		this._previous = value;
 		this._entryCount = 1;
+		this._clearPending();
 		const entry: Entry = { kind: EntryKind.Initial, v: value };
-		return VSBuffer.fromString(JSON.stringify(entry) + '\n');
+		return VSBuffer.fromString(stringifyEntryWithFallback(entry) + '\n');
 	}
 
 	/**
@@ -274,12 +356,21 @@ export class ObjectMutationLog<TFrom, TTo> {
 							state = entry.v;
 							break;
 						case EntryKind.Set:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applySet(state, entry.k, entry.v);
 							break;
 						case EntryKind.Push:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applyPush(state, entry.k, entry.v, entry.i);
 							break;
 						case EntryKind.Delete:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applySet(state, entry.k, undefined);
 							break;
 						default:
@@ -296,21 +387,28 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 		this._previous = state as TTo;
 		this._entryCount = lineCount;
+		this._clearPending();
 		return state as TTo;
 	}
 
 	/**
 	 * Writes updates to the log. Returns the operation type and data to write.
+	 * The caller **must** invoke {@link confirmWrite} after the data is
+	 * successfully persisted to commit the internal state. Without confirmation,
+	 * the next write is computed against the last confirmed state, and will only
+	 * produce a full initial entry when no confirmed state exists, preventing
+	 * corrupted log files when a write fails.
 	 */
 	write(current: TFrom): { op: 'append' | 'replace'; data: VSBuffer } {
 		const currentValue = this._transform.extract(current);
 
 		if (!this._previous || this._entryCount > this._compactAfterEntries) {
 			// No previous state, create initial
-			this._previous = currentValue;
-			this._entryCount = 1;
+			this._hasPendingWrite = true;
+			this._pendingPrevious = currentValue;
+			this._pendingEntryCount = 1;
 			const entry: Entry = { kind: EntryKind.Initial, v: currentValue };
-			return { op: 'replace', data: VSBuffer.fromString(JSON.stringify(entry) + '\n') };
+			return { op: 'replace', data: VSBuffer.fromString(stringifyEntryWithFallback(entry) + '\n') };
 		}
 
 		// Generate diff entries
@@ -328,18 +426,37 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 		if (entries.length === 0) {
 			// No changes
+			this._clearPending();
 			return { op: 'append', data: VSBuffer.fromString('') };
 		}
 
-		this._entryCount += entries.length;
-		this._previous = currentValue;
+		this._hasPendingWrite = true;
+		this._pendingEntryCount = this._entryCount + entries.length;
+		this._pendingPrevious = currentValue;
 
 		// Append entries - build string directly
 		let data = '';
 		for (const e of entries) {
-			data += JSON.stringify(e) + '\n';
+			data += stringifyEntryWithFallback(e) + '\n';
 		}
 		return { op: 'append', data: VSBuffer.fromString(data) };
+	}
+
+	/**
+	 * Commits the internal state after a successful write to disk.
+	 */
+	confirmWrite(): void {
+		if (this._hasPendingWrite) {
+			this._previous = this._pendingPrevious;
+			this._entryCount = this._pendingEntryCount;
+			this._clearPending();
+		}
+	}
+
+	private _clearPending(): void {
+		this._hasPendingWrite = false;
+		this._pendingPrevious = undefined;
+		this._pendingEntryCount = 0;
 	}
 
 	private _applySet(state: unknown, path: ObjectPath, value: unknown): void {

@@ -44,7 +44,7 @@ export enum ExtensionsFilter {
 	/**
 	 * The tracking ID of the user from Copilot entitlement API.
 	 */
-	CopilotTrackingId = 'X-Copilot-Tracking-Id',
+	CopilotTrackingId = 'X-Copilot-CopilotTrackingId',
 
 	/**
 	 * Whether the `sn` flag is set to `'1'` in the copilot token.

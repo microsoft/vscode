@@ -101,11 +101,6 @@ export function connectProxyResolver(
 					promises.push(certs);
 				}
 			}
-			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
-			}
 			const result = (await Promise.all(promises)).flat();
 			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
 				count: result.length,
@@ -147,9 +142,12 @@ function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfi
 		const originalFetch = globalThis.fetch;
 		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
-		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
+		const createPatchedFetch = (options?: proxyAgent.CreateFetchPatchOptions) => proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL, options);
+		const patchedFetch = createPatchedFetch();
 		// eslint-disable-next-line local/code-no-any-casts
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
+		// eslint-disable-next-line local/code-no-any-casts
+		(globalThis as any).__vscodeCreateFetchPatch = createPatchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
 			useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);

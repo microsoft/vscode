@@ -1,0 +1,20 @@
+diff --git a/01-basic b/01-basic-add-2-lines
+index 30c5fc9cb..cc5d326c7 100644
+--- a/01-basic
++++ b/01-basic-add-2-lines
+@@ -2,6 +2,7 @@
+  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
+  *--------------------------------------------------------------------------------------------*/
+ import { spawn } from 'child_process';
++// a change
+ 
+ export function f(args_: string[], flags: any, child: any) {
+ 	if (flags.verbose) {
+@@ -12,5 +13,6 @@ export function f(args_: string[], flags: any, child: any) {
+ 		return new Promise((c) => child.once('exit', () => c(null)));
+ 	}
+ 	child.unref();
++	// a second change
+ 	return Promise.resolve();
+ }
+\ No newline at end of file

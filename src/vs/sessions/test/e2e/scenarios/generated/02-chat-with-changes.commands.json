@@ -24,12 +24,6 @@
 			]
 		},
 		{
-			"description": "Toggle the secondary side bar",
-			"commands": [
-				"click button \"Toggle Secondary Side Bar\""
-			]
-		},
-		{
 			"description": "Verify the changes view shows modified files",
 			"commands": [
 				"# ASSERT_VISIBLE: index.ts",

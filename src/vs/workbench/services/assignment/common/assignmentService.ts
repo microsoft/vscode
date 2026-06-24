@@ -13,7 +13,7 @@ import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation } from '../../../../platform/assignment/common/assignment.js';
+import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, WindowKind } from '../../../../platform/assignment/common/assignment.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -165,12 +165,12 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.experimentsEnabled = experimentsEnabled(configurationService, productService, environmentService);
+		this.experimentsEnabled = experimentsEnabled(configurationService, productService, this.environmentService);
 
 		if (this.experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
@@ -261,7 +261,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.telemetryService.machineId,
 			this.telemetryService.devDeviceId,
 			targetPopulation,
-			this.productService.date ?? ''
+			this.productService.date ?? '',
+			this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
 		);
 
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);

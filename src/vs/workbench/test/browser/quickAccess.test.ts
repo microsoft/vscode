@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IQuickAccessRegistry, Extensions, IQuickAccessProvider, QuickAccessRegistry } from '../../../platform/quickinput/common/quickAccess.js';
-import { IQuickPick, IQuickPickItem, IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { IQuickPick, IQuickPickItem, IQuickInputService, IKeyMods, IQuickPickDidAcceptEvent } from '../../../platform/quickinput/common/quickInput.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { TestServiceAccessor, workbenchInstantiationService, createEditorPart } from './workbenchTestServices.js';
 import { DisposableStore, toDisposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { timeout } from '../../../base/common/async.js';
-import { PickerQuickAccessProvider, FastAndSlowPicks } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { PickerQuickAccessProvider, FastAndSlowPicks, IPickerQuickAccessItem } from '../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { URI } from '../../../base/common/uri.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
@@ -450,4 +450,135 @@ suite('QuickAccess', () => {
 		}
 		await part.activeGroup.closeAllEditors();
 	});
+
+	//#region attach dispatch tests
+
+	interface ITestAttachPickItem extends IPickerQuickAccessItem {
+		label: string;
+		accept?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
+		attach?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
+	}
+
+	let attachTestAcceptCalled = false;
+	let attachTestAttachCalled = false;
+	let attachTestAttachKeyMods: IKeyMods | undefined;
+
+	class AttachTestQuickPickProvider extends PickerQuickAccessProvider<ITestAttachPickItem> {
+		constructor() {
+			super('attach');
+		}
+
+		protected _getPicks(): ITestAttachPickItem[] {
+			return [{
+				label: 'Test Item',
+				accept: () => {
+					attachTestAcceptCalled = true;
+				},
+				attach: (keyMods) => {
+					attachTestAttachCalled = true;
+					attachTestAttachKeyMods = keyMods;
+				}
+			}];
+		}
+	}
+
+	class AttachTestNoAttachProvider extends PickerQuickAccessProvider<ITestAttachPickItem> {
+		constructor() {
+			super('noattach');
+		}
+
+		protected _getPicks(): ITestAttachPickItem[] {
+			return [{
+				label: 'No Attach Item',
+				accept: () => {
+					attachTestAcceptCalled = true;
+				}
+			}];
+		}
+	}
+
+	const attachProviderDescriptor = { ctor: AttachTestQuickPickProvider, prefix: 'attach', helpEntries: [] };
+	const noAttachProviderDescriptor = { ctor: AttachTestNoAttachProvider, prefix: 'noattach', helpEntries: [] };
+
+	function resetAttachState() {
+		attachTestAcceptCalled = false;
+		attachTestAttachCalled = false;
+		attachTestAttachKeyMods = undefined;
+	}
+
+	test('quick pick access - accept without modifier keys calls accept, not attach', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(attachProviderDescriptor));
+		resetAttachState();
+
+		accessor.quickInputService.quickAccess.show('attach');
+		await accessor.quickInputService.accept();
+
+		assert.strictEqual(attachTestAcceptCalled, true);
+		assert.strictEqual(attachTestAttachCalled, false);
+
+		disposables.dispose();
+		restore();
+	});
+
+	test('quick pick access - accept with ctrlCmd calls attach instead of accept', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(attachProviderDescriptor));
+		resetAttachState();
+
+		accessor.quickInputService.quickAccess.show('attach');
+		await accessor.quickInputService.accept({ ctrlCmd: true, alt: false, shift: false });
+
+		assert.strictEqual(attachTestAcceptCalled, false);
+		assert.strictEqual(attachTestAttachCalled, true);
+		assert.deepStrictEqual(attachTestAttachKeyMods, { ctrlCmd: true, alt: false, shift: false });
+
+		disposables.dispose();
+		restore();
+	});
+
+	test('quick pick access - accept with alt calls attach instead of accept', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(attachProviderDescriptor));
+		resetAttachState();
+
+		accessor.quickInputService.quickAccess.show('attach');
+		await accessor.quickInputService.accept({ ctrlCmd: false, alt: true, shift: false });
+
+		assert.strictEqual(attachTestAcceptCalled, false);
+		assert.strictEqual(attachTestAttachCalled, true);
+		assert.deepStrictEqual(attachTestAttachKeyMods, { ctrlCmd: false, alt: true, shift: false });
+
+		disposables.dispose();
+		restore();
+	});
+
+	test('quick pick access - accept with modifier keys but no attach method calls accept', async () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+		const disposables = new DisposableStore();
+
+		disposables.add(registry.registerQuickAccessProvider(noAttachProviderDescriptor));
+		resetAttachState();
+
+		accessor.quickInputService.quickAccess.show('noattach');
+		await accessor.quickInputService.accept({ ctrlCmd: true, alt: false, shift: false });
+
+		assert.strictEqual(attachTestAcceptCalled, true);
+		assert.strictEqual(attachTestAttachCalled, false);
+
+		disposables.dispose();
+		restore();
+	});
+
+	//#endregion
 });

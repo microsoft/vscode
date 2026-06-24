@@ -47,6 +47,7 @@ export const enum StateType {
 	Updating = 'updating',
 	Ready = 'ready',
 	Overwriting = 'overwriting',
+	Restarting = 'restarting',
 }
 
 export const enum UpdateType {
@@ -72,11 +73,12 @@ export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit:
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate; canInstall?: boolean };
 export type Downloading = { type: StateType.Downloading; update?: IUpdate; explicit: boolean; overwrite: boolean; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit: boolean; overwrite: boolean };
-export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number };
+export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number; explicit: boolean };
 export type Ready = { type: StateType.Ready; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Overwriting = { type: StateType.Overwriting; update: IUpdate; explicit: boolean };
+export type Restarting = { type: StateType.Restarting; update: IUpdate };
 
-export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting;
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting | Restarting;
 
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
@@ -86,9 +88,10 @@ export const State = {
 	AvailableForDownload: (update: IUpdate, canInstall?: boolean): AvailableForDownload => ({ type: StateType.AvailableForDownload, update, canInstall }),
 	Downloading: (update: IUpdate | undefined, explicit: boolean, overwrite: boolean, downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, update, explicit, overwrite, downloadedBytes, totalBytes, startTime }),
 	Downloaded: (update: IUpdate, explicit: boolean, overwrite: boolean): Downloaded => ({ type: StateType.Downloaded, update, explicit, overwrite }),
-	Updating: (update: IUpdate, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, currentProgress, maxProgress }),
+	Updating: (update: IUpdate, explicit: boolean, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, explicit, currentProgress, maxProgress }),
 	Ready: (update: IUpdate, explicit: boolean, overwrite: boolean): Ready => ({ type: StateType.Ready, update, explicit, overwrite }),
 	Overwriting: (update: IUpdate, explicit: boolean): Overwriting => ({ type: StateType.Overwriting, update, explicit }),
+	Restarting: (update: IUpdate): Restarting => ({ type: StateType.Restarting, update }),
 };
 
 export interface IAutoUpdater extends Event.NodeEventEmitter {

@@ -3,6 +3,7 @@ test-workspace/**
 src/**
 out/**
 tsconfig*.json
+**/*.tsbuildinfo
 esbuild*
 CONTRIBUTING.md
 cgmanifest.json

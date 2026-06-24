@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -453,6 +451,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString);
 	}
 
+	export class ChatResponseInfoPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
 	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
@@ -632,6 +635,15 @@ declare module 'vscode' {
 		 * @returns This stream.
 		 */
 		warning(message: string | MarkdownString): void;
+
+		/**
+		 * Push an info banner to this stream. Short-hand for
+		 * `push(new ChatResponseInfoPart(message))`.
+		 *
+		 * @param message An informational message
+		 * @returns This stream.
+		 */
+		info(message: string | MarkdownString): void;
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
@@ -846,6 +858,11 @@ declare module 'vscode' {
 		readonly outputBuffer?: number;
 
 		/**
+		 * The number of copilot credits consumed by this request.
+		 */
+		readonly copilotCredits?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -990,10 +1007,6 @@ declare module 'vscode' {
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
-	}
-
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
@@ -1070,6 +1083,7 @@ declare module 'vscode' {
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly allowedSubagents?: readonly string[];
 		readonly metadata?: Record<string, boolean | string | number>;
 		/**
 		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.

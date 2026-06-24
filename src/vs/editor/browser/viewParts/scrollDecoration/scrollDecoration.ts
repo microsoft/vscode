@@ -35,9 +35,6 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._domNode.setAttribute('aria-hidden', 'true');
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private _updateShouldShow(): boolean {
 		const newShouldShow = (this._useShadows && this._scrollTop > 0);

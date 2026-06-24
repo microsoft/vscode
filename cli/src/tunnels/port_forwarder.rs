@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-	constants::CONTROL_PORT,
+	constants::{AGENT_HOST_PORT, CONTROL_PORT},
 	util::errors::{AnyError, CannotForwardControlPort, ServerHasClosed},
 };
 
@@ -72,7 +72,7 @@ impl PortForwardingProcessor {
 		port: u16,
 		tunnel: &mut ActiveTunnel,
 	) -> Result<(), AnyError> {
-		if port == CONTROL_PORT {
+		if port == CONTROL_PORT || port == AGENT_HOST_PORT {
 			return Err(CannotForwardControlPort().into());
 		}
 
@@ -87,7 +87,7 @@ impl PortForwardingProcessor {
 		privacy: PortPrivacy,
 		tunnel: &mut ActiveTunnel,
 	) -> Result<String, AnyError> {
-		if port == CONTROL_PORT {
+		if port == CONTROL_PORT || port == AGENT_HOST_PORT {
 			return Err(CannotForwardControlPort().into());
 		}
 

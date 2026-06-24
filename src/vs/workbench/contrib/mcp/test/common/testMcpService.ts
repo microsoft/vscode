@@ -11,6 +11,7 @@ export class TestEnablementModel implements IEnablementModel {
 	readEnabled(_key: string): ContributionEnablementState {
 		return ContributionEnablementState.EnabledProfile;
 	}
+	remove(_key: string): void { }
 	setEnabled(_key: string, _state: ContributionEnablementState): void { }
 }
 
