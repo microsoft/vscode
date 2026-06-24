@@ -2909,10 +2909,13 @@ export class CopilotAgentSession extends Disposable {
 		// New content appended to the log.
 		this._register(wrapper.onUserMessage(invalidate));
 		this._register(wrapper.onTurnStart(invalidate));
-		this._register(wrapper.onTurnEnd(invalidate));
+		this._register(wrapper.onMessage(invalidate));
+		this._register(wrapper.onToolStart(invalidate));
 		this._register(wrapper.onToolComplete(invalidate));
+		this._register(wrapper.onSubagentStarted(invalidate));
 		this._register(wrapper.onSubagentCompleted(invalidate));
 		this._register(wrapper.onSubagentFailed(invalidate));
+		this._register(wrapper.onTurnEnd(invalidate));
 		// In-place rewrites of the persisted log.
 		this._register(wrapper.onSessionCompactionComplete(invalidate));
 		this._register(wrapper.onSessionTruncation(invalidate));
