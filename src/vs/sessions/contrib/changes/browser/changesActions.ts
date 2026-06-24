@@ -133,6 +133,7 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 			this._diffStatsObs.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
+			this.updateAriaLabel();
 		}));
 	}
 
@@ -156,6 +157,15 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 		return branch
 			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
 			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+	}
+
+	protected override getAriaLabel(): string {
+		const { files, insertions, deletions } = this._diffStatsObs.get();
+		const filesLabel = files === 1
+			? localize('agentSessions.changes.file', "{0} file", files)
+			: localize('agentSessions.changes.files', "{0} files", files);
+		// e.g. "View Changes (main): 3 files, +10, -4"
+		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }
 

@@ -113,6 +113,7 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			this._workspaceObs.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
+			this.updateAriaLabel();
 		}));
 	}
 
@@ -133,6 +134,13 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 
 	protected override getTooltip(): string {
 		return localize('agentSessions.openFilesView.tooltip', "Open Files");
+	}
+
+	protected override getAriaLabel(): string {
+		const label = this._workspaceObs.get()?.label;
+		return label
+			? localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", label)
+			: this.getTooltip();
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
