@@ -133,11 +133,12 @@ interface IObserveTurnOptions {
 	 */
 	readonly subAgentInvocationId?: string;
 	/**
-	 * When set (only on the parent turn observer), an observable that accumulates
-	 * copilot credits reported by subagent turns. Subagent turn observers add their
-	 * credits here so the parent's usage emission includes them in the session cost.
+	 * When set on a subagent turn observer, an observable owned by the parent turn
+	 * that accumulates copilot credits reported by subagent turns. Subagent turn
+	 * observers add their credits here so the parent's usage emission includes them
+	 * in the session cost.
 	 */
-	readonly subagentCreditsAccumulator?: ISettableObservable<number>;
+	readonly subAgentCreditsAccumulator?: ISettableObservable<number>;
 }
 
 /**
@@ -1810,8 +1811,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// For subagent observers: accumulate copilot credits from child turns
 		// into the parent's accumulator so the session cost includes them.
-		if (opts.subAgentInvocationId !== undefined && opts.subagentCreditsAccumulator) {
-			const accumulator = opts.subagentCreditsAccumulator;
+		if (opts.subAgentInvocationId !== undefined && opts.subAgentCreditsAccumulator) {
+			const accumulator = opts.subAgentCreditsAccumulator;
 			let lastCredits = 0;
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
@@ -2842,7 +2843,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						sink: emitProgress,
 						cancellationToken: cts.token,
 						subAgentInvocationId: parentToolCallId,
-						subagentCreditsAccumulator: subagentContext.creditsAccumulator,
+						subAgentCreditsAccumulator: subagentContext.creditsAccumulator,
 					}));
 				},
 			));
