@@ -8,12 +8,15 @@ import { autorun, IObservable, observableValue } from '../../../../base/common/o
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { resolveConfiguredModel } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ChatConfiguration, IChatDefaultConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -106,6 +109,7 @@ export class ModelPicker extends Disposable {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
@@ -228,7 +232,11 @@ export class ModelPicker extends Disposable {
 			}
 
 			if (!current) {
-				this._delegate.setModel(sessionModel ?? this._getFallbackModel(session, models));
+				// A configured default model (`chat.defaultConfiguration.model`, which may
+				// be set by enterprise policy) starts every new session, taking precedence
+				// over the session's restored model and the remembered last-used model.
+				const configured = resolveConfiguredModel(this._getConfiguredDefaultModel(), [...models]);
+				this._delegate.setModel(configured ?? sessionModel ?? this._getFallbackModel(session, models));
 				this._lastPushedSessionId = session?.sessionId;
 			} else if (session && isNewSession && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
 				// Active session changed (e.g. user switched repository) but the
@@ -253,6 +261,10 @@ export class ModelPicker extends Disposable {
 		const rememberedModelId = session ? this._storageService.get(modelPickerStorageKey(session.providerId, session.sessionType), StorageScope.PROFILE) : undefined;
 		const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
 		return remembered ?? models[0];
+	}
+
+	private _getConfiguredDefaultModel(): string | undefined {
+		return this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration)?.model;
 	}
 
 	render(container: HTMLElement): void {

@@ -15,7 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -516,9 +516,32 @@ configurationRegistry.registerConfiguration({
 					default: ChatPermissionLevel.Default,
 					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 				},
+				model: {
+					type: 'string',
+					default: '',
+					description: nls.localize('chat.defaultConfiguration.model.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+				},
 			},
 			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode, approval behavior and model) for new agent sessions (such as Copilot CLI). You can still change these per session, and each session remembers what was used."),
+			policy: {
+				name: 'ChatDefaultModel',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: (policyData) => {
+					const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+					return typeof model === 'string' && model.length > 0 ? JSON.stringify({ model }) : undefined;
+				},
+				managedSettings: {
+					[COPILOT_MODEL_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.defaultConfiguration.model.policy',
+						value: nls.localize('chat.defaultConfiguration.model.policy', "Sets the default chat model for new conversations. Accepts \"auto\", a model family name (such as \"opus\" or \"gemini\"), or a full model id. Users can still switch the model within a conversation.")
+					}
+				},
+			},
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
