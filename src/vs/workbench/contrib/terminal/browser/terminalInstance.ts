@@ -2723,7 +2723,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState'>, reset?: boolean): void {
 		const tabs = this._terminalConfigurationService.config.tabs;
 		const useAgentCliTitle = tabs.allowAgentCliTitle && TerminalLabelComputer.agentCliShellTypes.has(instance.shellType as GeneralShellType);
 		const titleTemplate = instance.shellLaunchConfig.titleTemplate ?? (useAgentCliTitle ? '${sequence}' : tabs.title);

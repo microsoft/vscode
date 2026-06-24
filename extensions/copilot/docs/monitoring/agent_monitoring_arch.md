@@ -51,16 +51,6 @@ invoke_agent copilot (INTERNAL)          ← toolCallingLoop.ts
 └── ...
 ```
 
-#### Inline Chat
-
-```
-invoke_agent Inline Chat (INTERNAL)      ← inlineChatIntent.ts
-├── chat gpt-4o (CLIENT)                 ← chatMLFetcher.ts
-├── execute_tool apply_patch (INTERNAL)  ← toolsService.ts
-├── chat gpt-4o (CLIENT)
-└── ...
-```
-
 #### Copilot CLI in-process (Bridge)
 
 ```
@@ -157,7 +147,6 @@ src/extension/trajectory/vscode-node/
 | `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
-| `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
 | `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
 | `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
 | `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |
@@ -387,8 +376,8 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 | Namespace | Used By | Examples |
 |---|---|---|
 | `gen_ai.*` | All agents (standard) | `gen_ai.operation.name`, `gen_ai.usage.input_tokens` |
-| `copilot_chat.*` | Extension-specific (legacy; several keys dual-emit alongside `github.copilot.*`) | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
-| `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent, Claude agent, CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
+| `copilot_chat.*` | Extension-specific | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
+| `github.copilot.*` | CLI SDK internal | `github.copilot.cost`, `github.copilot.aiu` |
 | `claude_code.*` | Claude subprocess | `claude_code.token.usage`, `claude_code.cost.usage` |
 
 ---
