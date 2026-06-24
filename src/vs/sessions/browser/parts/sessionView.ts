@@ -20,9 +20,9 @@ import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext } from '../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext, SessionHasPullRequestContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
-import { SessionStatus } from '../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, SessionStatus } from '../../services/sessions/common/session.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -80,6 +80,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _chatSessionProviderIdKey: IContextKey<string>;
 	private readonly _chatSessionTypeKey: IContextKey<string>;
 	private readonly _sessionHasChangesKey: IContextKey<boolean>;
+	private readonly _sessionHasPullRequestKey: IContextKey<boolean>;
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
@@ -105,6 +106,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
 		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
 		this._sessionHasChangesKey = SessionHasChangesContext.bindTo(scopedContextKeyService);
+		this._sessionHasPullRequestKey = SessionHasPullRequestContext.bindTo(scopedContextKeyService);
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
@@ -201,6 +203,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._chatSessionProviderIdKey.set('');
 			this._chatSessionTypeKey.set('');
 			this._sessionHasChangesKey.set(false);
+			this._sessionHasPullRequestKey.set(false);
 			return Disposable.None;
 		}
 
@@ -222,9 +225,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		}));
 
 		// Drives the visibility of the diff-stats menu item contributed by the
-		// changes view into the session header meta row.
+		// changes view into the session header meta row. Mirrors the pill's own
+		// source — the Branch Changes changeset (branch-vs-base diff) — so the
+		// pill is shown exactly when it would render non-zero counts.
 		disposables.add(autorun(reader => {
-			const changes = session.changes.read(reader);
+			const branchChangeset = session.changesets.read(reader)?.find(c => c.id === BRANCH_CHANGES_CHANGESET_ID);
+			const changes = branchChangeset?.changes.read(reader) ?? session.changes.read(reader);
 			let insertions = 0;
 			let deletions = 0;
 			for (const change of changes) {
@@ -232,6 +238,13 @@ export class SessionView extends Disposable implements ISerializableView {
 				deletions += change.deletions;
 			}
 			this._sessionHasChangesKey.set(insertions > 0 || deletions > 0);
+		}));
+
+		// Drives the visibility of the pull-request pill contributed by the GitHub
+		// contribution into the session header meta row.
+		disposables.add(autorun(reader => {
+			const pullRequest = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
+			this._sessionHasPullRequestKey.set(!!pullRequest);
 		}));
 
 		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);

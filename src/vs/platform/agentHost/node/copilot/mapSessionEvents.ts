@@ -521,18 +521,21 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (typeof attachment.data !== 'string') {
+				return undefined;
+			}
 			if (attachment.mimeType.startsWith('text/plain')) {
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
-					modelRepresentation: decodeBase64(attachment.data).toString(),
+					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
 				};
 			}
 			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: attachment.displayName ?? 'attachment',
-				data: attachment.data,
+				data: attachment.data ?? '',
 				contentType: attachment.mimeType,
 				displayKind,
 			};

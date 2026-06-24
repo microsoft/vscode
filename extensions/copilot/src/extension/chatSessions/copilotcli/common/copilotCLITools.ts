@@ -643,9 +643,13 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 								range
 							});
 						} else if (attachment.type === 'blob') {
+							if (typeof attachment.data !== 'string') {
+								return;
+							}
+							const data = attachment.data;
 							const binaryDataSupplier = async () => {
 								try {
-									return decodeBase64(attachment.data).buffer;
+									return decodeBase64(data).buffer;
 								} catch (error) {
 									logger.error(error, `Failed to decode blob attachment ${attachment.displayName || ''}`);
 									throw error;
