@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 /**
@@ -102,6 +103,13 @@ export interface IAgentHostByokLmHandler {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Fires when the renderer's set of BYOK models changes, so the node agent
+	 * host can re-enumerate them for the model picker. Optional: test fakes may
+	 * omit it.
+	 */
+	readonly onDidChangeModels?: Event<void>;
+
+	/**
 	 * Run a BYOK chat completion against the extension-registered model that
 	 * matches `request.vendor` + `request.modelId`. Rejects (or resolves with
 	 * {@link IByokLmChatResult.error}) when no such model is available.
@@ -123,4 +131,9 @@ export interface IAgentHostByokLmHandler {
 export interface IByokLmBridgeConnection {
 	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
 	listModels(): Promise<IByokLmModelInfo[]>;
+	/**
+	 * Fires when the renderer's set of BYOK models changes, so the agent host
+	 * can re-enumerate. Optional: test fakes may omit it.
+	 */
+	readonly onDidChangeModels?: Event<void>;
 }

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -28,6 +29,8 @@ interface ICapturedRequest {
 class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 
 	captured: ICapturedRequest | undefined;
+
+	override readonly onDidChangeLanguageModels = Event.None;
 
 	constructor(
 		private readonly _models: ReadonlyMap<string, ILanguageModelChatMetadata>,

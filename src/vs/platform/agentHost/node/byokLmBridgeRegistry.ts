@@ -29,6 +29,13 @@ export interface IByokLmBridgeRegistry {
 
 	/** The most recently registered, still-live connection, if any. */
 	getActive(): IByokLmBridgeConnection | undefined;
+
+	/**
+	 * Subscribe to changes in the set of registered connections (a renderer
+	 * connecting or disconnecting), so consumers can re-enumerate models.
+	 * Disposing the result removes the listener.
+	 */
+	onDidChangeActive(listener: () => void): IDisposable;
 }
 
 export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
@@ -37,10 +44,27 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 
 	private readonly _connections = new Map<string, IByokLmBridgeConnection>();
 	private _activeClientId: string | undefined;
+	private readonly _changeListeners = new Set<() => void>();
+
+	onDidChangeActive(listener: () => void): IDisposable {
+		this._changeListeners.add(listener);
+		return toDisposable(() => {
+			this._changeListeners.delete(listener);
+		});
+	}
+
+	private _notifyActiveChanged(): void {
+		// Snapshot first: a listener may unsubscribe (mutating the set) while it
+		// is being notified.
+		for (const listener of [...this._changeListeners]) {
+			listener();
+		}
+	}
 
 	register(clientId: string, connection: IByokLmBridgeConnection): IDisposable {
 		this._connections.set(clientId, connection);
 		this._activeClientId = clientId;
+		this._notifyActiveChanged();
 		return toDisposable(() => {
 			if (this._connections.get(clientId) === connection) {
 				this._connections.delete(clientId);
@@ -49,6 +73,7 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 					const next = this._connections.keys().next();
 					this._activeClientId = next.done ? undefined : next.value;
 				}
+				this._notifyActiveChanged();
 			}
 		});
 	}

@@ -48,6 +48,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -275,6 +276,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+	/**
+	 * The two sources merged into {@link _models}: CAPI models from the CLI's
+	 * `models.list` and BYOK models enumerated from the active renderer bridge.
+	 * Tracked separately so each can refresh independently without clobbering
+	 * the other; {@link _publishModels} concatenates them for the picker.
+	 */
+	private _capiModels: readonly IAgentModelInfo[] = [];
+	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/**
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
@@ -289,6 +298,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	protected readonly _modelRefreshMaxDelayMs: number = 30_000;
 	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
 	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
+	/** Pending BYOK-model enumeration retry timer; cleared on a fresh refresh, shutdown, or dispose. */
+	private readonly _byokRefreshRetry = this._register(new MutableDisposable());
+	/** Subscription to the active BYOK bridge's model-change event; re-bound when the active bridge changes. */
+	private readonly _byokModelsChangeSub = this._register(new MutableDisposable());
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -367,6 +380,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -386,6 +400,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to restart client after config change', err)
 			);
+		}));
+
+		// Surface renderer BYOK models in the picker: re-enumerate them whenever
+		// a renderer bridge connects or disconnects. The registry is only
+		// populated when `chat.agentHost.byokModels.enabled` is on, so this stays
+		// a no-op (empty list) while the feature is off.
+		this._register(this._byokBridgeRegistry.onDidChangeActive(() => {
+			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
+			this._subscribeByokModelChanges();
+			void this._refreshByokModels();
 		}));
 	}
 
@@ -526,13 +550,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const tokenAtRefreshStart = this._githubToken;
 		if (!tokenAtRefreshStart) {
-			this._models.set([], undefined);
+			this._capiModels = [];
+			this._publishModels();
 			return;
 		}
 		try {
 			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubToken === tokenAtRefreshStart) {
-				this._models.set(models, undefined);
+				this._capiModels = models;
+				this._publishModels();
 			}
 		} catch (err) {
 			// Token rotated mid-flight — a newer refresh owns the result — or
@@ -549,13 +575,90 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}, delay);
 				return;
 			}
-			// Retries exhausted: surface the error. Only blank the list when we
-			// have nothing to show, so a transient failure never wipes a
-			// previously loaded, good model list.
+			// Retries exhausted: surface the error but keep the last-known CAPI
+			// list so a transient failure never wipes a previously loaded, good
+			// model list. Republish so a concurrently-updated BYOK list still
+			// shows through.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
-			if (this._models.get().length === 0) {
-				this._models.set([], undefined);
+			this._publishModels();
+		}
+	}
+
+	/**
+	 * Re-emit the merged CAPI + BYOK model list to the picker. A fresh array is
+	 * allocated each call so the observable always notifies its consumers.
+	 */
+	private _publishModels(): void {
+		this._models.set([...this._capiModels, ...this._byokModels], undefined);
+	}
+
+	/**
+	 * (Re)subscribe to the active BYOK bridge's `onDidChangeModels` so the
+	 * picker re-enumerates whenever the renderer's BYOK models change — they
+	 * often register shortly after the bridge connects. Cleared when no bridge
+	 * is active.
+	 */
+	private _subscribeByokModelChanges(): void {
+		const connection = this._byokBridgeRegistry.getActive();
+		this._byokModelsChangeSub.value = connection?.onDidChangeModels?.(() => {
+			this._logService.trace('[Copilot] BYOK models changed; refreshing');
+			void this._refreshByokModels();
+		});
+	}
+
+	/**
+	 * Re-enumerate the renderer's BYOK models from the active bridge and
+	 * republish the merged list. Triggered when a renderer bridge connects or
+	 * disconnects.
+	 *
+	 * Right after a bridge connects the renderer's BYOK channel handler may not
+	 * be registered yet, so the `listModels` RPC times out. We retry with
+	 * bounded backoff (reusing the CAPI refresh schedule) so the models surface
+	 * once the renderer side is ready. No-op once shutdown has begun or the
+	 * bridge has gone away.
+	 *
+	 * Each model is surfaced under the provider-qualified id `vendor/id` so a
+	 * selection round-trips to the per-session provider config synthesized by
+	 * `resolveByokSessionConfig`.
+	 */
+	private async _refreshByokModels(attempt = 0): Promise<void> {
+		// A fresh refresh (e.g. a bridge reconnect) supersedes any scheduled retry.
+		this._byokRefreshRetry.clear();
+		if (this._shutdownPromise) {
+			return;
+		}
+		const connection = this._byokBridgeRegistry.getActive();
+		if (!connection) {
+			this._logService.trace('[Copilot] BYOK refresh: no active bridge connection');
+			this._byokModels = [];
+			this._publishModels();
+			return;
+		}
+		try {
+			const models = await connection.listModels();
+			this._byokModels = models.map((m): IAgentModelInfo => ({
+				provider: this.id,
+				id: `${m.vendor}/${m.id}`,
+				name: (m.name ?? m.id) + ' [BYOK]',
+				maxContextWindow: m.maxContextWindowTokens,
+				supportsVision: false,
+			}));
+			this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
+			this._publishModels();
+		} catch (err) {
+			// The bridge went away mid-flight, or teardown began — drop the result.
+			if (this._shutdownPromise || this._byokBridgeRegistry.getActive() !== connection) {
+				return;
 			}
+			if (attempt + 1 < this._modelRefreshMaxAttempts) {
+				const delay = this._modelRefreshBackoff(attempt);
+				this._logService.warn(`[Copilot] Failed to enumerate BYOK models (attempt ${attempt + 1}), retrying in ${delay}ms`, err);
+				this._byokRefreshRetry.value = disposableTimeout(() => {
+					void this._refreshByokModels(attempt + 1);
+				}, delay);
+				return;
+			}
+			this._logService.warn('[Copilot] Failed to enumerate BYOK models from renderer bridge', err);
 		}
 	}
 
@@ -1924,6 +2027,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Cancel any pending model-refresh retry so its timer cannot fire
 			// after teardown and resurrect the client.
 			this._modelRefreshRetry.clear();
+			this._byokRefreshRetry.clear();
 			this._logService.info('[Copilot] Shutting down...');
 			const sessionIds = new Set([...this._sessions.keys(), ...this._createdWorktrees.keys()]);
 			for (const sessionId of sessionIds) {

@@ -36,6 +36,7 @@ export function createAgentHostClientByokLmConnection(channel: IChannel): IByokL
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
 		listModels: () => channel.call('listModels') as Promise<IByokLmModelInfo[]>,
+		onDidChangeModels: channel.listen('onDidChangeModels'),
 	};
 }
 
@@ -51,6 +52,9 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 	) { }
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
+		if (event === 'onDidChangeModels') {
+			return (this._handler.onDidChangeModels ?? Event.None) as Event<T>;
+		}
 		throw new Error(`No event '${event}' on AgentHostClientByokLmChannel`);
 	}
 

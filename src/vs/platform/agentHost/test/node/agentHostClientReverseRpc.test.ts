@@ -37,6 +37,7 @@ suite('registerAgentHostClientReverseRpc', () => {
 				register: (clientId: string, _connection: IByokLmBridgeConnection): IDisposable => { registered.push(clientId); return toDisposable(() => { }); },
 				get: () => undefined,
 				getActive: () => undefined,
+				onDidChangeActive: () => toDisposable(() => { }),
 			},
 		};
 	}

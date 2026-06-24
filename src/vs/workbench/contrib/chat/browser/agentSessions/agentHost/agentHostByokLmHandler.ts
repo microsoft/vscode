@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import {
 	IAgentHostByokLmHandler,
@@ -34,11 +35,21 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidChangeModels = this._register(new Emitter<void>());
+	/** Fires when the renderer's BYOK models change, so the node agent host re-enumerates. */
+	readonly onDidChangeModels = this._onDidChangeModels.event;
+
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		// Re-emit (debounced) whenever the renderer's language models change, so the
+		// agent host can refresh its BYOK model list — extension-provided BYOK models
+		// often register shortly after the bridge connects.
+		this._register(Event.debounce(this._languageModelsService.onDidChangeLanguageModels, () => undefined, 500)(() => {
+			this._onDidChangeModels.fire();
+		}));
 	}
 
 	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
