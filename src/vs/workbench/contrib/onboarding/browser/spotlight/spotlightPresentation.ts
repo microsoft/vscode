@@ -50,12 +50,15 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const steps = payload?.steps ?? [];
 		const stepCount = steps.length;
 		if (stepCount === 0) {
-			return { outcome: OnboardingOutcome.Completed, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 0 };
+			return { outcome: OnboardingOutcome.Completed, shown: false, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 0 };
 		}
 
 		// Furthest step the user actually saw (0-based). Stays at the last shown
 		// step regardless of how the run ends, for telemetry.
 		let lastStepIndex = 0;
+		// Whether at least one step was actually rendered. Stays `false` if every step is
+		// skipped (missing target / unsatisfied `when`) so nothing was ever displayed.
+		let shown = false;
 
 		const store = new DisposableStore();
 		try {
@@ -109,6 +112,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				}
 
 				lastStepIndex = Math.max(lastStepIndex, index);
+				shown = true;
 
 				const end = await this._runStep(overlay, context, step, target, index, stepCount);
 				switch (end.action) {
@@ -116,7 +120,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 						if (index === stepCount - 1) {
 							// Advancing past the final step completes the tour.
 							const dismissReason = end.via === 'target' ? OnboardingDismissReason.TargetClick : OnboardingDismissReason.Completed;
-							return { outcome: OnboardingOutcome.Completed, dismissReason, lastStepIndex, stepCount };
+							return { outcome: OnboardingOutcome.Completed, shown, dismissReason, lastStepIndex, stepCount };
 						}
 						direction = 1;
 						index++;
@@ -126,15 +130,15 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 						index--;
 						break;
 					case 'skip':
-						return { outcome: OnboardingOutcome.Skipped, dismissReason: end.reason, lastStepIndex, stepCount };
+						return { outcome: OnboardingOutcome.Skipped, shown, dismissReason: end.reason, lastStepIndex, stepCount };
 					case 'abort':
-						return { outcome: OnboardingOutcome.Aborted, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex, stepCount };
+						return { outcome: OnboardingOutcome.Aborted, shown, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex, stepCount };
 				}
 			}
 
 			return aborted
-				? { outcome: OnboardingOutcome.Aborted, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex, stepCount }
-				: { outcome: OnboardingOutcome.Completed, dismissReason: OnboardingDismissReason.Completed, lastStepIndex, stepCount };
+				? { outcome: OnboardingOutcome.Aborted, shown, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex, stepCount }
+				: { outcome: OnboardingOutcome.Completed, shown, dismissReason: OnboardingDismissReason.Completed, lastStepIndex, stepCount };
 		} finally {
 			store.dispose();
 		}

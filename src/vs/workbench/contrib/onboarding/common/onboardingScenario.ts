@@ -64,7 +64,9 @@ export const ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX = 'onb-';
  * resolved against the experimentation service; the experiment is only considered **active**
  * when *both* resolve: the boolean to a boolean and the id to a non-empty string that starts
  * with {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}. If either flag is missing or the id lacks
- * the required prefix, the scenario is treated as if it had no experiment and does not run.
+ * the required prefix, the experiment is **inactive** and the scenario does not run
+ * automatically (it can still be started explicitly via a command/`runScenario`, which
+ * bypasses experiment gating and does not open the telemetry gate).
  */
 export interface IOnboardingExperiment {
 	/**
@@ -155,6 +157,14 @@ export const enum OnboardingDismissReason {
 export interface IOnboardingRunResult {
 	/** Coarse engine-level outcome. */
 	readonly outcome: OnboardingOutcome;
+
+	/**
+	 * Whether the presentation actually displayed anything to the user. `false` for a
+	 * degenerate run that rendered no UI (e.g. a scenario with no steps, or every step
+	 * skipped because its target/`when` was unavailable). The engine only emits outcome
+	 * telemetry when a tour was genuinely shown.
+	 */
+	readonly shown: boolean;
 
 	/** Concrete reason/mechanism that ended the run. */
 	readonly dismissReason: OnboardingDismissReason;

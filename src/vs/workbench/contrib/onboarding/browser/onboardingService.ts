@@ -334,7 +334,11 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		try {
 			const result = await presentation.run(scenario, { targetWindow: mainWindow, onAbort: abort.event });
 			this._recordOutcome(scenario.id, result.outcome);
-			this._reportOutcome(scenario, result, Date.now() - startTime);
+			// Only emit outcome telemetry when a tour was genuinely displayed; a degenerate
+			// run that rendered nothing (no steps / all steps skipped) must not pollute metrics.
+			if (result.shown) {
+				this._reportOutcome(scenario, result, Date.now() - startTime);
+			}
 			return result.outcome;
 		} finally {
 			this._activeAbort = undefined;
@@ -342,7 +346,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}
 	}
 
-	/** Emit per-tour telemetry. Only ever called when a tour was actually shown. */
+	/** Emit per-tour telemetry. Only called when a tour was actually shown. */
 	private _reportOutcome(scenario: IOnboardingScenario, result: IOnboardingRunResult, durationMs: number): void {
 		const experimentActive = !!scenario.experiment && this._experimentStates.get(scenario.id)?.active === true;
 

@@ -15,7 +15,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Memento } from '../../../../common/memento.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -30,7 +30,30 @@ function completedResult(outcome: OnboardingOutcome = OnboardingOutcome.Complete
 	const dismissReason = outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.SkipButton
 		: outcome === OnboardingOutcome.Aborted ? OnboardingDismissReason.Aborted
 			: OnboardingDismissReason.Completed;
-	return { outcome, dismissReason, lastStepIndex: 0, stepCount: 1 };
+	return { outcome, shown: true, dismissReason, lastStepIndex: 0, stepCount: 1 };
+}
+
+/** A result for a degenerate run that rendered nothing (no steps / all steps skipped). */
+function notShownResult(): IOnboardingRunResult {
+	return { outcome: OnboardingOutcome.Completed, shown: false, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 0 };
+}
+
+/** Captures the names of `publicLog2` telemetry events. */
+class CapturingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: string[] = [];
+	override publicLog2(eventName?: string): void {
+		if (eventName) {
+			this.events.push(eventName);
+		}
+	}
+}
+
+/** A presentation that resolves with a fixed run result. */
+class FixedResultPresentation implements IOnboardingPresentation {
+	constructor(readonly kind: string, private readonly result: IOnboardingRunResult) { }
+	async run(_scenario: IOnboardingScenario, _context: IOnboardingRunContext): Promise<IOnboardingRunResult> {
+		return this.result;
+	}
 }
 
 /** Records every scenario it renders, then resolves with a fixed outcome. */
@@ -97,7 +120,7 @@ suite('OnboardingScenarioService', () => {
 	let idSeed = 0;
 	function uniqueKind(): string { return `test-presentation-${idSeed++}`; }
 
-	function createService(configValues: Record<string, unknown> = {}, assignment?: IWorkbenchAssignmentService, storage = disposables.add(new InMemoryStorageService())): { service: OnboardingScenarioService; contextKeyService: IContextKeyService; config: TestConfigurationService; lifecycle: TestLifecycleService } {
+	function createService(configValues: Record<string, unknown> = {}, assignment?: IWorkbenchAssignmentService, storage = disposables.add(new InMemoryStorageService()), telemetry: ITelemetryService = NullTelemetryService as unknown as ITelemetryService): { service: OnboardingScenarioService; contextKeyService: IContextKeyService; config: TestConfigurationService; lifecycle: TestLifecycleService } {
 		const store = disposables;
 		const config = new TestConfigurationService(configValues);
 		const contextKeyService = store.add(new ContextKeyService(config));
@@ -108,7 +131,7 @@ suite('OnboardingScenarioService', () => {
 			config as unknown as IConfigurationService,
 			lifecycle,
 			assignment ?? new NullWorkbenchAssignmentService(),
-			NullTelemetryService as unknown as ITelemetryService,
+			telemetry,
 		));
 		return { service, contextKeyService, config, lifecycle };
 	}
@@ -296,6 +319,24 @@ suite('OnboardingScenarioService', () => {
 
 		service.resetAll();
 		assert.strictEqual(service.hasBeenShown('reset-1'), false);
+	});
+
+	test('emits scenarioOutcome telemetry when a tour is shown but not when nothing is rendered', async () => {
+		const shownKind = uniqueKind();
+		const notShownKind = uniqueKind();
+		registerPresentation(new FixedResultPresentation(shownKind, completedResult()));
+		registerPresentation(new FixedResultPresentation(notShownKind, notShownResult()));
+		registerScenario({ id: 'tele-shown', trigger: { kind: 'auto' }, presentation: { kind: shownKind, payload: undefined } });
+		registerScenario({ id: 'tele-notshown', trigger: { kind: 'auto' }, presentation: { kind: notShownKind, payload: undefined } });
+
+		const telemetry = new CapturingTelemetryService();
+		const { service } = createService({}, undefined, undefined, telemetry as unknown as ITelemetryService);
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		// One event for the shown tour; none for the degenerate run that rendered nothing.
+		assert.deepStrictEqual(telemetry.events, ['onboarding.scenarioOutcome']);
 	});
 
 	test('experiment-driven scenario does not run unless both treatment flags are set', async () => {
