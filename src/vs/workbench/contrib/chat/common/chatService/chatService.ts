@@ -1036,6 +1036,8 @@ export interface IChatSubagentToolInvocationData {
 	prompt?: string;
 	result?: string;
 	modelName?: string;
+	/** Copilot credits (AIC) consumed by this subagent. Surfaced on hover and persisted across reloads. */
+	credits?: number;
 }
 
 /**

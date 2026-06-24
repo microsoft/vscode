@@ -133,10 +133,11 @@ interface IObserveTurnOptions {
 	 */
 	readonly subAgentInvocationId?: string;
 	/**
-	 * When set on a subagent turn observer, an observable owned by the parent turn
-	 * that accumulates copilot credits reported by subagent turns. Subagent turn
-	 * observers add their credits here so the parent's usage emission includes them
-	 * in the session cost.
+	 * When set on a subagent turn observer, an observable that accumulates
+	 * copilot credits reported by this subagent's turns. Subagent turn
+	 * observers add their credits here; the value is surfaced on the subagent
+	 * tool's hover and forwarded into the parent turn's shared accumulator so
+	 * the session cost still includes them.
 	 */
 	readonly subAgentCreditsAccumulator?: ISettableObservable<number>;
 }
@@ -148,7 +149,7 @@ interface IObserveTurnOptions {
 interface ISubagentContext {
 	/** Tool call IDs already subscribed — prevents duplicate observers. */
 	readonly observedToolIds: Set<string>;
-	/** Accumulates copilot credits from child turns for inclusion in the parent's usage. */
+	/** Accumulates copilot credits from all subagents for inclusion in the parent's usage. */
 	readonly creditsAccumulator: ISettableObservable<number> | undefined;
 }
 
@@ -2003,7 +2004,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			subagentContext.observedToolIds.add(toolCallId);
-			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, subagentContext);
+
+			// Track this subagent's own credits (AIC) separately from the
+			// turn-wide accumulator so they can be surfaced on the subagent
+			// tool's hover and persisted via its `toolSpecificData`. The
+			// per-invocation total is also forwarded into the shared
+			// accumulator that feeds the parent turn's reported cost.
+			const perInvocationCredits = observableValue<number>('subagentInvocationCredits', 0);
+			let forwardedCredits = 0;
+			store.add(autorun(reader => {
+				const total = perInvocationCredits.read(reader);
+				const delta = total - forwardedCredits;
+				if (delta !== 0) {
+					forwardedCredits = total;
+					const shared = subagentContext.creditsAccumulator;
+					if (shared) {
+						transaction(tx => shared.set(shared.read(undefined) + delta, tx));
+					}
+				}
+				if (total > 0 && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.credits !== total) {
+					invocation.toolSpecificData.credits = total;
+					invocation.notifyToolSpecificDataChanged();
+				}
+			}));
+
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, subagentContext, perInvocationCredits);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -2745,7 +2770,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 					if (childState) {
 						const innerParts: IChatProgress[] = [];
+						let subagentCredits = 0;
 						for (const turn of childState.turns) {
+							const turnCredits = usageInfoToChatUsage(turn.usage)?.copilotCredits;
+							if (typeof turnCredits === 'number') {
+								subagentCredits += turnCredits;
+							}
 							for (const rp of turn.responseParts) {
 								if (rp.kind === ResponsePartKind.ToolCall) {
 									const tc = rp.toolCall;
@@ -2760,6 +2790,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 										innerParts.push(...fileEditParts);
 									}
 								}
+							}
+						}
+						// Surface this subagent's accumulated credits (AIC) on its
+						// tool's hover after a reload by writing them onto the
+						// serialized subagent tool call.
+						if (subagentCredits > 0) {
+							const subagentPart = item.parts[index];
+							if (subagentPart.kind === 'toolInvocationSerialized' && subagentPart.toolSpecificData?.kind === 'subagent') {
+								subagentPart.toolSpecificData.credits = subagentCredits;
 							}
 						}
 						if (innerParts.length > 0) {
@@ -2797,6 +2836,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		emitProgress: (parts: IChatProgress[]) => void,
 		disposables: DisposableStore,
 		subagentContext: ISubagentContext,
+		perInvocationCreditsAccumulator: ISettableObservable<number>,
 	): void {
 		const childSessionUri = buildSubagentSessionUri(parentSession.toString(), parentToolCallId);
 		const childUri = URI.parse(childSessionUri);
@@ -2848,7 +2888,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						sink: emitProgress,
 						cancellationToken: cts.token,
 						subAgentInvocationId: parentToolCallId,
-						subAgentCreditsAccumulator: subagentContext.creditsAccumulator,
+						subAgentCreditsAccumulator: perInvocationCreditsAccumulator,
 					}));
 				},
 			));
