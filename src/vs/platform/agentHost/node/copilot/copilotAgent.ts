@@ -1804,7 +1804,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private async _resolveChatEntry(session: URI, chatUri: URI): Promise<CopilotAgentSession | undefined> {
 		const sessionId = AgentSession.id(session);
-		if (isDefaultChatUri(chatUri) || chatUri.toString() === session.toString()) {
+		if (isDefaultChatUri(chatUri) || isEqual(chatUri, session)) {
 			return this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(() => undefined);
 		}
 		return this._ensureChatSession(session, chatUri);
