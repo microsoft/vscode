@@ -244,7 +244,13 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 
 ## 10. Per-Session Layout State
 
-`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, persistence, and invariants).
+The session layout controllers manage layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, persistence, and invariants).
+
+The implementation is split across three files in `contrib/layout/browser/`, each with a file-level spec of numbered rules (`B*`/`D*`/`M*`) that the code and tests reference by tag. Each concrete controller self-registers behind a platform guard:
+
+- **`BaseLayoutController`** ([baseSessionLayoutController.ts](contrib/layout/browser/baseSessionLayoutController.ts), [spec](contrib/layout/browser/baseSessionLayoutController.md)) — abstract; shared panel / working-set / persistence / multi-session logic.
+- **`LayoutController`** ([desktopSessionLayoutController.ts](contrib/layout/browser/desktopSessionLayoutController.ts), [spec](contrib/layout/browser/desktopSessionLayoutController.md)) — desktop and web desktop layout. Adds the auxiliary bar / view-state management described below (via the `_registerViewStateManagement()` hook). Imported from `sessions.desktop.main.ts` and `sessions.web.main.ts`.
+- **`MobileLayoutController`** ([mobileSessionLayoutController.ts](contrib/layout/browser/mobileSessionLayoutController.ts), [spec](contrib/layout/browser/mobileSessionLayoutController.md)) — web phone layout (`isWeb && isMobile`). Keeps the shared logic but omits auxiliary bar management, which would cause disruptive auto-expand on narrow viewports. Imported from `sessions.web.main.ts`.
 
 ### Auxiliary Bar
 
@@ -252,7 +258,11 @@ Each session independently remembers whether the auxiliary bar is visible and wh
 
 **The side pane never opens automatically for existing sessions.** It is only shown when the user opens it; the controller never auto-reveals it on session switch or when a chat turn produces new file changes. A session with no explicit "visible" choice (including one that just converted from the new-session view to an existing session) keeps the side pane hidden until the user opens it.
 
-**Default view on new sessions:** An untitled (new-session) session opens the side pane by default — the Files view, or the Changes view once it has changes — and that choice sticks until the user changes it. When the session converts to an existing session the side pane is closed.
+**Default view on new sessions:** An untitled (new-session) session opens the side pane by default — the Files view, or the Changes view once it has changes — and that choice sticks until the user changes it. When a new session is submitted (it converts to a real session while staying active) the side pane is kept as the user left it: if it was open it stays open and switches to the Changes view so changes are visible as soon as they land; if it was closed it stays closed.
+
+**Editor maximized:** While the editor area is maximized (`IAgentWorkbenchLayoutService.isEditorMaximized()`), the Changes view is always shown in the auxiliary bar, **irrespective of the session's previous or saved state**. This is driven directly from the auxiliary-bar sync autorun, so it holds across session changes and changes-state updates while maximized. The forced visibility is never captured as the session's per-session preference, so when the editor is un-maximized the autorun re-runs and restores the session's real auxiliary bar state.
+
+`setEditorMaximized` (in `browser/workbench.ts`) treats maximize as a fully reversible state: on entering it snapshots the editor part's size and the surrounding parts' visibility, and on exiting it restores the auxiliary bar to its pre-maximize visibility and resizes the editor part back to its captured width. Without this, the auxiliary bar that the controller forces visible while maximized would otherwise remain (and shrink the editor) after un-maximizing, so the editor would not return to its previous size.
 
 ### Panel
 
