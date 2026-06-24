@@ -18,6 +18,7 @@ import {
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
+	SessionIdContext,
 } from '../../../common/contextkeys.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ISession } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -26,6 +27,7 @@ import { IActiveSession } from './sessionsManagement.js';
  * The set of session context keys bound to a single {@link IContextKeyService}.
  */
 interface ISessionContextKeys {
+	readonly sessionId: IContextKey<string>;
 	readonly providerId: IContextKey<string>;
 	readonly type: IContextKey<string>;
 	readonly isArchived: IContextKey<boolean>;
@@ -54,6 +56,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 	let keys = boundKeysByService.get(contextKeyService);
 	if (!keys) {
 		keys = {
+			sessionId: SessionIdContext.bindTo(contextKeyService),
 			providerId: SessionProviderIdContext.bindTo(contextKeyService),
 			type: SessionTypeContext.bindTo(contextKeyService),
 			isArchived: SessionIsArchivedContext.bindTo(contextKeyService),
@@ -88,6 +91,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
  */
 export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
 	const keys = getBoundKeys(contextKeyService);
+	keys.sessionId.set(session?.sessionId ?? '');
 	keys.providerId.set(session?.providerId ?? '');
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);

@@ -173,7 +173,7 @@ export class SessionHeader extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
 			// Render every group in the primary slot with a separator between groups
-			// so the New Chat action sits visually separated from the pin/maximize/close cluster.
+			// so the actions stay visually grouped.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 		}));
 
