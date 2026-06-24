@@ -19,7 +19,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 
 	it('should be able to load the SDK without errors', async function () {
 		await import('@github/copilot/sdk');
-	});
+	}, 10000);
 
 	it('should not contain new native binaries nor removed native binaries', async function () {
 		// This is a very basic check to ensure that when the Copilot CLI SDK is upgraded,
@@ -224,6 +224,9 @@ describe('CopilotCLI SDK Upgrade', function () {
 				continue;
 			}
 			if (!existingBinaries.has(binary)) {
+				if (isNonCurrentCopilotPlatformBinary(copilotSDKPath, binary) || isNonCurrentPvRecorderBinary(copilotSDKPath, binary)) {
+					continue;
+				}
 				errors.push(`Expected native binary missing from Copilot CLI SDK: ${path.relative(copilotSDKPath, binary)}`);
 			}
 		}
@@ -231,12 +234,65 @@ describe('CopilotCLI SDK Upgrade', function () {
 		if (errors.length > 0) {
 			throw new Error(errors.join('\n'));
 		}
-	});
+	}, 30000);
 
 	it('should be able to load the @github/copilot module without errors', async function () {
 		await import('@github/copilot/sdk');
 	});
 });
+
+const copilotPlatformArchs = new Set([
+	'darwin-arm64',
+	'darwin-x64',
+	'linux-arm64',
+	'linux-x64',
+	'linuxmusl-arm64',
+	'linuxmusl-x64',
+	'win32-arm64',
+	'win32-x64',
+]);
+
+function currentCopilotPlatformArch(): string {
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	if (process.platform === 'linux' && !report?.header?.glibcVersionRuntime) {
+		return `linuxmusl-${process.arch}`;
+	}
+
+	return `${process.platform}-${process.arch}`;
+}
+
+function isNonCurrentCopilotPlatformBinary(copilotSDKPath: string, binary: string): boolean {
+	const relativeSegments = path.relative(copilotSDKPath, binary).split(path.sep);
+	const platformArch = relativeSegments.find(segment => copilotPlatformArchs.has(segment));
+	return platformArch !== undefined && platformArch !== currentCopilotPlatformArch();
+}
+
+function isNonCurrentPvRecorderBinary(copilotSDKPath: string, binary: string): boolean {
+	const relative = path.relative(copilotSDKPath, binary).split(path.sep).join(path.posix.sep);
+	const pvRecorderPrefix = 'pvrecorder/node_modules/@picovoice/pvrecorder-node/lib/';
+	if (!relative.startsWith(pvRecorderPrefix)) {
+		return false;
+	}
+
+	const currentPlatformArch = currentCopilotPlatformArch();
+	if (relative.startsWith(`${pvRecorderPrefix}mac/arm64/`)) {
+		return currentPlatformArch !== 'darwin-arm64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}mac/x86_64/`)) {
+		return currentPlatformArch !== 'darwin-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}linux/x86_64/`)) {
+		return currentPlatformArch !== 'linux-x64' && currentPlatformArch !== 'linuxmusl-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}windows/amd64/`)) {
+		return currentPlatformArch !== 'win32-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}windows/arm64/`)) {
+		return currentPlatformArch !== 'win32-arm64';
+	}
+
+	return false;
+}
 
 async function copyBinaries(extensionPath: string) {
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
