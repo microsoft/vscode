@@ -2578,6 +2578,13 @@ export class CopilotAgentSession extends Disposable {
 		// before sending). The SDK and AHP share the same three modes
 		// (`interactive` / `plan` / `autopilot`), so we map directly.
 		this._register(wrapper.onSessionModeChanged(e => {
+			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
+			// emit their own `session.mode_changed` events carrying an
+			// `agentId`.
+			if (e.agentId) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring subagent session.mode_changed: agentId=${e.agentId}, ${e.data.previousMode} -> ${e.data.newMode}`);
+				return;
+			}
 			this._logService.info(`[Copilot:${sessionId}] session.mode_changed: ${e.data.previousMode} -> ${e.data.newMode}`);
 			const newMode = e.data.newMode;
 			if (newMode !== 'interactive' && newMode !== 'plan' && newMode !== 'autopilot') {

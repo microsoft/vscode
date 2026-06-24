@@ -3992,6 +3992,18 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
+		test('session.mode_changed from a subagent does not update the session config', async () => {
+			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
+			// emit `session.mode_changed` carrying an `agentId`. These reflect
+			// the sub-agent's internal mode, not the root session's, and must
+			// not flip the shared session mode picker (e.g. to Plan) mid-turn.
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'plan' } as SessionEventPayload<'session.mode_changed'>['data'], { agentId: 'subagent-1' });
+
+			assert.strictEqual(sessionConfigUpdates.length, 0);
+		});
+
 		// ---- no automatic plan → implementation handoff -------------------
 
 		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
