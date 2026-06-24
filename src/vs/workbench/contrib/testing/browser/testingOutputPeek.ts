@@ -111,6 +111,8 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
@@ -308,6 +310,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}
+				// Also check that the message location itself is in a visible
+				// document. The message may point to a different file (e.g. a
+				// utility) than where the test is defined, and opening a non-
+				// visible file just to show a peek would be disruptive.
+				if (!editorUris.has(candidate.location.uri.toString())) {
+					return;
+				}
 				break; //continue
 			}
 			case AutoOpenPeekViewWhen.FailureAnywhere:
@@ -480,7 +489,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		if (!this.peek.get()) {
 			const peek = this.instantiationService.createInstance(TestResultsPeek, this.editor);
 			this.peek.set(peek, undefined);
-			peek.onDidClose(() => {
+			Event.once(peek.onDidClose)(() => {
 				this.visible.set(false);
 				this.peek.set(undefined, undefined);
 			});

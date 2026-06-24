@@ -187,7 +187,7 @@ CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...arg
 	}
 
 	// resolve links
-	for (let i = 0; i < Math.min(resolveCount, list.links.length); i++) {
+	for (let i = 0; i < Math.min(resolveCount as number, list.links.length); i++) {
 		await list.links[i].resolve(CancellationToken.None);
 	}
 

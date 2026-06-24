@@ -119,6 +119,7 @@ export interface IMarkerData {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	origin?: string | undefined;
 }
 
 export interface IResourceMarker {
@@ -140,6 +141,7 @@ export interface IMarker {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	origin?: string | undefined;
 }
 
 export interface MarkerStatistics {

@@ -1,0 +1,10 @@
+{
+    "question": "typescript comments ",
+    "exampleIncludeGlobs": [ "*.ts" ],
+    "queryShouldFind": [
+        [ "example.ts", [
+                "/*",
+                "//"
+            ] ]
+    ]
+}

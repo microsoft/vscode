@@ -22,6 +22,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize2 } from '../../../../nls.js';
+import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
@@ -78,8 +79,8 @@ export interface IExtension {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly supportUrl?: string;
-	readonly iconUrl: string;
-	readonly iconUrlFallback: string;
+	readonly iconUrl?: string;
+	readonly iconUrlFallback?: string;
 	readonly licenseUrl?: string;
 	readonly installCount?: number;
 	readonly rating?: number;
@@ -107,6 +108,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
+	readonly missingFromGallery?: boolean;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
@@ -119,10 +121,12 @@ export interface InstallExtensionOptions extends InstallOptions {
 }
 
 export interface IExtensionsNotification {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
-	dismiss(): void;
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
+	dismiss?(): void;
 }
 
 export interface IExtensionsWorkbenchService {
@@ -144,7 +148,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void>;
-	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
+	downloadVSIX(extension: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
@@ -157,10 +161,13 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateDelayed(extension: IExtension): boolean;
+	getAutoUpdateDelayRemaining(extension: IExtension): number;
+	getAutoUpdateDelay(): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
@@ -181,14 +188,16 @@ export const enum ExtensionEditorTab {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoUpdateDelayConfigurationKey = 'extensions.autoUpdateDelay';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
-export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
+export type AutoUpdateConfigurationValue = 'on' | 'off';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
+	autoUpdateDelay: number;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
@@ -201,8 +210,8 @@ export interface IExtensionContainer extends IDisposable {
 }
 
 export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
+	readonly onFocus: Event<IExtension>;
+	readonly onBlur: Event<IExtension>;
 	filters: {
 		featureId?: string;
 	};
@@ -253,8 +262,10 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
+export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

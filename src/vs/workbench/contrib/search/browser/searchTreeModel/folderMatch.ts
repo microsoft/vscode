@@ -225,9 +225,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 
 	doAddFile(fileMatch: ISearchTreeFileMatch): void {
 		this._fileMatches.set(fileMatch.resource, fileMatch);
-		if (this._unDisposedFileMatches.has(fileMatch.resource)) {
-			this._unDisposedFileMatches.delete(fileMatch.resource);
-		}
+		this._unDisposedFileMatches.delete(fileMatch.resource);
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
@@ -264,9 +262,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 
 		this._folderMatches.set(folderMatch.resource, folderMatch);
 		this._folderMatchesMap.set(folderMatch.resource, folderMatch);
-		if (this._unDisposedFolderMatches.has(folderMatch.resource)) {
-			this._unDisposedFolderMatches.delete(folderMatch.resource);
-		}
+		this._unDisposedFolderMatches.delete(folderMatch.resource);
 	}
 
 	private async batchReplace(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): Promise<any> {

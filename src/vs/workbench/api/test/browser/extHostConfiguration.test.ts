@@ -747,6 +747,7 @@ suite('ExtHostConfiguration', function () {
 		assert.ok(config.has('get'));
 		assert.strictEqual(config.get('get'), 'get-prop');
 		assert.deepStrictEqual(config['get'], config.get);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 

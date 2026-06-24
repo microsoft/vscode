@@ -11,10 +11,9 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
-import { AuthenticationSessionAccount, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../services/authentication/common/authentication.js';
-import { IAuthenticationMcpService } from '../../../../services/authentication/browser/authenticationMcpService.js';
+import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationQueryService } from '../../../../services/authentication/common/authenticationQuery.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
-import { IAuthenticationMcpUsage, IAuthenticationMcpUsageService } from '../../../../services/authentication/browser/authenticationMcpUsageService.js';
 
 export class ManageAccountPreferencesForMcpServerAction extends Action2 {
 	constructor() {
@@ -35,7 +34,7 @@ type AccountPreferenceQuickPickItem = NewAccountQuickPickItem | ExistingAccountQ
 
 interface NewAccountQuickPickItem extends IQuickPickItem {
 	account?: undefined;
-	scopes: string[];
+	scopes: readonly string[];
 	providerId: string;
 }
 
@@ -50,8 +49,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IAuthenticationMcpUsageService private readonly _authenticationUsageService: IAuthenticationMcpUsageService,
-		@IAuthenticationMcpService private readonly _authenticationMcpServersService: IAuthenticationMcpService,
+		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILogService private readonly _logService: ILogService
 	) { }
@@ -65,66 +63,50 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 			throw new Error(`No MCP server with id ${mcpServerId}`);
 		}
 
-		const providerIds = new Array<string>();
-		const providerIdToAccounts = new Map<string, ReadonlyArray<AuthenticationSessionAccount & { lastUsed?: number }>>();
-		if (providerId) {
-			providerIds.push(providerId);
-			providerIdToAccounts.set(providerId, await this._authenticationService.getAccounts(providerId));
-		} else {
-			for (const providerId of this._authenticationService.getProviderIds()) {
-				if (providerId.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
-					// Don't show internal providers
-					continue;
-				}
-				const accounts = await this._authenticationService.getAccounts(providerId);
-				for (const account of accounts) {
-					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => u.mcpServerId === mcpServerId);
-					if (usage) {
-						providerIds.push(providerId);
-						providerIdToAccounts.set(providerId, accounts);
-						break;
+		if (!providerId) {
+			// Use the query service's MCP server-centric approach to find providers that have been used
+			const mcpServerQuery = this._authenticationQueryService.mcpServer(mcpServerId);
+			const providersWithAccess = await mcpServerQuery.getProvidersWithAccess();
+			if (!providersWithAccess.length) {
+				await this._dialogService.info(localize('noAccountUsage', "This MCP server has not used any accounts yet."));
+				return;
+			}
+			providerId = providersWithAccess[0]; // Default to the first provider
+			if (providersWithAccess.length > 1) {
+				const result = await this._quickInputService.pick(
+					providersWithAccess.map(providerId => ({
+						label: this._authenticationService.getProvider(providerId).label,
+						id: providerId,
+					})),
+					{
+						placeHolder: localize('selectProvider', "Select an authentication provider to manage account preferences for"),
+						title: localize('pickAProviderTitle', "Manage MCP Server Account Preferences")
 					}
+				);
+				if (!result) {
+					return; // User cancelled
 				}
+				providerId = result.id;
 			}
 		}
 
-		let chosenProviderId: string | undefined = providerIds[0];
-		if (providerIds.length > 1) {
-			const result = await this._quickInputService.pick(
-				providerIds.map(providerId => ({
-					label: this._authenticationService.getProvider(providerId).label,
-					id: providerId,
-				})),
-				{
-					placeHolder: localize('selectProvider', "Select an authentication provider to manage account preferences for"),
-					title: localize('pickAProviderTitle', "Manage MCP Server Account Preferences")
-				}
-			);
-			chosenProviderId = result?.id;
-		}
-
-		if (!chosenProviderId) {
-			await this._dialogService.info(localize('noAccountUsage', "This MCP server has not used any accounts yet."));
-			return;
-		}
-
-		const currentAccountNamePreference = this._authenticationMcpServersService.getAccountPreference(mcpServerId, chosenProviderId);
-		const accounts = providerIdToAccounts.get(chosenProviderId)!;
-		const items: Array<QuickPickInput<AccountPreferenceQuickPickItem>> = this._getItems(accounts, chosenProviderId, currentAccountNamePreference);
+		// Only fetch accounts for the chosen provider
+		const accounts = await this._authenticationService.getAccounts(providerId);
+		const currentAccountNamePreference = this._authenticationQueryService.provider(providerId).mcpServer(mcpServerId).getPreferredAccount();
+		const items: Array<QuickPickInput<AccountPreferenceQuickPickItem>> = this._getItems(accounts, providerId, currentAccountNamePreference);
 
 		// If the provider supports multiple accounts, add an option to use a new account
-		const provider = this._authenticationService.getProvider(chosenProviderId);
+		const provider = this._authenticationService.getProvider(providerId);
 		if (provider.supportsMultipleAccounts) {
 			// Get the last used scopes for the last used account. This will be used to pre-fill the scopes when adding a new account.
 			// If there's no scopes, then don't add this option.
 			const lastUsedScopes = accounts
-				.flatMap(account => this._authenticationUsageService.readAccountUsages(chosenProviderId!, account.label).find(u => u.mcpServerId === mcpServerId))
-				.filter((usage): usage is IAuthenticationMcpUsage => !!usage)
-				.sort((a, b) => b.lastUsed - a.lastUsed)?.[0]?.scopes;
+				.flatMap(account => this._authenticationQueryService.provider(providerId).account(account.label).mcpServer(mcpServerId).getUsage())
+				.sort((a, b) => b.lastUsed - a.lastUsed)[0]?.scopes; // Sort by timestamp and take the most recent
 			if (lastUsedScopes) {
 				items.push({ type: 'separator' });
 				items.push({
-					providerId: chosenProviderId,
+					providerId: providerId,
 					scopes: lastUsedScopes,
 					label: localize('use new account', "Use a new account..."),
 				});
@@ -186,7 +168,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 			let account: AuthenticationSessionAccount;
 			if (!item.account) {
 				try {
-					const session = await this._authenticationService.createSession(item.providerId, item.scopes);
+					const session = await this._authenticationService.createSession(item.providerId, [...item.scopes]);
 					account = session.account;
 				} catch (e) {
 					this._logService.error(e);
@@ -196,12 +178,13 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 				account = item.account;
 			}
 			const providerId = item.providerId;
-			const currentAccountName = this._authenticationMcpServersService.getAccountPreference(mcpServerId, providerId);
+			const mcpQuery = this._authenticationQueryService.provider(providerId).mcpServer(mcpServerId);
+			const currentAccountName = mcpQuery.getPreferredAccount();
 			if (currentAccountName === account.label) {
 				// This account is already the preferred account
 				continue;
 			}
-			this._authenticationMcpServersService.updateAccountPreference(mcpServerId, providerId, account);
+			mcpQuery.setPreferredAccount(account);
 		}
 	}
 }

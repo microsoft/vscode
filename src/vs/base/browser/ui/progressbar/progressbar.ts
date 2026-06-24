@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from '../../dom.js';
-import { getProgressAcccessibilitySignalScheduler } from './progressAccessibilitySignal.js';
+import { getProgressAccessibilitySignalScheduler } from './progressAccessibilitySignal.js';
 import { RunOnceScheduler } from '../../../common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { isNumber } from '../../../common/types.js';
+import { localize } from '../../../../nls.js';
 import './progressbar.css';
 
 const CSS_DONE = 'done';
@@ -15,8 +16,10 @@ const CSS_ACTIVE = 'active';
 const CSS_INFINITE = 'infinite';
 const CSS_INFINITE_LONG_RUNNING = 'infinite-long-running';
 const CSS_DISCRETE = 'discrete';
+const NLS_PROGRESS_LABEL = localize('progress', "Progress");
 
 export interface IProgressBarOptions extends IProgressBarStyles {
+	ariaLabel?: string;
 }
 
 export interface IProgressBarStyles {
@@ -68,6 +71,7 @@ export class ProgressBar extends Disposable {
 		this.element.classList.add('monaco-progress-container');
 		this.element.setAttribute('role', 'progressbar');
 		this.element.setAttribute('aria-valuemin', '0');
+		this.element.setAttribute('aria-label', options?.ariaLabel && options.ariaLabel.trim() ? options.ariaLabel : NLS_PROGRESS_LABEL);
 		container.appendChild(this.element);
 
 		this.bit = document.createElement('div');
@@ -177,7 +181,7 @@ export class ProgressBar extends Disposable {
 	}
 
 	/**
-	 * Tells the progress bar the total amount of work that has been completed.
+	 * Tells the progress bar the total amount of work (0 to 100) that has been completed.
 	 */
 	setWorked(value: number): ProgressBar {
 		value = Math.max(1, Number(value));
@@ -206,7 +210,7 @@ export class ProgressBar extends Disposable {
 
 	show(delay?: number): void {
 		this.showDelayedScheduler.cancel();
-		this.progressSignal.value = getProgressAcccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY);
+		this.progressSignal.value = getProgressAccessibilitySignalScheduler(ProgressBar.PROGRESS_SIGNAL_DEFAULT_DELAY);
 
 		if (typeof delay === 'number') {
 			this.showDelayedScheduler.schedule(delay);

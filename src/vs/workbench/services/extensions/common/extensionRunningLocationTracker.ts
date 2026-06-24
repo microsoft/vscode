@@ -14,6 +14,7 @@ import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker
 import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
+import { isProposedApiEnabled } from './extensions.js';
 
 export class ExtensionRunningLocationTracker {
 
@@ -118,6 +119,32 @@ export class ExtensionRunningLocationTracker {
 				}
 
 				changeGroup(depGroup, myGroup);
+			}
+		}
+
+		// We will also group things together when there are extensionAffinity declarations
+		for (const [_, extension] of extensions) {
+			if (!extension.extensionAffinity) {
+				continue;
+			}
+			if (!isProposedApiEnabled(extension, 'extensionAffinity')) {
+				this._logService.warn(`Extension '${extension.identifier.value}' declares 'extensionAffinity' in its package.json but does not enable the 'extensionAffinity' API proposal. Add '"enabledApiProposals": ["extensionAffinity"]' to the extension's package.json to use this feature.`);
+				continue;
+			}
+			const myGroup = groups.get(extension.identifier)!;
+			for (const colocateId of extension.extensionAffinity) {
+				const colocateGroup = groups.get(colocateId);
+				if (!colocateGroup) {
+					// the extension is not installed or can't execute, so it has no impact
+					continue;
+				}
+
+				if (colocateGroup === myGroup) {
+					// already in the same group
+					continue;
+				}
+
+				changeGroup(colocateGroup, myGroup);
 			}
 		}
 

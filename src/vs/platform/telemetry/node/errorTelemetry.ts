@@ -13,8 +13,8 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		// Print a console message when rejection isn't handled within N seconds. For details:
 		// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 		// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-		const unhandledPromises: Promise<any>[] = [];
-		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+		const unhandledPromises: Promise<unknown>[] = [];
+		process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
 			unhandledPromises.push(promise);
 			setTimeout(() => {
 				const idx = unhandledPromises.indexOf(promise);
@@ -35,7 +35,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 			}, 1000);
 		});
 
-		process.on('rejectionHandled', (promise: Promise<any>) => {
+		process.on('rejectionHandled', (promise: Promise<unknown>) => {
 			const idx = unhandledPromises.indexOf(promise);
 			if (idx >= 0) {
 				unhandledPromises.splice(idx, 1);

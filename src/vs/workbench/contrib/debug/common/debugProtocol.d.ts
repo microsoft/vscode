@@ -6,7 +6,7 @@
 /** Declaration module describing the VS Code debug protocol.
 	Auto-generated from json schema. Do not edit manually.
 */
-declare module DebugProtocol {
+declare namespace DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
 	interface ProtocolMessage {

@@ -119,6 +119,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 		});
 		this._register(this.onDiff.event(diff => collection.apply(diff)));
 
+		// eslint-disable-next-line local/code-no-any-casts
 		this.projection = this._register(makeTree({
 			collection,
 			onDidProcessDiff: this.onDiff.event,

@@ -1,0 +1,28 @@
+{
+	"extensionConfigurationPolicy": {
+		"github.copilot.nextEditSuggestions.enabled": {
+			"name": "CopilotNextEditSuggestions",
+			"minimumVersion": "1.99",
+			"category": "InteractiveSession",
+			"description": "Whether to enable next edit suggestions (NES). NES can propose a next edit based on your recent changes."
+		},
+		"github.copilot.chat.reviewSelection.enabled": {
+			"name": "CopilotReviewSelection",
+			"minimumVersion": "1.104",
+			"category": "InteractiveSession",
+			"description": "Enables code review on current selection."
+		},
+		"github.copilot.chat.reviewAgent.enabled": {
+			"name": "CopilotReviewAgent",
+			"minimumVersion": "1.104",
+			"category": "InteractiveSession",
+			"description": "Enables the code review agent."
+		},
+		"github.copilot.chat.claudeAgent.enabled": {
+			"name": "Claude3PIntegration",
+			"minimumVersion": "1.113",
+			"category": "InteractiveSession",
+			"description": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."
+		}
+	}
+}

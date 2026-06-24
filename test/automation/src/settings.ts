@@ -7,7 +7,6 @@ import { Editor } from './editor';
 import { Editors } from './editors';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
-import { Quality } from './application';
 
 const SEARCH_BOX_NATIVE_EDIT_CONTEXT = '.settings-editor .suggest-input-container .monaco-editor .native-edit-context';
 const SEARCH_BOX_TEXTAREA = '.settings-editor .suggest-input-container .monaco-editor textarea';
@@ -25,8 +24,8 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.editors.selectTab('settings.json');
-		await this.code.sendKeybinding('right', () =>
-			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
+		await this.code.dispatchKeybinding('right', () =>
+			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.editContextEnabled, s)));
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
@@ -41,8 +40,8 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.editors.selectTab('settings.json');
-		await this.code.sendKeybinding('right', () =>
-			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
+		await this.code.dispatchKeybinding('right', () =>
+			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.editContextEnabled, s)));
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
 		await this.editors.saveOpenedFile();
 	}
@@ -50,7 +49,7 @@ export class SettingsEditor {
 	async clearUserSettings(): Promise<void> {
 		await this.openUserSettingsFile();
 		await this.quickaccess.runCommand('editor.action.selectAll');
-		await this.code.sendKeybinding('Delete', async () => {
+		await this.code.dispatchKeybinding('Delete', async () => {
 			await this.editor.waitForEditorContents('settings.json', contents => contents === '');
 		});
 		await this.editor.waitForTypeInEditor('settings.json', `{`); // will auto close }
@@ -72,12 +71,8 @@ export class SettingsEditor {
 		await this.openUserSettingsUI();
 
 		await this.code.waitAndClick(this._editContextSelector());
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+a');
-		} else {
-			await this.code.sendKeybinding('ctrl+a');
-		}
-		await this.code.sendKeybinding('Delete', async () => {
+		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+a' : 'ctrl+a', async () => { });
+		await this.code.dispatchKeybinding('Delete', async () => {
 			await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
 		});
 		await this.code.waitForTypeInEditor(this._editContextSelector(), query);
@@ -85,11 +80,11 @@ export class SettingsEditor {
 	}
 
 	private _editContextSelector() {
-		return this.code.quality === Quality.Stable ? SEARCH_BOX_TEXTAREA : SEARCH_BOX_NATIVE_EDIT_CONTEXT;
+		return !this.code.editContextEnabled ? SEARCH_BOX_TEXTAREA : SEARCH_BOX_NATIVE_EDIT_CONTEXT;
 	}
 
-	private _acceptEditorSelection(quality: Quality, s: { selectionStart: number; selectionEnd: number }): boolean {
-		if (quality === Quality.Stable) {
+	private _acceptEditorSelection(editContextEnabled: boolean, s: { selectionStart: number; selectionEnd: number }): boolean {
+		if (!editContextEnabled) {
 			return true;
 		}
 		return s.selectionStart === 1 && s.selectionEnd === 1;

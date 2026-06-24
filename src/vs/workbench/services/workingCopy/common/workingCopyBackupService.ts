@@ -152,10 +152,6 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 		}
 	}
 
-	hasBackups(): Promise<boolean> {
-		return this.impl.hasBackups();
-	}
-
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
 		return this.impl.hasBackupSync(identifier, versionId, meta);
 	}
@@ -225,15 +221,6 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		this.model = await WorkingCopyBackupsModel.create(this.backupWorkspaceHome, this.fileService);
 
 		return this.model;
-	}
-
-	async hasBackups(): Promise<boolean> {
-		const model = await this.ready;
-
-		// Ensure to await any pending backup operations
-		await this.joinBackups();
-
-		return model.count() > 0;
 	}
 
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
@@ -540,14 +527,6 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 	declare readonly _serviceBrand: undefined;
 
 	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
-
-	constructor() {
-		super();
-	}
-
-	async hasBackups(): Promise<boolean> {
-		return this.backups.size > 0;
-	}
 
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		const backupResource = this.toBackupResource(identifier);

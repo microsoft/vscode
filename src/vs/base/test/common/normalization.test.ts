@@ -4,64 +4,86 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { removeAccents } from '../../common/normalization.js';
+import { tryNormalizeToBase } from '../../common/normalization.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Normalization', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('removeAccents', function () {
-		assert.strictEqual(removeAccents('joào'), 'joao');
-		assert.strictEqual(removeAccents('joáo'), 'joao');
-		assert.strictEqual(removeAccents('joâo'), 'joao');
-		assert.strictEqual(removeAccents('joäo'), 'joao');
-		// assert.strictEqual(strings.removeAccents('joæo'), 'joao'); // not an accent
-		assert.strictEqual(removeAccents('joão'), 'joao');
-		assert.strictEqual(removeAccents('joåo'), 'joao');
-		assert.strictEqual(removeAccents('joåo'), 'joao');
-		assert.strictEqual(removeAccents('joāo'), 'joao');
+	test('tryNormalizeToBase', function () {
+		assert.strictEqual(tryNormalizeToBase('joào'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joáo'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joâo'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joäo'), 'joao');
+		// assert.strictEqual(strings.tryNormalizeToBase('joæo'), 'joao'); // not an accent
+		assert.strictEqual(tryNormalizeToBase('joão'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joåo'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joåo'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('joāo'), 'joao');
 
-		assert.strictEqual(removeAccents('fôo'), 'foo');
-		assert.strictEqual(removeAccents('föo'), 'foo');
-		assert.strictEqual(removeAccents('fòo'), 'foo');
-		assert.strictEqual(removeAccents('fóo'), 'foo');
-		// assert.strictEqual(strings.removeAccents('fœo'), 'foo');
-		// assert.strictEqual(strings.removeAccents('føo'), 'foo');
-		assert.strictEqual(removeAccents('fōo'), 'foo');
-		assert.strictEqual(removeAccents('fõo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('fôo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('föo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('fòo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('fóo'), 'foo');
+		// assert.strictEqual(strings.tryNormalizeToBase('fœo'), 'foo');
+		// assert.strictEqual(strings.tryNormalizeToBase('føo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('fōo'), 'foo');
+		assert.strictEqual(tryNormalizeToBase('fõo'), 'foo');
 
-		assert.strictEqual(removeAccents('andrè'), 'andre');
-		assert.strictEqual(removeAccents('andré'), 'andre');
-		assert.strictEqual(removeAccents('andrê'), 'andre');
-		assert.strictEqual(removeAccents('andrë'), 'andre');
-		assert.strictEqual(removeAccents('andrē'), 'andre');
-		assert.strictEqual(removeAccents('andrė'), 'andre');
-		assert.strictEqual(removeAccents('andrę'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrè'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andré'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrê'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrë'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrē'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrė'), 'andre');
+		assert.strictEqual(tryNormalizeToBase('andrę'), 'andre');
 
-		assert.strictEqual(removeAccents('hvîc'), 'hvic');
-		assert.strictEqual(removeAccents('hvïc'), 'hvic');
-		assert.strictEqual(removeAccents('hvíc'), 'hvic');
-		assert.strictEqual(removeAccents('hvīc'), 'hvic');
-		assert.strictEqual(removeAccents('hvįc'), 'hvic');
-		assert.strictEqual(removeAccents('hvìc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvîc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvïc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvíc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvīc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvįc'), 'hvic');
+		assert.strictEqual(tryNormalizeToBase('hvìc'), 'hvic');
 
-		assert.strictEqual(removeAccents('ûdo'), 'udo');
-		assert.strictEqual(removeAccents('üdo'), 'udo');
-		assert.strictEqual(removeAccents('ùdo'), 'udo');
-		assert.strictEqual(removeAccents('údo'), 'udo');
-		assert.strictEqual(removeAccents('ūdo'), 'udo');
+		assert.strictEqual(tryNormalizeToBase('ûdo'), 'udo');
+		assert.strictEqual(tryNormalizeToBase('üdo'), 'udo');
+		assert.strictEqual(tryNormalizeToBase('ùdo'), 'udo');
+		assert.strictEqual(tryNormalizeToBase('údo'), 'udo');
+		assert.strictEqual(tryNormalizeToBase('ūdo'), 'udo');
 
-		assert.strictEqual(removeAccents('heÿ'), 'hey');
+		assert.strictEqual(tryNormalizeToBase('heÿ'), 'hey');
 
-		// assert.strictEqual(strings.removeAccents('gruß'), 'grus');
-		assert.strictEqual(removeAccents('gruś'), 'grus');
-		assert.strictEqual(removeAccents('gruš'), 'grus');
+		// assert.strictEqual(strings.tryNormalizeToBase('gruß'), 'grus');
+		assert.strictEqual(tryNormalizeToBase('gruś'), 'grus');
+		assert.strictEqual(tryNormalizeToBase('gruš'), 'grus');
 
-		assert.strictEqual(removeAccents('çool'), 'cool');
-		assert.strictEqual(removeAccents('ćool'), 'cool');
-		assert.strictEqual(removeAccents('čool'), 'cool');
+		assert.strictEqual(tryNormalizeToBase('çool'), 'cool');
+		assert.strictEqual(tryNormalizeToBase('ćool'), 'cool');
+		assert.strictEqual(tryNormalizeToBase('čool'), 'cool');
 
-		assert.strictEqual(removeAccents('ñice'), 'nice');
-		assert.strictEqual(removeAccents('ńice'), 'nice');
+		assert.strictEqual(tryNormalizeToBase('ñice'), 'nice');
+		assert.strictEqual(tryNormalizeToBase('ńice'), 'nice');
+
+		// Different cases
+		assert.strictEqual(tryNormalizeToBase('CAFÉ'), 'cafe');
+		assert.strictEqual(tryNormalizeToBase('Café'), 'cafe');
+		assert.strictEqual(tryNormalizeToBase('café'), 'cafe');
+		assert.strictEqual(tryNormalizeToBase('JOÃO'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('João'), 'joao');
+
+		// Mixed cases with accents
+		assert.strictEqual(tryNormalizeToBase('CaFé'), 'cafe');
+		assert.strictEqual(tryNormalizeToBase('JoÃo'), 'joao');
+		assert.strictEqual(tryNormalizeToBase('AnDrÉ'), 'andre');
+
+		// Precomposed accents
+		assert.strictEqual(tryNormalizeToBase('\u00E9'), 'e');
+		assert.strictEqual(tryNormalizeToBase('\u00E0'), 'a');
+		assert.strictEqual(tryNormalizeToBase('caf\u00E9'), 'cafe');
+
+		// Base + combining accents - lower only
+		assert.strictEqual(tryNormalizeToBase('\u0065\u0301'), '\u0065\u0301');
+		assert.strictEqual(tryNormalizeToBase('Ã\u0061\u0300'), 'ã\u0061\u0300');
+		assert.strictEqual(tryNormalizeToBase('CaF\u0065\u0301'), 'caf\u0065\u0301');
 	});
 });

@@ -6,10 +6,10 @@
 import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { registerColor } from '../colorUtils.js';
+import { registerColor, transparent } from '../colorUtils.js';
 
 // Import the colors we need
-import { contrastBorder, activeContrastBorder } from './baseColors.js';
+import { contrastBorder, activeContrastBorder, foreground } from './baseColors.js';
 import { selectForeground, selectBackground } from './inputColors.js';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from './listColors.js';
 
@@ -39,5 +39,5 @@ export const menuSelectionBorder = registerColor('menu.selectionBorder',
 	nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 
 export const menuSeparatorBackground = registerColor('menu.separatorBackground',
-	{ dark: '#606060', light: '#D4D4D4', hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: transparent(foreground, 0.2), light: transparent(foreground, 0.2), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));

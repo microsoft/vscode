@@ -63,6 +63,7 @@ export interface GridBranchNode<T extends IView> {
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
 
 export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -602,13 +603,14 @@ export class Grid<T extends IView = IView> extends Disposable {
 	/**
 	 * Maximizes the specified view and hides all other views.
 	 * @param view The view to maximize.
+	 * @param excludeViews Optional array of views to exclude from being hidden.
 	 */
-	maximizeView(view: T) {
+	maximizeView(view: T, excludeViews: readonly T[] = []) {
 		if (this.views.size < 2) {
 			throw new Error('At least two views are required to maximize a view');
 		}
 		const location = this.getViewLocation(view);
-		this.gridview.maximizeView(location);
+		this.gridview.maximizeView(location, excludeViews);
 	}
 
 	exitMaximizedView(): void {
@@ -749,7 +751,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -869,7 +871,9 @@ function isGridBranchNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>): n
 }
 
 export function sanitizeGridNodeDescriptor<T>(nodeDescriptor: GridNodeDescriptor<T>, rootNode: boolean): void {
+	// eslint-disable-next-line local/code-no-any-casts
 	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		// eslint-disable-next-line local/code-no-any-casts
 		(nodeDescriptor as any).groups = undefined;
 	}
 

@@ -20,7 +20,7 @@ import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEven
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol.js';
 import { INotebookService } from '../../contrib/notebook/common/notebookService.js';
-import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
+import { AsyncIterableEmitter, AsyncIterableProducer } from '../../../base/common/async.js';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
@@ -101,7 +101,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
-	abstract provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
+	abstract provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult>;
 }
 
 class MainThreadKernelDetectionTask implements INotebookKernelDetectionTask {
@@ -197,7 +197,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._editors.deleteAndDispose(editor);
 	}
 
-	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
+	async $postMessage(handle: number, editorId: string | undefined, message: unknown): Promise<boolean> {
 		const tuple = this._kernels.get(handle);
 		if (!tuple) {
 			throw new Error('kernel already disposed');
@@ -227,11 +227,11 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	}
 
 	private variableRequestIndex = 0;
-	private variableRequestMap = new Map<string, AsyncIterableSource<VariablesResult>>();
+	private variableRequestMap = new Map<string, AsyncIterableEmitter<VariablesResult>>();
 	$receiveVariable(requestId: string, variable: VariablesResult) {
-		const source = this.variableRequestMap.get(requestId);
-		if (source) {
-			source.emitOne(variable);
+		const emitter = this.variableRequestMap.get(requestId);
+		if (emitter) {
+			emitter.emitOne(variable);
 		}
 	}
 
@@ -246,23 +246,18 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
-			provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+			provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
 				const requestId = `${handle}variables${that.variableRequestIndex++}`;
-				if (that.variableRequestMap.has(requestId)) {
-					return that.variableRequestMap.get(requestId)!.asyncIterable;
-				}
 
-				const source = new AsyncIterableSource<VariablesResult>();
-				that.variableRequestMap.set(requestId, source);
-				that._proxy.$provideVariables(handle, requestId, notebookUri, parentId, kind, start, token).then(() => {
-					source.resolve();
-					that.variableRequestMap.delete(requestId);
-				}).catch((err) => {
-					source.reject(err);
-					that.variableRequestMap.delete(requestId);
+				return new AsyncIterableProducer<VariablesResult>(async emitter => {
+					that.variableRequestMap.set(requestId, emitter);
+
+					try {
+						await that._proxy.$provideVariables(handle, requestId, notebookUri, parentId, kind, start, token);
+					} finally {
+						that.variableRequestMap.delete(requestId);
+					}
 				});
-
-				return source.asyncIterable;
 			}
 		}(data, this._languageService);
 

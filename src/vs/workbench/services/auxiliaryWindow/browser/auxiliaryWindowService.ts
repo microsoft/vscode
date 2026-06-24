@@ -11,12 +11,14 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mark } from '../../../../base/common/performance.js';
 import { isFirefox, isWeb } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -50,6 +52,11 @@ export interface IAuxiliaryWindowOpenOptions {
 
 	readonly nativeTitlebar?: boolean;
 	readonly disableFullscreen?: boolean;
+	readonly frameless?: boolean;
+	readonly transparent?: boolean;
+	readonly notResizable?: boolean;
+	readonly noBackgroundThrottling?: boolean;
+	readonly backgroundColor?: string;
 }
 
 export interface IAuxiliaryWindowService {
@@ -116,9 +123,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(window, undefined, hostService, environmentService);
+		super(window, undefined, hostService, environmentService, contextMenuService, layoutService);
 
 		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
 
@@ -246,12 +255,13 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	private readonly windows = new Map<number, IAuxiliaryWindow>();
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 	}
@@ -307,7 +317,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService, this.contextMenuService, this.layoutService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -321,8 +331,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		const defaultSize = DEFAULT_AUX_WINDOW_SIZE;
 
-		const width = Math.max(options?.bounds?.width ?? defaultSize.width, WindowMinimumSize.WIDTH);
-		const height = Math.max(options?.bounds?.height ?? defaultSize.height, WindowMinimumSize.HEIGHT);
+		const width = options?.frameless
+			? (options?.bounds?.width ?? defaultSize.width)
+			: Math.max(options?.bounds?.width ?? defaultSize.width, WindowMinimumSize.WIDTH);
+		const height = options?.frameless
+			? (options?.bounds?.height ?? defaultSize.height)
+			: Math.max(options?.bounds?.height ?? defaultSize.height, WindowMinimumSize.HEIGHT);
 
 		let newWindowBounds: IRectangle = {
 			x: options?.bounds?.x ?? Math.max(activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2, 0),
@@ -353,15 +367,22 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
 			options?.alwaysOnTop ? 'window-always-on-top=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
-			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined,
+			options?.frameless ? 'window-frameless=yes' : undefined,
+			options?.transparent ? 'window-transparent=yes' : undefined,
+			options?.notResizable ? 'window-not-resizable=yes' : undefined,
+			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
+			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
 
 		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('unableToOpenWindow', "The browser interrupted the opening of a new window. Press 'Retry' to try again."),
-				detail: localize('unableToOpenWindowDetail', "To avoid this problem in the future, please ensure to allow popups for this website."),
+				message: localize('unableToOpenWindow', "The browser blocked opening a new window. Press 'Retry' to try again."),
+				custom: {
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+				},
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
@@ -396,6 +417,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
 		for (const metaTag of ['meta[charset="utf-8"]', 'meta[http-equiv="Content-Security-Policy"]', 'meta[name="viewport"]', 'meta[name="theme-color"]']) {
+			// eslint-disable-next-line no-restricted-syntax
 			const metaElement = mainWindow.document.querySelector(metaTag);
 			if (metaElement) {
 				const clonedMetaElement = createMetaElement(auxiliaryWindow.document.head);
@@ -410,6 +432,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 		}
 
+		// eslint-disable-next-line no-restricted-syntax
 		const originalIconLinkTag = mainWindow.document.querySelector('link[rel="icon"]');
 		if (originalIconLinkTag) {
 			const icon = createLinkElement(auxiliaryWindow.document.head);
@@ -457,6 +480,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// all style related nodes have been cloned.
 		pendingLinksToSettle++;
 		try {
+			// eslint-disable-next-line no-restricted-syntax
 			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 				cloneNode(originalNode);
 			}

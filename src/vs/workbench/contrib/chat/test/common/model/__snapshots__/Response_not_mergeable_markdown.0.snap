@@ -1,0 +1,24 @@
+[
+  {
+    content: {
+      value: "markdown1",
+      plainTextValue: "markdown1",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: true,
+      supportAlertSyntax: false
+    },
+    kind: "markdownContent"
+  },
+  {
+    content: {
+      value: "markdown2",
+      plainTextValue: "markdown2",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false,
+      supportAlertSyntax: false
+    },
+    kind: "markdownContent"
+  }
+]

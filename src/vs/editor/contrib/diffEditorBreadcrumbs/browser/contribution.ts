@@ -55,6 +55,17 @@ class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBread
 		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
 		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
 	}
+
+	public getAt(lineNumber: number, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[] {
+		const m = this._currentModel.read(reader);
+		if (!m) { return []; }
+		const symbols = m.asListOfDocumentSymbols()
+			.filter(s => new LineRange(s.range.startLineNumber, s.range.endLineNumber).contains(lineNumber));
+		if (symbols.length === 0) { return []; }
+		symbols.sort(reverseOrder(compareBy(s => s.range.endLineNumber - s.range.startLineNumber, numberComparator)));
+
+		return symbols.map(s => ({ name: s.name, kind: s.kind, startLineNumber: s.range.startLineNumber }));
+	}
 }
 
 HideUnchangedRegionsFeature.setBreadcrumbsSourceFactory((textModel, instantiationService) => {

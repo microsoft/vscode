@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join, normalize } from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from '../../common/debug.js';
+import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager, IDebuggerContribution } from '../../common/debug.js';
 import { Debugger } from '../../common/debugger.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,13 +14,14 @@ import { ExecutableDebugAdapter } from '../../node/debugAdapter.js';
 import { TestTextResourcePropertiesService } from '../../../../../editor/test/common/services/testTextResourcePropertiesService.js';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IJSONSchemaMap } from '../../../../../base/common/jsonSchema.js';
 
 suite('Debug - Debugger', () => {
 	let _debugger: Debugger;
 
 	const extensionFolderPath = '/a/b/c/';
-	const debuggerContribution = {
+	const debuggerContribution: IDebuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
 		program: './out/mock/mockDebug.js',
@@ -144,7 +145,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -157,7 +158,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program));
+		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program!));
 		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
 	});
 
@@ -191,5 +192,36 @@ suite('Debug - Debugger', () => {
 		return _debugger.getInitialConfigurationContent().then(content => {
 			assert.strictEqual(content, expected);
 		}, err => assert.fail(err));
+	});
+
+	test('getSchemaAttributes logs malformed properties and ignores them', () => {
+		let warningMessage: string | undefined;
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warningMessage = message;
+			}
+		}();
+
+		const malformedContribution: IDebuggerContribution = {
+			...debuggerContribution,
+			configurationAttributes: {
+				launch: {
+					properties: {
+						valid: { type: 'string' },
+						malformed: 'integer' as never
+					}
+				}
+			}
+		};
+		const malformedDebugger = new Debugger(adapterManager, malformedContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!, logService);
+		const definitions: IJSONSchemaMap = { common: { properties: {} } };
+
+		const attributes = malformedDebugger.getSchemaAttributes(definitions);
+
+		assert.ok(attributes);
+		assert.strictEqual(attributes![0].properties?.['valid'].type, 'string');
+		assert.strictEqual(attributes![0].properties?.['malformed'], 'integer');
+		assert.ok(warningMessage);
+		assert.match(warningMessage, /^Ignoring malformed debug configuration schema properties for type 'mock': malformed$/);
 	});
 });

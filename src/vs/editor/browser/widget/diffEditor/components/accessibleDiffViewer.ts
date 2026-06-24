@@ -617,14 +617,14 @@ class View extends Disposable {
 		if (item.modifiedLineNumber !== undefined) {
 			let html: string | TrustedHTML = this._getLineHtml(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, item.modifiedLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = modifiedModel.getLineContent(item.modifiedLineNumber);
 		} else {
 			let html: string | TrustedHTML = this._getLineHtml(originalModel, originalOptions, originalModelOpts.tabSize, item.originalLineNumber, this._languageService.languageIdCodec);
 			if (AccessibleDiffViewer._ttPolicy) {
-				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = originalModel.getLineContent(item.originalLineNumber);
@@ -658,6 +658,7 @@ class View extends Disposable {
 	private _getLineHtml(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, languageIdCodec: ILanguageIdCodec): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
@@ -680,7 +681,9 @@ class View extends Disposable {
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			verticalScrollbarSize
 		));
 
 		return r.html;

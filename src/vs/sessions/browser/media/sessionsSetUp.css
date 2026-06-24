@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Loading Overlay ---- */
+
+.sessions-loading-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	transition: opacity 200ms ease-out;
+}
+
+.sessions-loading-overlay.sessions-loading-dismissed {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .sessions-loading-overlay .sessions-loading-icon.codicon {
+	font-size: 112px;
+	color: var(--vscode-foreground);
+	animation: sessions-loading-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sessions-loading-pulse {
+	0%, 100% { opacity: 0.4; transform: scale(0.95); }
+	50%      { opacity: 1;   transform: scale(1.05); }
+}
+
+.monaco-reduce-motion .sessions-loading-overlay .sessions-loading-icon,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-loading-overlay .sessions-loading-icon {
+	animation: none;
+	opacity: 0.7;
+}
+
+/* ---- Welcome Dialog ---- */
+
+.chat-setup-dialog.sessions-main-welcome-dialog {
+
+	/* Icon spacing in vertical layout */
+	&.align-vertical .dialog-message-row > .dialog-icon.codicon {
+		margin-bottom: 12px;
+	}
+
+}
+

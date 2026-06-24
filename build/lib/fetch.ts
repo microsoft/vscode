@@ -42,7 +42,7 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 }
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
-	const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
+	const verbose = !!options.verbose || !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 	try {
 		let startTime = 0;
 		if (verbose) {
@@ -50,16 +50,19 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 			startTime = new Date().getTime();
 		}
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
+		let timeout = setTimeout(() => controller.abort(), 30 * 1000);
 		try {
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
-				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
+				signal: controller.signal
 			});
 			if (verbose) {
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
 			}
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
+				// Reset timeout for body download - large files need more time
+				clearTimeout(timeout);
+				timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 				const contents = Buffer.from(await response.arrayBuffer());
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');

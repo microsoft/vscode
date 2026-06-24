@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from '../list/list.js';
+import { IIdentityProvider, NotSelectableGroupIdType } from '../list/list.js';
 import { getVisibleState, IIndexTreeModelSpliceOptions, isFilterResult } from './indexTreeModel.js';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from './objectTreeModel.js';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
@@ -113,11 +113,14 @@ interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeM
 const wrapIdentityProvider = <T>(base: IIdentityProvider<T>): IIdentityProvider<ICompressedTreeNode<T>> => ({
 	getId(node) {
 		return node.elements.map(e => base.getId(e).toString()).join('\0');
-	}
+	},
+	getGroupId: base.getGroupId ? (node: ICompressedTreeNode<T>): number | NotSelectableGroupIdType => {
+		return base.getGroupId!(node.elements[node.elements.length - 1]);
+	} : undefined
 });
 
 // Exported only for test reasons, do not use directly
-export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
+export class CompressedObjectTreeModel<T, TFilterData = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
 
 	readonly rootRef = null;
 
@@ -351,7 +354,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 // Compressible Object Tree
 
 export type ElementMapper<T> = (elements: T[]) => T;
-export const DefaultElementMapper: ElementMapper<any> = elements => elements[elements.length - 1];
+export const DefaultElementMapper: ElementMapper<unknown> = elements => elements[elements.length - 1];
 
 export type CompressedNodeUnwrapper<T> = (node: ICompressedTreeNode<T>) => T;
 type CompressedNodeWeakMapper<T, TFilterData> = WeakMapper<ITreeNode<ICompressedTreeNode<T> | null, TFilterData>, ITreeNode<T | null, TFilterData>>;
@@ -380,7 +383,10 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 		identityProvider: options.identityProvider && {
 			getId(node: ICompressedTreeNode<T>): { toString(): string } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (node: ICompressedTreeNode<T>): number | NotSelectableGroupIdType => {
+				return options.identityProvider!.getGroupId!(compressedNodeUnwrapper(node));
+			} : undefined
 		},
 		sorter: options.sorter && {
 			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
@@ -405,7 +411,7 @@ export interface ICompressibleObjectTreeModelOptions<T, TFilterData> extends IOb
 	readonly elementMapper?: ElementMapper<T>;
 }
 
-export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
+export class CompressibleObjectTreeModel<T, TFilterData = void> implements IObjectTreeModel<T, TFilterData> {
 
 	readonly rootRef = null;
 
@@ -443,7 +449,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		user: string,
 		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
 	) {
-		this.elementMapper = options.elementMapper || DefaultElementMapper;
+		this.elementMapper = options.elementMapper || (DefaultElementMapper as ElementMapper<T>);
 		const compressedNodeUnwrapper: CompressedNodeUnwrapper<T> = node => this.elementMapper(node.elements);
 		this.nodeMapper = new WeakMapper(node => new CompressedTreeNodeWrapper(compressedNodeUnwrapper, node));
 
@@ -478,11 +484,11 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		return this.model.getListRenderCount(location);
 	}
 
-	getNode(location?: T | null | undefined): ITreeNode<T | null, any> {
+	getNode(location?: T | null | undefined): ITreeNode<T | null, TFilterData> {
 		return this.nodeMapper.map(this.model.getNode(location));
 	}
 
-	getNodeLocation(node: ITreeNode<T | null, any>): T | null {
+	getNodeLocation(node: ITreeNode<T | null, TFilterData>): T | null {
 		return node.element;
 	}
 

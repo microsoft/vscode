@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { IRequestService } from '../../../request/common/request.js';
+import { IRequestCompleteEvent, IRequestService } from '../../../request/common/request.js';
 import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync.js';
 import { RequestsSession, UserDataSyncStoreService } from '../../common/userDataSyncStoreService.js';
 import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
@@ -412,6 +412,7 @@ suite('UserDataSyncRequestsSession', () => {
 
 	const requestService: IRequestService = {
 		_serviceBrand: undefined,
+		onDidCompleteRequest: Event.None as Event<IRequestCompleteEvent>,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
 		async resolveProxy() { return undefined; },
 		async lookupAuthorization() { return undefined; },
@@ -424,10 +425,10 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request('url', {}, CancellationToken.None);
+		await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 
 		try {
-			await testObject.request('url', {}, CancellationToken.None);
+			await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.strictEqual((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
@@ -438,19 +439,19 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('requests are handled after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
-		await testObject.request('url', {}, CancellationToken.None);
+		await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 		await timeout(125);
-		await testObject.request('url', {}, CancellationToken.None);
+		await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 	}));
 
 	test('too many requests are thrown after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
-		await testObject.request('url', {}, CancellationToken.None);
+		await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 		await timeout(125);
-		await testObject.request('url', {}, CancellationToken.None);
+		await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 
 		try {
-			await testObject.request('url', {}, CancellationToken.None);
+			await testObject.request('url', { callSite: 'test' }, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.strictEqual((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);

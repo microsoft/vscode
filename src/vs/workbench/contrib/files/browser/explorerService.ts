@@ -10,7 +10,7 @@ import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicO
 import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
-import { dirname, basename } from '../../../../base/common/resources.js';
+import { dirname, basename, joinPath } from '../../../../base/common/resources.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -26,6 +26,10 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -43,6 +47,7 @@ export class ExplorerService implements IExplorerService {
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
 	private revealExcludeMatcher: ResourceGlobMatcher;
+	private remoteClipboardTempDir: URI | undefined;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -54,7 +59,9 @@ export class ExplorerService implements IExplorerService {
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -62,7 +69,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
-		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
+		this.onFileChangesScheduler = this.disposables.add(new RunOnceScheduler(async () => {
 			const events = this.fileChangeEvents;
 			this.fileChangeEvents = [];
 
@@ -98,7 +105,7 @@ export class ExplorerService implements IExplorerService {
 				await this.refresh(false);
 			}
 
-		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
+		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY));
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
@@ -156,6 +163,10 @@ export class ExplorerService implements IExplorerService {
 
 	registerView(contextProvider: IExplorerView): void {
 		this.view = contextProvider;
+	}
+
+	getViewId(): string | undefined {
+		return this.view?.id;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
@@ -255,9 +266,64 @@ export class ExplorerService implements IExplorerService {
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {
 		const previouslyCutItems = this.cutItems;
 		this.cutItems = cut ? items : undefined;
-		await this.clipboardService.writeResources(items.map(s => s.resource));
+
+		const resources = items.map(s => s.resource);
+
+		// For remote resources, download to a temp location so they can be
+		// pasted both in other VS Code windows and into native file managers.
+		// We replace remote URIs with local file:// URIs pointing to temp copies.
+		const clipboardResources = await this.resolveClipboardResources(resources);
+
+		await this.clipboardService.writeResources(clipboardResources);
 
 		this.view?.itemsCopied(items, cut, previouslyCutItems);
+	}
+
+	/**
+	 * Returns `file://` URIs for all resources. Local files pass through
+	 * unchanged. Remote files are downloaded to a temp directory and their
+	 * temp `file://` URIs are returned instead.
+	 */
+	private async resolveClipboardResources(resources: URI[]): Promise<URI[]> {
+		const result: URI[] = [];
+		const remoteResources = resources.filter(r => r.scheme !== Schemas.file);
+
+		// Local files: use as-is
+		for (const resource of resources) {
+			if (resource.scheme === Schemas.file) {
+				result.push(resource);
+			}
+		}
+
+		// Remote files: download to temp
+		if (remoteResources.length > 0) {
+			try {
+				// Clean up previous temp dir before creating a new one
+				await this.cleanupRemoteClipboardTempDir();
+
+				const tempDir = joinPath(this.environmentService.cacheHome, 'remote-clipboard', generateUuid());
+				await this.fileService.createFolder(tempDir);
+				this.remoteClipboardTempDir = tempDir;
+
+				for (const resource of remoteResources) {
+					// Place each file in its own unique subfolder to avoid
+					// name collisions (e.g. two different folders both have index.ts)
+					const uniqueDir = joinPath(tempDir, generateUuid());
+					await this.fileService.createFolder(uniqueDir);
+					const target = joinPath(uniqueDir, basename(resource));
+					await this.fileService.copy(resource, target, true);
+					result.push(target);
+				}
+			} catch (error) {
+				// If download fails, fall back to the original remote URIs.
+				// VS Code cross-window paste will still work via the proxy
+				// provider, but native paste will not.
+				this.logService.warn('Failed to download remote files for clipboard', error);
+				result.push(...remoteResources);
+			}
+		}
+
+		return result;
 	}
 
 	isCut(item: ExplorerItem): boolean {
@@ -351,7 +417,7 @@ export class ExplorerService implements IExplorerService {
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
-			const parentResource = dirname(addedElement.resource)!;
+			const parentResource = dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {
@@ -446,7 +512,7 @@ export class ExplorerService implements IExplorerService {
 		if (item === undefined || ignore) {
 			return true;
 		}
-		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent?.getChild(name)))) {
 			return false;
 		}
 		const root = item.root;
@@ -499,7 +565,19 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	dispose(): void {
+		this.cleanupRemoteClipboardTempDir();
 		this.disposables.dispose();
+	}
+
+	private async cleanupRemoteClipboardTempDir(): Promise<void> {
+		if (this.remoteClipboardTempDir) {
+			try {
+				await this.fileService.del(this.remoteClipboardTempDir, { recursive: true });
+			} catch {
+				// Best-effort cleanup
+			}
+			this.remoteClipboardTempDir = undefined;
+		}
 	}
 }
 
@@ -521,7 +599,7 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
-	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+	const revealExcludes = configuration?.explorer?.autoRevealExclude;
 
 	if (!revealExcludes) {
 		return {};

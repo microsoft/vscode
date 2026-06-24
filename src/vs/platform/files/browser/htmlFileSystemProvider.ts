@@ -308,6 +308,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			return;
 		}
 
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		const observer = new (globalThis as any).FileSystemObserver((records: FileSystemObserverRecord[]) => {
 			if (disposables.isDisposed) {
 				return;

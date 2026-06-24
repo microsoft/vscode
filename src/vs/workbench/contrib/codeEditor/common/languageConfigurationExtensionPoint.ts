@@ -161,11 +161,22 @@ export class LanguageConfigurationFileHandler extends Disposable {
 
 		let result: CommentRule | undefined = undefined;
 		if (typeof source.lineComment !== 'undefined') {
-			if (typeof source.lineComment !== 'string') {
-				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string.`);
-			} else {
+			if (typeof source.lineComment === 'string') {
 				result = result || {};
 				result.lineComment = source.lineComment;
+			} else if (types.isObject(source.lineComment)) {
+				const lineCommentObj = source.lineComment;
+				if (typeof lineCommentObj.comment === 'string') {
+					result = result || {};
+					result.lineComment = {
+						comment: lineCommentObj.comment,
+						noIndent: lineCommentObj.noIndent
+					};
+				} else {
+					console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment.comment\` to be a string.`);
+				}
+			} else {
+				console.warn(`[${languageId}]: language configuration: expected \`comments.lineComment\` to be a string or an object with comment property.`);
 			}
 		}
 		if (typeof source.blockComment !== 'undefined') {
@@ -519,7 +530,7 @@ const schema: IJSONSchema = {
 		comments: {
 			default: {
 				blockComment: ['/*', '*/'],
-				lineComment: '//'
+				lineComment: { comment: '//', noIndent: false }
 			},
 			description: nls.localize('schema.comments', 'Defines the comment symbols'),
 			type: 'object',
@@ -536,8 +547,21 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'string',
-					description: nls.localize('schema.lineComment', 'The character sequence that starts a line comment.')
+					type: 'object',
+					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+					properties: {
+						comment: {
+							type: 'string',
+							description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+						},
+						noIndent: {
+							type: 'boolean',
+							description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
+							default: false
+						}
+					},
+					required: ['comment'],
+					additionalProperties: false
 				}
 			}
 		},
@@ -723,12 +747,40 @@ const schema: IJSONSchema = {
 					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
 					properties: {
 						start: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.pattern', 'The RegExp pattern for the start marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.flags', 'The RegExp flags for the start marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.start.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 						end: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.pattern', 'The RegExp pattern for the end marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.flags', 'The RegExp flags for the end marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.end.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 					}
 				}

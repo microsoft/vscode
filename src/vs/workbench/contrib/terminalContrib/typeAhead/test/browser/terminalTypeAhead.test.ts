@@ -14,6 +14,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../../common/terminalTypeAheadConfiguration.js';
+import { isString } from '../../../../../../base/common/types.js';
 
 const CSI = `\x1b[`;
 
@@ -36,6 +37,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			succeed = ds.add(new Emitter<IPrediction>());
 			fail = ds.add(new Emitter<IPrediction>());
 
+			// eslint-disable-next-line local/code-no-any-casts
 			stats = ds.add(new PredictionStats({
 				onPredictionAdded: add.event,
 				onPredictionSucceeded: succeed.event,
@@ -528,7 +530,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 function mockCell(char: string, attrs: { [key: string]: unknown } = {}) {
 	return new Proxy({}, {
 		get(_, prop) {
-			if (typeof prop === 'string' && attrs.hasOwnProperty(prop)) {
+			if (isString(prop) && attrs.hasOwnProperty(prop)) {
 				return () => attrs[prop];
 			}
 

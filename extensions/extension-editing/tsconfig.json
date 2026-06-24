@@ -1,9 +1,10 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"typeRoots": [
-			"node_modules/@types"
+			"./node_modules/@types"
 		]
 	},
 	"include": [

@@ -189,7 +189,7 @@ export class MergeEditorModel extends EditorModel {
 							if (shouldRecomputeHandledFromAccepted) {
 								shouldRecomputeHandledFromAccepted = false;
 								for (const [_range, observableState] of states) {
-									const state = observableState.accepted.get();
+									const state = observableState.accepted.read(undefined);
 									const handled = !(state.kind === ModifiedBaseRangeStateKind.base || state.kind === ModifiedBaseRangeStateKind.unrecognized);
 									observableState.handledInput1.set(handled, tx);
 									observableState.handledInput2.set(handled, tx);

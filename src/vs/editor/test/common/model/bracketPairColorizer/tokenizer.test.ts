@@ -187,7 +187,7 @@ export class TokenizedDocument {
 					offset += t.text.length;
 				}
 
-				return new EncodedTokenizationResult(new Uint32Array(arr), new State(state2.lineNumber + 1));
+				return new EncodedTokenizationResult(new Uint32Array(arr), [], new State(state2.lineNumber + 1));
 			}
 		};
 	}

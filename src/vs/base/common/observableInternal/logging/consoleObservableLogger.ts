@@ -77,6 +77,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			const debugTrackUpdating = false;
 			if (debugTrackUpdating) {
 				const updating: IObservable<any>[] = [];
+				// eslint-disable-next-line local/code-no-any-casts
 				(derived as any).__debugUpdating = updating;
 
 				const existingBeginUpdate = derived.beginUpdate;

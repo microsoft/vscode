@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/part.css';
+import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
@@ -11,7 +12,7 @@ import { IStorageService } from '../../platform/storage/common/storage.js';
 import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
-import { assertIsDefined } from '../../base/common/types.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
 export interface IPartOptions {
@@ -30,7 +31,7 @@ export interface ILayoutContentResult {
  * Parts are layed out in the workbench and have their own layout that
  * arranges an optional title and mandatory content area to show content.
  */
-export abstract class Part extends Component implements ISerializableView {
+export abstract class Part<MementoType extends object = object> extends Component<MementoType> implements ISerializableView {
 
 	private _dimension: Dimension | undefined;
 	get dimension(): Dimension | undefined { return this._dimension; }
@@ -43,14 +44,14 @@ export abstract class Part extends Component implements ISerializableView {
 
 	private parent: HTMLElement | undefined;
 	private headerArea: HTMLElement | undefined;
-	private titleArea: HTMLElement | undefined;
-	private contentArea: HTMLElement | undefined;
+	protected titleArea: HTMLElement | undefined;
+	protected contentArea: HTMLElement | undefined;
 	private footerArea: HTMLElement | undefined;
 	private partLayout: PartLayout | undefined;
 
 	constructor(
 		id: string,
-		private options: IPartOptions,
+		protected options: IPartOptions,
 		themeService: IThemeService,
 		storageService: IStorageService,
 		protected readonly layoutService: IWorkbenchLayoutService
@@ -99,29 +100,12 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	/**
-	 * Returns the title area container.
-	 */
-	protected getTitleArea(): HTMLElement | undefined {
-		return this.titleArea;
-	}
-
-	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
 	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
 		return undefined;
 	}
 
-	/**
-	 * Returns the content area container.
-	 */
-	protected getContentArea(): HTMLElement | undefined {
-		return this.contentArea;
-	}
-
-	/**
-	 * Sets the header area
-	 */
 	protected setHeaderArea(headerContainer: HTMLElement): void {
 		if (this.headerArea) {
 			throw new Error('Header already exists');
@@ -140,9 +124,6 @@ export abstract class Part extends Component implements ISerializableView {
 		this.relayout();
 	}
 
-	/**
-	 * Sets the footer area
-	 */
 	protected setFooterArea(footerContainer: HTMLElement): void {
 		if (this.footerArea) {
 			throw new Error('Footer already exists');
@@ -161,9 +142,6 @@ export abstract class Part extends Component implements ISerializableView {
 		this.relayout();
 	}
 
-	/**
-	 * removes the header area
-	 */
 	protected removeHeaderArea(): void {
 		if (this.headerArea) {
 			this.headerArea.remove();
@@ -173,9 +151,6 @@ export abstract class Part extends Component implements ISerializableView {
 		}
 	}
 
-	/**
-	 * removes the footer area
-	 */
 	protected removeFooterArea(): void {
 		if (this.footerArea) {
 			this.footerArea.remove();
@@ -186,15 +161,28 @@ export abstract class Part extends Component implements ISerializableView {
 	}
 
 	private relayout() {
-		if (this.dimension && this.contentPosition) {
-			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		const dimension = this.getRelayoutDimension();
+		if (dimension && this.contentPosition) {
+			this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left);
 		}
 	}
+
+	/**
+	 * The dimension to use when the part re-lays out itself in response to internal
+	 * changes (e.g. title, header or footer visibility). Subclasses that reduce the
+	 * dimension passed to {@link layout} (for example to reserve space for a floating
+	 * card margin) must override this to return the original, unreduced dimension so
+	 * the reduction is not applied repeatedly on every relayout.
+	 */
+	protected getRelayoutDimension(): Dimension | undefined {
+		return this._dimension;
+	}
+
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
-		const partLayout = assertIsDefined(this.partLayout);
+		const partLayout = assertReturnsDefined(this.partLayout);
 
 		return partLayout.layout(width, height);
 	}
@@ -291,7 +279,7 @@ export interface IMultiWindowPart {
 	readonly element: HTMLElement;
 }
 
-export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Component {
+export abstract class MultiWindowParts<T extends IMultiWindowPart, MementoType extends object = object> extends Component<MementoType> {
 
 	protected readonly _parts = new Set<T>();
 	get parts() { return Array.from(this._parts); }

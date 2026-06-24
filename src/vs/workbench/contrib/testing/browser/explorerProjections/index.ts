@@ -26,7 +26,7 @@ export interface ITestTreeProjection extends IDisposable {
 	/**
 	 * Event that fires when the projection changes.
 	 */
-	onUpdate: Event<void>;
+	readonly onUpdate: Event<void>;
 
 	/**
 	 * State to use for applying default collapse state of items.

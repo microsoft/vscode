@@ -241,7 +241,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
-		const treeSitterTree = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree.get();
+		const backend = (this._model.tokenization as TokenizationTextModelPart).tokens.get();
+		const asTreeSitterBackend = backend instanceof TreeSitterSyntaxTokenBackend ? backend : undefined;
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -250,6 +251,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (this._isDisposed) {
 				return;
 			}
+			const treeSitterTree = asTreeSitterBackend?.tree.get();
 			this._compute(grammar, semanticTokens, treeSitterTree, position);
 			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
@@ -285,13 +287,16 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
 		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
+		const semTokenLength = semanticTokenInfo && this._model.getValueLengthInRange(semanticTokenInfo.range);
+		const tmTokenLength = textMateTokenInfo && (textMateTokenInfo.token.endIndex - textMateTokenInfo.token.startIndex);
 
 		const tokenText = semTokenText || tmTokenText || '';
+		const tokenLength = semTokenLength || tmTokenLength || 0;
 
 		dom.reset(this._domNode,
 			$('h2.tiw-token', undefined,
 				tokenText,
-				$('span.tiw-token-length', undefined, `${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'}`)));
+				$('span.tiw-token-length', undefined, `${tokenLength} ${tokenLength === 1 ? 'char' : 'chars'}`)));
 		dom.append(this._domNode, $('hr.tiw-metadata-separator', { 'style': 'clear:both' }));
 		dom.append(this._domNode, $('table.tiw-metadata-table', undefined,
 			$('tbody', undefined,

@@ -198,7 +198,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		// resource scheme.
 
 		const defaultSizeLimit = getLargeFileConfirmationLimit(this.resource);
-		let configuredSizeLimit: number | undefined = undefined;
+		let configuredSizeLimit: number | undefined;
 
 		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(this.resource, null, 'workbench.editorLargeFileConfirmation');
 		if (isConfigured(configuredSizeLimitMb)) {

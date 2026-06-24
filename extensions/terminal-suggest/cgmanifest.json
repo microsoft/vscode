@@ -88,7 +88,8 @@
 				"type": "git",
 				"git": {
 					"repositoryUrl": "https://github.com/zsh-users/zsh",
-					"commitHash": "435cb1b748ce1f2f5c38edc1d64f4ee2424f9b3a"
+					"commitHash": "435cb1b748ce1f2f5c38edc1d64f4ee2424f9b3a",
+					"tag": "5.9"
 				}
 			},
 			"version": "5.9",

@@ -6,7 +6,8 @@
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { IOutputItemDto, isTextStreamMime } from '../../common/notebookCommon.js';
+import { IOutputItemDto } from '../../common/notebookCommon.js';
+import { isTextStreamMime } from '../../../../../base/common/mime.js';
 import { ICellOutputViewModel, ICellViewModel } from '../notebookBrowser.js';
 
 interface Error {

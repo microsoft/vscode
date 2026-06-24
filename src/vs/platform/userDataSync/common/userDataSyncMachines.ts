@@ -32,7 +32,7 @@ export type IUserDataSyncMachine = Readonly<IMachineData> & { readonly isCurrent
 
 export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachinesService>('IUserDataSyncMachinesService');
 export interface IUserDataSyncMachinesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChange: Event<void>;
 
@@ -79,7 +79,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	private static readonly VERSION = 1;
 	private static readonly RESOURCE = 'machines';
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;

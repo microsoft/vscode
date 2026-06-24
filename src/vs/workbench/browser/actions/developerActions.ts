@@ -41,6 +41,18 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
+import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
+import { isObject } from '../../../base/common/types.js';
+import * as json from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -144,10 +156,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
-		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -239,11 +258,18 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
-		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -256,11 +282,11 @@ class ToggleScreencastModeAction extends Action2 {
 		let composing: Element | undefined = undefined;
 		let imeBackSpace = false;
 
-		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+		const clearKeyboardScheduler = disposables.add(new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
 			composing = undefined;
 			length = 0;
-		}, keyboardMarkerTimeout);
+		}, keyboardMarkerTimeout));
 
 		disposables.add(onCompositionStart.event(e => {
 			imeBackSpace = true;
@@ -278,7 +304,7 @@ class ToggleScreencastModeAction extends Action2 {
 				keyboardMarker.innerText = '';
 				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		disposables.add(onCompositionEnd.event(e => {
@@ -296,7 +322,7 @@ class ToggleScreencastModeAction extends Action2 {
 				} else {
 					imeBackSpace = true;
 				}
-				clearKeyboardScheduler.schedule();
+				clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 				return;
 			}
 
@@ -362,13 +388,13 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 
 			length++;
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: unknown; isBubble: boolean } {
 		return resolutionResult.kind === ResultKind.KbFound;
 	}
 
@@ -384,7 +410,7 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
 
-		if (fromCommandsRegistry && fromCommandsRegistry.metadata?.description) {
+		if (fromCommandsRegistry?.metadata?.description) {
 			return { title: typeof fromCommandsRegistry.metadata.description === 'string' ? fromCommandsRegistry.metadata.description : fromCommandsRegistry.metadata.description.value };
 		}
 
@@ -645,12 +671,448 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+/** Human-readable label for a managed-settings {@link ManagedSettingsSource} in the diagnostics report. */
+function managedSettingsSourceLabel(source: ManagedSettingsSource): string {
+	switch (source) {
+		case 'server': return 'GitHub Server API';
+		case 'nativeMdm': return 'Native MDM';
+		case 'none': return 'None (no managed settings active)';
+	}
+}
+
+/** Render a value as a fenced JSON code block for the diagnostics report. */
+function jsonBlock(value: unknown): string {
+	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
+}
+
+/** Header row + separator for the report's two-column `Property | Value` tables. */
+const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
+
+class PolicyDiagnosticsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showPolicyDiagnostics',
+			title: localize2('policyDiagnostics', 'Policy Diagnostics'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const policyService = accessor.get(IPolicyService);
+		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
+		// Native MDM is a desktop-only channel, registered in the renderer service collection on
+		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
+		// accessor is only valid before the first `await` below.
+		let copilotManagedSettingsService: ICopilotManagedSettingsService | undefined;
+		try {
+			copilotManagedSettingsService = accessor.get(ICopilotManagedSettingsService);
+		} catch {
+			// no native MDM channel in this window (e.g. web)
+		}
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+		let content = '# VS Code Policy Diagnostics\n\n';
+		content += '*WARNING: This file may contain sensitive information.*\n\n';
+		content += '## System Information\n\n';
+		content += PROPERTY_VALUE_TABLE_HEADER;
+		content += `| Generated | ${new Date().toISOString()} |\n`;
+		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
+		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
+
+		// Account information
+		content += '## Account Information\n\n';
+		try {
+			const account = await defaultAccountService.getDefaultAccount();
+			const sensitiveKeys = ['sessionId', 'analytics_tracking_id'];
+			if (account) {
+				// Try to get username/display info from the authentication session
+				let username = 'Unknown';
+				let accountLabel = 'Unknown';
+				try {
+					const providerIds = authenticationService.getProviderIds();
+					for (const providerId of providerIds) {
+						const sessions = await authenticationService.getSessions(providerId);
+						const matchingSession = sessions.find(session => session.id === account.sessionId);
+						if (matchingSession) {
+							username = matchingSession.account.id;
+							accountLabel = matchingSession.account.label;
+							break;
+						}
+					}
+				} catch (error) {
+					// Fallback to just session info
+				}
+
+				content += '### Default Account Summary\n\n';
+				content += `**Account ID/Username**: ${username}\n\n`;
+				content += `**Account Label**: ${accountLabel}\n\n`;
+
+				content += '### Detailed Account Properties\n\n';
+				content += PROPERTY_VALUE_TABLE_HEADER;
+
+				// Iterate through all properties of the account object
+				for (const [key, value] of Object.entries(account)) {
+					if (value !== undefined && value !== null) {
+						let displayValue: string;
+
+						// Mask sensitive information
+						if (sensitiveKeys.includes(key)) {
+							displayValue = '***';
+						} else if (typeof value === 'object') {
+							displayValue = JSON.stringify(value);
+						} else {
+							displayValue = String(value);
+						}
+
+						content += `| ${key} | ${displayValue} |\n`;
+					}
+				}
+				const policyData = defaultAccountService.policyData;
+				content += `| policyData | ${policyData ? JSON.stringify(policyData) : 'No Policy Data'} |\n`;
+				content += '\n';
+			} else {
+				content += '*No default account configured*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving account information: ${error}*\n\n`;
+		}
+
+		// Account Policy Gate (forces AI features off until an admin-approved
+		// GitHub account is signed in AND its account-side policy data has resolved).
+		content += '## Account Policy Gate\n\n';
+		try {
+			const gateInfo = accountPolicyGateService.gateInfo;
+			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| State | \`${gateInfo.state}\` |\n`;
+			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
+			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
+			content += '\n';
+			content += '**Legend**\n\n';
+			content += '- `inactive`: gate disabled (no approved orgs configured) — policies behave as account data dictates.\n';
+			content += '- `satisfied`: gate active and approved — account policy values flow normally.\n';
+			content += '- `restricted`: gate active and not satisfied — opted-in policies forced to their restricted value.\n';
+			content += '  - `noAccount`: no default account signed in.\n';
+			content += '  - `wrongProvider`: signed in with a non-GitHub provider.\n';
+			content += '  - `orgNotApproved`: signed in but account is not a member of any approved organization.\n';
+			content += '  - `policyNotResolved`: signed in to an approved org but account-side policy data has not yet been fetched.\n\n';
+		} catch (error) {
+			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
+		}
+
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+			const serverManagedSettings = policyData?.managedSettings;
+
+			const nativeManagedSettings: ManagedSettingsData | undefined = copilotManagedSettingsService?.managedSettings;
+
+			// Reuse the same precedence as policy evaluation so this report can never drift from the
+			// source AccountPolicyService actually applies.
+			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings);
+
+			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
+
+			// Collect non-fatal issues from every managed-settings parsing/normalization callback
+			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
+			// jsonc-style: accumulate every error instead of failing on the first.
+			const parseErrors: { stage: string; message: string }[] = [];
+
+			content += '### GitHub Server API\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n\n`;
+
+			const rawResponse = defaultAccountService.managedSettingsRawResponse;
+			if (isObject(rawResponse)) {
+				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
+				content += '**Raw response** (last successful fetch)\n\n';
+				content += jsonBlock(rawResponse);
+			}
+
+			content += '**Normalized bag**\n\n';
+			content += jsonBlock(serverManagedSettings);
+
+			content += '### Native MDM\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no'} |\n`;
+			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
+			if (copilotManagedSettingsService) {
+				content += jsonBlock(nativeManagedSettings);
+			}
+
+			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
+			// so the report shows exactly what reaches `policy.value(...)`.
+			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
+			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
+				const declared = property.policy?.managedSettings;
+				if (declared) {
+					Object.assign(declaredDefinitions, declared);
+				}
+			}
+			const effective = projectManagedSettings(selection.values ?? {}, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+
+			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
+			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
+			// same jsonc parser so a malformed value surfaces here instead of being silently rejected.
+			for (const key of [COPILOT_ENABLED_PLUGINS_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_EXTRA_MARKETPLACES_KEY]) {
+				const value = effective[key];
+				if (typeof value !== 'string') {
+					continue;
+				}
+				const jsonErrors: json.ParseError[] = [];
+				json.parse(value, jsonErrors);
+				for (const e of jsonErrors) {
+					parseErrors.push({ stage: 'parse', message: `${key} @ offset ${e.offset}: ${getParseErrorMessage(e.error)}` });
+				}
+			}
+
+			content += '### Effective\n\n';
+			content += jsonBlock(effective);
+
+			content += `### Parse Errors (${parseErrors.length})\n\n`;
+			if (parseErrors.length > 0) {
+				content += '| Stage | Message |\n';
+				content += '|-------|---------|\n';
+				for (const { stage, message } of parseErrors) {
+					content += `| ${stage} | ${message.replace(/\|/g, '\\|')} |\n`;
+				}
+				content += '\n';
+			}
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
+		content += '## Policy-Controlled Settings\n\n';
+
+		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
+
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+
+			const collectPolicySetting = (policyName: string, settingKey: string) => {
+				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
+				if (property) {
+					const inspectValue = configurationService.inspect(settingKey);
+					const settingInfo = {
+						name: policyName,
+						key: settingKey,
+						property,
+						inspection: inspectValue
+					};
+
+					if (inspectValue.policyValue !== undefined) {
+						appliedPolicy.push(settingInfo);
+					} else {
+						notAppliedPolicy.push(settingInfo);
+					}
+				}
+			};
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				collectPolicySetting(policyName, settingKey);
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					collectPolicySetting(policyName, settingKey);
+				}
+			}
+
+			// Try to detect where the policy came from
+			const policySourceMemo = new Map<string, string>();
+			const getPolicySource = (policyName: string): string => {
+				if (policySourceMemo.has(policyName)) {
+					return policySourceMemo.get(policyName)!;
+				}
+				try {
+					const policyServiceConstructorName = policyService.constructor.name;
+					if (policyServiceConstructorName === 'MultiplexPolicyService') {
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+						const multiplexService = policyService as any;
+						if (multiplexService.policyServices) {
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
+							for (const service of componentServices) {
+								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
+									policySourceMemo.set(policyName, service.constructor.name);
+									return service.constructor.name;
+								}
+							}
+						}
+					}
+					return '';
+				} catch {
+					return 'Unknown';
+				}
+			};
+
+			content += '### Applied Policy\n\n';
+			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
+			if (appliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
+
+				for (const setting of appliedPolicy) {
+					const defaultValue = JSON.stringify(setting.property.default);
+					const currentValue = JSON.stringify(setting.inspection.value);
+					const policyValue = JSON.stringify(setting.inspection.policyValue);
+					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
+
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*No settings are currently controlled by policies*\n\n';
+			}
+
+			content += '###  Non-applied Policy\n\n';
+			if (notAppliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name  \n';
+				content += '|-------------|-------------|\n';
+
+				for (const setting of notAppliedPolicy) {
+
+					content += `| ${setting.key} | ${setting.name}|\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*All policy-controllable settings are currently being enforced*\n\n';
+			}
+		} else {
+			content += '*No policy-controlled settings found*\n\n';
+		}
+
+		// Authentication diagnostics
+		content += '## Authentication Information\n\n';
+		try {
+			const providerIds = authenticationService.getProviderIds();
+
+			if (providerIds.length > 0) {
+				content += '### Authentication Providers\n\n';
+				content += '| Provider ID | Sessions | Accounts |\n';
+				content += '|-------------|----------|----------|\n';
+
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+						const accounts = sessions.map(session => session.account);
+						const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
+
+						content += `| ${providerId} | ${sessions.length} | ${uniqueAccounts.join(', ') || 'None'} |\n`;
+					} catch (error) {
+						content += `| ${providerId} | Error | ${error} |\n`;
+					}
+				}
+				content += '\n';
+
+				// Detailed session information
+				content += '### Detailed Session Information\n\n';
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+
+						if (sessions.length > 0) {
+							content += `#### ${providerId}\n\n`;
+							content += '| Account | Scopes | Extensions with Access |\n';
+							content += '|---------|--------|------------------------|\n';
+
+							for (const session of sessions) {
+								const accountName = session.account.label;
+								const scopes = session.scopes.join(', ') || 'Default';
+
+								// Get extensions with access to this account
+								try {
+									const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
+									const extensionNames = allowedExtensions
+										.filter(ext => ext.allowed !== false)
+										.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
+										.join(', ') || 'None';
+
+									content += `| ${accountName} | ${scopes} | ${extensionNames} |\n`;
+								} catch (error) {
+									content += `| ${accountName} | ${scopes} | Error: ${error} |\n`;
+								}
+							}
+							content += '\n';
+						}
+					} catch (error) {
+						content += `#### ${providerId}\n*Error retrieving sessions: ${error}*\n\n`;
+					}
+				}
+			} else {
+				content += '*No authentication providers found*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving authentication information: ${error}*\n\n`;
+		}
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: content,
+			languageId: 'markdown',
+			options: { pinned: true, }
+		});
+	}
+}
+
+class SyncAccountPolicyAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.syncAccountPolicy',
+			title: localize2('syncAccountPolicy', 'Sync Account Policy'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			logService.info('[DefaultAccount] Manually syncing account policy');
+			await defaultAccountService.refresh({ forceRefresh: true });
+			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
+		} catch (error) {
+			logService.error('[DefaultAccount] Failed to sync account policy', error);
+			await dialogService.error(
+				localize('syncAccountPolicy.error', "Failed to sync account policy."),
+				error instanceof Error ? error.message : String(error)
+			);
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+registerAction2(PolicyDiagnosticsAction);
+registerAction2(SyncAccountPolicyAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);

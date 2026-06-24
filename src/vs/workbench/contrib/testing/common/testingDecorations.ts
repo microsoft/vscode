@@ -19,7 +19,7 @@ export interface ITestingDecorationsService {
 	 * Fires when something happened to change decorations in an editor.
 	 * Interested consumers should call {@link syncDecorations} to update them.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Signals the code underlying a test message has changed, and it should

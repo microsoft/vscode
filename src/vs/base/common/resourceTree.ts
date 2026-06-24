@@ -75,7 +75,7 @@ function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
 	return result;
 }
 
-export class ResourceTree<T extends NonNullable<any>, C> {
+export class ResourceTree<T extends NonNullable<unknown>, C> {
 
 	readonly root: Node<T, C>;
 

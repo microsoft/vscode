@@ -145,7 +145,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;
@@ -193,6 +193,7 @@ export interface GridBranchNode {
 export type GridNode = GridLeafNode | GridBranchNode;
 
 export function isGridBranchNode(node: GridNode): node is GridBranchNode {
+	// eslint-disable-next-line local/code-no-any-casts
 	return !!(node as any).children;
 }
 
@@ -737,6 +738,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		this._onDidChange.dispose();
+		this._onDidScroll.dispose();
 		this._onDidSashReset.dispose();
 		this._onDidVisibilityChange.dispose();
 
@@ -932,6 +934,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidSetLinkedNode.dispose();
 		this.disposables.dispose();
 	}
 }
@@ -1536,7 +1539,7 @@ export class GridView implements IDisposable {
 		return true;
 	}
 
-	maximizeView(location: GridLocation) {
+	maximizeView(location: GridLocation, excludeViews: readonly IView[] = []) {
 		const [, nodeToMaximize] = this.getNode(location);
 		if (!(nodeToMaximize instanceof LeafNode)) {
 			throw new Error('Location is not a LeafNode');
@@ -1550,11 +1553,13 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
+		const excludeViewSet = new Set(excludeViews);
+
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude) {
+					if (child !== exclude && !excludeViewSet.has(child.view)) {
 						parent.setChildVisible(i, false);
 					}
 				} else {
@@ -1716,7 +1721,7 @@ export class GridView implements IDisposable {
 		const height = json.height;
 
 		const result = new GridView(options);
-		result._deserialize(json.root as ISerializedBranchNode, orientation, deserializer, height);
+		result._deserialize(json.root, orientation, deserializer, height);
 
 		return result;
 	}
@@ -1728,7 +1733,7 @@ export class GridView implements IDisposable {
 	private _deserializeNode(node: ISerializedNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): Node {
 		let result: Node;
 		if (node.type === 'branch') {
-			const serializedChildren = node.data as ISerializedNode[];
+			const serializedChildren = node.data;
 			const children = serializedChildren.map(serializedChild => {
 				return {
 					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),
@@ -1829,6 +1834,7 @@ export class GridView implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidChangeViewMaximized.dispose();
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
 		this.element.remove();

@@ -2,7 +2,7 @@
   "name": "yaml",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -96,7 +96,7 @@
         "editor.autoIndent": "advanced",
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never",
-        "editor.quickSuggestions": { 
+        "editor.quickSuggestions": {
           "strings": "on"
         }
       },

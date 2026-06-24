@@ -37,5 +37,5 @@ export class MockLabelService implements ILabelService {
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return Disposable.None;
 	}
-	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+	readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
 }

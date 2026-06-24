@@ -16,6 +16,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { platform } from '../../../../base/common/process.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -31,9 +32,10 @@ class NPSContribution implements IWorkbenchContribution {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService openerService: IOpenerService,
 		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		if (!productService.npsSurveyUrl || !configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
+		if (!productService.npsSurveyUrl || !configurationService.getValue<boolean>('telemetry.feedback.enabled') || environmentService.isSessionsWindow) {
 			return;
 		}
 
@@ -87,7 +89,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true, priority: NotificationPriority.URGENT }
+			{ priority: NotificationPriority.URGENT }
 		);
 	}
 }

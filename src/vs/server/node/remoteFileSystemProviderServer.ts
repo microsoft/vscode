@@ -8,7 +8,7 @@ import { URI, UriComponents } from '../../base/common/uri.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IFileChange } from '../../platform/files/common/files.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
 import { posix, delimiter } from '../../base/common/path.js';

@@ -16,7 +16,7 @@
 	left: -2px;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-glyph:before {
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-glyph:before {
 	transition: width 80ms linear, left 80ms linear, transform 80ms linear;
 }
 
@@ -101,9 +101,9 @@
 	background-image: linear-gradient(45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-added,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-modified,
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted {
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-added,
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-modified,
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted {
 	transition: opacity 0.5s;
 }
 
@@ -134,7 +134,7 @@
 	border-left: 4px solid var(--vscode-editorGutter-deletedSecondaryBackground);
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:after {
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted:after {
 	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
 }
 
@@ -153,7 +153,7 @@
 	background: var(--vscode-editorGutter-deletedSecondaryBackground);
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-deleted:before {
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted:before {
 	transition: height 80ms linear;
 }
 

@@ -9,19 +9,21 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { IFileService } from '../../files/common/files.js';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
-	public onFoundInFrame = this._onFoundInFrame.event;
+	public readonly onFoundInFrame = this._onFoundInFrame.event;
 
 	constructor(
+		@IFileService fileService: IFileService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this._register(new WebviewProtocolProvider());
+		this._register(new WebviewProtocolProvider(fileService));
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {

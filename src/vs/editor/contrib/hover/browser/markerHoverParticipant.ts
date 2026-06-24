@@ -22,14 +22,17 @@ import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSour
 import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import * as nls from '../../../../nls.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownHover, renderMarkdown } from './markdownHoverParticipant.js';
 import { ILanguageService } from '../../../common/languages/language.js';
-
 
 const $ = dom.$;
 
@@ -65,6 +68,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
@@ -73,7 +78,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = anchor.range.startLineNumber;
+		const anchorRange = anchor.range;
+		if (!model.isValidRange(anchor.range)) {
+			return [];
+		}
+		const lineNumber = anchorRange.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkerHover[] = [];
 		for (const d of lineDecorations) {
@@ -86,9 +95,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			if (isMarkdownString(marker.message)) {
-				result.push(new MarkerHover(this, range, [marker.message], marker));
-			}
+			const contents = isMarkdownString(marker.message) ? [marker.message] : [];
+			result.push(new MarkerHover(this, range, contents, marker));
 		}
 
 		return result;
@@ -110,16 +118,16 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message.toString();
+		const message = hoverPart.marker.message;
+		return isMarkdownString(message) ? message.plainTextValue ?? message.value : message;
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover, context: IEditorHoverRenderContext): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation, } = markerHover.marker;
+		const { source, message, code, relatedInformation } = markerHover.marker;
 
-		console.log({ marker: markerHover.marker });
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
@@ -212,12 +220,38 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
+		// Menu-contributed actions (e.g. fix with inline chat)
+		const menuActions: MenuItemAction[] = [];
+		for (const [, actions] of this._menuService.getMenuActions(MenuId.MarkerHoverStatusBar, this._contextKeyService)) {
+			for (const action of actions) {
+				if (action instanceof MenuItemAction && action.enabled) {
+					menuActions.push(action);
+				}
+			}
+		}
+		const renderMenuActions = () => {
+			for (const action of menuActions) {
+				context.statusBar.addAction({
+					label: action.label,
+					commandId: action.id,
+					iconClass: action.class,
+					run: () => {
+						context.hide();
+						this._editor.setSelection(Range.lift(markerHover.range));
+						action.run();
+					}
+				});
+			}
+		};
+
 		if (!this._editor.getOption(EditorOption.readOnly)) {
 			const quickfixPlaceholderElement = context.statusBar.append($('div'));
 			if (this.recentMarkerCodeActionsInfo) {
 				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
 					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
-						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+						if (menuActions.length === 0) {
+							quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+						}
 					}
 				} else {
 					this.recentMarkerCodeActionsInfo = undefined;
@@ -236,7 +270,12 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 				if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
 					actions.dispose();
-					quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					if (menuActions.length === 0) {
+						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					} else {
+						quickfixPlaceholderElement.style.display = 'none';
+					}
+					renderMenuActions();
 					return;
 				}
 				quickfixPlaceholderElement.style.display = 'none';
@@ -272,15 +311,28 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					context.statusBar.addAction({
 						label: aiCodeAction.action.title,
 						commandId: aiCodeAction.action.command?.id ?? '',
+						iconClass: ThemeIcon.asClassName(Codicon.sparkle),
 						run: () => {
 							const controller = CodeActionController.get(this._editor);
 							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
+				} else {
+					// Only show menu-contributed actions (e.g. inline chat Fix) when there
+					// is no AI code action, to avoid duplicate Fix entry points.
+					renderMenuActions();
 				}
 
+				// Notify that the contents have changed given we added
+				// actions to the hover
+				// https://github.com/microsoft/vscode/issues/250424
+				context.onContentsChanged();
+
 			}, onUnexpectedError);
+		} else {
+			renderMenuActions();
 		}
+
 		return disposables;
 	}
 

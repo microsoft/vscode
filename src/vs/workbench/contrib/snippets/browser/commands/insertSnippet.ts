@@ -127,13 +127,13 @@ export class InsertSnippetAction extends SnippetEditorAction {
 
 			if (name) {
 				// take selected snippet
-				snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })
+				snippetService.getSnippets(languageId, undefined, { includeNoPrefixSnippets: true })
 					.then(snippets => snippets.find(snippet => snippet.name === name))
 					.then(resolve, reject);
 
 			} else {
 				// let user pick a snippet
-				resolve(instaService.invokeFunction(pickSnippet, languageId));
+				resolve(instaService.invokeFunction(pickSnippet, languageId, editor.getModel().uri));
 			}
 		});
 

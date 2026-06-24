@@ -79,11 +79,14 @@ export function register(
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager
 ) {
-	function updateContext() {
-		vscode.commands.executeCommand('setContext', FileReferencesCommand.context, client.apiVersion.gte(FileReferencesCommand.minVersion));
+	function updateContext(overrideValue?: boolean) {
+		vscode.commands.executeCommand('setContext', FileReferencesCommand.context, overrideValue ?? client.apiVersion.gte(FileReferencesCommand.minVersion));
 	}
 	updateContext();
 
 	commandManager.register(new FileReferencesCommand(client));
-	return client.onTsServerStarted(() => updateContext());
+	return vscode.Disposable.from(
+		client.onTsServerStarted(() => updateContext()),
+		new vscode.Disposable(() => updateContext(false)),
+	);
 }

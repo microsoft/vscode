@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, LanguageService, TokenType, Range } from './languageModes';
+import { TextDocument, Position, LanguageService, TokenType, Range } from './languageModes.js';
 
 export interface LanguageRange extends Range {
 	languageId: string | undefined;

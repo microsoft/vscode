@@ -1,0 +1,12 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes function definitions from same file when the active selection is empty",
+        "stateFile": "./explain.16.state.json",
+        "keywords": {
+            "allOf": [
+                "42"
+            ]
+        }
+    }
+]

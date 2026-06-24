@@ -3,21 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Use custom CSS vars to expose padding into parent select for padding calculation */
-.monaco-select-box-dropdown-padding {
-	--dropdown-padding-top: 1px;
-	--dropdown-padding-bottom: 1px;
-}
-
-.hc-black .monaco-select-box-dropdown-padding,
-.hc-light .monaco-select-box-dropdown-padding {
-	--dropdown-padding-top: 3px;
-	--dropdown-padding-bottom: 4px;
-}
-
 .monaco-select-box-dropdown-container {
 	display: none;
-	box-sizing:	border-box;
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
@@ -41,39 +31,34 @@
 	text-align: left;
 	width: 1px;
 	overflow: hidden;
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
 	flex: 0 0 auto;
 	align-self: flex-start;
-	padding-top: var(--dropdown-padding-top);
-	padding-bottom: var(--dropdown-padding-bottom);
-	padding-left: 1px;
-	padding-right: 1px;
 	width: 100%;
 	overflow: hidden;
-	box-sizing:	border-box;
+	box-sizing: border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane {
-	padding: 5px;
+	padding: 5px 6px;
 }
 
-.hc-black .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
-	padding-top: var(--dropdown-padding-top);
-	padding-bottom: var(--dropdown-padding-bottom);
+/* Remove list-level focus ring — individual rows show their own focus indicators */
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list:focus::before {
+	outline: 0 !important;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row {
 	cursor: pointer;
+	padding-left: 2px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
 	text-overflow: ellipsis;
 	overflow: hidden;
-	padding-left: 3.5px;
+	padding-left: 6px;
 	white-space: nowrap;
 	float: left;
 }
@@ -81,7 +66,7 @@
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-detail {
 	text-overflow: ellipsis;
 	overflow: hidden;
-	padding-left: 3.5px;
+	padding-left: 6px;
 	white-space: nowrap;
 	float: left;
 	opacity: 0.7;
@@ -96,16 +81,48 @@
 }
 
 
+/* Separator styling */
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-separator {
+	cursor: default;
+	border-radius: 0;
+	padding: 0;
+}
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-separator > .option-text {
+	visibility: hidden;
+	width: 0;
+	float: none;
+}
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-separator > .option-detail {
+	display: none;
+}
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-separator > .option-decorator-right {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-separator::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: 1px;
+	background-color: var(--vscode-menu-separatorBackground);
+}
+
 /* Accepted CSS hiding technique for accessibility reader text  */
 /* https://webaim.org/techniques/css/invisiblecontent/ */
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .visually-hidden {
-		position: absolute;
-		left: -10000px;
-		top: auto;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
+	position: absolute;
+	left: -10000px;
+	top: auto;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {
@@ -120,7 +137,7 @@
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
-	padding-left: 4px;
+	padding-left: 8px;
 	padding-right: 8px;
 	white-space: nowrap;
 }

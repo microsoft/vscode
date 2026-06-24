@@ -141,7 +141,10 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 
 		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
-		const changes = lineRangeMappingFromRangeMappings(alignments, new ArrayText(originalLines), new ArrayText(modifiedLines));
+		const original = new ArrayText(originalLines);
+		const modified = new ArrayText(modifiedLines);
+
+		const changes = lineRangeMappingFromRangeMappings(alignments, original, modified);
 
 		let moves: MovedText[] = [];
 		if (options.computeMoves) {

@@ -4,7 +4,7 @@
 	"type": "object",
 	"default": {
 		"compilerOptions": {
-			"target": "es2020"
+			"target": "es2024"
 		}
 	}
 }

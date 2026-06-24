@@ -1,0 +1,15 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes types from same file",
+        "stateFile": "./explain.3.state.json",
+        "keywords": {
+            "allOf": [
+                "bar"
+            ],
+            "not": [
+                "Corge"
+            ]
+        }
+    }
+]

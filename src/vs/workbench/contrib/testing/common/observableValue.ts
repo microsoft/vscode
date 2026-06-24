@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StoredValue } from './storedValue.js';
 
 export interface IObservableValue<T> {
-	onDidChange: Event<T>;
+	readonly onDidChange: Event<T>;
 	readonly value: T;
 }
 

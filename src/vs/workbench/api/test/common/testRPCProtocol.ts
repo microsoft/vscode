@@ -33,6 +33,7 @@ export function AnyCallRPCProtocol<T>(useCalls?: { [K in keyof T]: T[K] }) {
 	return SingleProxyRPCProtocol(new Proxy({}, {
 		get(_target, prop: string) {
 			if (useCalls && prop in useCalls) {
+				// eslint-disable-next-line local/code-no-any-casts
 				return (useCalls as any)[prop];
 			}
 			return () => Promise.resolve(undefined);
@@ -146,9 +147,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 		});
 	}
 
-	public dispose() {
-		throw new Error('Not implemented!');
-	}
+	public dispose() { }
 
 	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
 		throw new Error('Not implemented!');
@@ -161,6 +160,7 @@ function simulateWireTransfer<T>(obj: T): T {
 	}
 
 	if (Array.isArray(obj)) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return obj.map(simulateWireTransfer) as any;
 	}
 

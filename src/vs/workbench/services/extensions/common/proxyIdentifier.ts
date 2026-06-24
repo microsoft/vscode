@@ -20,7 +20,7 @@ export interface IRPCProtocol {
 	/**
 	 * Assert these identifiers are already registered via `.set`.
 	 */
-	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+	assertRegistered(identifiers: ProxyIdentifier<unknown>[]): void;
 
 	/**
 	 * Wait for the write buffer (if applicable) to become empty.
@@ -43,7 +43,7 @@ export class ProxyIdentifier<T> {
 	}
 }
 
-const identifiers: ProxyIdentifier<any>[] = [];
+const identifiers: ProxyIdentifier<unknown>[] = [];
 
 export function createProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
 	const result = new ProxyIdentifier<T>(identifier);

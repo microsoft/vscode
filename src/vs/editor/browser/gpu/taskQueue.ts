@@ -5,6 +5,8 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 /**
  * Copyright (c) 2022 The xterm.js authors. All rights reserved.
@@ -41,7 +43,9 @@ abstract class TaskQueue extends Disposable implements ITaskQueue {
 	private _idleCallback?: number;
 	private _i = 0;
 
-	constructor() {
+	constructor(
+		@ILogService private readonly _logService: ILogService
+	) {
 		super();
 		this._register(toDisposable(() => this.clear()));
 	}
@@ -101,7 +105,7 @@ abstract class TaskQueue extends Disposable implements ITaskQueue {
 				// Warn when the time exceeding the deadline is over 20ms, if this happens in practice the
 				// task should be split into sub-tasks to ensure the UI remains responsive.
 				if (lastDeadlineRemaining - taskDuration < -20) {
-					console.warn(`task queue exceeded allotted deadline by ${Math.abs(Math.round(lastDeadlineRemaining - taskDuration))}ms`);
+					this._logService.warn(`task queue exceeded allotted deadline by ${Math.abs(Math.round(lastDeadlineRemaining - taskDuration))}ms`);
 				}
 				this._start();
 				return;
@@ -161,8 +165,10 @@ export const IdleTaskQueue = ('requestIdleCallback' in getActiveWindow()) ? Idle
 export class DebouncedIdleTask {
 	private _queue: ITaskQueue;
 
-	constructor() {
-		this._queue = new IdleTaskQueue();
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this._queue = instantiationService.createInstance(IdleTaskQueue);
 	}
 
 	public set(task: () => boolean | void): void {

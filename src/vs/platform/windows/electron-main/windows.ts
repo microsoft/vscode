@@ -39,12 +39,13 @@ export interface IWindowsMainService {
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
-
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI): Promise<ICodeWindow[]>;
+
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
@@ -123,6 +124,11 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
 	alwaysOnTop?: boolean;
+	frameless?: boolean;
+	transparent?: boolean;
+	notResizable?: boolean;
+	noBackgroundThrottling?: boolean;
+	backgroundColor?: string;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -133,7 +139,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -160,10 +166,26 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		experimentalDarkMode: true
 	};
 
+	if (isWindows) {
+		let borderSetting = windowSettings?.border || 'default';
+		if (borderSetting === 'system') {
+			borderSetting = 'default';
+		}
+		if (borderSetting !== 'default') {
+			if (borderSetting === 'off') {
+				options.accentColor = false;
+			} else if (typeof borderSetting === 'string') {
+				options.accentColor = borderSetting;
+			}
+		}
+	}
+
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-	} else if (isWindows && !environmentMainService.isBuilt) {
-		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	} else if (isWindows) {
+		if (!environmentMainService.isBuilt) {
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+		}
 	}
 
 	if (isMacintosh) {
@@ -182,7 +204,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 	if (useNativeTabs) {
-		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
+		options.tabbingIdentifier = productService.nameShort; // this opts in to native macOS tabs
 	}
 
 	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);
@@ -215,6 +237,34 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.frameless) {
+		options.frame = false;
+		options.titleBarStyle = undefined;
+		options.titleBarOverlay = undefined;
+		options.minWidth = undefined;
+		options.minHeight = undefined;
+	}
+
+	if (overrides?.backgroundColor) {
+		options.backgroundColor = overrides.backgroundColor;
+	}
+
+	if (overrides?.transparent) {
+		options.transparent = true;
+		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.notResizable) {
+		options.resizable = false;
+	}
+
+	if (overrides?.noBackgroundThrottling) {
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false,
+		};
 	}
 
 	return options;

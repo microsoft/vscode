@@ -17,7 +17,7 @@ export class SuggestAlternatives {
 
 	private _index: number = 0;
 	private _model: CompletionModel | undefined;
-	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
+	private _acceptNext: ((selected: ISelectedSuggestion) => unknown) | undefined;
 	private _listener: IDisposable | undefined;
 	private _ignore: boolean | undefined;
 
@@ -40,7 +40,7 @@ export class SuggestAlternatives {
 		this._ignore = false;
 	}
 
-	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => any): void {
+	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => unknown): void {
 
 		// no suggestions -> nothing to do
 		if (model.items.length === 0) {

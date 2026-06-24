@@ -15,6 +15,7 @@ import { ConfigurationTarget } from '../../../configuration/common/configuration
 import { getGalleryExtensionId } from '../../common/extensionManagementUtil.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 suite('AllowedExtensionsService', () => {
 
@@ -208,14 +209,14 @@ suite('AllowedExtensionsService', () => {
 		} as IProductService;
 	}
 
-	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}): IGalleryExtension {
+	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: IStringDictionary<unknown> = {}): IGalleryExtension {
 		const galleryExtension = <IGalleryExtension>Object.create({ type: 'gallery', name, publisher: 'pub', publisherDisplayName: 'Pub', version: '1.0.0', allTargetPlatforms: [TargetPlatform.UNIVERSAL], properties: {}, assets: {}, isSigned: true, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;
 	}
 
-	function aLocalExtension(id: string, manifest: Partial<IExtensionManifest> = {}, properties: any = {}): ILocalExtension {
+	function aLocalExtension(id: string, manifest: Partial<IExtensionManifest> = {}, properties: IStringDictionary<unknown> = {}): ILocalExtension {
 		const [publisher, name] = id.split('.');
 		manifest = { name, publisher, ...manifest };
 		properties = {

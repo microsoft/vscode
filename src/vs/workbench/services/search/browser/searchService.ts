@@ -16,7 +16,8 @@ import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILocalFileSearchWorker, LocalFileSearchWorkerHost } from '../common/localFileSearchWorkerTypes.js';
 import { memoize } from '../../../../base/common/decorators.js';
@@ -50,7 +51,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 
 	protected _worker: IWebWorkerClient<ILocalFileSearchWorker> | null;
 
-	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	private readonly _onDidReceiveTextSearchMatch = this._register(new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>());
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
 	private cache: { key: string; cache: ISearchComplete } | undefined;
@@ -60,6 +61,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
+		@IWebWorkerService private webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._worker = null;
@@ -187,9 +189,11 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	private _getOrCreateWorker(): IWebWorkerClient<ILocalFileSearchWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<ILocalFileSearchWorker>(
-					FileAccess.asBrowserUri('vs/workbench/services/search/worker/localFileSearchMain.js'),
-					'LocalFileSearchWorker'
+				this._worker = this._register(this.webWorkerService.createWorkerClient<ILocalFileSearchWorker>(
+					new WebWorkerDescriptor({
+						esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/services/search/worker/localFileSearchMain.js'),
+						label: 'LocalFileSearchWorker'
+					})
 				));
 				LocalFileSearchWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {

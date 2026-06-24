@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
-
 declare module 'vscode' {
 
 	export interface FindFiles2Options {
@@ -71,6 +69,12 @@ declare module 'vscode' {
 		 * For more info, see the setting description for `search.followSymlinks`.
 		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * Whether glob patterns should be matched case-insensitively.
+		 * Defaults to `false`.
+		 */
+		caseInsensitive?: boolean;
 	}
 
 	/**

@@ -239,6 +239,7 @@ class TestBufferLine implements IBufferLine {
 				wideNullCellOffset++;
 			}
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return {
 			getChars: () => {
 				return x >= cells.length ? '' : cells[x];

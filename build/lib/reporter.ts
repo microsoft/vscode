@@ -10,7 +10,10 @@ import fs from 'fs';
 import path from 'path';
 
 class ErrorLog {
-	constructor(public id: string) {
+	public id: string;
+
+	constructor(id: string) {
+		this.id = id;
 	}
 	allErrors: string[][] = [];
 	startTime: number | null = null;
@@ -73,7 +76,7 @@ function getErrorLog(id: string = '') {
 	return errorLog;
 }
 
-const buildLogFolder = path.join(path.dirname(path.dirname(__dirname)), '.build');
+const buildLogFolder = path.join(path.dirname(path.dirname(import.meta.dirname)), '.build');
 
 try {
 	fs.mkdirSync(buildLogFolder);
@@ -87,10 +90,18 @@ export interface IReporter {
 	end(emitError: boolean): NodeJS.ReadWriteStream;
 }
 
+class ReporterError extends Error {
+	__reporter__ = true;
+}
+
+interface Errors extends Array<string> {
+	__logged__?: boolean;
+}
+
 export function createReporter(id?: string): IReporter {
 	const errorLog = getErrorLog(id);
 
-	const errors: string[] = [];
+	const errors: Errors = [];
 	errorLog.allErrors.push(errors);
 
 	const result = (err: string) => errors.push(err);
@@ -105,14 +116,13 @@ export function createReporter(id?: string): IReporter {
 			errorLog.onEnd();
 
 			if (emitError && errors.length > 0) {
-				if (!(errors as any).__logged__) {
+				if (!errors.__logged__) {
 					errorLog.log();
 				}
 
-				(errors as any).__logged__ = true;
+				errors.__logged__ = true;
 
-				const err = new Error(`Found ${errors.length} errors`);
-				(err as any).__reporter__ = true;
+				const err = new ReporterError(`Found ${errors.length} errors`);
 				this.emit('error', err);
 			} else {
 				this.emit('end');

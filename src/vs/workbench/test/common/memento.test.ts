@@ -26,7 +26,7 @@ suite('Memento', () => {
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
-		const myMemento = new Memento('memento.test', storage);
+		const myMemento = new Memento<{ foo: number[] | string }>('memento.test', storage);
 
 		// Application
 		let memento = myMemento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -101,7 +101,7 @@ suite('Memento', () => {
 	});
 
 	test('Save and Load', () => {
-		const myMemento = new Memento('memento.test', storage);
+		const myMemento = new Memento<{ foo: number[] | string }>('memento.test', storage);
 
 		// Profile
 		let memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -165,8 +165,8 @@ suite('Memento', () => {
 	});
 
 	test('Save and Load - 2 Components with same id', () => {
-		const myMemento = new Memento('memento.test', storage);
-		const myMemento2 = new Memento('memento.test', storage);
+		const myMemento = new Memento<any>('memento.test', storage);
+		const myMemento2 = new Memento<any>('memento.test', storage);
 
 		// Profile
 		let memento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -207,7 +207,7 @@ suite('Memento', () => {
 	});
 
 	test('Clear Memento', () => {
-		let myMemento = new Memento('memento.test', storage);
+		let myMemento = new Memento<{ foo: string; bar: string }>('memento.test', storage);
 
 		// Profile
 		let profileMemento = myMemento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);

@@ -16,7 +16,8 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../../editor/common/config/fontInfoFromSettings.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
@@ -94,7 +95,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 
 	private createFontInfo() {
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		return FontMeasurements.readFontInfo(this.window, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
+		return FontMeasurements.readFontInfo(this.window, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.window).value));
 	}
 
 	protected createEditor(parent: HTMLElement): void {

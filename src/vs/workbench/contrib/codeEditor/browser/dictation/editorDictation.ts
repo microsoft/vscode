@@ -25,7 +25,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -152,7 +152,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const position = this.editor.getPosition();
+		const lineHeight = position ? this.editor.getLineHeightForPosition(position) : this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
 		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
@@ -224,7 +225,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		let lastReplaceTextLength = 0;
 		const replaceText = (text: string, isPreview: boolean) => {
 			if (!previewStart) {
-				previewStart = assertIsDefined(this.editor.getPosition());
+				previewStart = assertReturnsDefined(this.editor.getPosition());
 			}
 
 			const endPosition = new Position(previewStart.lineNumber, previewStart.column + text.length);

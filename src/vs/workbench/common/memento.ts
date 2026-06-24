@@ -9,13 +9,12 @@ import { onUnexpectedError } from '../../base/common/errors.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { Event } from '../../base/common/event.js';
 
-export type MementoObject = { [key: string]: any };
+export class Memento<T extends object> {
 
-export class Memento {
-
-	private static readonly applicationMementos = new Map<string, ScopedMemento>();
-	private static readonly profileMementos = new Map<string, ScopedMemento>();
-	private static readonly workspaceMementos = new Map<string, ScopedMemento>();
+	private static readonly applicationMementos = new Map<string, ScopedMemento<unknown>>();
+	private static readonly applicationSharedMementos = new Map<string, ScopedMemento<unknown>>();
+	private static readonly profileMementos = new Map<string, ScopedMemento<unknown>>();
+	private static readonly workspaceMementos = new Map<string, ScopedMemento<unknown>>();
 
 	private static readonly COMMON_PREFIX = 'memento/';
 
@@ -25,7 +24,7 @@ export class Memento {
 		this.id = Memento.COMMON_PREFIX + id;
 	}
 
-	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+	getMemento(scope: StorageScope, target: StorageTarget): Partial<T> {
 		switch (scope) {
 			case StorageScope.WORKSPACE: {
 				let workspaceMemento = Memento.workspaceMementos.get(this.id);
@@ -56,6 +55,16 @@ export class Memento {
 
 				return applicationMemento.getMemento();
 			}
+
+			case StorageScope.APPLICATION_SHARED: {
+				let applicationSharedMemento = Memento.applicationSharedMementos.get(this.id);
+				if (!applicationSharedMemento) {
+					applicationSharedMemento = new ScopedMemento(this.id, scope, target, this.storageService);
+					Memento.applicationSharedMementos.set(this.id, applicationSharedMemento);
+				}
+
+				return applicationSharedMemento.getMemento();
+			}
 		}
 	}
 
@@ -67,11 +76,15 @@ export class Memento {
 		Memento.workspaceMementos.get(this.id)?.save();
 		Memento.profileMementos.get(this.id)?.save();
 		Memento.applicationMementos.get(this.id)?.save();
+		Memento.applicationSharedMementos.get(this.id)?.save();
 	}
 
 	reloadMemento(scope: StorageScope): void {
-		let memento: ScopedMemento | undefined;
+		let memento: ScopedMemento<unknown> | undefined;
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				memento = Memento.applicationSharedMementos.get(this.id);
+				break;
 			case StorageScope.APPLICATION:
 				memento = Memento.applicationMementos.get(this.id);
 				break;
@@ -97,21 +110,24 @@ export class Memento {
 			case StorageScope.APPLICATION:
 				Memento.applicationMementos.clear();
 				break;
+			case StorageScope.APPLICATION_SHARED:
+				Memento.applicationSharedMementos.clear();
+				break;
 		}
 	}
 }
 
-class ScopedMemento {
+class ScopedMemento<T> {
 
-	private mementoObj: MementoObject;
+	private mementoObj: Partial<T>;
 
 	constructor(private id: string, private scope: StorageScope, private target: StorageTarget, private storageService: IStorageService) {
 		this.mementoObj = this.doLoad();
 	}
 
-	private doLoad(): MementoObject {
+	private doLoad(): Partial<T> {
 		try {
-			return this.storageService.getObject<MementoObject>(this.id, this.scope, {});
+			return this.storageService.getObject(this.id, this.scope, {});
 		} catch (error) {
 			// Seeing reports from users unable to open editors
 			// from memento parsing exceptions. Log the contents
@@ -123,7 +139,7 @@ class ScopedMemento {
 		return {};
 	}
 
-	getMemento(): MementoObject {
+	getMemento(): Partial<T> {
 		return this.mementoObj;
 	}
 
@@ -131,7 +147,7 @@ class ScopedMemento {
 
 		// Clear old
 		for (const name of Object.getOwnPropertyNames(this.mementoObj)) {
-			delete this.mementoObj[name];
+			delete this.mementoObj[name as keyof Partial<T>];
 		}
 
 		// Assign new

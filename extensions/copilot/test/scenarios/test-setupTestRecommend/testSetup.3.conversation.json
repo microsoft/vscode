@@ -1,0 +1,17 @@
+[
+  {
+    "name": "rubyOnRailsApp",
+    "question": "/setupTests",
+    "keywords": {
+      "anyOf": [
+        "rspec",
+        "minitest"
+      ]
+    },
+    "files": [
+      "app/controllers/application_controller.rb",
+      "Gemfile",
+      "config/application.rb"
+    ]
+  }
+]

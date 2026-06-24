@@ -155,7 +155,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
 		// allow-any-unicode-next-line
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…';
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…|';
 		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
@@ -275,10 +275,6 @@ export class LinkComputer {
 						case CharCode.Asterisk:
 							// `*` terminates a link if the link began with `*`
 							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
-							break;
-						case CharCode.Pipe:
-							// `|` terminates a link if the link began with `|`
-							chClass = (linkBeginChCode === CharCode.Pipe) ? CharacterClass.ForceTermination : CharacterClass.None;
 							break;
 						case CharCode.Space:
 							// ` ` allow space in between [ and ]

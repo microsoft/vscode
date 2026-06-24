@@ -98,12 +98,12 @@ class ShareWorkbenchContribution extends Disposable {
 							primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.KeyS,
 						},
 						menu: [
-							{ id: MenuId.CommandCenter, order: 1000 }
+							{ id: MenuId.CommandCenter, order: 3 }
 						]
 					});
 				}
 
-				override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+				override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 					const shareService = accessor.get(IShareService);
 					const activeEditor = accessor.get(IEditorService)?.activeEditor;
 					const resourceUri = (activeEditor && EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))

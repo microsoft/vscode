@@ -12,7 +12,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { getWindow } from '../../../../../base/browser/dom.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalContribSettingId } from '../../terminalContribExports.js';
 
@@ -260,7 +260,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position: ScrollPosition = ScrollPosition.Middle): void {
-		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
 		if (!this._terminal || !marker) {
 			return;
 		}
@@ -330,9 +330,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 							if (i === decorationCount - 1) {
 								element.classList.add('bottom');
 							}
-						}
-						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 						}
 					}));
 				}

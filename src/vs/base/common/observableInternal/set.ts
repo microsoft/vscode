@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
-
+import { IObservable, ITransaction } from '../observable.js';
+import { observableValueOpts } from './observables/observableValueOpts.js';
 
 export class ObservableSet<T> implements Set<T> {
 
@@ -46,27 +46,27 @@ export class ObservableSet<T> implements Set<T> {
 		}
 	}
 
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void {
 		this._data.forEach((value, value2, _set) => {
-			callbackfn.call(thisArg, value, value2, this as any);
+			callbackfn.call(thisArg, value, value2, this);
 		});
 	}
 
-	*entries(): IterableIterator<[T, T]> {
+	*entries(): SetIterator<[T, T]> {
 		for (const value of this._data) {
 			yield [value, value];
 		}
 	}
 
-	*keys(): IterableIterator<T> {
+	*keys(): SetIterator<T> {
 		yield* this._data.keys();
 	}
 
-	*values(): IterableIterator<T> {
+	*values(): SetIterator<T> {
 		yield* this._data.values();
 	}
 
-	[Symbol.iterator](): IterableIterator<T> {
+	[Symbol.iterator](): SetIterator<T> {
 		return this.values();
 	}
 

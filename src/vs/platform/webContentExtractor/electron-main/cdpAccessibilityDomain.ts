@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 
 export interface AXValue {
 	type: AXValueType;
-	value?: any;
+	value?: unknown;
 	relatedNodes?: AXNode[];
 	sources?: AXValueSource[];
 }
@@ -61,9 +61,14 @@ interface AXNodeTree {
 	parent: AXNodeTree | null;
 }
 
-function createNodeTree(nodes: AXNode[]): AXNodeTree | null {
+/**
+ * Creates a forest of node trees from the given AXNodes.
+ * When nodes come from multiple frames (e.g., main frame + iframes),
+ * each frame has its own RootWebArea, resulting in multiple trees.
+ */
+function createNodeTrees(nodes: AXNode[]): AXNodeTree[] {
 	if (nodes.length === 0) {
-		return null;
+		return [];
 	}
 
 	// Create a map of node IDs to their corresponding nodes for quick lookup
@@ -141,14 +146,16 @@ function createNodeTree(nodes: AXNode[]): AXNodeTree | null {
 		}
 	}
 
-	// Find the root node (a node without a parent)
+	// Find all root nodes (nodes without a parent)
+	// When nodes come from multiple frames, each frame has its own root
+	const roots: AXNodeTree[] = [];
 	for (const node of nodeMap.values()) {
 		if (!node.parent) {
-			return node;
+			roots.push(node);
 		}
 	}
 
-	return null;
+	return roots;
 }
 
 /**
@@ -159,23 +166,38 @@ const LINE_MAX_LENGTH = 80;
 
 /**
  * Converts an accessibility tree represented by AXNode objects into a markdown string.
+ * Handles multiple root nodes (e.g., from main frame + iframes) by processing each tree
+ * and combining the results.
  *
  * @param uri The URI of the document
  * @param axNodes The array of AXNode objects representing the accessibility tree
  * @returns A markdown representation of the accessibility tree
  */
 export function convertAXTreeToMarkdown(uri: URI, axNodes: AXNode[]): string {
-	const tree = createNodeTree(axNodes);
-	if (!tree) {
+	const trees = createNodeTrees(axNodes);
+	if (trees.length === 0) {
 		return ''; // Return empty string for empty tree
 	}
 
-	// Process tree to extract main content and navigation links
-	const mainContent = extractMainContent(uri, tree);
-	const navLinks = collectNavigationLinks(tree);
+	// Process each tree and collect main content and navigation links
+	const allMainContent: string[] = [];
+	const allNavLinks: string[] = [];
+
+	for (const tree of trees) {
+		const mainContent = extractMainContent(uri, tree);
+		const navLinks = collectNavigationLinks(tree);
+
+		if (mainContent.trim().length > 0) {
+			allMainContent.push(mainContent);
+		}
+		allNavLinks.push(...navLinks);
+	}
+
+	// Combine all main content from all trees
+	const combinedMainContent = allMainContent.join('\n\n');
 
 	// Combine main content and navigation links
-	return mainContent + (navLinks.length > 0 ? '\n\n## Additional Links\n' + navLinks.join('\n') : '');
+	return combinedMainContent + (allNavLinks.length > 0 ? '\n\n## Additional Links\n' + allNavLinks.join('\n') : '');
 }
 
 function extractMainContent(uri: URI, tree: AXNodeTree): string {
@@ -405,6 +427,11 @@ function processDescriptionListNode(uri: URI, node: AXNodeTree, buffer: string[]
 	buffer.push('\n');
 }
 
+function isTableCell(role: string): boolean {
+	// Match cell, gridcell, columnheader, rowheader roles
+	return role === 'cell' || role === 'gridcell' || role === 'columnheader' || role === 'rowheader';
+}
+
 function processTableNode(node: AXNodeTree, buffer: string[]): void {
 	buffer.push('\n');
 
@@ -413,7 +440,7 @@ function processTableNode(node: AXNodeTree, buffer: string[]): void {
 
 	if (rows.length > 0) {
 		// First row as header
-		const headerCells = rows[0].children.filter(cell => getNodeRole(cell.node).includes('cell'));
+		const headerCells = rows[0].children.filter(cell => isTableCell(getNodeRole(cell.node)));
 
 		// Generate header row
 		const headerContent = headerCells.map(cell => getNodeText(cell.node, false) || ' ');
@@ -424,7 +451,7 @@ function processTableNode(node: AXNodeTree, buffer: string[]): void {
 
 		// Generate data rows
 		for (let i = 1; i < rows.length; i++) {
-			const dataCells = rows[i].children.filter(cell => getNodeRole(cell.node).includes('cell'));
+			const dataCells = rows[i].children.filter(cell => isTableCell(getNodeRole(cell.node)));
 			const rowContent = dataCells.map(cell => getNodeText(cell.node, false) || ' ');
 			buffer.push('| ' + rowContent.join(' | ') + ' |\n');
 		}

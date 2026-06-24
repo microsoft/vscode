@@ -93,7 +93,7 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
@@ -105,6 +105,17 @@ export class ResourcesDropHandler {
 
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus(targetWindow);
+
+		// Check for registered drop handlers
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
+		for (const { resource } of editors) {
+			if (resource) {
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.handleResourceDrop(resource, accessor));
+				if (handled) {
+					return;
+				}
+			}
+		}
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -227,8 +238,14 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	if (!options?.disableStandardTransfer) {
 
 		// Text: allows to paste into text-capable areas
-		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+		// Only include file:// URIs — remote URIs are not meaningful to
+		// native apps and macOS would create .webloc URL bookmark files
+		// when these are dragged to Finder.
+		const nativeResources = fileSystemResources.filter(({ resource }) => resource.scheme === Schemas.file);
+		if (nativeResources.length) {
+			const lineDelimiter = isWindows ? '\r\n' : '\n';
+			event.dataTransfer.setData(DataTransfers.TEXT, nativeResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+		}
 
 		// Download URL: enables support to drag a tab as file to desktop
 		// Requirements:
@@ -470,7 +487,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	private readDragData(type: ViewType): CompositeDragAndDropData | undefined {
 		if (this.transferData.hasData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype)) {
 			const data = this.transferData.getData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
-			if (data && data[0]) {
+			if (data?.[0]) {
 				return new CompositeDragAndDropData(type, data[0].id);
 			}
 		}

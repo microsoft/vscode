@@ -1,0 +1,65 @@
+version: 2
+updates:
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    groups:
+      all:
+        patterns:
+          - "*"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    groups:
+      all:
+        patterns:
+          - "*"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+    groups:
+      all:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "@azure/identity"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"] # Keep @azure/identity because upgrading breaks automation
+      - dependency-name: "@stylistic/eslint-plugin"
+        update-types: ["version-update:semver-major"] # Keep @stylistic/eslint-plugin 3 because 4 requires eslint 9 (@jrieken)
+      - dependency-name: "@hediet/node-reload"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"] # @hediet/node-reload 0.8 for source compatibility (@hediet)
+      - dependency-name: "@types/eslint"
+        update-types: ["version-update:semver-major"] # eslint 8 for json config (@jrieken)
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"] # Keep Node compatibility aligned with current Electron version in VS Code
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"] # @fluentui/react-components currently requires react <19 (@ulugbekna)
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"] # @fluentui/react-components currently requires react <19 (@ulugbekna)
+      - dependency-name: "@types/vscode" # Manually sync with engine version
+      - dependency-name: "@vitest/snapshot"
+        update-types: ["version-update:semver-major"] # @vitest/snapshot 2 for source compatibility (@connor4312)
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"] # eslint 8 for json config (@jrieken)
+      - dependency-name: "eslint-plugin-local"
+        update-types: ["version-update:semver-major"] # eslint-plugin-local 1 for config compatibility (@jrieken)
+      - dependency-name: "lint-staged" # lint-staged 15.2.9 because newer versions fail to retrieve staged changes (@ulugbekna)
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"] # @fluentui/react-components currently requires react <19 (@ulugbekna)
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"] # @fluentui/react-components currently requires react <19 (@ulugbekna)
+
+      - dependency-name: "@vscode/tree-sitter-wasm"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"] # @vscode/tree-sitter-wasm 0.0.5 because extension tests fail with newer versions (@alexr00)
+      - dependency-name: "monaco-editor"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"] # monaco-editor 0.44.0 because the simulation workbench fails to launch (@alexdima @hediet)
+      - dependency-name: "applicationinsights"
+        update-types: ["version-update:semver-major"] # applicationinsights 2 for source compatibility (@lramos15)
+      - dependency-name: "web-tree-sitter"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"] # web-tree-sitter 0.23 for source compatibility (@alexr00)
+    schedule:
+      interval: "weekly"

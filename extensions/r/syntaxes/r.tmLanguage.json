@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/REditorSupport/vscode-R-syntax/commit/8ae62233c4076ccffa19bdb3a4bb4e873a7b802f",
+	"version": "https://github.com/REditorSupport/vscode-R-syntax/commit/b199996070723eefbe7a61e0384b2ae4768eb7f0",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -46,6 +46,9 @@
 		},
 		{
 			"include": "#function-calls"
+		},
+		{
+			"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)"
 		}
 	],
 	"repository": {

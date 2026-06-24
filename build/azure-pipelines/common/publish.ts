@@ -10,7 +10,7 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 import { CosmosClient } from '@azure/cosmos';
 import cp from 'child_process';
 import os from 'os';
@@ -73,15 +73,16 @@ interface ReleaseError {
 	errorMessages: string[];
 }
 
-const enum StatusCode {
-	Pass = 'pass',
-	Aborted = 'aborted',
-	Inprogress = 'inprogress',
-	FailCanRetry = 'failCanRetry',
-	FailDoNotRetry = 'failDoNotRetry',
-	PendingAnalysis = 'pendingAnalysis',
-	Cancelled = 'cancelled'
-}
+const StatusCode = Object.freeze({
+	Pass: 'pass',
+	Aborted: 'aborted',
+	Inprogress: 'inprogress',
+	FailCanRetry: 'failCanRetry',
+	FailDoNotRetry: 'failDoNotRetry',
+	PendingAnalysis: 'pendingAnalysis',
+	Cancelled: 'cancelled'
+});
+type StatusCode = typeof StatusCode[keyof typeof StatusCode];
 
 interface ReleaseResultMessage {
 	activities: ReleaseActivityInfo[];
@@ -315,7 +316,7 @@ function getCertificatesFromPFX(pfx: string): string[] {
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
@@ -341,7 +342,7 @@ class ESRPReleaseService {
 		});
 
 		const response = await app.acquireTokenByClientCredential({
-			scopes: ['https://api.esrp.microsoft.com/.default']
+			scopes: ['https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com/.default']
 		});
 
 		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
@@ -349,15 +350,31 @@ class ESRPReleaseService {
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
+	private readonly log: (...args: unknown[]) => void;
+	private readonly clientId: string;
+	private readonly accessToken: string;
+	private readonly requestSigningCertificates: string[];
+	private readonly requestSigningKey: string;
+	private readonly containerClient: ContainerClient;
+	private readonly stagingSasToken: string;
+
 	private constructor(
-		private readonly log: (...args: any[]) => void,
-		private readonly clientId: string,
-		private readonly accessToken: string,
-		private readonly requestSigningCertificates: string[],
-		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient,
-		private readonly stagingSasToken: string
-	) { }
+		log: (...args: unknown[]) => void,
+		clientId: string,
+		accessToken: string,
+		requestSigningCertificates: string[],
+		requestSigningKey: string,
+		containerClient: ContainerClient,
+		stagingSasToken: string
+	) {
+		this.log = log;
+		this.clientId = clientId;
+		this.accessToken = accessToken;
+		this.requestSigningCertificates = requestSigningCertificates;
+		this.requestSigningKey = requestSigningKey;
+		this.containerClient = containerClient;
+		this.stagingSasToken = stagingSasToken;
+	}
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
@@ -512,17 +529,21 @@ class ESRPReleaseService {
 	}
 
 	private async generateJwsToken(message: ReleaseRequestMessage): Promise<string> {
+		// Create header with properly typed properties, then override x5c with the non-standard string format
+		const header: jws.Header = {
+			alg: 'RS256',
+			crit: ['exp', 'x5t'],
+			// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+			exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+			// Release service uses hex format, not base64url :roll_eyes:
+			x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+		};
+
+		// The Release service expects x5c as a '.' separated string, not the standard array format
+		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+
 		return jws.sign({
-			header: {
-				alg: 'RS256',
-				crit: ['exp', 'x5t'],
-				// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-				exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-				// Release service uses hex format, not base64url :roll_eyes:
-				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
-				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
-			},
+			header,
 			payload: message,
 			privateKey: this.requestSigningKey,
 		});
@@ -594,7 +615,7 @@ export async function requestAZDOAPI<T>(path: string): Promise<T> {
 			throw new Error(`Unexpected status code: ${res.status}`);
 		}
 
-		return await res.json();
+		return await res.json() as T;
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -761,10 +782,16 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'darwin':
 			switch (product) {
 				case 'client':
-					if (arch === 'x64') {
-						return 'darwin';
+					switch (type) {
+						case 'dmg':
+							return `darwin-${arch}-dmg`;
+						case 'archive':
+						default:
+							if (arch === 'x64') {
+								return 'darwin';
+							}
+							return `darwin-${arch}`;
 					}
-					return `darwin-${arch}`;
 				case 'server':
 					if (arch === 'x64') {
 						return 'server-darwin';
@@ -844,7 +871,7 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
@@ -876,7 +903,7 @@ async function processArtifact(
 			await stagingContainerClient.createIfNotExists();
 
 			const now = new Date().valueOf();
-			const oneHour = 60 * 60 * 1000;
+			const oneHour = 120 * 60 * 1000;
 			const oneHourAgo = new Date(now - oneHour);
 			const oneHourFromNow = new Date(now + oneHour);
 			const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
@@ -943,16 +970,7 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile']);
-
-	if (
-		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
-		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
-		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
-		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
-	) {
-		stages.add('CompileCLI');
-	}
+	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
@@ -1005,7 +1023,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
@@ -1071,7 +1089,7 @@ async function main() {
 	console.log(`All ${done.size} artifacts published!`);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

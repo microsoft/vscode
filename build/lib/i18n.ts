@@ -5,20 +5,17 @@
 
 import path from 'path';
 import fs from 'fs';
-
-import { map, merge, through, ThroughStream } from 'event-stream';
-import jsonMerge from 'gulp-merge-json';
+import eventStream from 'event-stream';
+import { mergeJson, gulp } from './gulp/facade.ts';
 import File from 'vinyl';
 import xml2js from 'xml2js';
-import gulp from 'gulp';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
-import iconv from '@vscode/iconv-lite-umd';
-import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
+import { type l10nJsonFormat, getL10nXlf, type l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
 
-const REPO_ROOT_PATH = path.join(__dirname, '../..');
+const REPO_ROOT_PATH = path.join(import.meta.dirname, '../..');
 
-function log(message: any, ...rest: any[]): void {
+function log(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 
@@ -26,10 +23,6 @@ export interface Language {
 	id: string; // language id, e.g. zh-tw, de
 	translationId?: string; // language id used in translation tools, e.g. zh-hant, de (optional, if not set, the id is used)
 	folderName?: string; // language specific folder name, e.g. cht, deu  (optional, if not set, the id is used)
-}
-
-export interface InnoSetup {
-	codePage: string; //code page for encoding (http://www.jrsoftware.org/ishelp/index.php?topic=langoptionssection)
 }
 
 export const defaultLanguages: Language[] = [
@@ -44,11 +37,12 @@ export const defaultLanguages: Language[] = [
 	{ id: 'it', folderName: 'ita' }
 ];
 
-// languages requested by the community to non-stable builds
+// languages requested by the community
 export const extraLanguages: Language[] = [
 	{ id: 'pt-br', folderName: 'ptb' },
-	{ id: 'hu', folderName: 'hun' },
-	{ id: 'tr', folderName: 'trk' }
+	{ id: 'tr', folderName: 'trk' },
+	{ id: 'cs' },
+	{ id: 'pl' }
 ];
 
 interface Item {
@@ -67,11 +61,9 @@ interface LocalizeInfo {
 	comment: string[];
 }
 
-module LocalizeInfo {
-	export function is(value: any): value is LocalizeInfo {
-		const candidate = value as LocalizeInfo;
-		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
-	}
+function isLocalizeInfo(value: unknown): value is LocalizeInfo {
+	const candidate = value as LocalizeInfo;
+	return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 }
 
 interface BundledFormat {
@@ -80,30 +72,15 @@ interface BundledFormat {
 	bundles: Record<string, string[]>;
 }
 
-module BundledFormat {
-	export function is(value: any): value is BundledFormat {
-		if (value === undefined) {
-			return false;
-		}
-
-		const candidate = value as BundledFormat;
-		const length = Object.keys(value).length;
-
-		return length === 3 && !!candidate.keys && !!candidate.messages && !!candidate.bundles;
-	}
-}
-
 type NLSKeysFormat = [string /* module ID */, string[] /* keys */];
 
-module NLSKeysFormat {
-	export function is(value: any): value is NLSKeysFormat {
-		if (value === undefined) {
-			return false;
-		}
-
-		const candidate = value as NLSKeysFormat;
-		return Array.isArray(candidate) && Array.isArray(candidate[1]);
+function isNLSKeysFormat(value: unknown): value is NLSKeysFormat {
+	if (value === undefined) {
+		return false;
 	}
+
+	const candidate = value as NLSKeysFormat;
+	return Array.isArray(candidate) && Array.isArray(candidate[1]);
 }
 
 interface BundledExtensionFormat {
@@ -145,6 +122,11 @@ class TextModel {
 	private _lines: string[];
 
 	constructor(contents: string) {
+		// Strip a leading UTF-8 BOM (U+FEFF) so callers can match on the
+		// first character of the first line without having to special-case it.
+		if (contents.charCodeAt(0) === 0xFEFF) {
+			contents = contents.slice(1);
+		}
 		this._lines = contents.split(/\r\n|\r|\n/);
 	}
 
@@ -157,8 +139,10 @@ export class XLF {
 	private buffer: string[];
 	private files: Record<string, Item[]>;
 	public numberOfMessages: number;
+	public project: string;
 
-	constructor(public project: string) {
+	constructor(project: string) {
+		this.project = project;
 		this.buffer = [];
 		this.files = Object.create(null);
 		this.numberOfMessages = 0;
@@ -200,7 +184,7 @@ export class XLF {
 			if (typeof key === 'string') {
 				realKey = key;
 				comment = undefined;
-			} else if (LocalizeInfo.is(key)) {
+			} else if (isLocalizeInfo(key)) {
 				realKey = key.key;
 				if (key.comment && key.comment.length > 0) {
 					comment = key.comment.map(comment => encodeEntities(comment)).join('\r\n');
@@ -254,7 +238,7 @@ export class XLF {
 
 			const files: { messages: Record<string, string>; name: string; language: string }[] = [];
 
-			parser.parseString(xlfString, function (err: any, result: any) {
+			parser.parseString(xlfString, function (err: Error | undefined, result: any) {
 				if (err) {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
@@ -344,7 +328,7 @@ function stripComments(content: string): string {
 	return result;
 }
 
-function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: ThroughStream) {
+function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: eventStream.ThroughStream) {
 	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
 	if (!fs.existsSync(languageDirectory)) {
 		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
@@ -384,14 +368,14 @@ globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
 	});
 }
 
-export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		const fileName = path.basename(file.path);
 		if (fileName === 'nls.keys.json') {
 			try {
-				const contents = file.contents.toString('utf8');
+				const contents = file.contents!.toString('utf8');
 				const json = JSON.parse(contents);
-				if (NLSKeysFormat.is(json)) {
+				if (isNLSKeysFormat(json)) {
 					processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
 				}
 			} catch (error) {
@@ -406,7 +390,8 @@ const editorProject: string = 'vscode-editor',
 	workbenchProject: string = 'vscode-workbench',
 	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup',
-	serverProject: string = 'vscode-server';
+	serverProject: string = 'vscode-server',
+	sessionsProject: string = 'vscode-sessions';
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
@@ -431,14 +416,19 @@ export function getResource(sourceFile: string): Resource {
 		return { name: resource, project: workbenchProject };
 	} else if (/^vs\/workbench/.test(sourceFile)) {
 		return { name: 'vs/workbench', project: workbenchProject };
+	} else if (/^vs\/sessions\/contrib/.test(sourceFile)) {
+		resource = sourceFile.split('/', 4).join('/');
+		return { name: resource, project: sessionsProject };
+	} else if (/^vs\/sessions/.test(sourceFile)) {
+		return { name: 'vs/sessions', project: sessionsProject };
 	}
 
 	throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
 }
 
 
-export function createXlfFilesForCoreBundle(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function createXlfFilesForCoreBundle(): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		const basename = path.basename(file.path);
 		if (basename === 'nls.metadata.json') {
 			if (file.isBuffer()) {
@@ -494,7 +484,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
 			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
 		])
-		.pipe(map(function (data, callback) {
+		.pipe(eventStream.map(function (data, callback) {
 			const file = data as File;
 			if (!file.isBuffer()) {
 				// Not a buffer so we drop it
@@ -540,7 +530,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 
 			callback(undefined, file);
 		}))
-		.pipe(jsonMerge({
+		.pipe(mergeJson({
 			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
 			jsonSpace: '',
 			concatArrays: true
@@ -553,11 +543,11 @@ export const EXTERNAL_EXTENSIONS = [
 	'ms-vscode.vscode-js-profile-table',
 ];
 
-export function createXlfFilesForExtensions(): ThroughStream {
+export function createXlfFilesForExtensions(): eventStream.ThroughStream {
 	let counter: number = 0;
 	let folderStreamEnded: boolean = false;
 	let folderStreamEndEmitted: boolean = false;
-	return through(function (this: ThroughStream, extensionFolder: File) {
+	return eventStream.through(function (this: eventStream.ThroughStream, extensionFolder: File) {
 		const folderStream = this;
 		const stat = fs.statSync(extensionFolder.path);
 		if (!stat.isDirectory()) {
@@ -580,10 +570,10 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			}
 			return _l10nMap;
 		}
-		merge(
+		eventStream.merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
 			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
-		).pipe(through(function (file: File) {
+		).pipe(eventStream.through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
@@ -598,7 +588,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 						const info: l10nJsonFormat = Object.create(null);
 						for (let i = 0; i < fileContent.messages.length; i++) {
 							const message = fileContent.messages[i];
-							const { key, comment } = LocalizeInfo.is(fileContent.keys[i])
+							const { key, comment } = isLocalizeInfo(fileContent.keys[i])
 								? fileContent.keys[i] as LocalizeInfo
 								: { key: fileContent.keys[i] as string, comment: undefined };
 
@@ -638,8 +628,8 @@ export function createXlfFilesForExtensions(): ThroughStream {
 	});
 }
 
-export function createXlfFilesForIsl(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
+export function createXlfFilesForIsl(): eventStream.ThroughStream {
+	return eventStream.through(function (this: eventStream.ThroughStream, file: File) {
 		let projectName: string,
 			resourceFile: string;
 		if (path.basename(file.path) === 'messages.en.isl') {
@@ -653,7 +643,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 			keys: string[] = [],
 			messages: string[] = [];
 
-		const model = new TextModel(file.contents.toString());
+		const model = new TextModel(file.contents!.toString());
 		let inMessageSection = false;
 		model.lines.forEach(line => {
 			if (line.length === 0) {
@@ -744,15 +734,19 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 	const mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	const extensionsPacks: Record<string, I18nPack> = {};
-	const errors: any[] = [];
-	return through(function (this: ThroughStream, xlf: File) {
+	const errors: unknown[] = [];
+	return eventStream.through(function (this: eventStream.ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
 		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
 		}
-		const contents = xlf.contents.toString();
+		// vscode-setup has its own import path via prepareIslFiles
+		if (project === setupProject) {
+			return;
+		}
+		const contents = xlf.contents!.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);
 		parsePromises.push(parsePromise);
@@ -803,17 +797,17 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	});
 }
 
-export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): ThroughStream {
+export function prepareIslFiles(language: Language): eventStream.ThroughStream {
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 
-	return through(function (this: ThroughStream, xlf: File) {
+	return eventStream.through(function (this: eventStream.ThroughStream, xlf: File) {
 		const stream = this;
-		const parsePromise = XLF.parse(xlf.contents.toString());
+		const parsePromise = XLF.parse(xlf.contents!.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
 			resolvedFiles => {
 				resolvedFiles.forEach(file => {
-					const translatedFile = createIslFile(file.name, file.messages, language, innoSetupConfig);
+					const translatedFile = createIslFile(file.name, file.messages, language);
 					stream.queue(translatedFile);
 				});
 			}
@@ -829,7 +823,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 	});
 }
 
-function createIslFile(name: string, messages: l10nJsonFormat, language: Language, innoSetup: InnoSetup): File {
+function createIslFile(name: string, messages: l10nJsonFormat, language: Language): File {
 	const content: string[] = [];
 	let originalContent: TextModel;
 	if (path.basename(name) === 'Default') {
@@ -860,11 +854,13 @@ function createIslFile(name: string, messages: l10nJsonFormat, language: Languag
 
 	const basename = path.basename(name);
 	const filePath = `${basename}.${language.id}.isl`;
-	const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
+	const utf8BOM = Buffer.from([0xEF, 0xBB, 0xBF]);
+	const contentBuffer = Buffer.from(content.join('\r\n'), 'utf8');
+	const encoded = Buffer.concat([utf8BOM, contentBuffer]);
 
 	return new File({
 		path: filePath,
-		contents: Buffer.from(encoded),
+		contents: encoded,
 	});
 }
 

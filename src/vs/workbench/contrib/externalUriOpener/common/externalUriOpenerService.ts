@@ -17,7 +17,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from './configuration.js';
-import { testUrlMatchesGlob } from '../../url/common/urlGlob.js';
+import { testUrlMatchesGlob } from '../../../../platform/url/common/urlGlob.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 
