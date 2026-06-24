@@ -16,6 +16,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -109,6 +110,7 @@ export class ModelPicker extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -162,6 +164,13 @@ export class ModelPicker extends Disposable {
 				this._initModel();
 			}
 		});
+
+		// Re-evaluate when entitlement / sentiment / anonymous access change: when
+		// Chat needs sign-in the shared widget renders a Sign In state, so the
+		// picker stays visible to surface it (e.g. after the user signs out/in).
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._initModel()));
+		this._register(this._chatEntitlementService.onDidChangeSentiment(() => this._initModel()));
+		this._register(this._chatEntitlementService.onDidChangeAnonymous(() => this._initModel()));
 
 		// When the active session changes, re-init (may switch provider or
 		// session type). _initModel() calls _delegate.setModel() which already
@@ -279,15 +288,15 @@ export class ModelPicker extends Disposable {
 	 * Whether the model picker should be shown for the given session. Visible
 	 * when the session has models, when its Auto model is unavailable (so the
 	 * widget can render the "No models available" empty state), or when the
-	 * workspace is untrusted (so the widget can render its Restricted Mode state
-	 * with a Trust action). Otherwise hidden, matching the historical behavior
-	 * for providers that offer no models.
+	 * workspace is untrusted / Chat still needs sign-in (so the widget can render
+	 * its Restricted Mode or Sign In state). Otherwise hidden, matching the
+	 * historical behavior for providers that offer no models.
 	 */
 	private _shouldShowPicker(session: ISession | undefined): boolean {
 		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
 			return true;
 		}
-		if (this._modelPicker.isRestrictedMode()) {
+		if (this._modelPicker.isRestrictedMode() || this._modelPicker.isSetupRequired()) {
 			return true;
 		}
 		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;

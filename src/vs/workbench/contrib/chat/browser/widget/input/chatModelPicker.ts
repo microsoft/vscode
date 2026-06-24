@@ -33,10 +33,11 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
-import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
-import { isRestrictedModeState } from './chatModelSelectionLogic.js';
+import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
+import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
@@ -84,6 +85,16 @@ const ModelPickerSection = {
  * plain `menuitem` role instead of `menuitemradio`.
  */
 const RESTRICTED_MODE_TRUST_ACTION_ID = 'restrictedModeTrust';
+
+/**
+ * Id of the synthetic "Sign in to use Copilot..." entry shown when Chat still
+ * requires sign-in / setup. Like the Trust entry it is a command, so it gets a
+ * plain `menuitem` role.
+ */
+const SETUP_REQUIRED_SIGN_IN_ACTION_ID = 'setupRequiredSignIn';
+
+/** Synthetic command entries (Trust / Sign in) that are not selectable models. */
+const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -463,7 +474,10 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  *
  * When `restrictedMode` is set (untrusted workspace), an explanatory "Models
  * Unavailable in Restricted Mode" header and a "Trust Workspace..." action
- * (invoking `onRequestTrust`) replace all of the above.
+ * (invoking `onRequestTrust`) replace all of the above. Likewise, when
+ * `setupRequired` is set (trusted, but Chat still needs sign-in / setup), a
+ * "Sign in to use Copilot" header and a Sign In action (invoking
+ * `onRequestSetup`) replace all of the above. `restrictedMode` takes precedence.
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -489,6 +503,8 @@ export function buildModelPickerItems(
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 	restrictedMode: boolean = false,
 	onRequestTrust?: () => void,
+	setupRequired: boolean = false,
+	onRequestSetup?: () => void,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (restrictedMode) {
@@ -515,6 +531,34 @@ export function buildModelPickerItems(
 			label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace..."),
 			group: { title: '', icon: ThemeIcon.fromId(Codicon.workspaceTrusted.id) },
 			disabled: !onRequestTrust,
+			hideIcon: false,
+		});
+		return items;
+	}
+	if (setupRequired) {
+		// Trusted, but Chat still needs sign-in / setup before any model is
+		// usable. Surface a Sign In action (mirroring the send-message setup
+		// prompt) instead of a misleading lone "Auto". Like restricted mode this
+		// is checked before the empty-list branch since stale machine-cached
+		// entries can make `models` non-empty.
+		items.push({
+			kind: ActionListItemKind.Header,
+			label: localize('chat.modelPicker.setupRequired', "Sign in to use Copilot"),
+		});
+		items.push({
+			item: {
+				id: SETUP_REQUIRED_SIGN_IN_ACTION_ID,
+				enabled: !!onRequestSetup,
+				checked: false,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Sign in to GitHub Copilot to choose a model."),
+				label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
+				run: () => onRequestSetup?.()
+			},
+			kind: ActionListItemKind.Action,
+			label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
+			group: { title: '', icon: ThemeIcon.fromId(Codicon.signIn.id) },
+			disabled: !onRequestSetup,
 			hideIcon: false,
 		});
 		return items;
@@ -900,9 +944,9 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.isSectionToggle) {
 				return undefined;
 			}
-			// The Restricted Mode Trust action is a command, not a selectable
-			// model, so it exposes no checked state.
-			if (element.kind === ActionListItemKind.Action && element.item?.id !== RESTRICTED_MODE_TRUST_ACTION_ID) {
+			// The Trust / Sign in entries are commands, not selectable models, so
+			// they expose no checked state.
+			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
 				return !!element?.item?.checked;
 			}
 			return undefined;
@@ -912,9 +956,9 @@ export function getModelPickerAccessibilityProvider() {
 				return 'menuitem';
 			}
 			switch (element.kind) {
-				// The Restricted Mode Trust action is a command, not a model
-				// choice, so announce it as a plain menuitem rather than a radio.
-				case ActionListItemKind.Action: return element.item?.id === RESTRICTED_MODE_TRUST_ACTION_ID ? 'menuitem' : 'menuitemradio';
+				// The Trust / Sign in entries are commands, not model choices, so
+				// announce them as plain menuitems rather than radios.
+				case ActionListItemKind.Action: return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';
 				default: return 'separator';
 			}
@@ -1077,6 +1121,12 @@ export class ModelPickerWidget extends Disposable {
 			this._renderLabel();
 		}));
 
+		// The setup-required state derives from entitlement / sentiment / anonymous
+		// access, so refresh the label when any of those change (e.g. after sign-in).
+		this._register(this._entitlementService.onDidChangeEntitlement(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
+
 		// Also refresh the label when the per-editor config layer (if any) reports
 		// a change. The global service path is already covered above via
 		// `onDidChangeLanguageModels` which fires from `setModelConfiguration`.
@@ -1116,17 +1166,47 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
+	 * Why the picker currently has no model to offer (untrusted vs. needs
+	 * sign-in/setup), or `undefined` when a model is available. See
+	 * {@link getModelPickerUnavailableReason}.
+	 */
+	private _unavailableReason(): ModelPickerUnavailableReason | undefined {
+		return getModelPickerUnavailableReason({
+			trustInitialized: this._workspaceTrustInitialized,
+			trusted: this._workspaceTrustManagementService.isWorkspaceTrusted(),
+			pickerModels: this._delegate.getModels(),
+			liveModelIds: this._languageModelsService.getLanguageModelIds(),
+			requiresSetup: this._requiresSetup(),
+		});
+	}
+
+	private _requiresSetup(): boolean {
+		const sentiment = this._entitlementService.sentiment;
+		return chatRequiresSetup({
+			completed: !!sentiment.completed,
+			disabled: !!sentiment.disabled,
+			untrusted: !!sentiment.untrusted,
+			entitlement: this._entitlementService.entitlement,
+			anonymous: this._entitlementService.anonymous,
+			hasByokModels: this._entitlementService.hasByokModels,
+		});
+	}
+
+	/**
 	 * Whether the picker has no usable model specifically because the workspace
-	 * is untrusted (Restricted Mode disables the chat model providers). See
-	 * {@link isRestrictedModeState} for how "usable" is determined.
+	 * is untrusted (Restricted Mode disables the chat model providers).
 	 */
 	isRestrictedMode(): boolean {
-		return isRestrictedModeState(
-			this._workspaceTrustInitialized,
-			this._workspaceTrustManagementService.isWorkspaceTrusted(),
-			this._delegate.getModels(),
-			this._languageModelsService.getLanguageModelIds(),
-		);
+		return this._unavailableReason() === ModelPickerUnavailableReason.Restricted;
+	}
+
+	/**
+	 * Whether the picker has no usable model because Chat still needs sign-in /
+	 * setup (and the workspace is trusted, so it is not Restricted Mode). BYOK
+	 * and anonymous access never report this state.
+	 */
+	isSetupRequired(): boolean {
+		return this._unavailableReason() === ModelPickerUnavailableReason.SetupRequired;
 	}
 
 	private _clearActivating(): void {
@@ -1142,6 +1222,15 @@ export class ModelPickerWidget extends Disposable {
 		await this._workspaceTrustRequestService.requestWorkspaceTrust({
 			message: localize('chat.modelPicker.trustMessage', "Trusting this workspace enables AI models and chat features.")
 		});
+	}
+
+	/**
+	 * Starts the Chat setup / sign-in flow (same command as the title-bar Sign In
+	 * affordance). On completion the entitlement and model registry change, which
+	 * refreshes the picker.
+	 */
+	private _requestSetup(): void {
+		this._commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 	}
 
 	render(container: HTMLElement): void {
@@ -1282,6 +1371,8 @@ export class ModelPickerWidget extends Disposable {
 			onConfigure,
 			this.isRestrictedMode(),
 			() => { void this._requestWorkspaceTrust(); },
+			this.isSetupRequired(),
+			() => { this._requestSetup(); },
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1378,24 +1469,30 @@ export class ModelPickerWidget extends Disposable {
 		// Mode explanation and the Trust Workspace action.
 		const restrictedMode = this.isRestrictedMode();
 
+		// Trusted, but Chat still needs sign-in / setup before any model is
+		// usable: present the same "Pick Model" placeholder, with the dropdown
+		// carrying a Sign In action instead of a misleading "Auto".
+		const setupRequired = this.isSetupRequired();
+		const unavailable = restrictedMode || setupRequired;
+
 		// Just after Trust, models load asynchronously while the chat extension
 		// activates. Show a transient "Activating..." state — only when there is
 		// nothing else to display — instead of a misleading "Auto" fallback.
-		const activating = !restrictedMode && this._activatingAfterTrust && this._delegate.getModels().length === 0;
+		const activating = !unavailable && this._activatingAfterTrust && this._delegate.getModels().length === 0;
 
 		// Generic empty state (e.g. an agent-host session with no Auto fallback);
-		// not evaluated while restricted/activating, which take precedence.
-		const genericNoModels = !restrictedMode && !activating
+		// not evaluated while unavailable/activating, which take precedence.
+		const genericNoModels = !unavailable && !activating
 			&& !(this._delegate.showAutoModel?.() ?? false)
 			&& this._delegate.getModels().length === 0;
-		const noModelsAvailable = restrictedMode || activating || genericNoModels;
+		const noModelsAvailable = unavailable || activating || genericNoModels;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = restrictedMode
+		const modelLabel = unavailable
 			? localize('chat.modelPicker.label', "Pick Model")
 			: activating
 				? localize('chat.modelPicker.activating', "Activating...")
@@ -1453,7 +1550,9 @@ export class ModelPickerWidget extends Disposable {
 		// Aria
 		this._domNode.ariaLabel = restrictedMode
 			? localize('chat.modelPicker.ariaLabelRestricted', "Pick Model, models are unavailable in Restricted Mode")
-			: localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
+			: setupRequired
+				? localize('chat.modelPicker.ariaLabelSetupRequired', "Pick Model, sign in to use Copilot")
+				: localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 
 	/**

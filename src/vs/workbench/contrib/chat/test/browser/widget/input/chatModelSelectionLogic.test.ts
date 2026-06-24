@@ -16,7 +16,8 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
-	isRestrictedModeState,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldResetModelToDefault,
@@ -1734,37 +1735,53 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
-	suite('isRestrictedModeState', () => {
+	suite('getModelPickerUnavailableReason', () => {
 		const gpt = createModel('gpt-4o', 'GPT-4o');
 
-		test('untrusted with no usable models is restricted', () => {
-			assert.strictEqual(isRestrictedModeState(true, false, [], []), true);
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
 		});
 
-		test('trusted is never restricted', () => {
-			assert.strictEqual(isRestrictedModeState(true, true, [], []), false);
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
 		});
 
-		test('not restricted until trust has initialized', () => {
-			assert.strictEqual(isRestrictedModeState(false, false, [], []), false);
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
 		});
 
-		test('untrusted with a live, picker-offered model is not restricted (e.g. BYOK)', () => {
-			assert.strictEqual(isRestrictedModeState(true, false, [gpt], [gpt.identifier]), false);
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
 		});
 
-		test('stale cached models that are not live do not mask Restricted Mode', () => {
-			// `gpt` is offered by the picker (e.g. from the cross-window cache) but is not in the live registry.
-			assert.strictEqual(isRestrictedModeState(true, false, [gpt], []), true);
+		test('a live, picker-offered model wins over any unavailable state (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
 		});
 
-		test('models live for another surface but not offered by this picker do not mask Restricted Mode', () => {
-			// An agent-host session-scoped model is live in the global registry, but the picker does not offer it.
-			assert.strictEqual(isRestrictedModeState(true, false, [], ['agentHost/claude']), true);
+		test('stale cached models that are not live do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: false, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
 		});
 
 		test('accepts a Set of live ids', () => {
-			assert.strictEqual(isRestrictedModeState(true, false, [gpt], new Set([gpt.identifier])), false);
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });
