@@ -99,21 +99,6 @@
             "included": false
         },
         {
-            "key": "extensions.gallery.serviceUrl",
-            "name": "ExtensionGalleryServiceUrl",
-            "category": "Extensions",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "extensions.gallery.serviceUrl",
-                    "value": "Configure the Marketplace service URL to connect to"
-                }
-            },
-            "type": "string",
-            "default": "",
-            "included": false
-        },
-        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",
@@ -157,6 +142,138 @@
             "type": "boolean",
             "default": false,
             "included": true
+        },
+        {
+            "key": "chat.agentHost.otel.enabled",
+            "name": "CopilotOtelEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.enabled.policy",
+                    "value": "Controls whether Copilot OpenTelemetry export is enabled. When managed, users cannot override the enterprise value."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.enabled"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.exporterType",
+            "name": "CopilotOtelProtocol",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.protocol.policy",
+                    "value": "Controls the enterprise-managed OTLP protocol for Copilot OpenTelemetry export."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "chat.agentHost.otel.protocol.policy.otlpHttp",
+                        "value": "Use OTLP over HTTP."
+                    },
+                    {
+                        "key": "chat.agentHost.otel.protocol.policy.otlpGrpc",
+                        "value": "Use OTLP over gRPC."
+                    },
+                    {
+                        "key": "chat.agentHost.otel.protocol.policy.console",
+                        "value": "Console exporter is not selected by enterprise managed settings."
+                    },
+                    {
+                        "key": "chat.agentHost.otel.protocol.policy.file",
+                        "value": "File exporter is not selected by enterprise managed settings."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "otlp-http",
+            "enum": [
+                "otlp-http",
+                "otlp-grpc",
+                "console",
+                "file"
+            ],
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.exporterType"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.otlpEndpoint",
+            "name": "CopilotOtelEndpoint",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.otlpEndpoint.policy",
+                    "value": "Controls the enterprise-managed OTLP collector endpoint for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.otlpEndpoint"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.captureContent",
+            "name": "CopilotOtelCaptureContent",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.captureContent.policy",
+                    "value": "Controls whether Copilot OpenTelemetry export captures prompt, response, and tool content."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureContent"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.outfile",
+            "name": "CopilotOtelOutfile",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.outfile.policy",
+                    "value": "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.outfile"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.dbSpanExporter.enabled",
+            "name": "CopilotOtelDbSpanExporter",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.dbSpanExporter.enabled.policy",
+                    "value": "Controls whether Copilot OpenTelemetry spans are persisted to a local SQLite database."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.dbSpanExporter.enabled"
+            ]
         },
         {
             "key": "chat.tools.global.autoApprove",
@@ -373,50 +490,6 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
-        },
-        {
-            "key": "extensions.autoUpdate",
-            "name": "ExtensionsAutoUpdate",
-            "category": "Extensions",
-            "minimumVersion": "1.125",
-            "localization": {
-                "description": {
-                    "key": "extensions.autoUpdate",
-                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "extensions.autoUpdate.on",
-                        "value": "Download and install updates automatically only for enabled extensions."
-                    },
-                    {
-                        "key": "extensions.autoUpdate.off",
-                        "value": "Extensions are not automatically updated."
-                    }
-                ]
-            },
-            "type": "string",
-            "default": "on",
-            "enum": [
-                "on",
-                "off"
-            ],
-            "included": true
-        },
-        {
-            "key": "extensions.autoUpdateDelay",
-            "name": "ExtensionsAutoUpdateDelay",
-            "category": "Extensions",
-            "minimumVersion": "1.125",
-            "localization": {
-                "description": {
-                    "key": "extensions.autoUpdateDelay",
-                    "value": "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."
-                }
-            },
-            "type": "number",
-            "default": 2,
             "included": true
         },
         {
@@ -666,7 +739,8 @@
             "default": true,
             "included": true,
             "referencedSettings": [
-                "chat.agentHost.claudeAgent.enabled"
+                "chat.agentHost.claudeAgent.enabled",
+                "sessions.chat.claudeAgent.enabled"
             ]
         }
     ]

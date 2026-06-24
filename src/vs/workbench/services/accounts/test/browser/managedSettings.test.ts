@@ -112,6 +112,28 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('flattens telemetry scalar settings into dot-path managed settings', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: {
+				enabled: true,
+				endpoint: 'https://collector.example.com:4318',
+				protocol: 'http/protobuf',
+				captureContent: false,
+				lockCaptureContent: true,
+				dbSpanExporter: { enabled: false },
+			},
+		}), {
+			managedSettings: {
+				'telemetry.enabled': true,
+				'telemetry.endpoint': 'https://collector.example.com:4318',
+				'telemetry.protocol': 'http/protobuf',
+				'telemetry.captureContent': false,
+				'telemetry.lockCaptureContent': true,
+				'telemetry.dbSpanExporter.enabled': false,
+			},
+		});
+	});
+
 	test('resilience: unknown scalar keys flatten into the bag alongside structured keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },

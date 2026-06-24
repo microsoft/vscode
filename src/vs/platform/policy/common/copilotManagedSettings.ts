@@ -34,6 +34,24 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
+/** Managed-settings key for enterprise OTel enablement. */
+export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
+
+/** Managed-settings key for the enterprise OTLP collector endpoint. */
+export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
+
+/** Managed-settings key for the enterprise OTLP protocol (`grpc`, `http/protobuf`, or `http/json`). */
+export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
+
+/** Managed-settings key for enterprise OTel content capture. */
+export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
+
+/** Managed-settings key that prevents users from enabling OTel content capture themselves. */
+export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
+
+/** Managed-settings key for enterprise OTel local DB span export enablement. */
+export const COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED_KEY = 'telemetry.dbSpanExporter.enabled';
+
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
 /**

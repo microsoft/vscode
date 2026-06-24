@@ -5,7 +5,7 @@
 
 export type OTelExporterType = 'otlp-grpc' | 'otlp-http' | 'console' | 'file';
 
-export type OTelEnabledVia = 'envVar' | 'setting' | 'otlpEndpointEnvVar' | 'dbSpanExporterOnly' | 'disabled';
+export type OTelEnabledVia = 'policy' | 'envVar' | 'setting' | 'otlpEndpointEnvVar' | 'dbSpanExporterOnly' | 'disabled';
 
 /** Default OTLP endpoint used when no env var or setting overrides it. */
 export const DEFAULT_OTLP_ENDPOINT = 'http://localhost:4318';
@@ -87,6 +87,12 @@ export interface OTelConfigInput {
 	settingMaxAttributeSizeChars?: number;
 	settingOutfile?: string;
 	settingDbSpanExporter?: boolean;
+	policyEnabled?: boolean;
+	policyExporterType?: OTelExporterType;
+	policyOtlpEndpoint?: string;
+	policyCaptureContent?: boolean;
+	policyOutfile?: string;
+	policyDbSpanExporter?: boolean;
 	extensionVersion: string;
 	sessionId: string;
 	vscodeTelemetryLevel?: string;
@@ -94,10 +100,11 @@ export interface OTelConfigInput {
 
 /**
  * Resolve OTel configuration with layered precedence:
- * 1. COPILOT_OTEL_* env vars (highest)
- * 2. OTEL_EXPORTER_OTLP_* standard env vars
- * 3. VS Code settings
- * 4. Defaults (lowest)
+ * 1. Enterprise policy values from managed settings (highest)
+ * 2. COPILOT_OTEL_* env vars
+ * 3. OTEL_EXPORTER_OTLP_* standard env vars
+ * 4. VS Code settings
+ * 5. Defaults (lowest)
  */
 export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 	const { env } = input;
@@ -107,20 +114,23 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		return createDisabledConfig(input);
 	}
 
-	// SQLite DB span exporter: setting > default(false)
-	const dbSpanExporter = input.settingDbSpanExporter ?? false;
+	// SQLite DB span exporter: policy > setting > default(false)
+	const dbSpanExporter = input.policyDbSpanExporter ?? input.settingDbSpanExporter ?? false;
 
-	// Determine if enabled: env > setting > dbSpanExporter > default(false)
+	const policyMandatesOtlp = input.policyOtlpEndpoint !== undefined || input.policyExporterType !== undefined;
+	const policyEndpointEnables = input.policyOtlpEndpoint !== undefined ? true : undefined;
+
+	// Determine if enabled: policy > env > setting > policy endpoint > dbSpanExporter > default(false)
 	// When dbSpanExporter is on, OTel must be enabled for the SDK pipeline to work.
-	const enabled = (envBool(env['COPILOT_OTEL_ENABLED'])
+	const enabledSignal = input.policyEnabled
+		?? envBool(env['COPILOT_OTEL_ENABLED'])
 		?? input.settingEnabled
-		?? (!!env['OTEL_EXPORTER_OTLP_ENDPOINT']))
-		|| dbSpanExporter;
+		?? policyEndpointEnables
+		?? (!!env['OTEL_EXPORTER_OTLP_ENDPOINT']);
+	const enabled = input.policyEnabled === false ? false : enabledSignal || dbSpanExporter;
 
 	// OTel was explicitly enabled if the user/env turned it on, not just dbSpanExporter
-	const enabledExplicitly = (envBool(env['COPILOT_OTEL_ENABLED'])
-		?? input.settingEnabled
-		?? (!!env['OTEL_EXPORTER_OTLP_ENDPOINT'])) === true;
+	const enabledExplicitly = enabled && enabledSignal === true;
 
 	if (!enabled) {
 		return createDisabledConfig(input);
@@ -128,7 +138,9 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 
 	// Determine how OTel was enabled for telemetry tracking
 	let enabledVia: OTelEnabledVia;
-	if (envBool(env['COPILOT_OTEL_ENABLED']) === true) {
+	if (input.policyEnabled === true || (input.policyEnabled === undefined && input.policyOtlpEndpoint !== undefined)) {
+		enabledVia = 'policy';
+	} else if (envBool(env['COPILOT_OTEL_ENABLED']) === true) {
 		enabledVia = 'envVar';
 	} else if (input.settingEnabled === true) {
 		enabledVia = 'setting';
@@ -138,23 +150,36 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		enabledVia = 'dbSpanExporterOnly';
 	}
 
-	// Protocol: env > inferred from exporter type > default
-	const rawProtocol = env['OTEL_EXPORTER_OTLP_PROTOCOL'] ?? env['COPILOT_OTEL_PROTOCOL'];
+	// Protocol: policy > env > default
+	const rawProtocol = input.policyExporterType === 'otlp-grpc'
+		? 'grpc'
+		: input.policyExporterType === 'otlp-http'
+			? 'http'
+			: env['OTEL_EXPORTER_OTLP_PROTOCOL'] ?? env['COPILOT_OTEL_PROTOCOL'];
 	const protocol: 'grpc' | 'http' = rawProtocol === 'grpc' ? 'grpc' : 'http';
 
-	// Endpoint: COPILOT_OTEL env > OTEL env > setting > default
-	const rawEndpoint = env['COPILOT_OTEL_ENDPOINT']
+	// Endpoint: policy > COPILOT_OTEL env > OTEL env > setting > default
+	const rawEndpoint = input.policyOtlpEndpoint
+		?? env['COPILOT_OTEL_ENDPOINT']
 		?? env['OTEL_EXPORTER_OTLP_ENDPOINT']
 		?? input.settingOtlpEndpoint
 		?? DEFAULT_OTLP_ENDPOINT;
 	const otlpEndpoint = parseOtlpEndpoint(rawEndpoint, protocol) ?? DEFAULT_OTLP_ENDPOINT;
 
-	// File exporter path
-	const fileExporterPath = env['COPILOT_OTEL_FILE_EXPORTER_PATH'] ?? input.settingOutfile;
+	// File exporter path. Enterprise OTLP policy suppresses file export diversion.
+	const fileExporterPath = input.policyOutfile !== undefined
+		? input.policyOutfile || undefined
+		: policyMandatesOtlp
+			? undefined
+			: env['COPILOT_OTEL_FILE_EXPORTER_PATH'] ?? input.settingOutfile;
 
 	// Exporter type
 	let exporterType: OTelExporterType;
-	if (fileExporterPath) {
+	if (input.policyExporterType) {
+		exporterType = input.policyExporterType;
+	} else if (policyMandatesOtlp) {
+		exporterType = 'otlp-http';
+	} else if (fileExporterPath) {
 		exporterType = 'file';
 	} else if (input.settingExporterType) {
 		exporterType = input.settingExporterType;
@@ -162,8 +187,9 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		exporterType = protocol === 'grpc' ? 'otlp-grpc' : 'otlp-http';
 	}
 
-	// Content capture
-	const captureContent = envBool(env['COPILOT_OTEL_CAPTURE_CONTENT'])
+	// Content capture: policy > env > setting > default(false)
+	const captureContent = input.policyCaptureContent
+		?? envBool(env['COPILOT_OTEL_CAPTURE_CONTENT'])
 		?? input.settingCaptureContent
 		?? false;
 

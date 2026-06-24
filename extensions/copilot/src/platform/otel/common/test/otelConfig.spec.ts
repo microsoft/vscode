@@ -52,6 +52,25 @@ describe('resolveOTelConfig', () => {
 		expect(config.enabled).toBe(false);
 	});
 
+	it('enterprise policy enabled overrides env COPILOT_OTEL_ENABLED=false', () => {
+		const config = resolveOTelConfig(makeInput({
+			env: { 'COPILOT_OTEL_ENABLED': 'false' },
+			policyEnabled: true,
+		}));
+		expect(config.enabled).toBe(true);
+		expect(config.enabledVia).toBe('policy');
+	});
+
+	it('enterprise policy enabled=false disables even when dbSpanExporter is on', () => {
+		const config = resolveOTelConfig(makeInput({
+			policyEnabled: false,
+			policyDbSpanExporter: true,
+		}));
+		expect(config.enabled).toBe(false);
+		expect(config.enabledVia).toBe('disabled');
+		expect(config.dbSpanExporter).toBe(false);
+	});
+
 	it('disables when vscodeTelemetryLevel is off', () => {
 		const config = resolveOTelConfig(makeInput({
 			env: { 'COPILOT_OTEL_ENABLED': 'true' },
@@ -72,12 +91,37 @@ describe('resolveOTelConfig', () => {
 		expect(config.fileExporterPath).toBe('/tmp/otel.jsonl');
 	});
 
+	it('enterprise policy endpoint prevents env file exporter diversion', () => {
+		const config = resolveOTelConfig(makeInput({
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'COPILOT_OTEL_FILE_EXPORTER_PATH': '/tmp/otel.jsonl',
+			},
+			policyOtlpEndpoint: 'https://collector.example.com',
+		}));
+		expect(config.enabled).toBe(true);
+		expect(config.enabledVia).toBe('policy');
+		expect(config.exporterType).toBe('otlp-http');
+		expect(config.fileExporterPath).toBeUndefined();
+		expect(config.otlpEndpoint).toBe('https://collector.example.com/');
+	});
+
 	it('uses VS Code setting for exporter type', () => {
 		const config = resolveOTelConfig(makeInput({
 			settingEnabled: true,
 			settingExporterType: 'console',
 		}));
 		expect(config.exporterType).toBe('console');
+	});
+
+	it('enterprise policy exporter type overrides VS Code exporter type', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingEnabled: true,
+			settingExporterType: 'console',
+			policyExporterType: 'otlp-grpc',
+		}));
+		expect(config.exporterType).toBe('otlp-grpc');
+		expect(config.otlpProtocol).toBe('grpc');
 	});
 
 	it('resolves COPILOT_OTEL_CAPTURE_CONTENT', () => {
@@ -97,6 +141,17 @@ describe('resolveOTelConfig', () => {
 				'COPILOT_OTEL_CAPTURE_CONTENT': 'false',
 			},
 			settingCaptureContent: true,
+		}));
+		expect(config.captureContent).toBe(false);
+	});
+
+	it('enterprise policy captureContent overrides env', () => {
+		const config = resolveOTelConfig(makeInput({
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'COPILOT_OTEL_CAPTURE_CONTENT': 'true',
+			},
+			policyCaptureContent: false,
 		}));
 		expect(config.captureContent).toBe(false);
 	});

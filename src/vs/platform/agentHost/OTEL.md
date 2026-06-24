@@ -134,7 +134,7 @@ src/vs/platform/otel/
 
 ## Settings → Env Var Translation
 
-`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv)`, and merges the result into the spawned process's environment. Parent-env values always win.
+`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings and policy values, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings)`, and merges the result into the spawned process's environment. Parent-env values win over user settings; enterprise policy values win over inherited env and can clear inherited OTel endpoint/file/DB signals.
 
 | Setting | Env var |
 |---|---|

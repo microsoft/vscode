@@ -20,7 +20,7 @@ import {
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
-import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
+import { AgentHostOTelEnvVars, AgentHostOTelSpansDbSubPath, buildAgentHostOTelEnv } from '../../../common/agentService.js';
 
 interface IPostResponse {
 	statusCode: number;
@@ -164,6 +164,35 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer xyz,x-tenant=acme',
 		});
 		deepStrictEqual(cfg.headers, { authorization: 'Bearer xyz', 'x-tenant': 'acme' });
+	});
+
+	test('buildAgentHostOTelEnv: policy endpoint wins over inherited file exporter env', () => {
+		deepStrictEqual(buildAgentHostOTelEnv({}, {
+			[AgentHostOTelEnvVars.Enabled]: 'true',
+			[AgentHostOTelEnvVars.FilePath]: '/tmp/otel.jsonl',
+		}, {
+			otlpEndpoint: 'https://collector.example.com',
+		}), {
+			[AgentHostOTelEnvVars.OtlpEndpoint]: 'https://collector.example.com',
+			[AgentHostOTelEnvVars.FilePath]: '',
+		});
+	});
+
+	test('buildAgentHostOTelEnv: policy disabled clears inherited OTel enablement signals', () => {
+		deepStrictEqual(buildAgentHostOTelEnv({}, {
+			[AgentHostOTelEnvVars.Enabled]: 'true',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: 'https://env.example.com',
+			[AgentHostOTelEnvVars.FilePath]: '/tmp/otel.jsonl',
+			[AgentHostOTelEnvVars.DbSpanExporterEnabled]: 'true',
+		}, {
+			enabled: false,
+		}), {
+			[AgentHostOTelEnvVars.Enabled]: 'false',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpEndpointAlt]: '',
+			[AgentHostOTelEnvVars.FilePath]: '',
+			[AgentHostOTelEnvVars.DbSpanExporterEnabled]: 'false',
+		});
 	});
 
 	test('getSdkTelemetryConfig: returns undefined when fully disabled', async () => {

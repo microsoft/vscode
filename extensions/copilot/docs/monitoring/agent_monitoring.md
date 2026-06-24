@@ -76,7 +76,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 
 ### Environment Variables
 
-Environment variables **always take precedence** over VS Code settings.
+Enterprise managed settings, when configured by an organization, take precedence over environment variables and VS Code settings. Environment variables take precedence over user-configured VS Code settings when no enterprise policy is active.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -93,6 +93,21 @@ Environment variables **always take precedence** over VS Code settings.
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |
 | `OTEL_EXPORTER_OTLP_HEADERS` | — | Auth headers (e.g., `Authorization=Bearer token`) |
+
+### Enterprise Managed Settings
+
+Organizations can mandate OTel settings through Copilot managed settings. VS Code honors the following `telemetry.*` keys and applies them to both `github.copilot.chat.otel.*` and `chat.agentHost.otel.*` settings through enterprise policy:
+
+| Managed key | Description |
+|---|---|
+| `telemetry.enabled` | Force OTel export on or off. |
+| `telemetry.endpoint` | Lock the OTLP collector endpoint. |
+| `telemetry.protocol` | Lock the OTLP protocol (`grpc`, `http/protobuf`, or `http/json`). |
+| `telemetry.captureContent` | Force content capture on or off. |
+| `telemetry.lockCaptureContent` | When true and `captureContent` is omitted, prevents users from enabling content capture. |
+| `telemetry.dbSpanExporter.enabled` | Force local SQLite span export on or off. |
+
+When an enterprise endpoint or protocol is managed, local file export is suppressed so OTel data cannot be diverted to a file exporter instead of the managed OTLP path.
 
 ### Activation
 
