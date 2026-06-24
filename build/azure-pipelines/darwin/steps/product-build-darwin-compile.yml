@@ -124,6 +124,7 @@ steps:
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
     displayName: Pull CG NOTICE (background)
 
   - template: ../../common/install-builtin-extensions.yml@self
