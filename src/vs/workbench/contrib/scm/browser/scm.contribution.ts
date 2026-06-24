@@ -322,13 +322,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.repositories.sortOrder': {
 			type: 'string',
-			enum: ['discovery time', 'name', 'path'],
+			enum: ['discovery time', 'recent changes', 'name', 'path'],
 			enumDescriptions: [
 				localize('scm.repositoriesSortOrder.discoveryTime', "Repositories in the Source Control Repositories view are sorted by discovery time. Repositories in the Source Control view are sorted in the order that they were selected."),
+				localize('scm.repositoriesSortOrder.recentChanges', "Repositories in the Source Control Repositories and Source Control views are sorted by their most recent Source Control changes."),
 				localize('scm.repositoriesSortOrder.name', "Repositories in the Source Control Repositories and Source Control views are sorted by repository name."),
 				localize('scm.repositoriesSortOrder.path', "Repositories in the Source Control Repositories and Source Control views are sorted by repository path.")
 			],
-			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the Source Control Repositories and Source Control views."),
 			default: 'discovery time'
 		},
 		'scm.repositories.visible': {

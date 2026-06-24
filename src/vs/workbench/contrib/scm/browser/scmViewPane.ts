@@ -945,9 +945,6 @@ export const ContextKeys = {
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
-	RepositoryVisibility(repository: ISCMRepository) {
-		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
-	}
 };
 
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
@@ -964,116 +961,6 @@ MenuRegistry.appendMenuItem(Menus.ViewSort, {
 	when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
 	group: '0_repositories'
 });
-
-class RepositoryVisibilityAction extends Action2 {
-
-	private repository: ISCMRepository;
-
-	constructor(repository: ISCMRepository) {
-		super({
-			id: `workbench.scm.action.toggleRepositoryVisibility.${repository.provider.id}`,
-			title: repository.provider.name,
-			f1: false,
-			precondition: ContextKeyExpr.or(ContextKeys.RepositoryVisibilityCount.notEqualsTo(1), ContextKeys.RepositoryVisibility(repository).isEqualTo(false)),
-			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
-			menu: { id: Menus.Repositories, group: '0_repositories' }
-		});
-		this.repository = repository;
-	}
-
-	run(accessor: ServicesAccessor) {
-		const scmViewService = accessor.get(ISCMViewService);
-		scmViewService.toggleVisibility(this.repository);
-	}
-}
-
-interface RepositoryVisibilityItem {
-	readonly contextKey: IContextKey<boolean>;
-	dispose(): void;
-}
-
-class RepositoryVisibilityActionController {
-
-	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
-	private repositoryCountContextKey: IContextKey<number>;
-	private repositoryVisibilityCountContextKey: IContextKey<number>;
-	private readonly disposables = new DisposableStore();
-
-	constructor(
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@ISCMService scmService: ISCMService
-	) {
-		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
-		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
-
-		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-
-		for (const repository of scmService.repositories) {
-			this.onDidAddRepository(repository);
-		}
-	}
-
-	private onDidAddRepository(repository: ISCMRepository): void {
-		if (repository.provider.isHidden) {
-			return;
-		}
-
-		const action = registerAction2(class extends RepositoryVisibilityAction {
-			constructor() {
-				super(repository);
-			}
-		});
-
-		const contextKey = ContextKeys.RepositoryVisibility(repository).bindTo(this.contextKeyService);
-		contextKey.set(this.scmViewService.isVisible(repository));
-
-		this.items.set(repository, {
-			contextKey,
-			dispose() {
-				contextKey.reset();
-				action.dispose();
-			}
-		});
-
-		this.updateRepositoryContextKeys();
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
-		this.items.delete(repository);
-		this.updateRepositoryContextKeys();
-	}
-
-	private onDidChangeVisibleRepositories(): void {
-		let count = 0;
-
-		for (const [repository, item] of this.items) {
-			const isVisible = this.scmViewService.isVisible(repository);
-			item.contextKey.set(isVisible);
-
-			if (isVisible) {
-				count++;
-			}
-		}
-
-		this.repositoryCountContextKey.set(this.items.size);
-		this.repositoryVisibilityCountContextKey.set(count);
-	}
-
-	private updateRepositoryContextKeys(): void {
-		this.repositoryCountContextKey.set(this.items.size);
-		this.repositoryVisibilityCountContextKey.set(Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0));
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-		dispose(this.items.values());
-		this.items.clear();
-	}
-}
 
 class SetListViewModeAction extends ViewAction<SCMViewPane> {
 	constructor(
@@ -1181,6 +1068,12 @@ class RepositorySortByDiscoveryTimeAction extends RepositorySortAction {
 	}
 }
 
+class RepositorySortByRecentChangesAction extends RepositorySortAction {
+	constructor() {
+		super(ISCMRepositorySortKey.RecentChanges, localize('repositorySortByRecentChanges', "Sort by Recent Changes"));
+	}
+}
+
 class RepositorySortByNameAction extends RepositorySortAction {
 	constructor() {
 		super(ISCMRepositorySortKey.Name, localize('repositorySortByName', "Sort by Name"));
@@ -1194,34 +1087,16 @@ class RepositorySortByPathAction extends RepositorySortAction {
 }
 
 registerAction2(RepositorySortByDiscoveryTimeAction);
+registerAction2(RepositorySortByRecentChangesAction);
 registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
 
 abstract class RepositorySelectionModeAction extends Action2 {
-	constructor(private readonly selectionMode: ISCMRepositorySelectionMode, title: string, order: number) {
+	constructor(private readonly selectionMode: ISCMRepositorySelectionMode, title: string) {
 		super({
 			id: `workbench.scm.action.repositories.setSelectionMode.${selectionMode}`,
 			title,
-			f1: false,
-			toggled: RepositoryContextKeys.RepositorySelectionMode.isEqualTo(selectionMode),
-			menu: [
-				{
-					id: Menus.Repositories,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.has('scm.providerCount'),
-						ContextKeyExpr.greater('scm.providerCount', 1)),
-					group: '2_selectionMode',
-					order
-				},
-				{
-					id: MenuId.SCMSourceControlTitle,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.has('scm.providerCount'),
-						ContextKeyExpr.greater('scm.providerCount', 1)),
-					group: '2_selectionMode',
-					order
-				},
-			]
+			f1: false
 		});
 	}
 
@@ -1232,13 +1107,13 @@ abstract class RepositorySelectionModeAction extends Action2 {
 
 class RepositorySingleSelectionModeAction extends RepositorySelectionModeAction {
 	constructor() {
-		super(ISCMRepositorySelectionMode.Single, localize('repositorySingleSelectionMode', "Select Single Repository"), 1);
+		super(ISCMRepositorySelectionMode.Single, localize('repositorySingleSelectionMode', "Select Single Repository"));
 	}
 }
 
 class RepositoryMultiSelectionModeAction extends RepositorySelectionModeAction {
 	constructor() {
-		super(ISCMRepositorySelectionMode.Multiple, localize('repositoryMultiSelectionMode', "Select Multiple Repositories"), 2);
+		super(ISCMRepositorySelectionMode.Multiple, localize('repositoryMultiSelectionMode', "Select Multiple Repositories"));
 	}
 }
 
@@ -1426,6 +1301,8 @@ export class SCMViewPane extends ViewPane {
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
+	private repositoryCountContextKey: IContextKey<number>;
+	private repositoryVisibilityCountContextKey: IContextKey<number>;
 
 	private scmProviderContextKey: IContextKey<string | undefined>;
 	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
@@ -1465,6 +1342,9 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
+		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
+		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
+		this.updateRepositoryContextKeys();
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
 		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
 		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
@@ -1490,10 +1370,19 @@ export class SCMViewPane extends ViewPane {
 			this.storeTreeViewState();
 		}, this, this.disposables);
 
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
+		this.scmViewService.onDidChangeVisibleRepositories(() => this.updateRepositoryContextKeys(), this, this.disposables);
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => {
+			this.updateRepositoryContextKeys();
+			this._onDidChangeViewWelcomeState.fire();
+		}, this, this.disposables);
 
 		this.disposables.add(this.revealResourceThrottler);
 		this.disposables.add(this.updateChildrenThrottler);
+	}
+
+	private updateRepositoryContextKeys(): void {
+		this.repositoryCountContextKey.set(this.scmViewService.repositories.length);
+		this.repositoryVisibilityCountContextKey.set(this.scmViewService.visibleRepositories.length);
 	}
 
 	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
@@ -1579,8 +1468,6 @@ export class SCMViewPane extends ViewPane {
 				this.updateRepositoryCollapseAllContextKeys();
 			}
 		}, this, this.disposables);
-
-		this.disposables.add(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
 		this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this, this.disposables);
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
