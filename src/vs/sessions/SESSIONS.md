@@ -203,7 +203,11 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 ```
 Follow-up messages to an existing chat go through
 `SessionsManagementService.sendRequest(session, chat, options)`. The view makes
-the sent chat the active chat by reacting to the send events.
+the sent chat the active chat by reacting to the send events. When
+`options.background` is set, the send is **fire-and-forget** and skips the
+`onWillSendRequest` notification, so the view's send-follow never navigates the
+visible slot into the sent chat — see *Adding a Chat to an Existing Session*
+below.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"
@@ -230,10 +234,10 @@ longer referenced by `_pendingNewSession`.
 
 `background` lives on the management-layer `ISendRequestOptions` (which extends
 the provider's send-request options). Providers do not interpret the flag; it is
-purely a management/UI concern. In the new-session composer the gesture is
-**Alt+Enter** (or **Alt-click** the Send button); plain Enter / click sends in
-the foreground. The background gesture is only offered for the new-session
-composer, not when sending a new chat within an existing session.
+purely a management/UI concern. The gesture is **Alt+Enter** (or **Alt-click**
+the Send button); plain Enter / click sends in the foreground. It is offered both
+by the new-session composer and by the new-chat-in-session composer (see *Adding
+a Chat to an Existing Session* below).
 
 For callers outside the new-session composer,
 `createAndSendNewChatRequest(folderUri, options, createOptions?)` creates a fresh
@@ -267,6 +271,36 @@ config). For the local agent host provider this is enabled for the
          opens its widget
    → Returns the new IChat
 ```
+
+The **new-chat-in-session composer** (`NewChatInSessionWidget`) is shown when the
+active chat is `Untitled` (`openNewChatInSession` creates/reuses an untitled chat
+and makes it active). Sending from it calls
+`sendRequest(session, untitledChat, options)`. Plain Enter / click sends in the
+**foreground** (the view follows the send and navigates into the now-running
+chat). **Alt+Enter** / **Alt-click** sends in the **background**: the widget first
+resets the composer to a fresh untitled chat via
+`openNewChatInSession(session, { forceNew: true })`, then the management service
+runs the send fire-and-forget without firing `onWillSendRequest` (so the view's
+send-follow never navigates into it). `forceNew` skips the reuse-untitled lookup
+so a genuinely new chat is created rather than re-binding the composer to the
+chat being sent. The user stays in the composer to start another parallel
+conversation while the sent chat appears in the session's chat list once it
+commits.
+
+The reset is sequenced **before** the send on purpose. Creating the replacement
+chat (`provider.createNewChat`) and dispatching the send both reach into shared
+chat-session state (`acquireOrLoadSession` / `getOrCreateChatSession`) for chats
+in the **same group**. Running them concurrently raced and left the sent chat
+stuck spinning with its message never dispatched. Fully awaiting the composer
+reset before firing the background send keeps the send running on its own.
+
+Tab order in the chat composite bar is **stabilised by the renderer**, not by
+the providers. The rebuild autorun (in `browser/parts/chatCompositeBar.ts`)
+keeps each provider's reported chat order but moves any in-composer `Untitled`
+chat to the end. This is provider-agnostic on purpose: the agent host re-sorts
+its `state.chats` catalog when a chat finishes a turn (moving the just-completed
+chat to the end) — pinning the untitled composer chat last keeps a
+just-completed background chat from visibly jumping past it in the tab strip.
 
 On the host, `AgentHostStateManager` keeps an authoritative multi-chat catalog
 per session: `addChat`/`removeChat` create/delete a per-chat `ChatState` and

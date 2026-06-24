@@ -220,6 +220,7 @@
 
 .chat-composite-bar-meta-diff .action-label:hover,
 .chat-composite-bar-meta-pr .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 	color: inherit;
 	text-decoration: none;
 }

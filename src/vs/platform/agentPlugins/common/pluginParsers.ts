@@ -647,8 +647,15 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 /**
  * Parses hooks from a JSON object (any supported format).
+ *
+ * Handles Claude's `disableAllHooks` short-circuit, the `HOOK_TYPE_MAP`
+ * canonicalization, and the nested `{ matcher, hooks: [...] }` command
+ * form. Returns one {@link IParsedHookGroup} per recognized lifecycle
+ * event; all groups parsed from the same file share a single
+ * {@link IParsedHookGroup.customization} (keyed on `hookUri`), so callers
+ * that only need the file-level customization can read it off any group.
  */
-function parseHooksJson(
+export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,

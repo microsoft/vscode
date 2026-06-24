@@ -27,11 +27,16 @@ import { Menus } from '../../../../../sessions/browser/menus.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHeader.js';
 // eslint-disable-next-line local/code-import-patterns
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ViewAllChangesActionViewItem } from '../../../../../sessions/contrib/changes/browser/changesActions.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { createFixtureGitHubService } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
@@ -189,6 +194,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 			reg.define(IMenuService, FixtureMenuService);
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(ISessionContext, new SessionContext(constObservable<IActiveSession | undefined>(session)));
+			reg.defineInstance(IGitHubService, createFixtureGitHubService([{ owner: 'microsoft', repo: 'vscode', pullRequest: openPullRequestDetails }]));
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -236,6 +242,23 @@ const openPr: IGitHubInfo['pullRequest'] = {
 	number: 12345,
 	uri: URI.parse('https://github.com/microsoft/vscode/pull/12345'),
 	icon: { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') },
+};
+
+const openPullRequestDetails: IGitHubPullRequest = {
+	number: openPr.number,
+	title: 'fix: suppress expected EPIPE error on graceful client disconnect',
+	body: 'Problem On every graceful client disconnect, the server logs an [error] Error: Unexpected EPIPE. This makes the expected disconnect path look like a real server failure and makes log scanning noisy for people investigating connection issues.',
+	state: GitHubPullRequestState.Open,
+	author: { login: 'hariharjeevan', avatarUrl: '' },
+	headRef: 'fix-suppress-expected-epipe-error',
+	headSha: 'abc123',
+	baseRef: 'main',
+	isDraft: false,
+	createdAt: '2026-06-22T10:00:00Z',
+	updatedAt: '2026-06-22T12:00:00Z',
+	mergedAt: undefined,
+	mergeable: true,
+	mergeableState: 'clean',
 };
 
 function createMockChange(insertions: number, deletions: number): ISessionFileChange {

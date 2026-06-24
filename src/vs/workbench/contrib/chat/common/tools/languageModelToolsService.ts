@@ -418,8 +418,9 @@ export interface IToolSet {
 
 
 /**
- * Maps tools and tool sets to their enablement state. Use a class to make control the creation of the map and ensure that it is not mutated after creation.
- */
+* Maps tools and tool sets to their enablement state. Use a class to control creation of the map and ensure
+* that it is not mutated after creation.
+*/
 export class ToolAndToolSetEnablementMap implements Iterable<[IToolData | IToolSet, boolean]> {
 
 	static fromEntries(entries: Iterable<[IToolData | IToolSet, boolean]>): ToolAndToolSetEnablementMap {
