@@ -112,6 +112,10 @@ export interface IActiveSession extends ISession {
 	/**
 	 * The chats currently shown as tabs in the tab strip, i.e. all chats that
 	 * have not been closed. This is {@link ISession.chats} minus the closed ones.
+	 *
+	 * This is read-only view state, mirroring {@link sticky}: closing/reopening a
+	 * chat is a view operation driven through the sessions (view) service, not a
+	 * mutation on the session itself.
 	 */
 	readonly openChats: IObservable<readonly IChat[]>;
 
@@ -120,15 +124,6 @@ export interface IActiveSession extends ISession {
 	 * and can be reopened. Chats that are deleted drop out of this list.
 	 */
 	readonly closedChats: IObservable<readonly IChat[]>;
-
-	/**
-	 * Close a chat: hide it from the tab strip without deleting it. The main chat
-	 * cannot be closed. If the closed chat was active, another open chat becomes active.
-	 */
-	closeChat(chat: IChat): void;
-
-	/** Reopen a previously closed chat so it is shown again in the tab strip. */
-	reopenChat(chat: IChat): void;
 }
 
 /**

@@ -150,6 +150,11 @@ export interface ISessionsService {
 	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
 	/**
+	 * Reopen a previously closed chat so it is shown again in the tab strip.
+	 */
+	reopenChat(session: IActiveSession, chat: IChat): Promise<void>;
+
+	/**
 	 * Whether a chat is brand-new with no conversation yet. Such chats are
 	 * deleted (not hidden) when closed, and are excluded from the session
 	 * header's chats dropdown since there is nothing to reopen.
@@ -604,8 +609,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (this.isEmptyChat(chat)) {
 			await this.sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 		} else {
-			session.closeChat(chat);
+			this._visibility.closeChat(session, chat);
 		}
+	}
+
+	async reopenChat(session: IActiveSession, chat: IChat): Promise<void> {
+		this._visibility.reopenChat(session, chat);
 	}
 
 	/**

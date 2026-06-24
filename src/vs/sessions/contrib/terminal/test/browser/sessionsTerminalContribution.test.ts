@@ -122,8 +122,6 @@ function makeAgentSession(opts: {
 		sticky: observableValue('test.sticky', false),
 		openChats: observableValue('test.openChats', [chat]),
 		closedChats: constObservable([]),
-		closeChat: () => { },
-		reopenChat: () => { },
 	} satisfies TestActiveSession;
 	return session;
 }

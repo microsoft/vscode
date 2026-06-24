@@ -520,6 +520,22 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
+	 * Close (hide from the tab strip) the given chat in the session's wrapper.
+	 * No-op if the session is not currently tracked in the visibility model.
+	 */
+	closeChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.closeChat(chat);
+	}
+
+	/**
+	 * Reopen a previously closed chat in the session's wrapper. No-op if the
+	 * session is not currently tracked in the visibility model.
+	 */
+	reopenChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.reopenChat(chat);
+	}
+
+	/**
 	 * Replace the given session in the visibility model with `updatedSession`,
 	 * preserving the grid slot, sticky state, and active state. The wrapper
 	 * for the old session is disposed; a fresh wrapper is created for the

@@ -89,7 +89,7 @@ export class ConversationsDropdownActionViewItem extends DropdownMenuActionViewI
 						if (isOpen) {
 							await this._sessionsService.closeChat(session, chat);
 						} else {
-							session.reopenChat(chat);
+							await this._sessionsService.reopenChat(session, chat);
 							await this._sessionsService.openChat(session, chat.resource);
 						}
 					},

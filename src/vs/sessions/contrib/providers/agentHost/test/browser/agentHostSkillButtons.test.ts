@@ -69,8 +69,6 @@ function makeActiveSession(providerId: string): IActiveSession {
 		sticky: observableValue('sticky', false),
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),
-		closeChat: () => { },
-		reopenChat: () => { },
 	} satisfies IActiveSession;
 }
 
