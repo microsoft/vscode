@@ -52,7 +52,17 @@ export function resolveAzureUrl(modelId: string, url: string): string {
  * keeps the Entra auth path consistent with the API-key path (issue #318114).
  */
 export function azureSupportedEndpointsForUrl(url: string): ModelSupportedEndpoint[] | undefined {
-	if (url.includes('/responses')) {
+	let pathname: string;
+	try {
+		pathname = new URL(url).pathname;
+	} catch {
+		// Tolerate malformed URLs by preserving the default Chat Completions behavior.
+		return undefined;
+	}
+	// Match the final path segment so a deployment named "responses" (e.g.
+	// `/openai/deployments/responses/chat/completions`) is not misclassified. Compare
+	// case-insensitively to tolerate APIM vanity routes that may use different casing.
+	if (pathname.replace(/\/$/, '').toLowerCase().endsWith('/responses')) {
 		return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
 	}
 	return undefined;

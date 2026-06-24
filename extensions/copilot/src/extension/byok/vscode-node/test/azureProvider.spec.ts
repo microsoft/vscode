@@ -80,11 +80,17 @@ describe('AzureBYOKModelProvider', () => {
 			expect({
 				responses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview'),
 				apimResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/responses'),
+				mixedCaseResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/Responses'),
 				chatCompletions: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview'),
+				deploymentNamedResponses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/responses/chat/completions?api-version=2025-01-01-preview'),
+				malformed: azureSupportedEndpointsForUrl('not a url'),
 			}).toEqual({
 				responses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
 				apimResponses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
+				mixedCaseResponses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
 				chatCompletions: undefined,
+				deploymentNamedResponses: undefined,
+				malformed: undefined,
 			});
 		});
 	});
