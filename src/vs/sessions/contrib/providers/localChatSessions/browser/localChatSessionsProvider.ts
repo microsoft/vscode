@@ -16,7 +16,7 @@ import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } 
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
@@ -811,7 +811,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
 			return;
@@ -832,14 +832,18 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			return this.deleteSession(sessionId);
 		}
 
-		// Confirm before deleting a sub chat from a multi-chat session.
-		const confirmed = await this.dialogService.confirm({
-			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
-			detail: localize('deleteChat.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteChat.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
+		// Confirm before deleting a sub chat from a multi-chat session, unless the
+		// caller already determined it is safe to discard (e.g. a brand-new chat
+		// with no conversation closed from the tab strip).
+		if (!options?.skipConfirmation) {
+			const confirmed = await this.dialogService.confirm({
+				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+				detail: localize('deleteChat.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteChat.delete', "Delete")
+			});
+			if (!confirmed.confirmed) {
+				return;
+			}
 		}
 
 		await this.chatService.removeHistoryEntry(target.resource);

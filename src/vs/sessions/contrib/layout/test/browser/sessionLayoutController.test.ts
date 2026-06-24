@@ -96,6 +96,10 @@ function makeSession(resource: URI, opts?: {
 		capabilities: { supportsMultipleChats: false },
 		isCreated: observableValue('isCreated', true),
 		sticky: observableValue('sticky', false),
+		openChats: observableValue('openChats', [chat]),
+		closedChats: constObservable([]),
+		closeChat: () => { },
+		reopenChat: () => { },
 	};
 }
 

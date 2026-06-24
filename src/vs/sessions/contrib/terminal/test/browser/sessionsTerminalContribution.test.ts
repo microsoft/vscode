@@ -120,6 +120,10 @@ function makeAgentSession(opts: {
 		capabilities: { supportsMultipleChats: false },
 		isCreated: observableValue('test.isCreated', true),
 		sticky: observableValue('test.sticky', false),
+		openChats: observableValue('test.openChats', [chat]),
+		closedChats: constObservable([]),
+		closeChat: () => { },
+		reopenChat: () => { },
 	} satisfies TestActiveSession;
 	return session;
 }

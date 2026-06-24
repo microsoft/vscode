@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -112,6 +112,27 @@ export interface IActiveSession extends ISession {
 
 	/** Whether this session is sticky in the sessions part's grid. */
 	readonly sticky: IObservable<boolean>;
+
+	/**
+	 * The chats currently shown as tabs in the tab strip, i.e. all chats that
+	 * have not been closed. This is {@link ISession.chats} minus the closed ones.
+	 */
+	readonly openChats: IObservable<readonly IChat[]>;
+
+	/**
+	 * The chats that have been closed (hidden from the tab strip) but still exist
+	 * and can be reopened. Chats that are deleted drop out of this list.
+	 */
+	readonly closedChats: IObservable<readonly IChat[]>;
+
+	/**
+	 * Close a chat: hide it from the tab strip without deleting it. The main chat
+	 * cannot be closed. If the closed chat was active, another open chat becomes active.
+	 */
+	closeChat(chat: IChat): void;
+
+	/** Reopen a previously closed chat so it is shown again in the tab strip. */
+	reopenChat(chat: IChat): void;
 }
 
 /**
@@ -310,7 +331,7 @@ export interface ISessionsManagementService {
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
 	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

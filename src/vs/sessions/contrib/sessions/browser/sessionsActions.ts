@@ -360,12 +360,6 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			id: 'sessions.chatCompositeBar.addChat',
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
-			menu: {
-				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
-				group: 'navigation',
-				order: 10,
-			},
 		});
 	}
 
@@ -377,6 +371,27 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		await sessionsService.openNewChatInSession(session);
 		sessionsPartService.focusSession(sessionsService.activeSession.get());
+	}
+});
+
+registerAction2(class ManageConversationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.conversations',
+			title: localize2('chatCompositeBar.conversations', "Conversations"),
+			icon: Codicon.commentDiscussion,
+			menu: {
+				id: Menus.SessionBarToolbar,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(): Promise<void> {
+		// The dropdown view item handles interaction; the menu entry exists for
+		// placement and context-key driven visibility only.
 	}
 });
 

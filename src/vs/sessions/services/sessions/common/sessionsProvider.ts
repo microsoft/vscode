@@ -55,6 +55,16 @@ export interface ISessionModelPickerOptions {
 	readonly showAutoModel?: boolean;
 }
 
+/** Options controlling how a chat is deleted. */
+export interface IDeleteChatOptions {
+	/**
+	 * Skip the destructive-action confirmation prompt. Used when the caller has
+	 * already determined the chat is safe to discard (e.g. a brand-new chat with
+	 * no conversation closed from the tab strip).
+	 */
+	readonly skipConfirmation?: boolean;
+}
+
 /**
  * A sessions provider encapsulates a compute environment.
  * It owns workspace discovery, session creation, session listing, and picker contributions.
@@ -243,8 +253,9 @@ export interface ISessionsProvider {
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
+	 * @param options Optional behavior, e.g. skipping the confirmation prompt.
 	 */
-	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
+	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/**
 	 * Create a new chat in the given session and return it.
