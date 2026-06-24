@@ -172,6 +172,9 @@ import './contrib/tags/browser/workspaceTagsService.js';
 // Issues
 import './contrib/issue/browser/issue.contribution.js';
 
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
+
 // Splash
 import './contrib/splash/browser/splash.contribution.js';
 

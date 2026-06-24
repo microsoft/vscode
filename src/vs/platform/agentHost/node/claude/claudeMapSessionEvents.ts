@@ -219,7 +219,7 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
-	clientId?: string,
+	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -232,7 +232,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientId),
+				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
 				session,
 				message.parent_tool_use_id,
 				registry,
@@ -423,6 +423,12 @@ function mapResult(
 		// reported model. Phase 6 turns are single-model; multi-model
 		// attribution is a Phase 7+ concern.
 		const modelKey = Object.keys(message.modelUsage)[0];
+		// Per-turn credits are deliberately NOT derived from
+		// `total_cost_usd`: that is the SDK's Anthropic-list-price USD
+		// estimate, not what CAPI actually bills. Real Copilot credits come
+		// from CAPI's `copilot_usage.total_nano_aiu`, which the proxy
+		// captures and `ClaudeAgentSession` attaches to this action as
+		// `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
 		signals.push({
 			kind: 'action',
 			session,
@@ -498,7 +504,7 @@ function mapStreamEvent(
 	logService: ILogService,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientId: string | undefined,
+	clientToolOwner: ((toolName: string) => string | undefined) | undefined,
 ): AgentSignal[] {
 	switch (event.type) {
 		case 'message_start':
@@ -575,7 +581,7 @@ function mapStreamEvent(
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
 				const meta = buildClaudeToolMeta(toolName);
-				const toolClientId = isClientTool ? clientId : undefined;
+				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
 				return [{
 					kind: 'action',
 					session,

@@ -148,7 +148,9 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · branch · diff stats */
+/* Meta row: workspace + contributed changes / pull request buttons.
+	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
+	row's 22px height. The workspace label self-truncates via its own containers. */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -158,20 +160,17 @@
 	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	overflow: hidden;
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label,
-.chat-composite-bar-meta-branch-label {
+.chat-composite-bar-meta-workspace-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
 }
 
-.chat-composite-bar-meta-workspace,
-.chat-composite-bar-meta-branch {
+.chat-composite-bar-meta-workspace {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
@@ -179,25 +178,59 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'],
-.monaco-workbench .chat-composite-bar-meta-branch-icon.codicon[class*='codicon-'] {
+.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 }
 
-.chat-composite-bar-meta-separator::before {
-	content: '\00B7';
-	opacity: 0.8;
-}
-
-.chat-composite-bar-meta-diff {
+/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
+.chat-composite-bar-meta-toolbar,
+.chat-composite-bar-meta-toolbar .monaco-action-bar,
+.chat-composite-bar-meta-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
+	height: 100%;
+}
+
+/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
+.chat-composite-bar-meta-toolbar .actions-container {
 	gap: 6px;
+}
+
+.chat-composite-bar-meta-item {
+	display: inline-flex;
+	align-items: center;
 	flex-shrink: 0;
+}
+
+/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
+	`.monaco-text-button.small.secondary` styles. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
+	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
+	detached from the border — hug the border instead. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
+	outline-offset: 0 !important;
+}
+
+.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact, 12px);
+	height: var(--vscode-codiconFontSize-compact, 12px);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	flex-shrink: 0;
 }
 
 .chat-composite-bar-meta-added {
@@ -227,7 +260,7 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 0;
+	gap: 4px;
 }
 
 .chat-composite-bar-toolbar {
@@ -270,6 +303,7 @@
 	line-height: 22px;
 	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 4%, transparent);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
@@ -322,6 +356,7 @@
 
 .chat-composite-bar-tab:hover {
 	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 8%, transparent);
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
@@ -330,7 +365,7 @@
 }
 
 .session-view.is-active .chat-composite-bar-tab.active {
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
 }
 
 /* Reduce right padding when close button is present to avoid excess spacing */
