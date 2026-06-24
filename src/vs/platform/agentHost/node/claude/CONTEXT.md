@@ -778,7 +778,38 @@ SDK; the host does not need to gate.
 | `onClientToolCallComplete(...)` | Host → SDK | Resolves the in-process MCP tool's pending promise | Same mechanism as `respondToUserInputRequest` |
 | `setCustomizationEnabled(uri, enabled)` | Host → SDK | `Query.reloadPlugins()` (runtime) | **Defer-and-coalesce** when busy: set `_pendingPluginReload`, drain at next yield. Idle path applies immediately. The SDK's `reloadPlugins` returns the refreshed `commands / agents / plugins / mcpServers` — useful as a verification probe but not required for correctness |
 | `getCustomizations()` | SDK → Host (projection) | `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` | Compose the live snapshot from runtime SDK queries plus the host plugin manager's enabled set |
-| `getSessionCustomizations(session)` | SDK → Host (projection) | Same SDK queries, scoped per-session | Per-session because each Query has its own loaded plugin set |
+| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` used only as a **filter** when materialized | **Phase 16.** See "Phase 16 — disk-scan customization resolution" below. Pre-materialize: client-pushed ∪ full disk scan + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries |
+
+**Phase 16 — disk-scan customization resolution.** As shipped,
+`getSessionCustomizations` does **not** project SDK query payloads into
+editable items (those carry only name + description, no file path). Instead
+it **scans the file system** for the real customization files and ships each
+item's real editable `file:` `uri`:
+
+- **Scanners** (`customizations/scan/`): `claudeAgentSkillScan.ts` (agents +
+  skills; `.claude/commands/*.md` are folded into skills per the spec),
+  `claudeMcpScan.ts` (`settings.json` `mcpServers` block + flat `.mcp.json`),
+  `claudeRuleScan.ts` (CLAUDE.md + `.claude/rules/**`). Reuse the shared
+  `pluginParsers.ts` frontmatter/MCP parsers.
+- **Builder** (`customizations/claudeSessionCustomizationDiscovery.ts`):
+  `buildDiscoveredCustomizations(...)` maps scanned entries to
+  `DirectoryCustomization` containers (one per (scope, kind) — Workspace vs
+  User) with real-file children + top-level `McpServerCustomization`. When a
+  live pipeline exists it intersects the disk set with the SDK-known set by
+  `(name, type)` and adds SDK-known-but-not-on-disk items as **non-editable**
+  `claude-internal:` entries.
+- **Built-in tier** (`customizations/claudeBuiltinCommands.ts`): a curated set
+  of built-in slash commands (`CLAUDE_BUILTIN_COMMANDS`, 13) and agents
+  (`CLAUDE_BUILTIN_AGENTS`, 5) is surfaced read-only on the `agent-builtin:`
+  scheme pre-materialize, then superseded by the live SDK set
+  post-materialize. Built-ins are display-only (`contrib/chat` untouched).
+- **Projection is inlined** in `ClaudeAgentSession.getSessionCustomizations`
+  (no separate projector function): client-pushed entries (with the per-id
+  enablement overlay) first, then the discovered + built-in tier appended.
+- **Watcher** (`ClaudeCustomizationWatcher`): correlated watch on both
+  `.claude` roots (recursive) + `<cwd>` narrowed to `.mcp.json`, debounced;
+  fires `onDidCustomizationsChange` so the list updates live.
+- The synthetic-stub `ClaudeSdkCustomizationBundler` (Phase 11) is **deleted**.
 
 **Skills as plugins.** The SDK has no `Options.skills` field. A
 directory containing a `skills/` subfolder *is* a valid plugin from

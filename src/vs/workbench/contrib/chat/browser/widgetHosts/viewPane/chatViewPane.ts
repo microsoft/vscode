@@ -8,12 +8,14 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -57,7 +59,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId } from '../../chat.js';
+import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -70,7 +72,6 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { IAgentsVoiceWindowService } from '../../../../agentsVoice/common/agentsVoice.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -108,6 +109,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
+	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
 		options: IViewPaneOptions,
@@ -138,7 +140,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -384,9 +386,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
-				if (text && this._widget?.viewModel) {
-					this._widget.acceptInput(text, { preserveFocus: true });
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget ?? this._widget;
+				if (text && widget?.viewModel) {
+					if (widget.viewModel.editing) {
+						// When editing an old message, populate the active input
+						// editor so the user can review before submitting.
+						widget.input.setValue(text, false);
+					} else {
+						widget.acceptInput(text, { preserveFocus: true });
+					}
 				}
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
@@ -410,23 +420,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
 		const transcriptOverlay = $('.voice-transcript-overlay');
-		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
-		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
-		inputContainerEl.append(transcriptOverlay);
-
-		const style = document.createElement('style');
-		style.textContent = `
-			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
-			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
-			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-		`;
-		transcriptOverlay.append(style);
+		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		const transcriptOverlayNode = transcriptScrollable.getDomNode();
+		transcriptOverlayNode.classList.add('voice-transcript-overlay-scrollable');
+		transcriptOverlayNode.style.display = 'none';
+		inputContainerEl.append(transcriptOverlayNode);
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
 		let glowDataArray: Uint8Array | undefined;
 		const win = getWindow(inputContainerEl);
+		let lastGlowTarget: HTMLElement | undefined;
+		// Lock the glow target to whichever widget was focused when voice connected.
+		// This prevents confirmations/programmatic focus shifts from moving the glow.
+		let lockedGlowWidget: HTMLElement | undefined;
+		const getActiveInputContainer = (): HTMLElement => {
+			if (lockedGlowWidget) {
+				return lockedGlowWidget;
+			}
+			const focused = this.chatWidgetService.lastFocusedWidget;
+			return focused?.input?.inputContainerElement ?? inputContainerEl;
+		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
 			const animate = () => {
@@ -434,11 +451,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
 				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+				const target = getActiveInputContainer();
+
+				// If the target changed, clear styling on the old one
+				if (lastGlowTarget && lastGlowTarget !== target) {
+					lastGlowTarget.style.borderColor = '';
+					lastGlowTarget.style.boxShadow = '';
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening');
+				}
+				lastGlowTarget = target;
 
 				if (!glowActive) {
-					inputContainerEl.style.borderColor = '';
-					inputContainerEl.style.boxShadow = '';
-					inputContainerEl.classList.remove('voice-active', 'voice-listening');
+					target.style.borderColor = '';
+					target.style.boxShadow = '';
+					target.classList.remove('voice-active', 'voice-listening');
 					return;
 				}
 
@@ -461,15 +487,32 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
 				}
 
-				// Blue when listening, purple when speaking
+				// Blue when listening (more active/flashy when transcript hidden), purple when speaking (subtle)
 				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
-				const borderAlpha = 0.4 + intensity * 0.5;
-				const shadowSpread = 4 + intensity * 12;
-				const shadowAlpha = 0.15 + intensity * 0.35;
-				inputContainerEl.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				inputContainerEl.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
-				inputContainerEl.classList.add('voice-active');
-				inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
+				let borderAlpha: number;
+				let shadowSpread: number;
+				let shadowAlpha: number;
+				if (voiceState === 'listening' && transcriptHidden) {
+					// Flashy, audio-reactive glow while user is speaking (no transcript visible)
+					borderAlpha = 0.6 + intensity * 0.4;
+					shadowSpread = 6 + intensity * 20;
+					shadowAlpha = 0.25 + intensity * 0.55;
+				} else {
+					// Standard glow (transcript visible or TTS playback)
+					borderAlpha = 0.4 + intensity * 0.5;
+					shadowSpread = 4 + intensity * 12;
+					shadowAlpha = 0.15 + intensity * 0.35;
+				}
+				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
+				if (voiceState === 'listening' && transcriptHidden) {
+					// Double-layer glow for extra presence when listening without transcript
+					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`;
+				} else {
+					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
+				}
+				target.classList.add('voice-active');
+				target.classList.toggle('voice-listening', voiceState === 'listening');
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -478,10 +521,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				win.cancelAnimationFrame(animFrameId);
 				animFrameId = undefined;
 			}
-			inputContainerEl.style.borderColor = '';
-			inputContainerEl.style.boxShadow = '';
-			inputContainerEl.classList.remove('voice-active', 'voice-listening');
+			const target = lastGlowTarget ?? inputContainerEl;
+			target.style.borderColor = '';
+			target.style.boxShadow = '';
+			target.classList.remove('voice-active', 'voice-listening');
+			lastGlowTarget = undefined;
 		};
+
+		// Lock glow target on connect, unlock on disconnect
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			if (connected && !lockedGlowWidget) {
+				lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
+			} else if (!connected) {
+				lockedGlowWidget = undefined;
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
@@ -502,41 +557,45 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			if (!connected) {
-				transcriptOverlay.style.display = 'none';
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
-			// If aux window is open and voice is targeting a different session,
-			// don't show transcript in the chat input — it's shown in aux window instead.
+			// Don't show transcript from a different session in this widget
 			const targetSession = this.voiceSessionController.targetSession.read(reader);
-			const currentSession = this._widget?.viewModel?.sessionResource;
-			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
-				transcriptOverlay.style.display = 'none';
+			const currentSession = this._currentSessionResource.read(reader);
+			if (targetSession && currentSession && !isEqual(targetSession, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				if (voiceState === 'idle' && visible.length === 0) {
-					transcriptOverlay.style.display = '';
-					while (transcriptOverlay.childNodes.length > 1) {
-						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-					}
+				const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
+				if (voiceState === 'idle' && visible.length === 0 && showTranscript && autoSendDelay < 0) {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-						: localize('voiceMode.clickMicHint', "Click mic to talk");
+						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
 				} else {
-					transcriptOverlay.style.display = 'none';
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
 				}
 				return;
 			}
 
-			transcriptOverlay.style.display = '';
-			// Show only the latest turn: user question first, then assistant reply replaces it
+			transcriptOverlayNode.style.display = '';
+			transcriptOverlayNode.classList.add('has-transcript');
+			// Show only the latest visible turn
 			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
 			if (lastTurn.speaker === 'user') {
@@ -562,13 +621,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				div.textContent = lastTurn.text;
 				contentElements.push(div);
 			}
-			// Keep the style element, replace content
-			while (transcriptOverlay.childNodes.length > 1) {
-				transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-			}
-			for (const el of contentElements) {
-				transcriptOverlay.append(el);
-			}
+			transcriptOverlay.replaceChildren(...contentElements);
+			transcriptScrollable.scanDomNode();
+			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
 	}
 
@@ -850,6 +905,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
+			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode

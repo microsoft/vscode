@@ -41,7 +41,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -301,7 +301,7 @@ suite('AgentHostClientTools', () => {
 				getFullReferenceNameMap: () => new Map(),
 				getToolByFullReferenceName: () => undefined,
 				getDeprecatedFullReferenceNames: () => new Map(),
-				toToolAndToolSetEnablementMap: () => new Map(),
+				toToolAndToolSetEnablementMap: () => ToolAndToolSetEnablementMap.fromEntries([]),
 				toFullReferenceNames: () => [],
 				toToolReferences: () => [],
 				vscodeToolSet: undefined!,

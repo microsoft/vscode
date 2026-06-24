@@ -16,7 +16,15 @@ import { ISessionsService } from './sessionsService.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Read = 'read',
+	Sort = 'sort',
 }
+
+/**
+ * The two sort modes the sessions list supports. Mirrors the values of the
+ * (contrib-layer) `SessionsSorting` enum, kept as a plain string union here so
+ * this service stays in the services layer and never imports from contrib.
+ */
+export type SessionSortMode = 'created' | 'updated';
 
 export interface ISessionListModelChangeEvent {
 	readonly changes: ReadonlyArray<{ readonly sessionId: string; readonly kind: SessionListModelChangeKind }>;
@@ -48,6 +56,29 @@ export interface ISessionsListModelService {
 	isSessionRead(session: ISession): boolean;
 	markAllRead(sessions: ISession[]): void;
 
+	// -- Manual sort order --
+
+	/**
+	 * The effective numeric sort key for a session in the given sort mode. This
+	 * is the manually assigned override when one exists, otherwise the natural
+	 * timestamp (`createdAt` for `'created'`, `updatedAt` for `'updated'`).
+	 * Sessions are displayed in descending order of this value.
+	 */
+	getSortKey(session: ISession, mode: SessionSortMode): number;
+
+	/** The natural (non-overridden) sort key for a session in the given mode. */
+	getNaturalSortKey(session: ISession, mode: SessionSortMode): number;
+
+	/** Whether the session has a manual sort override in the given mode. */
+	hasSortOverride(sessionId: string, mode: SessionSortMode): boolean;
+
+	/**
+	 * Apply a batch of manual sort changes for a single mode. Overrides in
+	 * `set` are stored, ids in `clear` are removed (falling back to the natural
+	 * key). Fires a single {@link onDidChange} for all affected sessions.
+	 */
+	applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void;
+
 	// -- Status icon --
 
 	/**
@@ -72,6 +103,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
+	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 
 	/**
 	 * Sessions created on or after this date start as unread by default.
@@ -86,6 +118,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _readSessionIds: Set<string>;
+	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _lastKnownStatus = new Map<string, SessionStatus>();
 
 	constructor(
@@ -97,6 +130,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._readSessionIds = this.loadSet(SessionsListModelService.READ_SESSIONS_KEY);
+		this._sortOverrides = this.loadSortOverrides();
 
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
@@ -198,6 +232,41 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 	}
 
+	// -- Manual sort order --
+
+	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
+	}
+
+	getSortKey(session: ISession, mode: SessionSortMode): number {
+		const override = this._sortOverrides[mode].get(session.sessionId);
+		return override ?? this.getNaturalSortKey(session, mode);
+	}
+
+	hasSortOverride(sessionId: string, mode: SessionSortMode): boolean {
+		return this._sortOverrides[mode].has(sessionId);
+	}
+
+	applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
+		const map = this._sortOverrides[mode];
+		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		for (const sessionId of clear) {
+			if (map.delete(sessionId)) {
+				changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
+			}
+		}
+		for (const [sessionId, value] of set) {
+			if (map.get(sessionId) !== value) {
+				map.set(sessionId, value);
+				changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
+			}
+		}
+		if (changes.length > 0) {
+			this.saveSortOverrides();
+			this._onDidChange.fire({ changes });
+		}
+	}
+
 	// -- Status icon --
 
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
@@ -235,6 +304,17 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Read });
 		}
+		let sortChanged = false;
+		if (this._sortOverrides.created.delete(session.sessionId)) {
+			sortChanged = true;
+		}
+		if (this._sortOverrides.updated.delete(session.sessionId)) {
+			sortChanged = true;
+		}
+		if (sortChanged) {
+			this.saveSortOverrides();
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Sort });
+		}
 		if (changes.length > 0) {
 			this._onDidChange.fire({ changes });
 		}
@@ -263,6 +343,41 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		} else {
 			this.storageService.store(key, JSON.stringify([...set]), StorageScope.PROFILE, StorageTarget.USER);
 		}
+	}
+
+	private loadSortOverrides(): Record<SessionSortMode, Map<string, number>> {
+		const result: Record<SessionSortMode, Map<string, number>> = { created: new Map(), updated: new Map() };
+		const raw = this.storageService.get(SessionsListModelService.SORT_OVERRIDES_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw) as Partial<Record<SessionSortMode, Record<string, number>>>;
+				for (const mode of ['created', 'updated'] as const) {
+					const entries = parsed[mode];
+					if (entries) {
+						for (const [sessionId, value] of Object.entries(entries)) {
+							if (typeof value === 'number') {
+								result[mode].set(sessionId, value);
+							}
+						}
+					}
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return result;
+	}
+
+	private saveSortOverrides(): void {
+		if (this._sortOverrides.created.size === 0 && this._sortOverrides.updated.size === 0) {
+			this.storageService.remove(SessionsListModelService.SORT_OVERRIDES_KEY, StorageScope.PROFILE);
+			return;
+		}
+		const serialized = {
+			created: Object.fromEntries(this._sortOverrides.created),
+			updated: Object.fromEntries(this._sortOverrides.updated),
+		};
+		this.storageService.store(SessionsListModelService.SORT_OVERRIDES_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.USER);
 	}
 }
 

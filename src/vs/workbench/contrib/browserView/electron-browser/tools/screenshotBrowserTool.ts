@@ -21,7 +21,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { errorResult, getSessionId, playwrightInvokeRaw } from './browserToolHelpers.js';
-import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 import { ReadBrowserToolData } from './readBrowserTool.js';
 

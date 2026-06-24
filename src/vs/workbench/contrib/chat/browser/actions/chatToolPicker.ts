@@ -28,7 +28,7 @@ import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpS
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets, deleteToolSetFromFileContents } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -203,10 +203,10 @@ export async function showToolsPicker(
 	placeHolder: string,
 	source: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<IToolSet | IToolData, boolean>,
+	getToolsEntries?: () => ToolAndToolSetEnablementMap,
 	model?: ILanguageModelChatMetadata | undefined,
 	token?: CancellationToken
-): Promise<ReadonlyMap<IToolSet | IToolData, boolean> | undefined> {
+): Promise<ToolAndToolSetEnablementMap | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
 	const mcpService = accessor.get(IMcpService);
@@ -265,7 +265,7 @@ export async function showToolsPicker(
 		}
 	}
 
-	function computeItems(previousToolsEntries?: ReadonlyMap<IToolData | IToolSet, boolean>) {
+	function computeItems(previousToolsEntries?: ToolAndToolSetEnablementMap) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map([...getToolsEntries()].map(([k, enabled]) => [k.id, enabled])) : undefined;
 		if (!toolsEntries) {
@@ -280,9 +280,9 @@ export async function showToolsPicker(
 			}
 			toolsEntries = defaultEntries;
 		}
-		previousToolsEntries?.forEach((value, key) => {
-			toolsEntries.set(key.id, value);
-		});
+		for (const [entry, enabled] of previousToolsEntries ?? []) {
+			toolsEntries.set(entry.id, enabled);
+		}
 
 		// Build tree structure
 		const treeItems: AnyTreeItem[] = [];
@@ -563,7 +563,7 @@ export async function showToolsPicker(
 		}
 	}));
 
-	const collectResults = () => {
+	const collectResults = (): ToolAndToolSetEnablementMap => {
 
 		const result = new Map<IToolData | IToolSet, boolean>();
 		const traverse = (items: readonly AnyTreeItem[]) => {
@@ -596,7 +596,7 @@ export async function showToolsPicker(
 		};
 
 		traverse(treePicker.itemTree);
-		return result;
+		return ToolAndToolSetEnablementMap.fromMap(result);
 	};
 
 	// Handle acceptance
@@ -729,8 +729,8 @@ interface IToolToggleSummary {
 }
 
 function computeToolToggleSummary(
-	initialState: ReadonlyMap<IToolData | IToolSet, boolean>,
-	finalState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	initialState: ToolAndToolSetEnablementMap,
+	finalState: ToolAndToolSetEnablementMap,
 	mcpRegistry: IMcpRegistry
 ): IToolToggleSummary {
 	const summary: IToolToggleSummary = {
@@ -793,8 +793,8 @@ function computeToolToggleSummary(
 function sendDidChangeEvent(
 	source: string,
 	telemetryService: ITelemetryService,
-	initialState: ReadonlyMap<IToolData | IToolSet, boolean>,
-	finalState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	initialState: ToolAndToolSetEnablementMap,
+	finalState: ToolAndToolSetEnablementMap,
 	mcpRegistry: IMcpRegistry
 ): void {
 	const summary = computeToolToggleSummary(initialState, finalState, mcpRegistry);

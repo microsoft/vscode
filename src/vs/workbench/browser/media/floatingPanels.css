@@ -11,8 +11,9 @@
  * margin, border and rounded corners — echoing the agents window design. The
  * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
  * the inner layout stays in sync with this CSS. The margin and the 1px border
- * must match `FLOATING_PANEL_MARGIN`, `FLOATING_AUXBAR_EXTRA_RIGHT` and the border inset
- * used there. Colors mirror the agents window (`agentsPanel.*` tokens).
+ * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
+ * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
+ * Colors mirror the agents window (`agentsPanel.*` tokens).
  *
  * Uses `--vscode-spacing-size60` (6px); keep this in sync with
  * `FLOATING_PANEL_MARGIN` in code.
@@ -47,8 +48,17 @@
 	margin-top: 0;
 }
 
-/* Secondary side bar sits at the window edge — give it a doubled right gutter. */
-.monaco-workbench.floating-panels .part.auxiliarybar {
+/*
+ * When a floating pane composite (primary side bar, secondary side bar or a vertical
+ * panel) is the outermost card on a window edge, it adopts a doubled outer gutter so
+ * its contents do not hug the window edge. The owning edge is toggled in code (kept in
+ * sync with the inset reservation in `AbstractPaneCompositePart`).
+ */
+.monaco-workbench.floating-panels .part.floating-part-outer-left {
+	margin-left: calc(var(--vscode-spacing-size60) * 2);
+}
+
+.monaco-workbench.floating-panels .part.floating-part-outer-right {
 	margin-right: calc(var(--vscode-spacing-size60) * 2);
 }
 
@@ -56,6 +66,19 @@
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: var(--vscode-spacing-size60);
 	margin-top: 0;
+}
+
+/*
+ * When the editor becomes the outermost card on a side (no floating part sits
+ * between it and the window edge) it adopts the same doubled gutter the side/aux
+ * bars use. Kept in sync with the margin reservation in `EditorPart.layout`.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-left {
+	margin-left: calc(var(--vscode-spacing-size60) * 2);
+}
+
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-right {
+	margin-right: calc(var(--vscode-spacing-size60) * 2);
 }
 
 /* The shell backdrop behind the floating cards matches the editor background. */

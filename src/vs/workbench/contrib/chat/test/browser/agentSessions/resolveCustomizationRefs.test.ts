@@ -254,6 +254,23 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
+	test('omits plugins with prompt-file contributions that are disabled by enablement', async () => {
+		const pluginUri = URI.file('/plugins/prompt-disabled');
+		const promptFile = URI.file('/plugins/prompt-disabled/skills/foo/SKILL.md');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map([
+				[`${PromptsType.skill}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.skill, PromptsStorage.plugin)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { enabled: false })]),
+			makeMcpService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs, []);
+	});
+
 	test('omits MCP-only plugins that the user opted out of syncing', async () => {
 		const pluginUri = URI.file('/plugins/mcp-opted-out');
 		const refs = await resolveCustomizationRefs(

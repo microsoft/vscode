@@ -896,6 +896,54 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
 	});
 
+	test('overlapping reconnect keeps earlier reverse-RPC requests alive until that transport closes', async () => {
+		const transport1 = connectClient('client-fs-overlap');
+		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
+		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap', '/workspace'));
+		const reverseRequest = await reverseRequestPromise;
+		assert.ok(isJsonRpcRequest(reverseRequest));
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs-overlap',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+
+		transport1.simulateMessage({
+			jsonrpc: '2.0',
+			id: reverseRequest.id,
+			result: { entries: [{ name: 'from-original-transport.txt', type: 'file' as const }] },
+		});
+
+		const result = await readPromise;
+		assert.deepStrictEqual(result, [['from-original-transport.txt', FileType.File]]);
+	});
+
+	test('closing an older overlapping transport rejects its pending reverse-RPC requests', async () => {
+		const transport1 = connectClient('client-fs-overlap-close');
+		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
+		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap-close', '/workspace'));
+		await reverseRequestPromise;
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-fs-overlap-close',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+
+		transport1.simulateClose();
+
+		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
+	});
+
 	test('client disconnect cleans up', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -1003,6 +1051,97 @@ suite('ProtocolServerHandler', () => {
 
 			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			});
+		});
+	});
+
+	test('owned tool call is not failed when closing the latest overlapping transport falls back to an older one', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			const fallbackTransport = connectClient('client-tools', [sessionUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri]);
+
+			latestTransport.simulateClose();
+
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			fallbackTransport.simulateClose();
+		});
+	});
+
+	test('owned tool call is failed after the last overlapping transport closes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientChanged,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+			});
+
+			const fallbackTransport = connectClient('client-tools', [sessionUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri]);
+			latestTransport.simulateClose();
+
+			await new Promise(r => setTimeout(r, 30_001));
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			fallbackTransport.simulateClose();
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
 				status: part.toolCall.status,
 				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
@@ -1435,7 +1574,7 @@ suite('ProtocolServerHandler', () => {
 		const transport1 = connectClient('client-rc');
 		assert.deepStrictEqual(counts, [1]);
 
-		// Reconnect with same clientId (new transport)
+		// Reconnect with same clientId (new active transport)
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
 		transport2.simulateMessage(request(1, 'reconnect', {
@@ -1443,10 +1582,11 @@ suite('ProtocolServerHandler', () => {
 			lastSeenServerSeq: 0,
 			subscriptions: [],
 		}));
-		// Count is unchanged because same clientId was overwritten
+		// Count is unchanged because the logical clientId is already connected.
 		assert.deepStrictEqual(counts, [1, 1]);
 
-		// Old transport closes - should NOT decrement since it's stale
+		// Old transport closes - should NOT decrement because the newer
+		// transport is still connected.
 		transport1.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1]);
 
@@ -1742,6 +1882,32 @@ suite('ProtocolServerHandler', () => {
 
 			transport.simulateClose();
 			assert.deepStrictEqual(agentService.watchUnsubscribeCalls, [watchChannel]);
+		});
+
+		test('overlapping transports release each resource-watch subscription', async () => {
+			const watchChannel = 'ahp-resource-watch:/mock-watch-overlap';
+			agentService.liveWatchDescriptors.set(watchChannel, { root: 'file:///root', recursive: false });
+
+			const transport1 = connectClient('client-watch-overlap');
+			const subPromise1 = waitForResponse(transport1, 200);
+			transport1.simulateMessage(request(200, 'subscribe', { channel: watchChannel }));
+			await subPromise1;
+
+			const transport2 = connectClient('client-watch-overlap');
+			const subPromise2 = waitForResponse(transport2, 201);
+			transport2.simulateMessage(request(201, 'subscribe', { channel: watchChannel }));
+			await subPromise2;
+
+			transport2.simulateClose();
+			transport1.simulateClose();
+
+			assert.deepStrictEqual({
+				subscribes: agentService.watchSubscribeCalls,
+				unsubscribes: agentService.watchUnsubscribeCalls,
+			}, {
+				subscribes: [watchChannel, watchChannel],
+				unsubscribes: [watchChannel, watchChannel],
+			});
 		});
 	});
 });

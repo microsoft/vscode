@@ -7,7 +7,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import type { IAgentHostGitService } from '../agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 
 export interface ICopilotSessionContext {
 	readonly cwd?: string;

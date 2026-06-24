@@ -449,6 +449,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			drafts[activeId] = editor.value;
 			saveDrafts();
 			parseEditor();
+			debouncedSave();
 			setStatus('Generated example from schema.', 'ok');
 		});
 		try {

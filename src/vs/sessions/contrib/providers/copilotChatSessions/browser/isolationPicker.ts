@@ -18,6 +18,7 @@ import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTe
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -100,6 +101,9 @@ export class IsolationPicker extends Disposable {
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 		this._slotElement = slot;
+		// Onboarding spotlight target — id is referenced by the "new session" tour
+		// in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;

@@ -17,12 +17,12 @@ export const IServerAgentHostManager = createDecorator<IServerAgentHostManager>(
 
 /**
  * Server-specific agent host manager. Eagerly starts the agent host process,
- * handles crash recovery, and tracks both active agent sessions and connected
- * WebSocket clients via {@link IServerLifetimeService} to keep the server
- * alive while either signal is active.
+ * handles crash recovery, and tracks active agent sessions plus incoming
+ * WebSocket clients to the spawned standalone agent host via
+ * {@link IServerLifetimeService}.
  *
- * The lifetime token is held when active sessions > 0 OR connected clients > 0.
- * It is released only when both are zero.
+ * Renderer-to-agent-host proxy connections handled by `AgentHostChannel`
+ * deliberately do not participate here.
  */
 export interface IServerAgentHostManager {
 	readonly _serviceBrand: undefined;
@@ -46,7 +46,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _restartCount = 0;
 
-	/** Lifetime token held while sessions are active or clients are connected. */
+	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	private _hasActiveSessions = false;
@@ -83,7 +83,6 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			// Handle unexpected exit
 			connection.store.add(connection.onDidProcessExit(e => {
 				if (!this._store.isDisposed) {
-					// Both signals are gone when the process exits
 					this._hasActiveSessions = false;
 					this._connectionCount = 0;
 					this._lifetimeToken.clear();

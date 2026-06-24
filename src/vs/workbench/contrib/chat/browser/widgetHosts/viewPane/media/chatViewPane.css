@@ -13,6 +13,63 @@
 	overflow: hidden;
 }
 
+@keyframes voiceTextPulse {
+	0%,
+	100% {
+		opacity: 0.9;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+.voice-transcript-overlay-scrollable {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 36px;
+	z-index: 10;
+	/* Let clicks pass through to the input editor unless there is scrollable transcript content */
+	pointer-events: none;
+	background: var(--vscode-input-background, transparent);
+	border-radius: inherit;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.voice-transcript-overlay-scrollable.has-transcript {
+	pointer-events: auto;
+}
+
+.voice-transcript-overlay {
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	font-size: var(--vscode-bodyFontSize);
+	line-height: 1.4;
+	word-break: break-word;
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
+.voice-transcript-overlay .committed {
+	color: var(--vscode-foreground);
+}
+
+.voice-transcript-overlay .partial {
+	color: var(--vscode-foreground);
+	opacity: 0.6;
+	font-style: italic;
+	animation: voiceTextPulse 1.5s ease-in-out infinite;
+}
+
+.voice-transcript-overlay .assistant-text {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
 /* Overall styles */
 .chat-viewpane {
 	display: flex;

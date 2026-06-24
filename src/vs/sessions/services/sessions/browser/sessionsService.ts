@@ -16,7 +16,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent, ActiveSessionSupportsMultiChatContext } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent, ActiveSessionSupportsMultiChatContext } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -150,9 +150,11 @@ export interface ISessionsService {
 	/**
 	 * Switch to the new-chat-in-session view.
 	 * Adds a new chat to the session via the provider, makes it the active chat,
-	 * and shows a rich input for composing a message.
+	 * and shows a rich input for composing a message. Pass
+	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
+	 * chat (e.g. when resetting the composer right after a background send).
 	 */
-	openNewChatInSession(session: ISession): Promise<void>;
+	openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void>;
 
 	/**
 	 * Discard the pending new session and clear the active session, returning
@@ -669,10 +671,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return newSession ?? undefined;
 	}
 
-	async openNewChatInSession(session: ISession): Promise<void> {
+	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
 		this._cancelRestore();
 		this._startOpenSession();
-		const chat = await this.sessionsManagementService.createNewChatInSession(session);
+		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
 		if (!chat) {
 			return;
 		}

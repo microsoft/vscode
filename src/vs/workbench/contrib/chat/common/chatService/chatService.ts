@@ -166,6 +166,12 @@ export interface IChatUsage {
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	copilotCredits?: number;
+	/**
+	 * The language-model ID that actually served the request. Set when a
+	 * meta-model (e.g. "auto") routes to a concrete model so consumers
+	 * can look up the real model's metadata (context window size, etc.).
+	 */
+	actualModelId?: string;
 	kind: 'usage';
 }
 

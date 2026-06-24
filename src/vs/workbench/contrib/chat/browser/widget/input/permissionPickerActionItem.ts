@@ -58,6 +58,7 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly getExtensionPermissions?: () => IExtensionPermissionState | undefined;
 	readonly setExtensionPermission?: (groupId: string, item: IChatSessionProviderOptionItem) => void;
+	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
 }
 
 /** Default level set offered when a delegate does not specify {@link IPermissionPickerDelegate.availableLevels}. */
@@ -175,6 +176,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const actions: IActionWidgetDropdownAction[] = levels.map(level => {
 					const meta = getPermissionLevelMeta(level);
 					const disabledByPolicy = meta.elevated && policyRestricted;
+					const hover = disabledByPolicy
+						? localize('permissions.policyDescription', "Disabled by enterprise policy")
+						: delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 					return {
 						...action,
 						id: meta.id,
@@ -185,9 +189,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						enabled: !disabledByPolicy,
 						tooltip: disabledByPolicy ? localize('permissions.policyDisabled', "Disabled by enterprise policy") : '',
 						hover: {
-							content: disabledByPolicy
-								? localize('permissions.policyDescription', "Disabled by enterprise policy")
-								: meta.description,
+							content: hover,
 						},
 						run: async () => {
 							// Elevated levels show a one-time confirmation warning.
@@ -245,7 +247,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			const meta = getPermissionLevelMeta(level);
 			icon = meta.icon;
 			label = meta.shortLabel;
-			tooltip = meta.description;
+			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 		}
 
 		const labelElements = [];
@@ -256,9 +258,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);
 		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
 
-		element.setAttribute('aria-label', localize('permissions.ariaLabel', "Permission picker, {0}", label));
-
 		this._currentTooltip = tooltip;
+		element.setAttribute('aria-label', !ext && this.delegate.getPermissionLevelHover
+			? localize('permissions.ariaLabelWithDescription', "Permission picker, {0}, {1}", label, tooltip)
+			: localize('permissions.ariaLabel', "Permission picker, {0}", label));
 		// `renderLabel` can run against a fresh element on subsequent
 		// `render()` calls (e.g. when the item moves into/out of overflow).
 		// Re-wire the hover on the new element and dispose the previous

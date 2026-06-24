@@ -307,8 +307,12 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+
+		// When a meta-model (e.g. "auto") routes to a concrete model, the
+		// usage reports the actual model that served the request.
+		const effectiveModelId = usage?.actualModelId ?? modelId;
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(effectiveModelId);
+		const modelConfiguration = this._modelConfigurationResolver?.(effectiveModelId) ?? this.languageModelsService.getModelConfiguration(effectiveModelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;

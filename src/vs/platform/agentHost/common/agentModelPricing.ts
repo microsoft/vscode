@@ -35,6 +35,8 @@ export interface IAgentModelPricingMeta {
 	readonly longContextOutputCost?: number;
 	/** Coarse price bucket (e.g. `low`, `medium`, `high`) for an at-a-glance tag. */
 	readonly priceCategory?: string;
+	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; shown as a "{n}% discount" detail. */
+	readonly discountPercent?: number;
 }
 
 const NUMBER_KEYS = [
@@ -47,6 +49,7 @@ const NUMBER_KEYS = [
 	'longContextCacheCost',
 	'longContextCacheWriteCost',
 	'longContextOutputCost',
+	'discountPercent',
 ] as const satisfies readonly (keyof IAgentModelPricingMeta)[];
 
 /**

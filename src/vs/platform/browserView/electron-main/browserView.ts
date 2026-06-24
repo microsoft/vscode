@@ -7,7 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserViewPermissionRequestEvent } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -17,6 +17,7 @@ import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { BrowserSession } from './browserSession.js';
 import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
+import { ISerializedBrowserPermissionsSnapshot } from '../common/browserPermissions.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -101,6 +102,12 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidChangeRemoteStatus = this._register(new Emitter<boolean>());
 	readonly onDidChangeRemoteStatus: Event<boolean> = this._onDidChangeRemoteStatus.event;
+
+	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
+	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
+
+	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
+	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
 
 	constructor(
 		public readonly id: string,
@@ -218,6 +225,16 @@ export class BrowserView extends Disposable {
 		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
 		this._register(this.session.remote.onDidStart(fireRemoteStatus));
 		this._register(this.session.remote.onDidStop(fireRemoteStatus));
+
+		this._register(this.session.permissions.onDidRequestPermission(e => {
+			if (e.webContents === this.webContents && !this._isDisposed) {
+				e.claim();
+				this._onDidRequestPermission.fire(e.request);
+			}
+		}));
+		this._register(this.session.permissions.onDidChange(() => {
+			this._onDidChangePermissions.fire(this.session.permissions.serialize());
+		}));
 
 		this.setupEventListeners();
 	}
@@ -559,7 +576,8 @@ export class BrowserView extends Disposable {
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			storageKeys: this.session.history.storageKeys,
+			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
+			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
 			isRemoteSession: this.session.remote.isRemote,

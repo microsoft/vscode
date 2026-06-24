@@ -11,7 +11,7 @@ import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { IToolData, IToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 
 function createMockVariable(overrides?: Partial<IDynamicVariable>): IDynamicVariable {
@@ -176,7 +176,7 @@ suite('getSelectedToolAndToolSetsForWidget', () => {
 			canBeReferencedInPrompt: true,
 			source: ToolDataSource.Internal,
 		};
-		const expectedMap = new Map<IToolData | IToolSet, boolean>([[toolData, true]]);
+		const expectedMap = ToolAndToolSetEnablementMap.fromEntries([[toolData, true]]);
 		const entriesMap = observableValue('test', expectedMap);
 
 		const widget = {

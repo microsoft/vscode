@@ -6,7 +6,7 @@
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -18,7 +18,7 @@ import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
-import { basename as resourceBasename } from '../../../../base/common/resources.js';
+import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -46,7 +46,7 @@ import { AgentCustomization, CustomizationLoadStatus, CustomizationType, Respons
 import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
@@ -147,6 +147,8 @@ interface ICopilotModelBilling {
 	readonly multiplier?: number;
 	/** Coarse price bucket surfaced as a tag in the model picker hover. */
 	readonly priceCategory?: string;
+	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
+	readonly discountPercent?: number;
 	readonly tokenPrices?: {
 		/** Default-tier prices, expressed as credits per 1M tokens. */
 		readonly contextMax?: number;
@@ -204,6 +206,36 @@ export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
 
 export function getCopilotWorktreeName(branchName: string): string {
 	return branchName.replace(/\//g, '-');
+}
+
+/**
+ * Rebases `uri` from under `fromDir` onto `toDir`, preserving the relative path.
+ * Returns `undefined` when `uri` is not equal to or under `fromDir`.
+ */
+export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined {
+	if (!isEqualOrParent(uri, fromDir)) {
+		return undefined;
+	}
+	const rel = relativePath(fromDir, uri);
+	if (rel === undefined) {
+		return undefined;
+	}
+	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
+}
+
+/**
+ * Returns a copy of `enablement` with keys that live under `fromDir` rebased
+ * onto `toDir`. Keys that aren't rebased are preserved **verbatim** (no
+ * `URI.parse(...).toString()` round-trip) so a non-URI-shaped or already-relocated
+ * key can't be mutated and lose its toggle.
+ */
+export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
+	const migrated = new Map<string, boolean>();
+	for (const [uri, enabled] of enablement) {
+		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
+		migrated.set(rebased ? rebased.toString() : uri, enabled);
+	}
+	return migrated;
 }
 
 /**
@@ -273,6 +305,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+
+	/**
+	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
+	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
+	 * right after startup). Without a retry the model picker would stay empty
+	 * until the GitHub token next changes — the only other trigger for a
+	 * refresh — so we retry a few times before giving up. Overridable in tests
+	 * to avoid real delays.
+	 */
+	protected readonly _modelRefreshMaxAttempts: number = 5;
+	protected readonly _modelRefreshBaseDelayMs: number = 1_000;
+	protected readonly _modelRefreshMaxDelayMs: number = 30_000;
+	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
+	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -468,7 +514,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const entry = this._sessions.get(sessionId);
 		const metadata = entry ? undefined : await this._readSessionMetadata(session);
-		return entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory;
+		// For non-provisional sessions the anchor follows the working directory
+		// (the worktree). Prefer it over a persisted `customizationDirectory`,
+		// which older sessions stored as the original user-picked folder.
+		return entry?.customizationDirectory ?? metadata?.workingDirectory ?? metadata?.customizationDirectory;
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -497,7 +546,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshModels(): Promise<void> {
+	private async _refreshModels(attempt = 0): Promise<void> {
+		// A fresh refresh (e.g. a token change) supersedes any scheduled retry.
+		this._modelRefreshRetry.clear();
+
+		// Once teardown has begun, skip the refresh entirely: a retry timer that
+		// fires during the shutdown window would otherwise call `_ensureClient()`
+		// and resurrect the SDK subprocess after `shutdown()` tore it down.
+		if (this._shutdownPromise) {
+			return;
+		}
+
 		const tokenAtRefreshStart = this._githubToken;
 		if (!tokenAtRefreshStart) {
 			this._models.set([], undefined);
@@ -509,11 +568,41 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._models.set(models, undefined);
 			}
 		} catch (err) {
+			// Token rotated mid-flight — a newer refresh owns the result — or
+			// teardown began while the request was in flight, in which case a
+			// retry would just resurrect the client we are tearing down.
+			if (this._githubToken !== tokenAtRefreshStart || this._shutdownPromise) {
+				return;
+			}
+			if (attempt + 1 < this._modelRefreshMaxAttempts) {
+				const delay = this._modelRefreshBackoff(attempt);
+				this._logService.warn(`[Copilot] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms`, err);
+				this._modelRefreshRetry.value = disposableTimeout(() => {
+					void this._refreshModels(attempt + 1);
+				}, delay);
+				return;
+			}
+			// Retries exhausted: surface the error. Only blank the list when we
+			// have nothing to show, so a transient failure never wipes a
+			// previously loaded, good model list.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
-			if (this._githubToken === tokenAtRefreshStart) {
+			if (this._models.get().length === 0) {
 				this._models.set([], undefined);
 			}
 		}
+	}
+
+	/**
+	 * Equal-jitter exponential backoff for model-refresh retries. Doubles the
+	 * base delay per attempt (capped at {@link _modelRefreshMaxDelayMs}) and
+	 * picks a random point in the upper half of that window, so the returned
+	 * delay lands in `[exp/2, exp]`. The jitter avoids synchronized retries
+	 * across windows/agents hitting a shared rate limit, while the `exp/2`
+	 * floor keeps a minimum spacing between attempts.
+	 */
+	private _modelRefreshBackoff(attempt: number): number {
+		const exp = Math.min(this._modelRefreshMaxDelayMs, this._modelRefreshBaseDelayMs * 2 ** attempt);
+		return Math.round(exp / 2 + Math.random() * (exp / 2));
 	}
 
 	private async _stopClient(): Promise<void> {
@@ -746,6 +835,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const billing = modelInfo?.billing;
 		const tokenPrices = billing?.tokenPrices;
 		const longContext = tokenPrices?.longContext;
+		// Narrow through ICopilotModelBilling: discountPercent may lag the installed SDK type.
+		const discountPercent = (billing as ICopilotModelBilling | undefined)?.discountPercent;
 
 		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
 			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
@@ -761,6 +852,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			longContextCacheWriteCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
 			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
 			priceCategory: typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined,
+			discountPercent: typeof discountPercent === 'number' ? discountPercent : undefined,
 		});
 	}
 
@@ -1131,13 +1223,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			config: liveSessionConfig,
 		};
 
-		const customizationDirectory = provisional.workingDirectory;
+		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
+		// The customization anchor follows the working directory: once a worktree
+		// is created the agent must discover skills/instructions/agents from the
+		// worktree (not the user-picked folder) so the model reads and edits files
+		// in the worktree it actually runs in.
+		const customizationDirectory = workingDirectory ?? provisional.workingDirectory;
 		// Always create an ActiveClient so the snapshot includes host +
 		// session-discovered customizations, even when no client has called
 		// `setClientCustomizations` / `setClientTools` yet.
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
+		// Re-anchor in case the provisional active client was already bound to the
+		// user-picked folder before the worktree existed.
+		activeClient.pluginController.reanchor(customizationDirectory);
 		const snapshot = await activeClient.snapshot();
-		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
@@ -1862,6 +1961,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		this._shutdownPromise ??= (async () => {
+			// Cancel any pending model-refresh retry so its timer cannot fire
+			// after teardown and resurrect the client.
+			this._modelRefreshRetry.clear();
 			this._logService.info('[Copilot] Shutting down...');
 			const sessionIds = new Set([...this._sessions.keys(), ...this._createdWorktrees.keys()]);
 			for (const sessionId of sessionIds) {
@@ -2043,12 +2145,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const storedMetadata = await this._readSessionMetadata(sessionUri);
-		const customizationDirectory = storedMetadata.customizationDirectory ?? storedMetadata.workingDirectory;
-		// Always create an ActiveClient so the snapshot includes host +
-		// session-discovered customizations, even when no client has called
-		// `setClientCustomizations` / `setClientTools` yet.
-		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
-		const snapshot = await activeClient.snapshot();
 		const sessionMetadata = await client.getSessionMetadata(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
@@ -2057,6 +2153,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
+		// Anchor customization discovery to the working directory (the worktree for
+		// worktree-isolated sessions), matching how the session was materialized.
+		// Older sessions persisted `customizationDirectory` as the user-picked
+		// folder; preferring the working directory corrects them on resume.
+		const customizationDirectory = workingDirectory;
+		// Always create an ActiveClient so the snapshot includes host +
+		// session-discovered customizations, even when no client has called
+		// `setClientCustomizations` / `setClientTools` yet.
+		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
+		activeClient.pluginController.reanchor(customizationDirectory);
+		const snapshot = await activeClient.snapshot();
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? await this._resolveAgentName(sessionUri, snapshot, storedMetadata.agent) : undefined;
@@ -2912,6 +3019,33 @@ class SessionPluginController extends Disposable {
 			return;
 		}
 		this._directory = directory;
+	}
+
+	/**
+	 * Move the session's customization anchor to a new directory (e.g. from the
+	 * user-picked folder to the worktree at materialization). Recreates the
+	 * discovered entry so discovery/watchers re-scan the new directory, and
+	 * rebases per-session enablement overrides whose URI lived under the old
+	 * directory so the user's toggles survive the move.
+	 */
+	public reanchor(directory: URI): void {
+		if (this._directory && isEqual(this._directory, directory)) {
+			return;
+		}
+		const previous = this._directory;
+		this._directory = directory;
+		this._sessionDiscovered.clear();
+		if (previous) {
+			this._migrateEnablement(previous, directory);
+		}
+	}
+
+	private _migrateEnablement(fromDir: URI, toDir: URI): void {
+		const migrated = migrateEnablementKeys(this._enablement, fromDir, toDir);
+		this._enablement.clear();
+		for (const [uri, enabled] of migrated) {
+			this._enablement.set(uri, enabled);
+		}
 	}
 
 	public getCustomizations(): readonly Customization[] {

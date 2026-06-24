@@ -7,6 +7,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -37,8 +38,10 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -61,7 +64,22 @@ class NewChatInSessionsWindowAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
 				},
-			}
+			},
+			menu: [
+				{
+					id: Menus.SidebarSessionsHeader,
+					group: 'navigation',
+					// Render before the filter (order 10) and find (order 20)
+					// actions so the sessions sidebar header reads: New, Filter, Find.
+					order: 0,
+				},
+				{
+					id: Menus.TitleBarLeftLayout,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				}
+			]
 		});
 	}
 

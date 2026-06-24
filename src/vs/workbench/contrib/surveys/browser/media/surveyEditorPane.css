@@ -5,17 +5,17 @@
 
 .survey-editor-pane {
 	height: 100%;
-	overflow: auto;
+	overflow-y: auto;
 	display: flex;
 	justify-content: center;
 	align-items: flex-start;
-	padding: 40px 20px 80px;
 }
 
 .survey-editor-pane .survey-form {
 	container-type: inline-size;
 	max-width: 720px;
 	width: 100%;
+	padding: 40px 20px 80px;
 }
 
 /* Header */

@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
@@ -92,6 +93,14 @@ const CLIENT_INFO = {
 };
 
 const CODEX_THINKING_LEVEL_KEY = 'thinkingLevel';
+
+/**
+ * User-agent prefix applied to the Codex agent's outbound CAPI calls (e.g. the
+ * model-list fetch) so the traffic is identifiable server-side. Mirrors
+ * `claudeAgent.ts` and the `vscode_codex` prefix used by `codexProxyService.ts`
+ * and `oaiLanguageModelServer.ts`.
+ */
+const USER_AGENT_PREFIX = 'vscode_codex';
 
 const CODEX_REASONING_EFFORTS: readonly ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
 
@@ -544,6 +553,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
+		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -719,7 +729,8 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _refreshModels(token: string): Promise<void> {
 		try {
-			const all = await this._copilotApiService.models(token);
+			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
+			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			if (this._githubToken !== token) {
 				return;
 			}
@@ -784,15 +795,45 @@ export class CodexAgent extends Disposable implements IAgent {
 		return promise;
 	}
 
+	/**
+	 * Resolve the Codex SDK root — the directory whose
+	 * `node_modules/@openai/codex-<target>/…` holds the native binary.
+	 *
+	 * Mirrors the three-tier resolution in `ClaudeAgentSdkService._loadSdk`:
+	 *   1. dev override / product download, via the downloader, when the SDK
+	 *      `isAvailable` (env override || `product.agentSdks.codex`);
+	 *   2. dev fallback to this repo's `node_modules`, where `@openai/codex`
+	 *      and its per-host binary package are devDependencies — this is what
+	 *      lets running-from-source (and dev smoke tests) spawn Codex without
+	 *      an env-var override.
+	 *
+	 * `isAvailable` is already false in dev, so it discriminates the two
+	 * without injecting `INativeEnvironmentService`. When neither path
+	 * resolves we defer to the downloader so callers get its actionable
+	 * "not configured" diagnostic.
+	 */
+	private async _resolveSdkRoot(): Promise<string> {
+		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+		}
+		const devRoot = await resolveCodexDevSdkRoot();
+		if (devRoot) {
+			this._logService.info(`[Codex] resolving SDK from repo node_modules (dev fallback): ${devRoot}`);
+			return devRoot;
+		}
+		return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+	}
+
 	private async _startConnection(token: string): Promise<IConnectionReady> {
-		// Resolve the Codex SDK root via the downloader: dev override → cache →
-		// download from `product.agentSdks.codex`. We spawn the native codex
-		// binary inside the platform package directly (the same shape the JS
-		// shim at `node_modules/@openai/codex/bin/codex.js` would resolve to)
-		// — going through the shim adds a launcher hop and forces an
+		// Resolve the Codex SDK root: dev override / product download via the
+		// downloader, or this repo's `node_modules` in a source checkout (see
+		// `_resolveSdkRoot`). We spawn the native codex binary inside the
+		// platform package directly (the same shape the JS shim at
+		// `node_modules/@openai/codex/bin/codex.js` would resolve to) — going
+		// through the shim adds a launcher hop and forces an
 		// `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs as an
 		// Electron utility process.
-		const root = await this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+		const root = await this._resolveSdkRoot();
 		const codexTarget = codexPackageSuffix(process.platform, process.arch);
 		if (!codexTarget) {
 			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
@@ -2582,4 +2623,38 @@ export function codexBinaryTriple(sdkTarget: string): string | undefined {
 		case 'win32-arm64': return 'aarch64-pc-windows-msvc';
 		default: return undefined;
 	}
+}
+
+/**
+ * Locate the SDK root for the dev (running-from-source) fallback by resolving
+ * `@openai/codex` — a devDependency in source checkouts — out of this repo's
+ * `node_modules`. Returns the directory that *contains* that `node_modules`
+ * (i.e. the value `_startConnection` joins `node_modules/@openai/codex-<target>`
+ * onto), or undefined when the package can't be resolved (e.g. a built product
+ * where it isn't shipped). `@openai/codex` declares no `exports` map, so its
+ * `package.json` is resolvable.
+ *
+ * `resolvePackageJsonPath` is a seam for tests; production resolves the path
+ * via {@link defaultResolveCodexPackageJsonPath}.
+ */
+export async function resolveCodexDevSdkRoot(
+	resolvePackageJsonPath: () => string | Promise<string> = defaultResolveCodexPackageJsonPath,
+): Promise<string | undefined> {
+	try {
+		const pkgJson = await resolvePackageJsonPath();
+		// <root>/node_modules/@openai/codex/package.json → <root>
+		return dirname(dirname(dirname(dirname(pkgJson))));
+	} catch {
+		return undefined;
+	}
+}
+
+async function defaultResolveCodexPackageJsonPath(): Promise<string> {
+	// Dynamic import of `node:module` (not a static top-level import): the
+	// unit-test electron renderer that loads this module for
+	// `codexPackagePaths.test` cannot fetch a static `node:module` import, so
+	// the sibling WSL/SSH host services resolve `createRequire` the same way
+	// for the same reason.
+	const { createRequire } = await import('node:module');
+	return createRequire(import.meta.url).resolve('@openai/codex/package.json');
 }

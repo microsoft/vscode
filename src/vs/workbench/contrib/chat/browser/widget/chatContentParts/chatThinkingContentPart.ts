@@ -1106,23 +1106,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Only check the persisted cache when re-rendering
-		// (all tool invocations are serialized), not during live streaming.
-		const allSerialized = this.toolInvocations.length > 0
-			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
-		if (allSerialized) {
-			// Fallback: check the persisted title cache using the last tool call (non-local sessions only)
-			if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-				const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
-				if (lastToolInvocation) {
-					const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
-					if (cachedTitle) {
-						this.currentTitle = cachedTitle;
-						this.content.generatedTitle = cachedTitle;
-						this.setGeneratedTitleOnAllParts(cachedTitle);
-						this.setFinalizedTitle(cachedTitle);
-						return;
-					}
+		// Only check the persisted cache when re-rendering (tool invocations are
+		// serialized), not during live streaming. Reasoning-only blocks (no tools)
+		// are keyed off the stable thinking part id so their generated headers are
+		// also restored on reload (non-local sessions only).
+		const allToolsSerialized = this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
+		if (allToolsSerialized && !LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+			const cacheId = this.getTitleCacheId();
+			if (cacheId) {
+				const cachedTitle = this.getCachedTitle(cacheId);
+				if (cachedTitle) {
+					this.currentTitle = cachedTitle;
+					this.content.generatedTitle = cachedTitle;
+					this.setGeneratedTitleOnAllParts(cachedTitle);
+					this.setFinalizedTitle(cachedTitle);
+					return;
 				}
 			}
 		}
@@ -1198,19 +1196,32 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	private getTitleCacheKey(toolCallId: string): string {
-		return `${chatSessionResourceToId(this.element.sessionResource)}:${toolCallId}`;
+	private getTitleCacheKey(id: string): string {
+		return `${chatSessionResourceToId(this.element.sessionResource)}:${id}`;
 	}
 
-	private getCachedTitle(toolCallId: string): string | undefined {
-		const entry = this.loadTitleCache()[this.getTitleCacheKey(toolCallId)];
+	/**
+	 * Stable id used to persist/restore the generated title. Tool-based blocks
+	 * key off the last tool call id; reasoning-only blocks fall back to the
+	 * thinking part id so their headers also survive a session reload.
+	 */
+	private getTitleCacheId(): string | undefined {
+		const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+		if (lastTool) {
+			return lastTool.toolCallId;
+		}
+		return this.allThinkingParts.find(t => t.id)?.id ?? this.content.id;
+	}
+
+	private getCachedTitle(id: string): string | undefined {
+		const entry = this.loadTitleCache()[this.getTitleCacheKey(id)];
 		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
 			return undefined;
 		}
 		return entry.title;
 	}
 
-	private setCachedTitle(toolCallId: string, title: string): void {
+	private setCachedTitle(id: string, title: string): void {
 		const cache = this.loadTitleCache();
 		const now = Date.now();
 
@@ -1221,7 +1232,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		cache[this.getTitleCacheKey(toolCallId)] = { title, storedAt: now };
+		cache[this.getTitleCacheKey(id)] = { title, storedAt: now };
 
 		// Cap size by dropping oldest entries
 		const keys = Object.keys(cache);
@@ -1395,9 +1406,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 				// Persist to storage for non-local sessions only
 				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-					const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
-					if (lastTool) {
-						this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+					const cacheId = this.getTitleCacheId();
+					if (cacheId) {
+						this.setCachedTitle(cacheId, generatedTitle);
 					}
 				}
 

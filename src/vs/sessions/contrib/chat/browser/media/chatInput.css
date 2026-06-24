@@ -61,6 +61,29 @@
 	pointer-events: none;
 }
 
+.new-chat-input-status-hover {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	max-width: 360px;
+}
+
+.new-chat-input-status-hover-title {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.new-chat-input-status-hover-detail {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+}
+
+.new-chat-input-status-hover-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
+}
+
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
 	padding: 2px 10px 0 10px;

@@ -252,7 +252,15 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
 	};
 }
 
-function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
+/**
+ * Builds the protocol {@link McpServerCustomization} for an MCP server
+ * declared at `definitionUri` (the manifest / settings / `.mcp.json` file
+ * the server is defined in). The id is disambiguated by server `name` so
+ * multiple servers declared in one file get distinct ids, and the entry
+ * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
+ * consistently with every other MCP customization.
+ */
+export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
 		type: CustomizationType.McpServer,
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
@@ -639,8 +647,15 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 /**
  * Parses hooks from a JSON object (any supported format).
+ *
+ * Handles Claude's `disableAllHooks` short-circuit, the `HOOK_TYPE_MAP`
+ * canonicalization, and the nested `{ matcher, hooks: [...] }` command
+ * form. Returns one {@link IParsedHookGroup} per recognized lifecycle
+ * event; all groups parsed from the same file share a single
+ * {@link IParsedHookGroup.customization} (keyed on `hookUri`), so callers
+ * that only need the file-level customization can read it off any group.
  */
-function parseHooksJson(
+export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,
@@ -1159,11 +1174,13 @@ export async function parsePlugin(
 	};
 }
 
-function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+/** Pairs an agent {@link INamedPluginResource} with its protocol-level {@link AgentCustomization}. */
+export function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link INamedPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 

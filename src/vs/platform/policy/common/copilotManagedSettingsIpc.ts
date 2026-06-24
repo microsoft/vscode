@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ICopilotManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
 import { PolicyDefinition } from './policy.js';
@@ -66,7 +67,7 @@ export class CopilotManagedSettingsChannelClient extends Disposable implements I
 
 	private updateManagedSettings(managedSettings: ManagedSettingsData, fireEvent: boolean): void {
 		this.hasReceivedManagedSettings = true;
-		if (areManagedSettingsEqual(this._managedSettings, managedSettings)) {
+		if (equals(this._managedSettings, managedSettings)) {
 			return;
 		}
 
@@ -75,14 +76,4 @@ export class CopilotManagedSettingsChannelClient extends Disposable implements I
 			this._onDidChangeManagedSettings.fire(this._managedSettings);
 		}
 	}
-}
-
-function areManagedSettingsEqual(a: ManagedSettingsData, b: ManagedSettingsData): boolean {
-	const aKeys = Object.keys(a);
-	const bKeys = Object.keys(b);
-	if (aKeys.length !== bKeys.length) {
-		return false;
-	}
-
-	return aKeys.every(key => a[key] === b[key]);
 }

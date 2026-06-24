@@ -81,17 +81,26 @@ the VS Code bag is **flattened** to dot-paths — e.g. the schema's nested
 | `extraKnownMarketplaces` | `{ name: { source } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist) |
 | `strictKnownMarketplaces` | array of source descriptors | most-restrictive-wins (empty array = lockdown) |
 
-> **Current schema ↔ runtime divergences** (treat `managed-settings-schema.json` as the
-> API source of truth, and keep the VS Code `managedSettings` type declarations aligned
-> with what the server actually projects into the bag):
-> - `strictKnownMarketplaces`: schema models an **array** allowlist, but VS Code declares
->   `COPILOT_STRICT_MARKETPLACES_KEY` as a **boolean** flag (`{ type: 'boolean' }` on
->   `ChatStrictMarketplaces`).
+> **Current schema ↔ runtime divergence** (treat `managed-settings-schema.json` as the
+> API source of truth, and keep the VS Code `managedSettings` declarations aligned with
+> what the server actually projects into the bag):
 > - `extraKnownMarketplaces`: the schema permits source kinds `github` / `git` /
 >   `directory`, but the VS Code normalizer only accepts `github` and `git` —
 >   `directory` (and any other kind) is dropped with a warning
 >   (`managedSettings.ts` `normalizeExtraKnownMarketplaces`; `IExtraKnownMarketplaceEntry`
 >   in `base/common/managedSettings.ts` only types `github`/`git`).
+>
+> Note every **structured** key — `enabledPlugins`, `extraKnownMarketplaces`,
+> `strictKnownMarketplaces` — is declared on its policy as **`{ type: 'string' }`**: the
+> object/array value is carried as a JSON string in the bag and parsed back on read (see
+> [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is
+> the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling
+> the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is
+> **required, not cosmetic**: `type` is a required field whose only allowed values are
+> `'string' | 'number' | 'boolean'`, so omitting it or declaring `'object'` / `'array'` is a
+> *compile* error; declaring `'number'` / `'boolean'` compiles but then fails projection
+> validation at *runtime* (the JSON-string bag value flunks `typeof value === type`), so the key
+> is dropped and silently never applies.
 
 Note the schema's `x-composition` describes the **server/runtime** layering across
 enterprise/org/user. Inside VS Code the bag has already been collapsed to a single
@@ -140,19 +149,42 @@ Key rules for the `value` callback:
 - It's fine to combine with `chat_preview_features_enabled === false` (see SKILL.md's
   "GitHub Preview Features" section).
 
+For the **common pass-through case** — lock to the managed value, otherwise fall through to
+the user's setting — use the `managedSettingValue(KEY)` helper instead of hand-writing the
+callback:
+
+```ts
+import { managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+
+value: managedSettingValue(COPILOT_ENABLED_PLUGINS_KEY),
+```
+
+Policies that combine the managed value with other conditions (like `ChatToolsAutoApprove`
+above, which also checks `chat_preview_features_enabled`) keep a custom callback. The helper
+returns a callback memoized per key (the same function reference for a given key on every call),
+preserving the policy-definition reference identity that lets `isSamePolicyDefinition` avoid
+needless re-registration.
+
 ### Structured (object/array) settings
 
 For settings whose `type` is `'object'` or `'array'`, the policy still declares the
 managed-settings key as a **string** (the JSON is carried as a string), and the
-`value` callback returns that raw string. When the policy value is a string but the
+`value` callback returns that raw string. The `{ type: 'string' }` is **mandatory and must
+be `'string'`** for these keys, not filler: `projectManagedSettings` keeps a bag value only
+when `typeof value === type`, and the native MDM watcher reads the registry/plist value as
+that type. `type` is a required field whose only allowed values are `'string' | 'number' |
+'boolean'` (`IManagedSettingPolicyDefinition` in `base/common/policy.ts`), so omitting it or
+declaring `'object'` / `'array'` is a *compile* error. Declaring `'number'` / `'boolean'`
+compiles, but because the structured value travels as a JSON string it then flunks that
+`typeof` check at *runtime* and gets dropped, so the managed setting silently never applies. When the policy value is a string but the
 setting's type is not, `PolicyConfiguration` parses it back into the typed value on read
 via its own lenient JSONC parser (`PolicyConfiguration.parse()` using a `json.visit`
 streaming visitor — *not* `JSON.parse`; see `configurations.ts`). Examples in
 `chat.shared.contribution.ts`:
 
 ```ts
-// chat.plugins.enabledPlugins — type: 'object'
-value: (policyData) => policyData.managedSettings?.[COPILOT_ENABLED_PLUGINS_KEY],
+// chat.plugins.enabledPlugins — setting type: 'object'; managed key carried as a string
+value: managedSettingValue(COPILOT_ENABLED_PLUGINS_KEY),
 managedSettings: { [COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' } },
 ```
 
@@ -166,7 +198,23 @@ delivery slot for the managed value.
 |----------|------|
 | `flattenManagedSettings(obj)` | Flattens a nested response into dot-path scalars (used by the server adapter). |
 | `collectManagedSettingsDefinitions(policyDefinitions)` | Aggregates every policy's `managedSettings` into one `key → { type }` map. **Single source of truth** for which keys (and types) are honored; drives both the MDM watcher and the server projection. |
+| `hasManagedSettingsDefinitions(policyDefinitions)` | Cheap short-circuiting existence check (does *any* policy declare a managed key?) — used to decide whether the native MDM watcher is needed at all, without building the full aggregate. |
 | `projectManagedSettings(values, definitions, onWarn?)` | Keeps only declared keys whose runtime value **matches the declared type**. Undeclared keys and type mismatches are **dropped (validated, never coerced)**, with an optional warning. |
+| `managedSettingValue(key)` | Builds the standard pass-through `value` callback `policyData => policyData.managedSettings?.[key]`. Use for the common "lock to the managed value, else fall through" case (see [Declaring a managed setting](#declaring-a-managed-setting-on-a-policy)). |
+
+### Server-side adaptation: the structured-key descriptor table
+
+`adaptManagedSettings` (`managedSettings.ts`) normalizes the server `managed_settings`
+response into the canonical bag. Scalar leaves flatten directly; **structured** (object/array)
+keys are JSON-encoded under a single bag key. The per-key knowledge for the structured ones
+lives in **one table**, `STRUCTURED_MANAGED_SETTINGS`. Each row declares the canonical bag
+`key`, the `responseField` it consumes (a hand-maintained union kept in sync with
+`IManagedSettingsResponse`'s named fields — not compiler-enforced, because the response's index
+signature widens `keyof` to `string`; the `adaptManagedSettings` tests are the drift backstop),
+and an `encode(raw, onWarn?)` that
+normalizes the value before `JSON.stringify`. Adding a structured key is **one descriptor row**
+(plus its response-interface field and the policy declaration) — no new bespoke branch in the
+adapter.
 
 Constants (also in `copilotManagedSettings.ts`):
 
@@ -217,11 +265,14 @@ those dot-paths. No declared keys ⇒ no watcher.
    `copilotManagedSettings.ts`. It must match the server `managed_settings` API field /
    the `managed-settings-schema.json` key exactly.
 2. **Attach it to a policy** on the governing setting: add `managedSettings: { [KEY]: { type } }`
-   and a `value(policyData)` that reads `policyData.managedSettings?.[KEY]`.
-3. **If the value is structured** (object/array), declare the managed key as `'string'`,
-   return the raw JSON string from `value`, and let `PolicyConfiguration` parse it. If the
-   server response shape differs from the stored shape, normalize it in
-   `adaptManagedSettings` (server side) so the bag matches what an admin would author in MDM.
+   and a `value` callback. For a plain pass-through use `value: managedSettingValue(KEY)`;
+   only hand-write the callback when combining with another condition.
+3. **If the value is structured** (object/array), declare the managed key as `'string'` and
+   let `PolicyConfiguration` parse the JSON back on read. Then teach the **server adapter** by
+   adding one row to `STRUCTURED_MANAGED_SETTINGS` in `managedSettings.ts` (canonical `key`, the
+   `responseField` it consumes, and an `encode` that normalizes the server shape into what an
+   admin would author in MDM) plus the matching field on `IManagedSettingsResponse`. That table
+   is the single place server-side structured-key handling lives.
 4. **Keep the schema aligned.** The runtime, the server endpoint, and
    `managed-settings-schema.json` must agree on the key name and value type. The
    declaration-driven projection (`projectManagedSettings`) silently drops anything that

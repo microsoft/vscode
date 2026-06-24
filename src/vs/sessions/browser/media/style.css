@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The model picker hover (shared with the main workbench chat) masks its dotted cost-table
+ * leader with an opaque surface color, defaulting to the menu background. In the agents window
+ * the hover sits on the panel surface, so scope the surface color to the panel background here.
+ * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
+.agent-sessions-workbench {
+	--model-hover-surface-background: var(--vscode-agentsPanel-background);
+}
+
 /* ---- Action Bar Items ---- */
 
 /* Default rounded hover/active background for all action bar items in the

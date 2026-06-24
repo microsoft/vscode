@@ -15,6 +15,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { IPermissionCategoryState } from '../common/browserPermissions.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { localize } from '../../../nls.js';
@@ -209,6 +210,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidChangeRemoteStatus;
 	}
 
+	onDynamicDidRequestPermission(id: string) {
+		return this._getBrowserView(id).onDidRequestPermission;
+	}
+
+	onDynamicDidChangePermissions(id: string) {
+		return this._getBrowserView(id).onDidChangePermissions;
+	}
+
 	async getState(id: string): Promise<IBrowserViewState> {
 		return this._getBrowserView(id).getState();
 	}
@@ -299,6 +308,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void> {
 		this._getBrowserView(id).session.history.delete(entryIds);
+	}
+
+	async setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void> {
+		this._getBrowserView(id).session.permissions.set(origin, grants);
 	}
 
 	async clearGlobalStorage(): Promise<void> {

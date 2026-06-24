@@ -22,6 +22,7 @@ import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -101,6 +102,9 @@ export class ChatView extends AbstractChatView {
 
 	private readonly _widget: ChatWidget;
 
+	/** Session banners (CI failures, created comments) shown above the chat input. */
+	private readonly _banners: SessionInputBanners;
+
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
@@ -153,6 +157,11 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
+
+		// Mount the session banners directly above the chat input.
+		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
+		this._banners.setActive(this._isActive);
+		this._ensureBannersMounted();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
@@ -211,6 +220,11 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
+			// Expose the bound chat resource on the DOM so test automation
+			// can synchronize with the post-rebind state without polling timeouts.
+			// Set AFTER `setModel` so observers see the attribute only once the
+			// inner widget is fully attached to the loaded model.
+			this.element.dataset.boundChatResource = resource.toString();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -230,6 +244,10 @@ export class ChatView extends AbstractChatView {
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `setChat` cycle to finish
+		// before acting on the view.
+		delete this.element.dataset.boundChatResource;
 	}
 
 	private _applyHistoryKey(): void {
@@ -256,7 +274,22 @@ export class ChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
+		this._ensureBannersMounted();
 		this._widget.layout(height, width);
+	}
+
+	/**
+	 * Mounts the session banners as the first child of the chat input part, so
+	 * they render above the input alongside the other above-input widgets
+	 * (notifications, goal banner, etc.). Idempotent — re-runs cheaply on layout
+	 * to recover if the chat widget rebuilds its input part DOM.
+	 */
+	private _ensureBannersMounted(): void {
+		const inputPartElement = this._widget.inputPart.element;
+		const node = this._banners.domNode;
+		if (inputPartElement.firstChild !== node) {
+			inputPartElement.insertBefore(node, inputPartElement.firstChild);
+		}
 	}
 
 	override focus(): void {
@@ -274,6 +307,7 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		this._isActive = active;
+		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
 	}
 }

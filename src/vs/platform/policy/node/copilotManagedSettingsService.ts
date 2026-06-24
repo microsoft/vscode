@@ -7,6 +7,7 @@ import { Throttler } from '../../../base/common/async.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
 import { collectManagedSettingsDefinitions, ICopilotManagedSettingsService } from '../common/copilotManagedSettings.js';
@@ -52,7 +53,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
 		const managedSettings = collectManagedSettingsDefinitions(policyDefinitions);
 
-		if (areManagedSettingDefinitionsEqual(this.watchedSettings, managedSettings)) {
+		if (equals(this.watchedSettings, managedSettings)) {
 			return this.managedSettings;
 		}
 
@@ -104,6 +105,13 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 		}));
 	}
 
+	/**
+	 * Project the internal {@link IManagedSettingsPolicyDefinitions} (readonly, and free to grow
+	 * extra fields) down to the minimal `{ type }` payload the external `@vscode/policy-watcher`
+	 * native module expects. Deliberately a fresh, narrowly-typed copy rather than handing the
+	 * watcher our internal state: it decouples the two shapes so a future field on
+	 * `IManagedSettingPolicyDefinition` cannot silently leak across the native boundary.
+	 */
 	private getManagedSettingDefinitions(): Record<string, { type: 'string' | 'number' | 'boolean' }> {
 		const definitions: Record<string, { type: 'string' | 'number' | 'boolean' }> = {};
 		for (const key in this.watchedSettings) {
@@ -130,14 +138,4 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 			this._onDidChangeManagedSettings.fire(this.managedSettings);
 		}
 	}
-}
-
-function areManagedSettingDefinitionsEqual(a: IManagedSettingsPolicyDefinitions, b: IManagedSettingsPolicyDefinitions): boolean {
-	const aKeys = Object.keys(a);
-	const bKeys = Object.keys(b);
-	if (aKeys.length !== bKeys.length) {
-		return false;
-	}
-
-	return aKeys.every(key => a[key]?.type === b[key]?.type);
 }

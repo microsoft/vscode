@@ -36,6 +36,47 @@ export interface IManagedSettingsResponse {
 }
 
 /**
+ * Descriptor for a structured (object/array) managed setting: one carried across both delivery
+ * channels as a canonical JSON string under a single key. This table is the single place that
+ * knows how to turn a server `managed_settings` response field into that canonical value, so
+ * adding a structured key is one row here (plus its {@link IManagedSettingsResponse} field — the
+ * `responseField` union is hand-maintained in sync with the interface's named fields, not
+ * compiler-enforced, because the response's index signature widens `keyof` to `string`; the
+ * `adaptManagedSettings` tests are the drift backstop — and the policy declaration that reads
+ * the bag key).
+ */
+interface IStructuredManagedSetting {
+	/** Canonical managed-settings bag key (the dot-path constant) the JSON string is stored under. */
+	readonly key: string;
+	/** Server response field this descriptor consumes; excluded from the scalar flatten and fed to `encode`. */
+	readonly responseField: 'enabledPlugins' | 'extraKnownMarketplaces' | 'strictKnownMarketplaces';
+	/**
+	 * Normalize the raw server value into the canonical pre-stringify shape an admin authors via
+	 * native MDM. Return `undefined` to omit the key (absent or malformed value). Note an empty
+	 * array (the `strictKnownMarketplaces` lockdown case) is returned as-is, not omitted.
+	 */
+	readonly encode: (value: unknown, onWarn?: (msg: string) => void) => unknown;
+}
+
+const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
+	{
+		key: COPILOT_ENABLED_PLUGINS_KEY,
+		responseField: 'enabledPlugins',
+		encode: value => isObject(value) ? value : undefined,
+	},
+	{
+		key: COPILOT_STRICT_MARKETPLACES_KEY,
+		responseField: 'strictKnownMarketplaces',
+		encode: value => Array.isArray(value) ? value : undefined,
+	},
+	{
+		key: COPILOT_EXTRA_MARKETPLACES_KEY,
+		responseField: 'extraKnownMarketplaces',
+		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+	},
+];
+
+/**
  * Adapt the `managed_settings` API response into the `managedSettings` slice of
  * {@link IPolicyData} that the policy framework consumes. This is the single
  * server-side normalizer: it encodes the response into the SAME canonical
@@ -47,12 +88,11 @@ export interface IManagedSettingsResponse {
  *
  * - Scalar leaves (`permissions.*` and any forward-compatible scalar keys) are
  *   flattened into dot-separated keys.
- * - Structured settings (`enabledPlugins`, `extraKnownMarketplaces`,
- *   `strictKnownMarketplaces`) are carried as canonical JSON strings under a
- *   single key each — the same shape an admin authors via native MDM.
- *   `PolicyConfiguration` parses the JSON back into the object-typed setting on
- *   read. `extraKnownMarketplaces` is normalized from the API's
- *   `Record<id, { source }>` map to the `{ [name]: url-or-shorthand }` dict.
+ * - Structured settings (declared in {@link STRUCTURED_MANAGED_SETTINGS}) are
+ *   carried as canonical JSON strings under a single key each — the same shape an
+ *   admin authors via native MDM. `PolicyConfiguration` parses the JSON back into
+ *   the object-typed setting on read. `extraKnownMarketplaces` is normalized from
+ *   the API's `Record<id, { source }>` map to the `{ [name]: url-or-shorthand }` dict.
  *
  * Malformed marketplace entries are dropped (with an optional warning via
  * {@link onWarn}) rather than throwing, so a bad enterprise settings file degrades
@@ -61,21 +101,21 @@ export interface IManagedSettingsResponse {
  * Exported for unit-testing the shape transformation independently of network I/O.
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	const { enabledPlugins, extraKnownMarketplaces, strictKnownMarketplaces, ...rest } = response;
-
-	const managedSettings: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(rest) };
-
-	if (isObject(enabledPlugins)) {
-		managedSettings[COPILOT_ENABLED_PLUGINS_KEY] = JSON.stringify(enabledPlugins);
+	// Spread + delete (not for..in + assignment) so the scalar remainder keeps exact `{ ...rest }`
+	// semantics: it never triggers the inherited `__proto__` setter for a server-sent own
+	// `__proto__` key, matching the original destructuring rest.
+	const scalarRest: Record<string, unknown> = { ...response };
+	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
+		delete scalarRest[setting.responseField];
 	}
 
-	if (Array.isArray(strictKnownMarketplaces)) {
-		managedSettings[COPILOT_STRICT_MARKETPLACES_KEY] = JSON.stringify(strictKnownMarketplaces);
-	}
+	const managedSettings: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(scalarRest) };
 
-	const marketplaceDict = extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(extraKnownMarketplaces, onWarn));
-	if (marketplaceDict) {
-		managedSettings[COPILOT_EXTRA_MARKETPLACES_KEY] = JSON.stringify(marketplaceDict);
+	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
+		const encoded = setting.encode(response[setting.responseField], onWarn);
+		if (encoded !== undefined) {
+			managedSettings[setting.key] = JSON.stringify(encoded);
+		}
 	}
 
 	return { managedSettings };
@@ -87,7 +127,7 @@ export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?
  * source discriminator, and any `ref`. Malformed or off-spec entries are dropped
  * (with an optional warning via {@link onWarn}).
  */
-function normalizeExtraKnownMarketplaces(value: IManagedSettingsResponse['extraKnownMarketplaces'], onWarn?: (msg: string) => void): IExtraKnownMarketplaceEntry[] | undefined {
+function normalizeExtraKnownMarketplaces(value: unknown, onWarn?: (msg: string) => void): IExtraKnownMarketplaceEntry[] | undefined {
 	if (!isObject(value)) {
 		return undefined;
 	}

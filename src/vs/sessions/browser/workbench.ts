@@ -654,6 +654,20 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return {};
 	}
 
+	/**
+	 * Overlays the persisted part visibility on top of the current
+	 * (layout-policy default) `partVisibility` state. Must run before the
+	 * `WorkbenchContextKeysHandler` reads the initial visibility so that
+	 * context keys like `auxiliaryBarVisible` reflect the restored state on
+	 * reload rather than the hardcoded defaults.
+	 */
+	private _applyPersistedPartVisibility(): void {
+		const savedPartVisibility = this._loadPartVisibility(this.storageService);
+		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
+		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
+		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+	}
+
 	private _savePartVisibility(): void {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return;
@@ -723,10 +737,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.sessions = visibilityDefaults.sessions;
-		const savedPartVisibility = this._loadPartVisibility(storageService);
-		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
-		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
-		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
+		this.partVisibility.editor = visibilityDefaults.editor;
+		this._applyPersistedPartVisibility();
 
 		// Load saved grid part sizes — these will be consumed when building the
 		// grid descriptor so editor/sidebar/auxbar/panel restore to their previous
@@ -1057,6 +1069,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.panel = visDefaults.panel;
 		this.partVisibility.sessions = visDefaults.sessions;
 		this.partVisibility.editor = visDefaults.editor;
+
+		// Overlay the persisted visibility now so that the context keys handler
+		// (created right after initLayout) initializes part-visibility context
+		// keys (e.g. auxiliaryBarVisible) from the restored state rather than the
+		// defaults. Without this, the editor-title toggle icon is wrong on reload.
+		this._applyPersistedPartVisibility();
 	}
 
 	private areAllGroupsInMainPartEmpty(): boolean {

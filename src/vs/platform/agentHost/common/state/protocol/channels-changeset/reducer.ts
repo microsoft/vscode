@@ -52,6 +52,17 @@ export function changesetReducer(state: ChangesetState, action: ChangesetAction,
 			return { ...state, files: next };
 		}
 
+		case ActionType.ChangesetContentChanged: {
+			const next = action.operations === undefined
+				? { ...state, files: action.files }
+				: { ...state, files: action.files, operations: action.operations };
+			if (action.error === undefined) {
+				const { error: _ignored, ...rest } = next;
+				return rest;
+			}
+			return { ...next, error: action.error };
+		}
+
 		case ActionType.ChangesetOperationsChanged: {
 			if (action.operations === undefined) {
 				const { operations: _ignored, ...rest } = state;

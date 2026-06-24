@@ -16,7 +16,7 @@ import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatV
 import { IVariableReference } from '../../../common/chatModes.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, ToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -159,7 +159,7 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): ToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 
@@ -183,7 +183,7 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		throw new Error('Method not implemented.');
 	}
 
-	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[] {
+	toFullReferenceNames(map: ToolAndToolSetEnablementMap): string[] {
 		throw new Error('Method not implemented.');
 	}
 

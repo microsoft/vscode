@@ -9,7 +9,7 @@ import { ContextKeyService } from '../../../../../../../platform/contextkey/brow
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../common/chatService/mockChatService.js';
 import { ChatSelectedTools } from '../../../../browser/widget/input/chatSelectedTools.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -104,7 +104,7 @@ suite('ChatSelectedTools', () => {
 
 			assert.strictEqual(selectedTools.entriesMap.get().size, 8); // 1 toolset (+4 vscode, execute, read, agent toolsets), 3 tools
 
-			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
+			const toSet = ToolAndToolSetEnablementMap.fromEntries([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
 			selectedTools.set(toSet, false);
 
 			const userSelectedTools = selectedTools.userSelectedTools.get();
@@ -169,7 +169,7 @@ suite('ChatSelectedTools', () => {
 			assert.strictEqual(selectedTools.entriesMap.get().size, 8); // 1 toolset (+4 vscode, execute, read, agent toolsets), 3 tools
 
 			// Toolset is checked, tools 2 and 3 are unchecked
-			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
+			const toSet = ToolAndToolSetEnablementMap.fromEntries([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
 			selectedTools.set(toSet, false);
 
 			const userSelectedTools = selectedTools.userSelectedTools.get();

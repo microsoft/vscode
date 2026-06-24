@@ -77,12 +77,13 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async ({ query, attachments }) => this._send(query, attachments),
+			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			supportsBackground: true,
 		}));
 	}
 
@@ -155,14 +156,21 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return;
 		}
 		const activeChat = activeSession.activeChat.get();
 		try {
-			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext });
+			// Reset the composer before dispatching the send: both touch shared
+			// chat-session state for chats in the same group, and running them
+			// concurrently races and leaves the sent chat stuck spinning.
+			if (background) {
+				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
+			}
+
+			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext, background });
 		} catch (e) {
 			this.logService.error('Failed to send secondary chat request:', e);
 		}

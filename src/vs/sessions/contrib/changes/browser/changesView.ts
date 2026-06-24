@@ -68,6 +68,7 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -958,6 +959,7 @@ export class ChangesViewPane extends ViewPane {
 	private renderSidebarList(
 		container: HTMLElement,
 		onDidLayout: Event<{ readonly height: number; readonly width: number }>,
+		contextKeyService: IContextKeyService,
 		items: IChangesFileItem[],
 		openFileItem: (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => void,
 	): IDisposable {
@@ -975,7 +977,7 @@ export class ChangesViewPane extends ViewPane {
 		const countBadge = disposables.add(new CountBadge(headerNode, { count: items.length }, defaultCountBadgeStyles));
 		countBadge.setCount(items.length);
 
-		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
+		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
 			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items)));
@@ -1032,14 +1034,24 @@ export class ChangesViewPane extends ViewPane {
 		onDidChangeVisibility: Event<boolean>,
 		disposables: DisposableStore,
 		getSelection?: () => IChangesFileItem[],
+		contextKeyService?: IContextKeyService,
 	): WorkbenchCompressibleObjectTree<ChangesTreeElement> {
+		// When a scoped context key service is provided (e.g. when rendering into
+		// the modal editor sidebar), create the tree with an instantiation service
+		// that uses it so the tree's context descends from the modal. This keeps
+		// modal-level context keys (e.g. `editorPartModal`) active while the tree
+		// has focus.
+		const treeInstantiationService = contextKeyService
+			? disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])))
+			: this.instantiationService;
+
 		const resourceLabels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility }));
 		const actionRunner = disposables.add(new ChangesViewActionRunner(
 			() => this.viewModel.activeSessionResourceObs.get(),
 			() => this.getSessionDiscardRef(),
 			getSelection ?? (() => this.getTreeSelection()),
 		));
-		return disposables.add(this.instantiationService.createInstance(
+		return disposables.add(treeInstantiationService.createInstance(
 			WorkbenchCompressibleObjectTree<ChangesTreeElement>,
 			'ChangesViewTree',
 			container,
@@ -1114,13 +1126,25 @@ export class ChangesViewPane extends ViewPane {
 		await this._openMultiFileDiffEditor(resource);
 	}
 
+	/**
+	 * Reveal the CI checks section: expand it if collapsed and move keyboard
+	 * focus into it. No-op when there are no checks to show.
+	 */
+	revealChecks(): void {
+		if (!this.ciStatusWidget || !this.ciStatusWidget.visible) {
+			return;
+		}
+		this.ciStatusWidget.expand();
+		this.ciStatusWidget.focus();
+	}
+
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
 		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
 		const currentIndex = items.indexOf(item);
 
 		const sidebar = includeSidebar ? {
-			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
-				return this.renderSidebarList(container as HTMLElement, onDidLayout, items, this._openFileItem.bind(this));
+			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => {
+				return this.renderSidebarList(container as HTMLElement, onDidLayout, contextKeyService, items, this._openFileItem.bind(this));
 			}
 		} : undefined;
 
@@ -1485,6 +1509,30 @@ class ChangesDiffStatsAction extends Action2 {
 	}
 }
 registerAction2(ChangesDiffStatsAction);
+
+/**
+ * Opens the Changes view and reveals (expands + focuses) the CI checks section.
+ * Used by the CI failures banner above the chat input.
+ */
+class RevealCIChecksAction extends Action2 {
+	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;
+
+	constructor() {
+		super({
+			id: RevealCIChecksAction.ID,
+			title: localize2('revealChecks', 'Reveal Checks'),
+			category: CHAT_CATEGORY,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView<ChangesViewPane>(CHANGES_VIEW_ID, true);
+		view?.revealChecks();
+	}
+}
+registerAction2(RevealCIChecksAction);
 
 class ChangesDiffStatsActionItem extends ActionViewItem {
 	private readonly diffStatsObs: IObservable<{ files: number; insertions: number; deletions: number } | undefined>;
