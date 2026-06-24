@@ -18,6 +18,9 @@ import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/com
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
 
+/** Prefix used for ids of recent workspace matches in the inline search results. */
+const RECENT_SEARCH_RESULT_ID_PREFIX = 'recentSearchResult:';
+
 /** Id for the synthetic row that confirms the currently browsed folder. */
 const USE_CURRENT_FOLDER_ID = 'useFolder:';
 
@@ -28,7 +31,12 @@ const USE_CURRENT_FOLDER_ID = 'useFolder:';
  */
 type MobilePickerRow = {
 	readonly sheetItem: IMobilePickerSheetItem;
+	readonly folderUri?: NonNullable<IWorkspacePickerItem['folderUri']>;
 	readonly run: () => void;
+};
+
+type RecentWorkspacePickerRow = MobilePickerRow & {
+	readonly folderUri: NonNullable<IWorkspacePickerItem['folderUri']>;
 };
 
 type BrowsedFolder = {
@@ -106,6 +114,7 @@ export function buildMobileWorkspacePickerRows(
 				disabled: item.disabled,
 				sectionTitle,
 			},
+			folderUri: isWorkspaceRow ? data?.folderUri : undefined,
 			run: () => {
 				if (data) {
 					dispatch(data);
@@ -139,6 +148,21 @@ function descriptionToString(value: IActionListItem<IWorkspacePickerItem>['descr
 		return value;
 	}
 	return value.value;
+}
+
+function findRecentWorkspaceMatches(rows: readonly MobilePickerRow[], query: string): readonly RecentWorkspacePickerRow[] {
+	const normalizedQuery = query.trim().toLocaleLowerCase();
+	if (!normalizedQuery) {
+		return [];
+	}
+	return rows.filter((row): row is RecentWorkspacePickerRow => {
+		if (!row.folderUri || row.sheetItem.disabled) {
+			return false;
+		}
+		const label = row.sheetItem.label.toLocaleLowerCase();
+		const description = row.sheetItem.description?.toLocaleLowerCase();
+		return label.includes(normalizedQuery) || !!description?.includes(normalizedQuery);
+	});
 }
 
 /**
@@ -196,23 +220,28 @@ export async function showMobileWorkspacePickerSheet(
 		label: b.label,
 		icon: b.icon,
 	}));
+	const foldersSectionTitle = localize('mobileWorkspacePicker.foldersSection', "Folders");
+	const recentSectionTitle = localize('mobileWorkspacePicker.recentSection', "Recent");
 
 	// Build the inline search source and a parallel id→dispatch map so
 	// the sheet can resolve folder taps back to a provider selection.
 	const folderRunById = new Map<string, () => void>();
 	const folderLabelById = new Map<string, string>();
+	const recentRunById = new Map<string, () => void>();
 	let currentFolder: BrowsedFolder | undefined;
 	// Track the current search query so drill-down can append to it.
 	let currentSearchQuery = '';
 	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0
 		? {
 			placeholder: localize('mobileWorkspacePicker.searchFolders', "Search folders…"),
-			resultsSectionTitle: localize('mobileWorkspacePicker.foldersSection', "Folders"),
-			emptyMessage: localize('mobileWorkspacePicker.noFolders', "No folders match"),
+			emptyMessage: localize('mobileWorkspacePicker.noWorkspaceOrFolders', "No recent workspaces or folders match"),
 			loadItems: async (query, token) => {
 				currentSearchQuery = query;
 				folderRunById.clear();
 				folderLabelById.clear();
+				recentRunById.clear();
+				const recentMatches = findRecentWorkspaceMatches(rows, query);
+				const recentFolderUris = new Set(recentMatches.map(row => row.folderUri.toString()));
 				const results = await Promise.all(
 					inlineFolderActions.map(async action => {
 						try {
@@ -228,6 +257,16 @@ export async function showMobileWorkspacePickerSheet(
 				}
 				const flattened = results.flat();
 				const sheetItems: IMobilePickerSheetItem[] = [];
+				recentMatches.forEach((row, idx) => {
+					const id = `${RECENT_SEARCH_RESULT_ID_PREFIX}${idx}`;
+					recentRunById.set(id, row.run);
+					sheetItems.push({
+						...row.sheetItem,
+						id,
+						checked: false,
+						sectionTitle: idx === 0 ? recentSectionTitle : undefined,
+					});
+				});
 				if (currentFolder?.query === query) {
 					folderRunById.set(USE_CURRENT_FOLDER_ID, currentFolder.run);
 					sheetItems.push({
@@ -235,12 +274,17 @@ export async function showMobileWorkspacePickerSheet(
 						label: localize('mobileWorkspacePicker.openCurrentFolder', "Open “{0}”", currentFolder.label),
 						icon: Codicon.folderOpened,
 						checked: true,
+						sectionTitle: foldersSectionTitle,
 					});
 				}
+				let hasAddedFolderSection = currentFolder?.query === query;
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					const folderUri = entry.workspace.folders[0]?.root;
 					if (!folderUri) {
+						return;
+					}
+					if (recentFolderUris.has(folderUri.toString())) {
 						return;
 					}
 					folderRunById.set(id, () => dispatch({ folderUri, providerId: entry.providerId }));
@@ -250,7 +294,9 @@ export async function showMobileWorkspacePickerSheet(
 						label: entry.workspace.label,
 						description: entry.workspace.description,
 						icon: entry.workspace.icon,
+						sectionTitle: hasAddedFolderSection ? undefined : foldersSectionTitle,
 					});
+					hasAddedFolderSection = true;
 				});
 				return sheetItems;
 			},
@@ -288,6 +334,15 @@ export async function showMobileWorkspacePickerSheet(
 							run();
 							lastSearchFolderRun = undefined;
 							return MOBILE_PICKER_SHEET_CONFIRM;
+						}
+						return;
+					}
+					if (id.startsWith(RECENT_SEARCH_RESULT_ID_PREFIX)) {
+						const run = recentRunById.get(id);
+						if (run) {
+							run();
+							lastSearchFolderRun = undefined;
+							currentFolder = undefined;
 						}
 						return;
 					}
