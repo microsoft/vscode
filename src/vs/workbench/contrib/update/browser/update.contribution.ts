@@ -217,7 +217,7 @@ if (isWindows) {
 		constructor() {
 			super({
 				id: '_update.applyupdate',
-				title: localize2('applyUpdate', 'Apply Update...'),
+				title: localize2('applyUpdate', 'Apply Update from File...'),
 				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
@@ -229,7 +229,7 @@ if (isWindows) {
 			const fileDialogService = accessor.get(IFileDialogService);
 
 			const updatePath = await fileDialogService.showOpenDialog({
-				title: localize('pickUpdate', "Apply Update"),
+				title: localize('pickUpdate', "Apply Update from File"),
 				filters: [{ name: 'Setup', extensions: ['exe'] }],
 				canSelectFiles: true,
 				openLabel: mnemonicButtonLabel(localize({ key: 'updateButton', comment: ['&& denotes a mnemonic'] }, "&&Update"))

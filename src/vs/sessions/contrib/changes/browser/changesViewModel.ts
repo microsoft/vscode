@@ -10,7 +10,7 @@ import { derived, derivedOpts, IObservable, ISettableObservable, observableValue
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -40,6 +40,7 @@ export class ChangesViewModel extends Disposable {
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
+	readonly activeSessionChangesetOperationsObs: IObservable<readonly ISessionChangesetOperation[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
@@ -128,6 +129,11 @@ export class ChangesViewModel extends Disposable {
 			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
 		});
 
+		this.activeSessionChangesetOperationsObs = derived(reader => {
+			const changeset = this.activeSessionChangesetObs.read(reader);
+			return changeset?.operations.read(reader) ?? [];
+		});
+
 		// Changes
 		this.activeSessionChangesObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
@@ -180,7 +186,9 @@ export class ChangesViewModel extends Disposable {
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
 			const hasOpenPullRequest = hasPullRequest &&
 				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id ||
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id ||
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
 
 			// Repository state
 			const hasGitHubRemote = gitRepository?.hasGitHubRemote ?? false;

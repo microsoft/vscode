@@ -98,15 +98,22 @@ function slugify(fixtureId: string): string {
 	return fixtureId.replace(/[^a-zA-Z0-9._-]+/g, '_');
 }
 
-/** Markdown image source for a captured render, honoring `--image-base-url`. */
-function imageSource(args: Args, hash: string, relativePath: string | undefined): string | undefined {
-	if (args.imageBaseUrl) {
-		return `${args.imageBaseUrl.replace(/\/$/, '')}/${hash}`;
+/**
+ * An embedded Markdown image (`![]()`) of a captured render.
+ * When `--image-base-url` is set, the image source is `<base>/<hash>`. Otherwise,
+ * it stays relative to the report directory.
+ */
+async function imageLink(args: Args, label: string, hash: string, relativePath: string | undefined): Promise<string | undefined> {
+	if (!relativePath) {
+		return undefined;
 	}
-	return relativePath;
+	if (args.imageBaseUrl) {
+		return `![${label}](${args.imageBaseUrl.replace(/\/$/, '')}/${hash})`;
+	}
+	return `![${label}](${relativePath})`;
 }
 
-function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scanned: number; errored: number }): string {
+async function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scanned: number; errored: number }): Promise<string> {
 	const lines: string[] = [];
 	const clean = totals.scanned - problems.length - totals.errored;
 
@@ -177,15 +184,14 @@ function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scan
 		}
 		lines.push(`- Later document (wins): ${fileLink(p.laterFile)} — document #${p.laterIndex}`);
 		lines.push(`- Earlier document (loses): ${fileLink(p.earlierFile)} — document #${p.earlierIndex}`);
-		lines.push(`- Image hash: \`${p.baselineHash.slice(0, 12)}\` (baseline) → \`${p.reversedHash.slice(0, 12)}\` (reversed)`, '');
+		lines.push(`- Image hash: \`${p.baselineHash.slice(0, 12)}\` (baseline) → \`${p.reversedHash.slice(0, 12)}\` (reversed)`);
 
-		const baseSrc = imageSource(args, p.baselineHash, p.baselineImage);
-		const revSrc = imageSource(args, p.reversedHash, p.reversedImage);
-		if (baseSrc && revSrc) {
-			lines.push('| Baseline (product order) | Reversed order |');
-			lines.push('| --- | --- |');
-			lines.push(`| ![baseline](${baseSrc}) | ![reversed](${revSrc}) |`, '');
+		const baseLink = await imageLink(args, 'baseline image', p.baselineHash, p.baselineImage);
+		const revLink = await imageLink(args, 'reversed image', p.reversedHash, p.reversedImage);
+		if (baseLink && revLink) {
+			lines.push(`- Images: ${baseLink} (product order) · ${revLink} (reversed order)`);
 		}
+		lines.push('');
 	}
 
 	return lines.join('\n');
@@ -237,6 +243,7 @@ async function main(): Promise<void> {
 		}
 		const n = files.length;
 		process.stdout.write(`\n[${i + 1}/${candidates.length}] Localizing ${base.fixtureId} (${n} documents)...\n`);
+		process.stdout.write(`  hashes: baseline=${base.imageHash} reversed=${rev.imageHash}\n`);
 		let probeCount = 0;
 		const { later, earlier } = await bisectConflict(renderer, base.fixtureId, n, base.imageHash!, ({ fromIndex, toIndex, differs, ms }) => {
 			const verdict = differs ? 'DIFFERS' : 'same';
@@ -274,7 +281,7 @@ async function main(): Promise<void> {
 		process.stdout.write(`  → #${earlier} ${fileBaseName(files[earlier] ?? '?')} loses to #${later} ${fileBaseName(files[later] ?? '?')}\n`);
 	}
 
-	const markdown = renderMarkdown(args, problems, { scanned: baseline.entries.length, errored });
+	const markdown = await renderMarkdown(args, problems, { scanned: baseline.entries.length, errored });
 	await writeFile(join(args.out, 'report.md'), `${markdown}\n`, 'utf8');
 	await writeFile(join(args.out, 'report.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), commit: GITHUB_SHA, scanned: baseline.entries.length, errored, problems }, undefined, '\t')}\n`, 'utf8');
 

@@ -11,7 +11,7 @@ import { parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -240,10 +240,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			return;
 		}
 		for (const session of activeSessions) {
-			this._changesets.refreshBranchChangeset(session);
-			this._changesets.refreshSessionChangeset(session);
-
-			void this._changesets.computeUncommittedChangeset(session);
+			this._changesets.recomputeSubscribedChangesets(session);
 		}
 	}
 
