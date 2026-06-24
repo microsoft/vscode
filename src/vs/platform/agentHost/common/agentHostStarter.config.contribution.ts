@@ -66,6 +66,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			// Allow the default to be overridden by an experiment. Uses `startup`
+			// (matching the sibling agent-host settings) since the agent host
+			// process must be restarted for a change to take effect anyway.
+			experiment: { mode: 'startup' },
 			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
 				name: 'Codex3PIntegration',

@@ -12,7 +12,7 @@ import { IPlaywrightService } from '../../../../../platform/browserView/common/p
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { createBrowserPageLink, errorResult, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
-import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { OpenPageToolId } from './openBrowserTool.js';

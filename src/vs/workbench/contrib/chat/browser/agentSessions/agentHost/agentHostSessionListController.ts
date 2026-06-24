@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -16,6 +15,7 @@ import type { INotification } from '../../../../../../platform/agentHost/common/
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
@@ -373,7 +373,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
-			iconPath: Codicon.copilot,
+			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),

@@ -171,6 +171,8 @@ export interface ICustomizationItem {
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
 	readonly pluginUri: URI | undefined;
+	/** Human-readable name of the plugin that contributed this customization, if any. */
+	readonly pluginLabel?: string;
 	/** Server-reported loading status for this customization. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -436,6 +438,7 @@ export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationS
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
+		hiddenSections: [AICustomizationManagementSection.Tools],
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -505,6 +508,9 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 		{
 			hideGenerateButton: true,
 			requiredAgentId: 'copilotcli',
+			// The Tools section manages tool sets pushed to an agent host; the extension-host
+			// Copilot CLI harness is not an agent host, so it is hidden here.
+			hiddenSections: [AICustomizationManagementSection.Tools],
 			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
 			sectionOverrides: new Map([
 				[AICustomizationManagementSection.Instructions, {
@@ -697,7 +703,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				result.push({
 					uri: item.uri,
 					type: item.type as PromptsType.prompt | PromptsType.skill,
-					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri }, item.name) : item.name,
+					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri, label: item.pluginLabel }, item.name) : item.name,
 					description: item.description,
 					userInvocable: item.userInvocable ?? true,
 					storage: narrowStorage,

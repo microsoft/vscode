@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, PermissionCategory } from './browserPermissions.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -35,6 +36,9 @@ export enum BrowserViewCommandId {
 
 	// History
 	ShowHistory = `${commandPrefix}.showHistory`,
+
+	// Permissions
+	ManagePermissions = `${commandPrefix}.managePermissions`,
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
@@ -214,6 +218,7 @@ export interface IBrowserViewCreateOptions {
 export interface IBrowserViewStorageKeys {
 	readonly history?: string;
 	readonly favicons?: string;
+	readonly permissions?: string;
 }
 
 export interface IBrowserViewState {
@@ -231,6 +236,7 @@ export interface IBrowserViewState {
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
+	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
 	isRemoteSession: boolean;
@@ -299,6 +305,11 @@ export interface IBrowserViewTitleChangeEvent {
 
 export interface IBrowserViewFaviconChangeEvent {
 	favicon: string | undefined;
+}
+
+export interface IBrowserViewPermissionRequestEvent {
+	origin: string;
+	category: PermissionCategory;
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -381,6 +392,8 @@ export interface IBrowserViewService {
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
+	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -558,6 +571,21 @@ export interface IBrowserViewService {
 	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
 	 */
 	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
+
+	/**
+	 * Record permission decisions for an origin in this view's session. This is
+	 * the single write API for permissions: it is used both by the management UI
+	 * and to answer an outstanding {@link onDynamicDidRequestPermission} prompt.
+	 * Recording a decision for a category auto-resolves any pending request for
+	 * that (origin, category). The only values ever stored are `'allow'` and
+	 * `'deny'`; passing a `null` decision clears the saved choice, falling back
+	 * to the category default. Changes are persisted immediately.
+	 *
+	 * @param id The browser view identifier
+	 * @param origin The origin (URL or origin string) to record decisions for
+	 * @param grants The per-category decisions to record
+	 */
+	setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

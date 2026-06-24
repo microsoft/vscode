@@ -14,15 +14,14 @@ import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -36,6 +35,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
 
 /**
  * An action runner for the session header toolbars that promotes the header's
@@ -78,9 +78,6 @@ export class SessionHeader extends Disposable {
 	private readonly _titleTextEl: HTMLElement;
 	private readonly _metaRow: HTMLElement;
 	private readonly _metaWorkspaceEl: HTMLElement;
-	private readonly _metaPrSeparatorEl: HTMLElement;
-	private readonly _metaPrEl: HTMLElement;
-	private readonly _metaSeparatorEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _metaToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
@@ -89,9 +86,6 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
-
-	/** The pull request currently surfaced in the meta row, used by the click handler. */
-	private _currentPullRequestUri: URI | undefined;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -129,7 +123,6 @@ export class SessionHeader extends Disposable {
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -187,11 +180,12 @@ export class SessionHeader extends Disposable {
 		this._metaRow = $('.chat-composite-bar-meta-row');
 		main.appendChild(this._metaRow);
 
-		// Workspace label (rebuilt per session) followed by a separator and the
-		// session header meta toolbar. Actions are contributed into the generic
-		// Menus.SessionHeaderMeta menu; the changes view contributes the diff-stats
-		// action, rendered as a clickable menu item that opens the multi-file diff
-		// editor.
+		// Workspace label (rebuilt per session) followed by the session header meta
+		// toolbar. Actions are contributed into the generic Menus.SessionHeaderMeta
+		// menu; the changes view contributes the diff-stats action (opens the
+		// multi-file diff editor) and the GitHub contribution contributes the pull
+		// request pill (opens the PR on GitHub), each rendered as a compact secondary
+		// button pill via SessionHeaderMetaActionViewItem.
 		this._metaWorkspaceEl = $('span.chat-composite-bar-meta-workspace');
 		this._metaRow.appendChild(this._metaWorkspaceEl);
 
@@ -202,40 +196,6 @@ export class SessionHeader extends Disposable {
 			this._metaWorkspaceEl,
 			() => this._buildWorkspaceHover(),
 		));
-
-		// Pull request pill: a `#<number>` link rendered next to the workspace label
-		// when the session is associated with a GitHub pull request. Activating it
-		// opens the pull request on GitHub. The leading separator is shown only when
-		// both the workspace label and the pill are visible.
-		this._metaPrSeparatorEl = $('span.chat-composite-bar-meta-separator');
-		this._metaRow.appendChild(this._metaPrSeparatorEl);
-
-		this._metaPrEl = $('a.chat-composite-bar-meta-pr');
-		this._metaPrEl.setAttribute('role', 'button');
-		this._metaPrEl.tabIndex = 0;
-		this._metaRow.appendChild(this._metaPrEl);
-
-		this._register(this._hoverService.setupManagedHover(
-			getDefaultHoverDelegate('element'),
-			this._metaPrEl,
-			() => this._currentPullRequestUri ? localize('agentSessions.openPullRequest', "Open Pull Request") : undefined,
-		));
-
-		this._register(addDisposableListener(this._metaPrEl, EventType.CLICK, e => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._openPullRequest();
-		}));
-		this._register(addStandardDisposableListener(this._metaPrEl, EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space) {
-				e.preventDefault();
-				e.stopPropagation();
-				this._openPullRequest();
-			}
-		}));
-
-		this._metaSeparatorEl = $('span.chat-composite-bar-meta-separator');
-		this._metaRow.appendChild(this._metaSeparatorEl);
 
 		const metaToolbarContainer = $('.chat-composite-bar-meta-toolbar');
 		this._metaRow.appendChild(metaToolbarContainer);
@@ -248,6 +208,14 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			actionRunner: metaActionRunner,
+			// Render every meta action as a consistent `icon title` pill unless it
+			// registers its own action view item via IActionViewItemService.
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
+				}
+				return undefined;
+			},
 		}));
 		// The meta row separator/visibility tracks whether the meta toolbar has any
 		// contributed actions, so recompute the header whenever they change.
@@ -369,11 +337,12 @@ export class SessionHeader extends Disposable {
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
 		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
+		// The pull request is surfaced in the meta row, so in terminal/default states the
+		// title shows the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
 		const isRead = this._sessionsListModelService.isSessionRead(session);
 		const isArchived = session.isArchived.read(reader);
-		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		this._statusIcon.setStatus(status, isRead, isArchived, pullRequestIcon);
+		this._statusIcon.setStatus(status, isRead, isArchived);
 
 		// Session title
 		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
@@ -396,25 +365,13 @@ export class SessionHeader extends Disposable {
 		}
 		this._metaWorkspaceEl.style.display = hasWorkspace ? '' : 'none';
 
-		// Pull request pill — surface `#<number>` when the session's repository has an
-		// associated GitHub pull request. Clicking it opens the PR on GitHub.
-		const pullRequest = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
-		this._currentPullRequestUri = pullRequest?.uri;
-		const hasPullRequest = !!pullRequest;
-		if (hasPullRequest) {
-			reset(this._metaPrEl, $('span.chat-composite-bar-meta-pr-label', undefined, `#${pullRequest.number}`));
-		}
-		this._metaPrEl.style.display = hasPullRequest ? '' : 'none';
-		this._metaPrSeparatorEl.style.display = hasWorkspace && hasPullRequest ? '' : 'none';
-
-		// Show the meta row separator/row based on whether the meta toolbar has any
-		// contributed actions. Reading the signal re-runs this on menu changes.
+		// Show the meta row based on whether there is a workspace label or the meta
+		// toolbar has any contributed actions. Reading the signal re-runs this on
+		// menu changes.
 		this._metaActionsSignal.read(reader);
 		const hasMetaActions = !this._metaToolbar.isEmpty();
 
-		this._metaSeparatorEl.style.display = (hasWorkspace || hasPullRequest) && hasMetaActions ? '' : 'none';
-
-		this._metaRow.style.display = hasWorkspace || hasPullRequest || hasMetaActions ? '' : 'none';
+		this._metaRow.style.display = hasWorkspace || hasMetaActions ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 
@@ -447,17 +404,6 @@ export class SessionHeader extends Disposable {
 		}
 
 		return { markdown: md, markdownNotSupportedFallback: fallbackLines.join('\n') };
-	}
-
-	/**
-	 * Opens the pull request currently surfaced in the meta row on GitHub.
-	 */
-	private _openPullRequest(): void {
-		const uri = this._currentPullRequestUri;
-		if (!uri) {
-			return;
-		}
-		this._openerService.open(uri, { openExternal: true }).catch(onUnexpectedError);
 	}
 
 	private _setVisible(visible: boolean): void {

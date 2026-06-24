@@ -5,6 +5,10 @@
 
 /**
  * Tool reference names for the integrated browser tools.
+ *
+ * Lives in `platform` (rather than next to the `workbench/contrib/browserView`
+ * tools that produce them) so the Copilot agent host — which cannot import from
+ * `workbench` — can gate its browser tool instructions on the same names.
  */
 export const BrowserChatToolReferenceName = {
 	OpenBrowserPage: 'openBrowserPage',
