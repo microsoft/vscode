@@ -431,7 +431,7 @@ export class SessionChatsMenuContribution extends Disposable implements IWorkben
 						if (isOpen) {
 							await that._sessionsService.closeChat(session, chat);
 						} else {
-							await that._sessionsService.reopenChat(session, chat);
+							// Opening a closed chat also un-hides it in the tab strip.
 							await that._sessionsService.openChat(session, chat.resource);
 						}
 					}

@@ -147,11 +147,6 @@ export interface ISessionsService {
 	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
 	/**
-	 * Reopen a previously closed chat so it is shown again in the tab strip.
-	 */
-	reopenChat(session: IActiveSession, chat: IChat): Promise<void>;
-
-	/**
 	 * Open the new-session composer.
 	 *
 	 * - Without `options.folderUri`: switch to the new-session view, restoring
@@ -579,6 +574,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeSession) {
 			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 			if (chat) {
+				// Opening a chat also un-hides it if it was previously closed.
+				this._visibility.reopenChat(session, chat);
 				this._visibility.setActiveChat(session, chat);
 			}
 		}
@@ -595,10 +592,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
-	}
-
-	async reopenChat(session: IActiveSession, chat: IChat): Promise<void> {
-		this._visibility.reopenChat(session, chat);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
