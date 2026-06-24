@@ -24,6 +24,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
@@ -2754,8 +2755,6 @@ export class CopilotAgentSession extends Disposable {
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
 
-
-		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
 		try {
 			const planRead = await this._wrapper.session.rpc.plan.read();
@@ -2763,15 +2762,6 @@ export class CopilotAgentSession extends Disposable {
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
 		}
-
-		// Build the input-request markdown: summary + link to the plan file.
-		let message = data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review.");
-		if (planPath) {
-			const planUri = URI.file(planPath);
-			message += `\n\n[${localize('agentHost.planReview.viewPlanLink', "View full plan")}](${planUri.toString()})`;
-		}
-
-		this._emitMarkdownDelta(message);
 
 		const options = data.actions.map(actionId => {
 			const desc = getPlanActionDescription(actionId);
@@ -2783,8 +2773,24 @@ export class CopilotAgentSession extends Disposable {
 			};
 		});
 
-		const inputRequest: ChatInputRequest = {
+		const actions: IAgentHostPlanReviewAction[] = options.map(option => ({
+			id: option.id,
+			label: option.label,
+			...(option.description ? { description: option.description } : {}),
+			...(option.recommended ? { default: true } : {}),
+			...(option.id === 'autopilot' || option.id === 'autopilot_fleet' ? { permissionLevel: 'autopilot' } : {}),
+		}));
+
+		const inputRequest: ChatInputRequestWithPlanReview = {
 			id: requestId,
+			planReview: {
+				title: localize('agentHost.planReview.title', "Review Plan"),
+				content: data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review."),
+				actions,
+				canProvideFeedback: true,
+				answerQuestionId: questionId,
+				...(planPath ? { planUri: URI.file(planPath).toString() } : {}),
+			},
 			questions: [{
 				kind: ChatInputQuestionKind.SingleSelect,
 				id: questionId,

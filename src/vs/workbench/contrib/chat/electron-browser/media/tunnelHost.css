@@ -6,12 +6,20 @@
 .tunnel-host-toggle {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	height: 16px;
-	padding: 3px 6px;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 24px;
+	height: 24px;
+	padding: 4px;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.tunnel-host-toggle:has(.tunnel-host-toast.visible) {
+	gap: 4px;
+	width: auto;
+	padding: 4px 6px;
 }
 
 .tunnel-host-toggle:hover {
@@ -19,7 +27,7 @@
 }
 
 .tunnel-host-toggle:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 

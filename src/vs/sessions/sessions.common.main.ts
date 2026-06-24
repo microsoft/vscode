@@ -463,6 +463,7 @@ import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.cont
 import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './services/sessions/browser/sessionsListModelService.js';
+import './services/sessions/browser/sessionGroupsService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';

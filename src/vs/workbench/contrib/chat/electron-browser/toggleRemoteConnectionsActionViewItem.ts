@@ -5,24 +5,19 @@
 
 import './media/tunnelHost.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { IManagedHover, IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ITunnelHostService } from '../common/tunnelHost.js';
 import { SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
-import { IManagedHover, IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 
-/**
- * Custom action view item for the toggle remote connections button.
- * Provides pulse animation while connecting, hover with tunnel status,
- * and a brief toast message after enabling.
- */
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _iconElement: HTMLElement | undefined;
@@ -55,14 +50,11 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this.element.tabIndex = 0;
 		this.element.role = 'button';
 
-		// Icon
 		this._iconElement = dom.append(this.element, dom.$('span.tunnel-host-icon'));
 		this._iconElement.append(...renderLabelWithIcons(`$(${Codicon.radioTower.id})`));
 
-		// Toast text (initially hidden)
 		this._toastElement = dom.append(this.element, dom.$('span.tunnel-host-toast'));
 
-		// Hover
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		this._hover = this._register(this._hoverService.setupManagedHover(
 			hoverDelegate, this.element, this._getHoverContent()
@@ -79,18 +71,12 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const isSharing = this._tunnelHostService.isSharing;
 		const isConnecting = this._tunnelHostService.isConnecting;
 
-		// Toggle CSS classes for visual state
 		this.element.classList.toggle('sharing', isSharing);
 		this.element.classList.toggle('connecting', isConnecting);
-
-		// Update hover content
 		this._hover?.update(this._getHoverContent());
-
-		// Update ARIA
 		this.element.setAttribute('aria-label', this._getAriaLabel());
 		this.element.setAttribute('aria-pressed', String(isSharing));
 
-		// Show toast when transitioning to sharing
 		if (isSharing && !this._wasSharing && !isConnecting) {
 			this._showToast();
 		} else if (!isSharing && this._wasSharing) {
@@ -151,9 +137,5 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
 		}
 		return localize('tunnelHost.hover.idle', "Allow remote session access");
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }
