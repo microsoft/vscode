@@ -35,6 +35,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>)
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
+		activeClients: [],
 		chats: [],
 		...overrides,
 	};

@@ -11,6 +11,7 @@ import { CancellationError, getErrorMessage } from '../../../../base/common/erro
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
@@ -24,6 +25,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
@@ -41,7 +43,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import { ActiveClientState } from '../activeClientState.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
@@ -313,13 +315,15 @@ export interface ICopilotAgentSessionOptions {
 	 */
 	readonly resolveMcpChildId: (serverName: string) => string | undefined;
 	/**
-	 * Live holder of the owning client's identity, shared by reference with
-	 * the agent's per-session {@link ActiveClient}. Read at tool-call stamp
-	 * time so a window reload (new `clientId`, identical tools) stamps with
-	 * the current id. When omitted, a fresh state seeded from
-	 * {@link clientSnapshot} is used (test / standalone path).
+	 * Live registry of every active client's tool contributions, shared by
+	 * reference with the agent's per-session {@link ActiveClient}. Read at
+	 * tool-call stamp time so a window reload (new `clientId`, identical
+	 * tools) stamps with the current owning id, and so each tool call is
+	 * attributed to whichever client contributed it. When omitted, a fresh
+	 * empty registry is used (test / standalone path) and client tool calls
+	 * are left unstamped.
 	 */
-	readonly activeClientState?: ActiveClientState;
+	readonly activeClientToolSet?: ActiveClientToolSet;
 	/**
 	 * Server-side host for the agent host's server tools. When provided, the
 	 * session advertises the server tools (feedback "comments" today, more in
@@ -499,7 +503,7 @@ export class CopilotAgentSession extends Disposable {
 	 * subsequent client tool calls with the current id rather than the one
 	 * frozen into {@link _appliedSnapshot}.
 	 */
-	private readonly _activeClientState: ActiveClientState;
+	private readonly _activeClientToolSet: ActiveClientToolSet;
 	/** Tool names that are client-provided, derived from snapshot. */
 	private readonly _clientToolNames: ReadonlySet<string>;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
@@ -563,15 +567,11 @@ export class CopilotAgentSession extends Disposable {
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
-		// Share the agent's live ActiveClientState when provided so clientId
-		// changes are observed at stamp time. Standalone / test construction
-		// seeds a private instance with the applied tools and no owning client.
-		if (options.activeClientState) {
-			this._activeClientState = options.activeClientState;
-		} else {
-			this._activeClientState = new ActiveClientState();
-			this._activeClientState.update(undefined, this._appliedSnapshot.tools);
-		}
+		// Share the agent's live ActiveClientToolSet when provided so client
+		// contributions (and owner identity) are observed at stamp time.
+		// Standalone / test construction uses a fresh empty registry, which
+		// leaves client tool calls unstamped (no owning client).
+		this._activeClientToolSet = options.activeClientToolSet ?? new ActiveClientToolSet();
 
 		this._databaseRef = sessionDataService.openDatabase(options.sessionUri);
 		this._register(toDisposable(() => this._databaseRef.dispose()));
@@ -1384,10 +1384,11 @@ export class CopilotAgentSession extends Disposable {
 		const mcpRequestId = generateUuid();
 		this._pendingMcpSamplings.add(requestId);
 		try {
+			type McpExecuteSamplingParams = Parameters<typeof this._wrapper.session.rpc.mcp.executeSampling>[0];
 			const result = await this._wrapper.session.rpc.mcp.executeSampling({
 				requestId,
 				serverName,
-				mcpRequestId,
+				mcpRequestId: mcpRequestId as unknown as McpExecuteSamplingParams['mcpRequestId'],
 				request: params,
 			});
 			if (result.action === 'success') {
@@ -2212,8 +2213,9 @@ export class CopilotAgentSession extends Disposable {
 
 			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | { readonly kind: ToolCallContributorKind.MCP; readonly customizationId: string } | undefined;
 			const isClientTool = this._clientToolNames.has(e.data.toolName);
-			if (isClientTool && this._activeClientState.clientId) {
-				contributor = { kind: ToolCallContributorKind.Client, clientId: this._activeClientState.clientId };
+			const ownerClientId = isClientTool ? this._activeClientToolSet.ownerOf(e.data.toolName) : undefined;
+			if (ownerClientId) {
+				contributor = { kind: ToolCallContributorKind.Client, clientId: ownerClientId };
 			} else if (e.data.mcpServerName) {
 				const customizationId = this._mcpCustomizations.customizationIdForServer(e.data.mcpServerName);
 				if (customizationId !== undefined) {
@@ -2753,8 +2755,6 @@ export class CopilotAgentSession extends Disposable {
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
 
-
-		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
 		try {
 			const planRead = await this._wrapper.session.rpc.plan.read();
@@ -2762,15 +2762,6 @@ export class CopilotAgentSession extends Disposable {
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
 		}
-
-		// Build the input-request markdown: summary + link to the plan file.
-		let message = data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review.");
-		if (planPath) {
-			const planUri = URI.file(planPath);
-			message += `\n\n[${localize('agentHost.planReview.viewPlanLink', "View full plan")}](${planUri.toString()})`;
-		}
-
-		this._emitMarkdownDelta(message);
 
 		const options = data.actions.map(actionId => {
 			const desc = getPlanActionDescription(actionId);
@@ -2782,8 +2773,24 @@ export class CopilotAgentSession extends Disposable {
 			};
 		});
 
-		const inputRequest: ChatInputRequest = {
+		const actions: IAgentHostPlanReviewAction[] = options.map(option => ({
+			id: option.id,
+			label: option.label,
+			...(option.description ? { description: option.description } : {}),
+			...(option.recommended ? { default: true } : {}),
+			...(option.id === 'autopilot' || option.id === 'autopilot_fleet' ? { permissionLevel: 'autopilot' } : {}),
+		}));
+
+		const inputRequest: ChatInputRequestWithPlanReview = {
 			id: requestId,
+			planReview: {
+				title: localize('agentHost.planReview.title', "Review Plan"),
+				content: data.summary || localize('agentHost.planReview.fallbackSummary', "A plan is ready for review."),
+				actions,
+				canProvideFeedback: true,
+				answerQuestionId: questionId,
+				...(planPath ? { planUri: URI.file(planPath).toString() } : {}),
+			},
 			questions: [{
 				kind: ChatInputQuestionKind.SingleSelect,
 				id: questionId,
@@ -2823,6 +2830,10 @@ export class CopilotAgentSession extends Disposable {
 	private _subscribeForLogging(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
+
+		this._register(wrapper.onUnhandledEvent(e => {
+			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(e)}`);
+		}));
 
 		this._register(wrapper.onSessionStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session started: model=${e.data.selectedModel ?? 'default'}, producer=${e.data.producer}`);
