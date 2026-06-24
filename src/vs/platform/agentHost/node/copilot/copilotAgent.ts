@@ -224,6 +224,21 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 }
 
 /**
+ * Returns a copy of `enablement` with keys that live under `fromDir` rebased
+ * onto `toDir`. Keys that aren't rebased are preserved **verbatim** (no
+ * `URI.parse(...).toString()` round-trip) so a non-URI-shaped or already-relocated
+ * key can't be mutated and lose its toggle.
+ */
+export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
+	const migrated = new Map<string, boolean>();
+	for (const [uri, enabled] of enablement) {
+		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
+		migrated.set(rebased ? rebased.toString() : uri, enabled);
+	}
+	return migrated;
+}
+
+/**
  * Builds the localized "Created isolated worktree for branch X" markdown
  * shown at the top of the first response in worktree-isolated sessions.
  * The branch name is wrapped as inline code so the localized template
@@ -3026,11 +3041,7 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _migrateEnablement(fromDir: URI, toDir: URI): void {
-		const migrated = new Map<string, boolean>();
-		for (const [uri, enabled] of this._enablement) {
-			const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-			migrated.set((rebased ?? URI.parse(uri)).toString(), enabled);
-		}
+		const migrated = migrateEnablementKeys(this._enablement, fromDir, toDir);
 		this._enablement.clear();
 		for (const [uri, enabled] of migrated) {
 			this._enablement.set(uri, enabled);

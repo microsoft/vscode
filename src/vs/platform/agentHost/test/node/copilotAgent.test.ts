@@ -42,7 +42,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot, rebaseUnder } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot, migrateEnablementKeys, rebaseUnder } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
@@ -2730,6 +2730,28 @@ suite('CopilotAgent', () => {
 				undefined,
 				'a path outside the source dir (e.g. user home) is not rebased',
 			);
+		});
+
+		test('migrateEnablementKeys rebases keys under the original folder and preserves all others verbatim', () => {
+			const original = URI.file('/Users/me/src/vscode');
+			const worktree = URI.file('/Users/me/src/vscode.worktrees/agents-x');
+			const sessionsKey = URI.file('/Users/me/src/vscode/.github/skills/sessions/SKILL.md').toString();
+			const userHomeKey = URI.file('/Users/me/.copilot/skills/foo/SKILL.md').toString();
+			const result = migrateEnablementKeys(new Map<string, boolean>([
+				[sessionsKey, false],
+				[userHomeKey, false],
+				['not-a-uri-opaque-id', true],
+				['', true],
+			]), original, worktree);
+
+			assert.deepStrictEqual(Object.fromEntries(result), {
+				// under the original folder → rebased onto the worktree
+				[URI.file('/Users/me/src/vscode.worktrees/agents-x/.github/skills/sessions/SKILL.md').toString()]: false,
+				// everything else preserved verbatim (no `file:///` prefix, no collapse)
+				[userHomeKey]: false,
+				['not-a-uri-opaque-id']: true,
+				['']: true,
+			});
 		});
 
 		let tmpDir: string;
