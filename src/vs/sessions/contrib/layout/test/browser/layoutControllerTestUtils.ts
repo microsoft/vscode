@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDimension } from '../../../../../base/browser/dom.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -103,6 +104,10 @@ export interface ICreateOptions {
 	readonly layoutState?: readonly object[];
 	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
 	readonly newSessionViewStateRaw?: string;
+	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
+	readonly responsiveSidebar?: boolean;
+	/** [D7] When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
+	readonly revealAuxiliaryBarOnOpen?: boolean;
 }
 
 /**
@@ -118,6 +123,8 @@ export interface ITestLayoutHarness {
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onDidChangeEditorMaximized: Emitter<void>;
+	onDidLayoutMainContainer: Emitter<IDimension>;
+	mainContainerWidth: number;
 	editorMaximized: boolean;
 	partVisibility: Map<Parts, boolean>;
 	openedViewContainers: string[];
@@ -145,6 +152,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
+	configService.setUserConfiguration('sessions.layout.autoCollapseSessionsSidebar', options.responsiveSidebar ?? true);
 	instaService.stub(IConfigurationService, configService);
 
 	const harness: ITestLayoutHarness = {
@@ -155,6 +163,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
+		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
+		mainContainerWidth: 2000,
 		editorMaximized: false,
 		partVisibility: new Map<Parts, boolean>([
 			[Parts.AUXILIARYBAR_PART, true],
@@ -196,19 +206,31 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidChangePartVisibility = harness.onDidChangePartVisibility.event;
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
+		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
+		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
 	} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
 
 	instaService.stub(IViewsService, new class extends mock<IViewsService>() {
 		override async openViewContainer(id: string) {
 			harness.openedViewContainers.push(id);
+			revealAuxiliaryBar();
 			return null;
 		}
 		override closeViewContainer() { }
 		override async openView(id: string) {
 			harness.openedViews.push(id);
+			revealAuxiliaryBar();
 			return null;
 		}
 	});
+
+	function revealAuxiliaryBar(): void {
+		if (!options.revealAuxiliaryBarOnOpen || harness.partVisibility.get(Parts.AUXILIARYBAR_PART) === true) {
+			return;
+		}
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+	}
 
 	instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
 		override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {

@@ -186,7 +186,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
-		clientId: string | undefined = undefined,
+		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -205,7 +205,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientId,
+			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -232,13 +232,11 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Phase 10 — update the workbench `clientId` that the stream mapper
-	 * stamps onto subsequent `ChatToolCallStart` events. Called by the
-	 * session whenever {@link SessionClientToolsModel} receives a new
-	 * clientId via `setClientTools`.
+	 * Phase 10 — update the resolver the stream mapper uses to stamp the
+	 * owning workbench `clientId` onto subsequent `ChatToolCallStart` events.
 	 */
-	setClientId(clientId: string | undefined): void {
-		this._router.setClientId(clientId);
+	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
+		this._router.setClientToolOwner(clientToolOwner);
 	}
 
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */

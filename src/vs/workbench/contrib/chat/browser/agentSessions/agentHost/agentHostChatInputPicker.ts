@@ -201,7 +201,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 	if (!schema.enum.includes('default')) {
 		return false;
 	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
 }
 
 /**
@@ -617,8 +617,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}
 		return (schema.enum ?? []).map((value, index) => ({
-			value,
-			label: schema.enumLabels?.[index] ?? value,
+			value: String(value),
+			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
 		}));
 	}

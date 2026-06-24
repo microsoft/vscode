@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -714,6 +715,8 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}));
 
+		this._reconcileActiveClientsAfterReconnect(client);
+
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
 			for (const envelope of this._replayBuffer) {
@@ -728,20 +731,80 @@ export class ProtocolServerHandler extends Disposable {
 		return { type: 'snapshot', snapshots: snapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
+	/**
+	 * Release a client from every session where it is still an active client
+	 * but did not resubscribe during a reconnect. The set of resubscribed
+	 * sessions is gathered from every live connection the client currently
+	 * holds (not just the reconnecting one) so an overlapping connection that
+	 * still subscribes to a session keeps the client active there.
+	 */
+	private _reconcileActiveClientsAfterReconnect(client: IConnectedClient): void {
+		const record = this._clients.get(client.clientId);
+		const resubscribed = new Set<string>();
+		for (const connection of record?.connections ?? [client]) {
+			for (const sub of connection.subscriptions.values()) {
+				if (sub.kind === ChannelKind.State) {
+					resubscribed.add(sub.uri);
+				}
+			}
+		}
+		for (const session of this._stateManager.getSessionUris()) {
+			if (resubscribed.has(session)) {
+				continue;
+			}
+			const state = this._stateManager.getSessionState(session);
+			if (state && this._isActiveClient(state, client.clientId)) {
+				this._releaseActiveClientForSession(session, client.clientId);
+			}
+		}
+	}
+
 	private _handleClientDisconnected(clientId: string): void {
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
+			const isActive = state ? this._isActiveClient(state, clientId) : false;
 			const ownsPendingToolCall = state ? this._hasPendingClientToolCall(state, clientId) : false;
-			if (state?.activeClient?.clientId === clientId) {
-				this._stateManager.dispatchServerAction(session, {
-					type: ActionType.SessionActiveClientChanged,
-					activeClient: null,
-				});
-			}
-			if (state?.activeClient?.clientId === clientId || ownsPendingToolCall) {
+			// Keep the client marked active during the grace window so a quick
+			// reconnect that resubscribes can retain its slot. The disconnect
+			// timeout removes the active client (and fails its pending tool
+			// calls) if it never returns; an explicit unsubscribe or a
+			// reconnect without resubscription removes it sooner.
+			if (isActive || ownsPendingToolCall) {
 				this._startClientToolCallDisconnectTimeout(clientId, session);
 			}
 		}
+	}
+
+	/** Whether `clientId` is one of the session's active clients. */
+	private _isActiveClient(state: SessionState, clientId: string): boolean {
+		return state.activeClients.some(c => c.clientId === clientId);
+	}
+
+	/**
+	 * Remove `clientId` from a session's active clients, if present. Dispatched
+	 * as a server action so the removal is reflected in state and broadcast to
+	 * the remaining subscribers.
+	 */
+	private _removeActiveClient(session: string, clientId: string): void {
+		const state = this._stateManager.getSessionState(session);
+		if (state && this._isActiveClient(state, clientId)) {
+			this._stateManager.dispatchServerAction(session, {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId,
+			});
+		}
+	}
+
+	/**
+	 * Release a client from a session: clear its pending disconnect timeout,
+	 * fail any client tool calls it still owns, and remove it from the active
+	 * clients. Used by the explicit-unsubscribe and reconnect-reconciliation
+	 * paths to drop a client that has left a session.
+	 */
+	private _releaseActiveClientForSession(session: string, clientId: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, session);
+		this._completeDisconnectedClientToolCalls(clientId, session);
+		this._removeActiveClient(session, clientId);
 	}
 
 	/**
@@ -779,10 +842,9 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
-		const activeClient = state.activeClient;
-		return activeClient !== undefined
-			&& activeClient.clientId !== clientId
-			&& activeClient.tools.some(tool => tool.name === toolName);
+		return state.activeClients.some(client =>
+			client.clientId !== clientId
+			&& client.tools.some(tool => tool.name === toolName));
 	}
 
 	/**
@@ -805,8 +867,7 @@ export class ProtocolServerHandler extends Disposable {
 		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(session, disposableTimeout(() => {
-			record.disconnectTimeouts.deleteAndDispose(session);
-			this._completeDisconnectedClientToolCalls(clientId, session);
+			this._releaseActiveClientForSession(session, clientId);
 		}, delay));
 	}
 
@@ -1062,6 +1123,7 @@ export class ProtocolServerHandler extends Disposable {
 				URI.parse(params.chat),
 				{
 					...(params.model ? { model: params.model } : {}),
+					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
 				},
 			);
 			return null;
@@ -1372,6 +1434,7 @@ export class ProtocolServerHandler extends Disposable {
 				return;
 			}
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+			this._releaseActiveClientForSession(sub.uri, client.clientId);
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);
 		}
@@ -1409,21 +1472,22 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		// The root channel has two equivalent string forms (`ahp-root://` and
-		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
-		// client that subscribed with either form receives root broadcasts
-		// regardless of which form the envelope carries. See
-		// {@link isAhpRootChannel}.
-		if (isAhpRootChannel(envelope.channel)) {
-			for (const sub of client.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
-					return true;
-				}
-			}
+		const sub = client.subscriptions.get(envelope.channel);
+		if (sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) {
+			return true;
+		}
+		if (!isAhpRootChannel(envelope.channel)) {
 			return false;
 		}
-		const sub = client.subscriptions.get(envelope.channel);
-		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
+		return isActionEnvelopeRelevantToSubscriptionUris(envelope, this._stateAndResourceWatchUris(client));
+	}
+
+	private *_stateAndResourceWatchUris(client: IConnectedClient): Iterable<string> {
+		for (const sub of client.subscriptions.values()) {
+			if (sub.kind === ChannelKind.State || sub.kind === ChannelKind.ResourceWatch) {
+				yield sub.uri;
+			}
+		}
 	}
 
 	override dispose(): void {
