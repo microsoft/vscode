@@ -18,7 +18,7 @@ import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
-import { basename as resourceBasename } from '../../../../base/common/resources.js';
+import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -75,6 +75,53 @@ function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOption
 		case LogLevel.Warning: return 'warning';
 		case LogLevel.Error: return 'error';
 	}
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function isLinuxMuslRuntime(): boolean {
+	if (process.platform !== 'linux') {
+		return false;
+	}
+
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	return !report?.header?.glibcVersionRuntime;
+}
+
+function getCopilotPlatformPackageCandidates(): string[] {
+	const platformArch = `${process.platform}-${process.arch}`;
+	if (process.platform !== 'linux') {
+		return [platformArch];
+	}
+
+	const linuxCandidates = [`linux-${process.arch}`, `linuxmusl-${process.arch}`];
+	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
+}
+
+async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+	const tried: string[] = [];
+	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
+		tried.push(cliPath);
+		if (await fileExists(cliPath)) {
+			return cliPath;
+		}
+	}
+
+	const oldTopLevelPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+	tried.push(oldTopLevelPath);
+	if (await fileExists(oldTopLevelPath)) {
+		return oldTopLevelPath;
+	}
+
+	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
 }
 
 interface ICreatedWorktree {
@@ -206,6 +253,36 @@ export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
 
 export function getCopilotWorktreeName(branchName: string): string {
 	return branchName.replace(/\//g, '-');
+}
+
+/**
+ * Rebases `uri` from under `fromDir` onto `toDir`, preserving the relative path.
+ * Returns `undefined` when `uri` is not equal to or under `fromDir`.
+ */
+export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined {
+	if (!isEqualOrParent(uri, fromDir)) {
+		return undefined;
+	}
+	const rel = relativePath(fromDir, uri);
+	if (rel === undefined) {
+		return undefined;
+	}
+	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
+}
+
+/**
+ * Returns a copy of `enablement` with keys that live under `fromDir` rebased
+ * onto `toDir`. Keys that aren't rebased are preserved **verbatim** (no
+ * `URI.parse(...).toString()` round-trip) so a non-URI-shaped or already-relocated
+ * key can't be mutated and lose its toggle.
+ */
+export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
+	const migrated = new Map<string, boolean>();
+	for (const [uri, enabled] of enablement) {
+		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
+		migrated.set(rebased ? rebased.toString() : uri, enabled);
+	}
+	return migrated;
 }
 
 /**
@@ -484,7 +561,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const entry = this._sessions.get(sessionId);
 		const metadata = entry ? undefined : await this._readSessionMetadata(session);
-		return entry?.customizationDirectory ?? metadata?.customizationDirectory ?? metadata?.workingDirectory;
+		// For non-provisional sessions the anchor follows the working directory
+		// (the worktree). Prefer it over a persisted `customizationDirectory`,
+		// which older sessions stored as the original user-picked folder.
+		return entry?.customizationDirectory ?? metadata?.workingDirectory ?? metadata?.customizationDirectory;
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -687,7 +767,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
-			const cliPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -1192,13 +1272,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			config: liveSessionConfig,
 		};
 
-		const customizationDirectory = provisional.workingDirectory;
-		// Always create an ActiveClient so the snapshot includes host +
-		// session-discovered customizations, even when no client has called
-		// active-client handle yet.
-		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
-		const snapshot = await activeClient.snapshot();
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
+		// The customization anchor follows the working directory: once a worktree
+		// is created the agent must discover skills/instructions/agents from the
+		// worktree (not the user-picked folder) so the model reads and edits files
+		// in the worktree it actually runs in.
+		const customizationDirectory = workingDirectory ?? provisional.workingDirectory;
+		// Always create an ActiveClient so the snapshot includes host +
+		// session-discovered customizations, even when no client has
+		// registered an active-client handle yet.
+		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
+		// Re-anchor in case the provisional active client was already bound to the
+		// user-picked folder before the worktree existed.
+		activeClient.pluginController.reanchor(customizationDirectory);
+		const snapshot = await activeClient.snapshot();
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
@@ -2112,12 +2199,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const storedMetadata = await this._readSessionMetadata(sessionUri);
-		const customizationDirectory = storedMetadata.customizationDirectory ?? storedMetadata.workingDirectory;
-		// Always create an ActiveClient so the snapshot includes host +
-		// session-discovered customizations, even when no client has called
-		// active-client handle yet.
-		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
-		const snapshot = await activeClient.snapshot();
 		const sessionMetadata = await client.getSessionMetadata(sessionId).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
@@ -2126,6 +2207,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
+		// Anchor customization discovery to the working directory (the worktree for
+		// worktree-isolated sessions), matching how the session was materialized.
+		// Older sessions persisted `customizationDirectory` as the user-picked
+		// folder; preferring the working directory corrects them on resume.
+		const customizationDirectory = workingDirectory;
+		// Always create an ActiveClient so the snapshot includes host +
+		// session-discovered customizations, even when no client has
+		// registered an active-client handle yet.
+		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
+		activeClient.pluginController.reanchor(customizationDirectory);
+		const snapshot = await activeClient.snapshot();
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? await this._resolveAgentName(sessionUri, snapshot, storedMetadata.agent) : undefined;
@@ -3000,6 +3092,33 @@ class SessionPluginController extends Disposable {
 			return;
 		}
 		this._directory = directory;
+	}
+
+	/**
+	 * Move the session's customization anchor to a new directory (e.g. from the
+	 * user-picked folder to the worktree at materialization). Recreates the
+	 * discovered entry so discovery/watchers re-scan the new directory, and
+	 * rebases per-session enablement overrides whose URI lived under the old
+	 * directory so the user's toggles survive the move.
+	 */
+	public reanchor(directory: URI): void {
+		if (this._directory && isEqual(this._directory, directory)) {
+			return;
+		}
+		const previous = this._directory;
+		this._directory = directory;
+		this._sessionDiscovered.clear();
+		if (previous) {
+			this._migrateEnablement(previous, directory);
+		}
+	}
+
+	private _migrateEnablement(fromDir: URI, toDir: URI): void {
+		const migrated = migrateEnablementKeys(this._enablement, fromDir, toDir);
+		this._enablement.clear();
+		for (const [uri, enabled] of migrated) {
+			this._enablement.set(uri, enabled);
+		}
 	}
 
 	public getCustomizations(): readonly Customization[] {

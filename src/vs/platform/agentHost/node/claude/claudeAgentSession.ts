@@ -35,6 +35,7 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
+import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
@@ -849,10 +850,11 @@ export class ClaudeAgentSession extends Disposable {
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
-		const [discovered, rules, mcpServers] = await Promise.all([
+		const [discovered, rules, mcpServers, hooks] = await Promise.all([
 			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
 			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
 			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
+			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to
@@ -872,7 +874,7 @@ export class ClaudeAgentSession extends Disposable {
 		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
 		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
 		// both agents and skills, so the SDK-vs-curated decision lives in one place.
-		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, this.workingDirectory, userHome, sdk);
+		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, this.workingDirectory, userHome, sdk);
 
 		// Final projection: the client-pushed tier (with the per-id enablement
 		// overlay) first, then the discovered tier appended verbatim — the

@@ -1604,6 +1604,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 	}
 
+	private getNotificationSessionType(): string | undefined {
+		return this._pendingDelegationTarget ?? this._currentSessionType ?? this.getCurrentSessionType();
+	}
+
 	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		return isModelValidForSession(model, this.getAllMergedModels(), this.getCurrentSessionType());
 	}
@@ -2446,6 +2450,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateWidgetLockStateFromSessionType(provider);
 		this.updateAgentSessionTypeContextKey();
 		this.refreshChatSessionPickers();
+		this._notificationWidget.value?.rerender();
 	}
 
 	/**
@@ -2459,7 +2464,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
-			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, () => this._currentSessionType ?? this.getCurrentSessionType());
+			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, () => this.getNotificationSessionType());
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
 	}

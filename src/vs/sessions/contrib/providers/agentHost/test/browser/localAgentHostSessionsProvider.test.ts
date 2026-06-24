@@ -35,11 +35,13 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter } from '../../browser/baseAgentHostSessionsProvider.js';
 import { CHANGESET_UPDATE_THROTTLE_MS } from '../../browser/agentHostChangesetConstants.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -320,6 +322,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
+	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
@@ -1815,6 +1818,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('a new peer chat is presented as Untitled until its first request is sent', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-new');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-new').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			// Host commits the peer chat eagerly (Completed); mark it new first.
+			(session as AgentHostSessionAdapter).markChatAsNew('peer-1');
+			agentHost.setSessionState('multi-new', 'copilotcli', makeState('multi-new', [
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			const peer = () => session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			const whileNew = peer()!.status.get();
+
+			(session as AgentHostSessionAdapter).markChatAsSent('peer-1');
+			const afterSent = peer()!.status.get();
+
+			assert.deepStrictEqual({ whileNew, afterSent }, {
+				whileNew: SessionStatus.Untitled,
+				afterSent: SessionStatus.Completed,
+			});
+		});
+
 		test('deleteChat prompts for confirmation and disposes the peer chat when confirmed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const provider = createProvider(disposables, agentHost, undefined, { confirmDelete: true });
 			const session = setupMultiChatSession(provider, 'multi-del');
@@ -2162,7 +2191,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		await assert.rejects(
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
-			/not found or not a new session/,
+			/not found/,
 		);
 	});
 
