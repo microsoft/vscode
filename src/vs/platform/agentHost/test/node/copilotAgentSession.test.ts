@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -58,14 +58,23 @@ class MockCopilotSession {
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
+	private readonly _allHandlers = new Set<SessionEventHandler>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 
-	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void {
+	on(handler: SessionEventHandler): () => void;
+	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void;
+	on<K extends SessionEventType>(eventTypeOrHandler: K | SessionEventHandler, handler?: TypedSessionEventHandler<K>): () => void {
+		if (typeof eventTypeOrHandler === 'function') {
+			this._allHandlers.add(eventTypeOrHandler);
+			return () => { this._allHandlers.delete(eventTypeOrHandler); };
+		}
+		const eventType = eventTypeOrHandler;
 		let set = this._handlers.get(eventType);
 		if (!set) {
 			set = new Set();
 			this._handlers.set(eventType, set);
 		}
+		assert.ok(handler);
 		set.add(handler as (event: SessionEvent) => void);
 		return () => { set.delete(handler as (event: SessionEvent) => void); };
 	}
@@ -78,6 +87,9 @@ class MockCopilotSession {
 			for (const handler of set) {
 				handler(event);
 			}
+		}
+		for (const handler of this._allHandlers) {
+			handler(event);
 		}
 	}
 
@@ -141,6 +153,12 @@ class MockCopilotSession {
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
 	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
+	readonly traces: Array<{ message: string; args: unknown[] }> = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push({ message, args });
+		super.trace(message, ...args);
+	}
 
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push({ first: message, args });
@@ -379,6 +397,49 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('CopilotSessionWrapper', () => {
+		test('fires unhandled events when no wrapped listener is registered', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+
+		test('tracks wrapped listener registrations dynamically', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+			const handledListener = wrapper.onSessionCompactionStart(() => { });
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+			handledListener.dispose();
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+	});
+
+	test('logs SDK events without wrapped handlers', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.title_changed', { title: 'A new title' } as SessionEventPayload<'session.title_changed'>['data'], {
+			ephemeral: true,
+			id: 'evt-title',
+			timestamp: '2026-06-24T00:00:00.000Z',
+		});
+
+		assert.deepStrictEqual(
+			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
+		);
+	});
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
 		const fileUri = URI.file('/workspace/file.ts');

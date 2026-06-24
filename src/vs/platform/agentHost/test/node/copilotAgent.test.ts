@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ModelInfo, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ModelInfo, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -300,7 +300,9 @@ interface IFakeAgentSession {
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 
-	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void {
+	on(_handler: SessionEventHandler): () => void;
+	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void;
+	on<K extends SessionEventType>(_eventTypeOrHandler: K | SessionEventHandler, _handler?: TypedSessionEventHandler<K>): () => void {
 		return () => { };
 	}
 
