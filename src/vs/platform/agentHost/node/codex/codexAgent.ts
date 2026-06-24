@@ -17,6 +17,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -754,9 +755,12 @@ export class CodexAgent extends Disposable implements IAgent {
 					supportsVision: !!m.capabilities?.supports?.vision,
 					configSchema,
 					policyState: m.policy?.state as PolicyState | undefined,
-					_meta: typeof m.billing?.multiplier === 'number' ? {
-						multiplierNumeric: m.billing.multiplier,
-					} : undefined,
+					_meta: createPricingMetaFromBilling(
+						m.billing as ICAPIModelBilling | undefined,
+						typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
+							? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+							: undefined,
+					),
 				}));
 			this._models.set(models, undefined);
 		} catch (err) {

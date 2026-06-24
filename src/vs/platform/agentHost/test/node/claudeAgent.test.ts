@@ -792,6 +792,38 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('authenticate populates full pricing metadata from billing tokenPrices', async () => {
+		const modelWithPricing = makeModel({
+			id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', vendor: 'Anthropic',
+			billing: {
+				is_premium: false, multiplier: 2, restricted_to: [],
+				// Runtime CAPI fields not yet declared on the SDK type:
+				tokenPrices: { inputPrice: 3, cachePrice: 0.3, cacheWritePrice: 3.75, outputPrice: 15, longContext: { inputPrice: 6, cachePrice: 0.6, cacheWritePrice: 7.5, outputPrice: 30 } },
+				priceCategory: 'medium',
+			} as CCAModel['billing'],
+		});
+
+		const { agent, api } = createTestContext(disposables);
+		api.models = async () => [modelWithPricing];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		const models = agent.models.get();
+		assert.strictEqual(models.length, 1);
+		assert.deepStrictEqual(models[0]._meta, {
+			multiplierNumeric: 2,
+			inputCost: 3,
+			cacheCost: 0.3,
+			cacheWriteCost: 3.75,
+			outputCost: 15,
+			longContextInputCost: 6,
+			longContextCacheCost: 0.6,
+			longContextCacheWriteCost: 7.5,
+			longContextOutputCost: 30,
+			priceCategory: 'medium',
+		});
+	});
+
 	test('authenticate surfaces the CAPI chat-default model first; ties preserve insertion order', async () => {
 		// `IAgentModelInfo` carries no explicit `isDefault` bit; the
 		// picker uses `models[0]` as the de facto default at

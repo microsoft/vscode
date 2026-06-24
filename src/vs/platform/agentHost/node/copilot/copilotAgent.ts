@@ -28,7 +28,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import { createAgentModelPricingMeta } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -186,32 +186,6 @@ interface IPersistedChat {
 	readonly model?: ModelSelection;
 }
 
-/**
- * Augments the published `@vscode/copilot-api` `ModelBilling` with the `tokenPrices` field the runtime CAPI `/models`
- * payload already carries but the SDK type doesn't yet declare. Mirror of `IClaudeModelSupports` in `claudeAgent.ts`.
- */
-interface ICopilotModelBilling {
-	readonly multiplier?: number;
-	/** Coarse price bucket surfaced as a tag in the model picker hover. */
-	readonly priceCategory?: string;
-	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
-	readonly discountPercent?: number;
-	readonly tokenPrices?: {
-		/** Default-tier prices, expressed as credits per 1M tokens. */
-		readonly contextMax?: number;
-		readonly inputPrice?: number;
-		readonly cachePrice?: number;
-		readonly cacheWritePrice?: number;
-		readonly outputPrice?: number;
-		readonly longContext?: {
-			readonly contextMax?: number;
-			readonly inputPrice?: number;
-			readonly cachePrice?: number;
-			readonly cacheWritePrice?: number;
-			readonly outputPrice?: number;
-		};
-	};
-}
 
 /**
  * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's private `connection` field to wire plan mode.
@@ -839,7 +813,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
 	 *
 	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
-	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
+	 * `ModelBilling` type — narrow through {@link ICAPIModelBilling} until the SDK catches up.
 	 */
 	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
 		const tokenPrices = billing?.tokenPrices;
@@ -870,37 +844,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Builds the open `_meta` pricing bag for a model from its billing info so the chat model picker can render its
-	 * cost hover. Cost values are credits per 1M tokens.
-	 *
-	 * Long-context costs are only emitted when they differ from the default tier, mirroring `normalizeTokenPrices` in
-	 * `extensions/copilot/src/extension/conversation/common/languageModelAccess.ts`.
-	 *
-	 * `billing.tokenPrices` / `billing.priceCategory` are present on the runtime CAPI `/models` payload but not yet
-	 * declared on the published SDK `ModelBilling` type — narrow through {@link ICopilotModelBilling}.
+	 * cost hover. Delegates to the shared {@link createPricingMetaFromBilling} helper.
 	 */
 	private _createModelPricingMeta(modelInfo: ModelInfo | undefined): Record<string, unknown> | undefined {
-		const billing = modelInfo?.billing;
-		const tokenPrices = billing?.tokenPrices;
-		const longContext = tokenPrices?.longContext;
-		// Narrow through ICopilotModelBilling: discountPercent may lag the installed SDK type.
-		const discountPercent = (billing as ICopilotModelBilling | undefined)?.discountPercent;
-
-		const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
-			longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
-
-		return createAgentModelPricingMeta({
-			multiplierNumeric: typeof billing?.multiplier === 'number' ? billing.multiplier : undefined,
-			inputCost: tokenPrices?.inputPrice,
-			cacheCost: tokenPrices?.cachePrice,
-			cacheWriteCost: tokenPrices?.cachePrice,
-			outputCost: tokenPrices?.outputPrice,
-			longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
-			longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
-			longContextCacheWriteCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
-			longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
-			priceCategory: typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined,
-			discountPercent: typeof discountPercent === 'number' ? discountPercent : undefined,
-		});
+		const billing = modelInfo?.billing as ICAPIModelBilling | undefined;
+		const priceCategory = typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined;
+		return createPricingMetaFromBilling(billing, priceCategory);
 	}
 
 	private _createModelConfigSchema(m: ModelInfo): ConfigSchema | undefined {
