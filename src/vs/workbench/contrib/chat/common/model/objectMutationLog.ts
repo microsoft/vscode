@@ -264,15 +264,7 @@ export function stringifyEntryWithFallback(entry: unknown): string {
 
 /**
  * Deep-clones `value` through JSON with the same V8 max-string-length safety net
- * as {@link stringifyEntryWithFallback}. The {@link value} transform clones every
- * extracted object so the log never retains references to live mutable state, and
- * that clone runs on *every* write — before any entry is serialized. Without this
- * guard a single oversized field (e.g. a ~60 MiB tool result under
- * `IChatAgentResult.metadata.toolCallResults`) makes the plain
- * `JSON.parse(JSON.stringify(...))` throw `RangeError` here, which propagates up
- * and loses the entire chat session (microsoft/vscode#322364). On overflow the
- * oversized strings are truncated instead, which is dramatically better than
- * dropping the session.
+ * as {@link stringifyEntryWithFallback}. Exported for testing only.
  */
 export function deepCloneWithFallback<T>(value: T): T {
 	return JSON.parse(stringifyEntryWithFallback(value)) as T;
