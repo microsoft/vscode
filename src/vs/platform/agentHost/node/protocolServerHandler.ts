@@ -1122,6 +1122,7 @@ export class ProtocolServerHandler extends Disposable {
 				URI.parse(params.chat),
 				{
 					...(params.model ? { model: params.model } : {}),
+					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
 				},
 			);
 			return null;

@@ -1736,35 +1736,116 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const activeClient = this._getOrCreateActiveClient(session, workingDirectory);
 			const snapshot = await activeClient.snapshot();
 			const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
-			const launchPlan: CopilotSessionLaunchPlan = {
-				kind: 'create',
-				client,
-				sessionId: chatSdkId,
-				workingDirectory,
-				resolvedAgentName: undefined,
-				snapshot,
-				activeClientToolSet: activeClient.toolSet,
-				shellManager,
-				githubToken: this._githubToken,
-				model: options?.model,
-			};
+
+			// Forking: mint the new chat's backing conversation by forking the
+			// source chat's SDK session at the requested turn (copying its
+			// database into the new chat's data dir), then resume it. Otherwise
+			// spin up a fresh empty conversation.
+			let launchPlan: CopilotSessionLaunchPlan;
+			let sdkSessionId: string;
+			if (options?.fork) {
+				if (!workingDirectory) {
+					throw new Error(`[Copilot] createChat fork: missing working directory for session ${session.toString()}`);
+				}
+				const sourceEntry = await this._resolveChatEntry(session, options.fork.source);
+				if (!sourceEntry) {
+					throw new Error(`[Copilot] createChat fork: source chat ${options.fork.source.toString()} not found`);
+				}
+				sdkSessionId = await this._forkSdkConversation(client, sourceEntry, options.fork.turnId, this._sessionDataService.getSessionDataDir(chat));
+				launchPlan = {
+					kind: 'resume',
+					client,
+					sessionId: sdkSessionId,
+					workingDirectory,
+					resolvedAgentName: undefined,
+					snapshot,
+					activeClientToolSet: activeClient.toolSet,
+					shellManager,
+					githubToken: this._githubToken,
+					fallback: { model: options.model },
+				};
+			} else {
+				sdkSessionId = chatSdkId;
+				launchPlan = {
+					kind: 'create',
+					client,
+					sessionId: chatSdkId,
+					workingDirectory,
+					resolvedAgentName: undefined,
+					snapshot,
+					activeClientToolSet: activeClient.toolSet,
+					shellManager,
+					githubToken: this._githubToken,
+					model: options?.model,
+				};
+			}
 			let agentSession: CopilotAgentSession | undefined;
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
 				await agentSession.initializeSession();
+				if (options?.fork?.turnIdMapping) {
+					await agentSession.remapTurnIds(options.fork.turnIdMapping);
+				}
 				this._chatSessions.set(chatKey, agentSession);
 				const parsed = parseChatUri(chat);
 				if (parsed) {
 					const persisted = await this._readPersistedChats(session);
-					persisted.set(parsed.chatId, { sdkSessionId: chatSdkId, ...(options?.model ? { model: options.model } : {}) });
+					persisted.set(parsed.chatId, { sdkSessionId, ...(options?.model ? { model: options.model } : {}) });
 					await this._writePersistedChats(session, persisted);
 				}
-				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}`);
+				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
 			} catch (error) {
 				agentSession?.dispose();
 				throw error;
 			}
 		});
+	}
+
+	/**
+	 * Resolves the {@link CopilotAgentSession} backing a chat URI — the
+	 * session's default chat (keyed by session id) or an additional peer chat
+	 * (keyed by the chat URI) — resuming it from disk if necessary.
+	 */
+	private async _resolveChatEntry(session: URI, chatUri: URI): Promise<CopilotAgentSession | undefined> {
+		const sessionId = AgentSession.id(session);
+		if (isDefaultChatUri(chatUri) || isEqual(chatUri, session)) {
+			return this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(() => undefined);
+		}
+		return this._ensureChatSession(session, chatUri);
+	}
+
+	/**
+	 * Forks {@link sourceEntry}'s SDK conversation at {@link turnId} via the
+	 * SDK `sessions.fork` RPC and copies its database into {@link targetDbDir}
+	 * so the forked conversation inherits turn event IDs and file-edit
+	 * snapshots. Returns the new SDK session id.
+	 */
+	private async _forkSdkConversation(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<string> {
+		// toEventId is exclusive — events before it are included. If there's no
+		// next turn, omit it to include all events.
+		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
+		const forkResult = await client.rpc.sessions.fork({
+			sessionId: sourceEntry.sessionId,
+			...(toEventId ? { toEventId } : {}),
+		});
+		const newSessionId = forkResult.sessionId;
+
+		// VACUUM INTO is safe even while the source DB is open.
+		const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
+		try {
+			const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sourceEntry.sessionUri);
+			if (sourceDbRef) {
+				try {
+					await fs.mkdir(targetDbDir.fsPath, { recursive: true });
+					await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
+				} finally {
+					sourceDbRef.dispose();
+				}
+			}
+		} catch (err) {
+			this._logService.warn(`[Copilot] Failed to copy session database for chat fork: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		return newSessionId;
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
