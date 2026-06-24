@@ -56,10 +56,6 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		if (this.inTitleBar) {
-			this.element.classList.add('sessions-titlebar-new-session-item');
-		}
-
 		const newSessionButton = this._register(new Button(this.element, {
 			...defaultButtonStyles,
 			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
