@@ -301,6 +301,24 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		]);
 	});
 
+	test('emits quota approaching telemetry for the crossed checkpoint when usage jumps past it', () => {
+		const { instantiationService, telemetryAppender, entitlementService } = createHarness({
+			quotas: {
+				premiumChat: createQuotaSnapshot(26),
+			},
+		});
+
+		(entitlementService.service as IChatEntitlementService & { quotas: IChatEntitlementService['quotas'] }).quotas = {
+			...entitlementService.service.quotas,
+			premiumChat: createQuotaSnapshot(17),
+		};
+		entitlementService.onDidChangeQuotaRemaining.fire();
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		assert.ok(getRenderedText(widget).includes('Credits at 83%'));
+		assertShownTelemetry(telemetryAppender, 'quotaApproaching75');
+	});
+
 	test('emits shown telemetry when the same notification id changes telemetry context', () => {
 		const { instantiationService, telemetryAppender } = createHarness();
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
