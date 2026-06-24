@@ -98,7 +98,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 	}
 
-	reopenChat(chat: IChat): void {
+	openChat(chat: IChat): void {
 		const closed = this._closedChatUris.get();
 		if (!closed.has(chat.resource.toString())) {
 			return;
@@ -528,11 +528,11 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
-	 * Reopen a previously closed chat in the session's wrapper. No-op if the
-	 * session is not currently tracked in the visibility model.
+	 * Open (un-hide from the tab strip) a previously closed chat in the session's
+	 * wrapper. No-op if the session is not currently tracked in the visibility model.
 	 */
-	reopenChat(session: ISession, chat: IChat): void {
-		this._wrappers.get(session.sessionId)?.reopenChat(chat);
+	openChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.openChat(chat);
 	}
 
 	/**

@@ -906,7 +906,7 @@ suite('VisibleSessions', () => {
 	});
 });
 
-suite('VisibleSession - close/reopen chats', () => {
+suite('VisibleSession - open/close chats', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -958,12 +958,12 @@ suite('VisibleSession - close/reopen chats', () => {
 		});
 	});
 
-	test('reopening a closed chat restores it to the tab strip', () => {
+	test('opening a closed chat restores it to the tab strip', () => {
 		const [main, b] = [makeChat('main'), makeChat('b')];
 		const { visible, ids } = createSession([main, b]);
 		visible.closeChat(b);
 
-		visible.reopenChat(b);
+		visible.openChat(b);
 
 		assert.deepStrictEqual(snapshot(visible, ids), {
 			open: ['main', 'b'],

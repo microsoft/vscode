@@ -575,7 +575,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 			if (chat) {
 				// Opening a chat also un-hides it if it was previously closed.
-				this._visibility.reopenChat(session, chat);
+				this._visibility.openChat(session, chat);
 				this._visibility.setActiveChat(session, chat);
 			}
 		}
