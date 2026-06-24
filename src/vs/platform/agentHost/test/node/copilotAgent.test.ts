@@ -42,7 +42,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeName, getCopilotWorktreesRoot, rebaseUnder } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
@@ -2706,6 +2706,159 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+	});
+
+	suite('customization anchoring', () => {
+
+		test('rebaseUnder rebases paths under the source dir and leaves others untouched', () => {
+			const original = URI.file('/Users/me/src/vscode');
+			const worktree = URI.file('/Users/me/src/vscode.worktrees/agents-x');
+			assert.strictEqual(
+				rebaseUnder(URI.file('/Users/me/src/vscode/.github/skills/sessions'), original, worktree)?.toString(),
+				URI.file('/Users/me/src/vscode.worktrees/agents-x/.github/skills/sessions').toString(),
+				'a path under the source dir is rebased onto the target dir',
+			);
+			assert.strictEqual(
+				rebaseUnder(original, original, worktree)?.toString(),
+				worktree.toString(),
+				'the source dir itself maps to the target dir',
+			);
+			assert.strictEqual(
+				rebaseUnder(URI.file('/Users/me/.copilot/skills/foo'), original, worktree),
+				undefined,
+				'a path outside the source dir (e.g. user home) is not rebased',
+			);
+		});
+
+		let tmpDir: string;
+
+		setup(async () => {
+			tmpDir = await fs.mkdtemp(`${os.tmpdir()}/copilot-agent-anchor-test-`);
+		});
+
+		teardown(async () => {
+			await fs.rm(tmpDir, { recursive: true, force: true });
+		});
+
+		async function materializeAndCaptureAnchor(resolvedWorkingDirectory: URI): Promise<{ anchor: URI | undefined; sdkWorkingDirectory: string | undefined; originalFolder: URI }> {
+			const originalFolder = URI.joinPath(URI.file(tmpDir), 'repo');
+			await fs.mkdir(originalFolder.fsPath, { recursive: true });
+
+			const client = new TestCopilotClient([]);
+			let sdkWorkingDirectory: string | undefined;
+			client.createSession = async config => {
+				sdkWorkingDirectory = config.workingDirectory;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: client,
+			});
+
+			// Stub working-directory resolution (worktree creation is covered by
+			// the worktree-announcement suite) and capture the customization
+			// anchor handed to `_createAgentSession`.
+			let anchor: URI | undefined;
+			const agentInternals = agent as unknown as {
+				_resolveSessionWorkingDirectory: (config: unknown, sessionId: string, prompt?: string) => Promise<URI | undefined>;
+				_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, channelUri?: URI) => CopilotAgentSession;
+			};
+			agentInternals._resolveSessionWorkingDirectory = async () => resolvedWorkingDirectory;
+			const originalCreateAgentSession = agentInternals._createAgentSession;
+			agentInternals._createAgentSession = (launchPlan, customizationDirectory, activeClient, channelUri) => {
+				anchor = customizationDirectory;
+				return originalCreateAgentSession.call(agent, launchPlan, customizationDirectory, activeClient, channelUri);
+			};
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectory: originalFolder });
+				assert.strictEqual(result.provisional, true);
+				await agent.sendMessage(result.session, 'hello');
+			} finally {
+				await disposeAgent(agent);
+			}
+			return { anchor, sdkWorkingDirectory, originalFolder };
+		}
+
+		test('materialization re-anchors customization discovery to the resolved worktree', async () => {
+			const worktree = URI.joinPath(URI.file(tmpDir), 'repo.worktrees', 'agents-x');
+			const { anchor, sdkWorkingDirectory, originalFolder } = await materializeAndCaptureAnchor(worktree);
+			assert.strictEqual(anchor?.toString(), worktree.toString(), 'customization discovery must be anchored to the worktree, not the original folder');
+			assert.notStrictEqual(anchor?.toString(), originalFolder.toString(), 'the anchor must move off the original folder');
+			assert.strictEqual(sdkWorkingDirectory, worktree.fsPath, 'the SDK working directory must be the worktree');
+		});
+
+		test('materialization without a worktree keeps the anchor on the original folder', async () => {
+			const originalFolder = URI.joinPath(URI.file(tmpDir), 'repo');
+			const { anchor } = await materializeAndCaptureAnchor(originalFolder);
+			assert.strictEqual(anchor?.toString(), originalFolder.toString(), 'the anchor stays on the original folder when no worktree is created');
+		});
+
+		test('worktree skill/instruction directories sent to the SDK resolve inside the worktree', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const originalFolder = URI.from({ scheme: Schemas.inMemory, path: '/orig' });
+			const worktree = URI.from({ scheme: Schemas.inMemory, path: '/wt' });
+
+			// A skill present only in the ORIGINAL folder must NOT reach the SDK;
+			// the worktree's own skill + instruction must.
+			await fileService.writeFile(URI.joinPath(originalFolder, '.github', 'skills', 'orig-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: orig-skill\ndescription: from the original repo\n---\nbody'));
+			await fileService.writeFile(URI.joinPath(worktree, '.github', 'skills', 'wt-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: wt-skill\ndescription: from the worktree\n---\nbody'));
+			await fileService.writeFile(URI.joinPath(worktree, '.github', 'instructions', 'wt.instructions.md'), VSBuffer.fromString('---\napplyTo: "**/*.ts"\ndescription: worktree instruction\n---\nbody'));
+
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: client,
+				fileService,
+			});
+
+			// Stub worktree resolution; the active-client claim anchors the
+			// provisional plugin controller to the ORIGINAL folder first, so this
+			// exercises the re-anchor at materialization.
+			const agentInternals = agent as unknown as {
+				_resolveSessionWorkingDirectory: (config: unknown, sessionId: string, prompt?: string) => Promise<URI | undefined>;
+			};
+			agentInternals._resolveSessionWorkingDirectory = async () => worktree;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'wt-dirs-session'),
+					workingDirectory: originalFolder,
+					activeClient: { clientId: 'c1', tools: [] },
+				});
+				assert.strictEqual(result.provisional, true);
+				await agent.sendMessage(result.session, 'hello');
+			} finally {
+				await disposeAgent(agent);
+			}
+
+			assert.ok(capturedConfig, 'the SDK createSession must run during materialization');
+			assert.deepStrictEqual(
+				{
+					workingDirectory: capturedConfig.workingDirectory,
+					skillDirectories: capturedConfig.skillDirectories,
+					instructionDirectories: capturedConfig.instructionDirectories,
+				},
+				{
+					workingDirectory: worktree.fsPath,
+					skillDirectories: [URI.joinPath(worktree, '.github', 'skills', 'wt-skill').fsPath],
+					instructionDirectories: [URI.joinPath(worktree, '.github', 'instructions').fsPath],
+				},
+				'skill/instruction directories sent to the SDK must resolve inside the worktree, never the original folder',
+			);
 		});
 
 	});
