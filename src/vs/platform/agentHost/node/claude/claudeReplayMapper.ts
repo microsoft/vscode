@@ -58,6 +58,42 @@ export function mapSessionMessagesToTurns(
 	return builder.finish();
 }
 
+/**
+ * Phase 6.5 — translate a protocol `turnId` (the last KEPT turn N) into the
+ * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
+ * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
+ * or `turnId` itself when turn N has no assistant reply (still a valid
+ * inclusive anchor), or `undefined` when `turnId` is not in the transcript.
+ * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
+ * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
+ */
+export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+	let seenTarget = false;
+	let lastAssistantUuid: string | undefined;
+	for (const msg of messages) {
+		const parsed = parseSessionMessage(msg);
+		if (parsed === undefined) {
+			continue;
+		}
+		if (parsed.kind === 'user-text') {
+			if (seenTarget) {
+				// First genuine user-text after turn N started → turn N is over.
+				break;
+			}
+			if (parsed.uuid === turnId) {
+				seenTarget = true;
+			}
+		} else if (parsed.kind === 'assistant' && seenTarget) {
+			lastAssistantUuid = parsed.uuid;
+		}
+		// 'user-tool-results' / 'system-notification' never flip the turn.
+	}
+	if (!seenTarget) {
+		return undefined;
+	}
+	return lastAssistantUuid ?? turnId;
+}
+
 // #region Parsed message union — narrow-at-the-seam adapter
 
 interface UserTextBlock { readonly type: 'text'; readonly text: string }

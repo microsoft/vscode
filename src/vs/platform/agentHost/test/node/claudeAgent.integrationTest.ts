@@ -372,6 +372,10 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return [];
 	}
 
+	async forkSession(sessionId: string): Promise<{ sessionId: string }> {
+		return { sessionId: `forked-${sessionId}` };
+	}
+
 	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 

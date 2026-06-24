@@ -106,7 +106,20 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
-		return operations.length > 0 ? operations : undefined;
+		if (operations.length === 0) {
+			return undefined;
+		}
+
+		// Operations are disabled while a turn is active so the working tree /
+		// branch state can't be mutated mid-request.
+		if (this._stateManager.hasActiveTurn(context.sessionKey)) {
+			return operations.map(operation => ({
+				...operation,
+				status: ChangesetOperationStatus.Disabled
+			}));
+		}
+
+		return operations;
 	}
 
 	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {

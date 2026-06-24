@@ -23,7 +23,7 @@ import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
 // Per-session layout controller (desktop / web desktop layout).
-import './contrib/layout/browser/desktopSessionLayoutController.js';
+import './contrib/layout/browser/sessions.layout.contribution.js';
 
 //#endregion
 

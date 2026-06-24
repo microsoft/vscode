@@ -537,4 +537,171 @@ suite('LayoutController (desktop)', () => {
 			'aux bar should remain hidden after reload'
 		);
 	});
+
+	// --- [D7] Responsive sessions sidebar ---
+
+	function setPartVisible(part: Parts, visible: boolean): void {
+		harness.partVisibility.set(part, visible);
+		harness.onDidChangePartVisibility.fire({ partId: part, visible });
+	}
+
+	function resizeWindow(width: number): void {
+		harness.mainContainerWidth = width;
+		harness.onDidLayoutMainContainer.fire({ width, height: 1000 });
+	}
+
+	function sidebarHiddenCalls(): boolean[] {
+		return harness.setPartHiddenCalls.filter(c => c.part === Parts.SIDEBAR_PART).map(c => c.hidden);
+	}
+
+	test('[D7] hides the sidebar on a small window when editor and aux bar are both open', () => {
+		createController();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
+	test('[D7] does not touch the sidebar on a large window', () => {
+		createController();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(2000);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] shows the sidebar again once the aux bar closes', () => {
+		createController();
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7] shows the sidebar again once the window grows back', () => {
+		createController();
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(2000);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7] does not auto-show the sidebar after the user closed it manually', () => {
+		createController();
+		// User manually closes the sidebar on a large window.
+		setPartVisible(Parts.SIDEBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		// Become space constrained, then relieve the constraint.
+		resizeWindow(800);
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.ok(
+			!sidebarHiddenCalls().includes(false),
+			'sidebar must not be auto-shown while the user-closed preference holds'
+		);
+	});
+
+	test('[D7] resumes auto-management after the user opens the sidebar again', () => {
+		createController();
+		// User manually closes, then re-opens the sidebar — auto-management resumes.
+		setPartVisible(Parts.SIDEBAR_PART, false);
+		setPartVisible(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		// A constrain → un-constrain cycle should now auto-hide then auto-show again.
+		resizeWindow(800);
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true, false]);
+	});
+
+	test('[D7] does not manage the sidebar while the editor is maximized', () => {
+		createController();
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not manage the sidebar when the experimental setting is disabled', () => {
+		createController({ responsiveSidebar: false });
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not hide the sidebar when navigating to a session that restores the side panel', () => {
+		const sessionB = URI.parse('session:2');
+		createController({
+			revealAuxiliaryBarOnOpen: true,
+			layoutState: [{
+				sessionResource: sessionB.toString(),
+				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
+			}],
+		});
+		// Small window with the side panel closed: the sidebar is shown (not constrained).
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		// Navigate to a session whose restore re-opens the side panel.
+		harness.activeSessionObs.set(makeSession(sessionB), undefined);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not hide the sidebar when navigating to a session whose working set reveals the editor', async () => {
+		const session1 = URI.parse('session:1');
+		const session2 = URI.parse('session:2');
+		createController({
+			useModal: 'some',
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState: [{
+				sessionResource: session1.toString(),
+				editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
+			}],
+		});
+
+		// Start on a session without a working set.
+		harness.activeSessionObs.set(makeSession(session2), undefined);
+		await timeout(0);
+
+		// Small window, aux bar open, editor closed: not constrained yet (editor hidden).
+		setPartVisible(Parts.AUXILIARYBAR_PART, true);
+		setPartVisible(Parts.EDITOR_PART, false);
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		// Navigate to the session whose working set reveals the editor (async).
+		harness.activeSessionObs.set(makeSession(session1), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not manage the sidebar while multiple sessions are visible', () => {
+		createController();
+		harness.visibleSessionsObs.set([
+			makeSession(URI.parse('session:1')),
+			makeSession(URI.parse('session:2')),
+		], undefined);
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
 });

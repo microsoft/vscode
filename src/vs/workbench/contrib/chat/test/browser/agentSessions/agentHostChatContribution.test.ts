@@ -2067,13 +2067,13 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hi',
 				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
-				modelConfiguration: { thinkingLevel: 'high', ignored: 1 },
+				modelConfiguration: { thinkingLevel: 'high', contextSize: 272000 },
 			});
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { thinkingLevel: 'high' } });
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { thinkingLevel: 'high', contextSize: 272000 } });
 		}));
 
 		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4129,7 +4129,7 @@ suite('AgentHostChatContribution', () => {
 		test('maps models with correct metadata', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([
-				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true, _meta: { multiplierNumeric: 1.5 } },
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, maxPromptTokens: 128000, supportsVision: true, _meta: { multiplierNumeric: 1.5 } },
 			]);
 
 			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);

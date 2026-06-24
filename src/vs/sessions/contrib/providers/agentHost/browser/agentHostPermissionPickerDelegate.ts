@@ -38,7 +38,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 	if (!schema.enum.includes(REQUIRED_AUTO_APPROVE_VALUE)) {
 		return false;
 	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
 }
 
 /**

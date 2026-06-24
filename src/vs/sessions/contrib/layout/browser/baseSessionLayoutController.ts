@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -69,6 +69,18 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly activeSessionResourceObs;
 	protected readonly multipleSessionsVisibleObs;
 
+	/**
+	 * `> 0` while the controller is restoring a session's layout on a session
+	 * switch (editor working set and/or auxiliary bar). Subclasses can use this to
+	 * re-baseline responsive behaviour instead of reacting to the restore-driven
+	 * part-visibility changes (see the desktop controller's [D7] sidebar logic).
+	 */
+	private _restoringSessionLayoutDepth = 0;
+
+	protected get _isRestoringSessionLayout(): boolean {
+		return this._restoringSessionLayoutDepth > 0;
+	}
+
 	private readonly _useModalConfigObs;
 	constructor(
 
@@ -78,7 +90,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IViewsService protected readonly _viewsService: IViewsService,
 		@IPaneCompositePartService protected readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService protected readonly _storageService: IStorageService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -190,7 +202,7 @@ export abstract class BaseLayoutController extends Disposable {
 				// On initial load (no previous session), only apply if we have a saved working set —
 				// skip applying 'empty' to avoid closing editors that are being restored.
 				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					void this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession });
+					this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
 				}
 			}));
 
@@ -220,6 +232,27 @@ export abstract class BaseLayoutController extends Disposable {
 	 * state is about to be persisted. The base implementation does nothing.
 	 */
 	protected _captureActiveSessionViewState(_sessionResource: URI): void { }
+
+	/**
+	 * Runs a session-switch layout restore with {@link _isRestoringSessionLayout}
+	 * held until the (possibly async) work settles, so part-visibility changes the
+	 * restore causes can be re-baselined rather than reacted to.
+	 */
+	protected _withSessionLayoutRestore(work: () => void | Promise<unknown>): void {
+		this._restoringSessionLayoutDepth++;
+		let settledSync = true;
+		try {
+			const result = work();
+			if (isThenable(result)) {
+				settledSync = false;
+				Promise.resolve(result).catch(() => undefined).finally(() => this._restoringSessionLayoutDepth--);
+			}
+		} finally {
+			if (settledSync) {
+				this._restoringSessionLayoutDepth--;
+			}
+		}
+	}
 
 	// --- Editor part reveal ---
 

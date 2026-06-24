@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../platform/product/common/product.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../changes/common/changes.js';
@@ -29,6 +30,16 @@ interface INewSessionViewState {
 const NEW_SESSION_VIEW_STATE_KEY = 'sessions.newSessionViewState';
 
 /**
+ * [D7] Below this main-container width the sessions sidebar is auto-managed
+ * against the editor + auxiliary bar visibility so all three don't compete for
+ * a cramped horizontal layout.
+ */
+const SMALL_WINDOW_MAX_WIDTH = 1800;
+
+/** [D7] Experimental setting gating the responsive sessions sidebar. */
+export const RESPONSIVE_SIDEBAR_SETTING = 'sessions.layout.autoCollapseSessionsSidebar';
+
+/**
  * Full layout controller used on desktop and on the web desktop layout. In
  * addition to the shared panel / working-set / state management of
  * {@link BaseLayoutController}, it manages the per-session auxiliary bar
@@ -46,6 +57,13 @@ export class LayoutController extends BaseLayoutController {
 	 * `undefined` means no explicit choice yet (aux bar defaults to visible).
 	 */
 	private _newSessionViewState: INewSessionViewState | undefined;
+
+	/** [D7] `true` once the user manually closed the sidebar; suppresses auto-open until they open it again. */
+	private _userClosedSidebar = false;
+	/** [D7] Guards the manual-toggle listener while the controller itself toggles the sidebar. */
+	private _applyingAutoSidebar = false;
+	/** [D7] Last computed space-constrained state, so the autorun only acts on real transitions. */
+	private _previousSpaceConstrained = false;
 
 	protected override _registerViewStateManagement(): void {
 		this._loadNewSessionViewState();
@@ -117,12 +135,12 @@ export class LayoutController extends BaseLayoutController {
 			previousIsUntitled = isUntitled;
 
 			if (isSubmit) {
-				this._onNewSessionSubmitted(activeSessionResource!);
+				this._withSessionLayoutRestore(() => this._onNewSessionSubmitted(activeSessionResource!));
 				return;
 			}
 
 			// [D3] Restore the session's auxiliary bar state.
-			this._syncAuxiliaryBarVisibility(activeSessionResource, activeSessionHasWorkspace, isUntitled, activeSessionHasChanges);
+			this._withSessionLayoutRestore(() => this._syncAuxiliaryBarVisibility(activeSessionResource, activeSessionHasWorkspace, isUntitled, activeSessionHasChanges));
 		}));
 
 		// [D2] Track auxiliary bar visibility changes by the user so that hiding the
@@ -149,6 +167,98 @@ export class LayoutController extends BaseLayoutController {
 				this._captureViewState(activeSession.resource);
 			}
 		}));
+
+		this._registerResponsiveSidebar();
+	}
+
+	// --- Responsive sessions sidebar [D7] ---
+
+	/**
+	 * On a small window, auto-hide the sessions sidebar while both the editor and
+	 * auxiliary bar are open and auto-show it again once either closes — unless the
+	 * user closed the sidebar themselves. Disabled while multiple sessions are
+	 * visible and never triggered by session navigation. Gated by the experimental
+	 * `sessions.layout.autoCollapseSessionsSidebar` setting.
+	 */
+	private _registerResponsiveSidebar(): void {
+		const enabledObs = observableConfigValue<boolean>(RESPONSIVE_SIDEBAR_SETTING, product.quality !== 'stable', this._configurationService);
+
+		const smallWindowObs = observableFromEvent(this,
+			this._layoutService.onDidLayoutMainContainer,
+			() => this._layoutService.mainContainerDimension.width <= SMALL_WINDOW_MAX_WIDTH);
+
+		const editorVisibleObs = observableFromEvent(this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
+
+		const auxiliaryBarVisibleObs = observableFromEvent(this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+
+		const editorMaximizedObs = observableFromEvent(this,
+			this._layoutService.onDidChangeEditorMaximized,
+			() => this._layoutService.isEditorMaximized());
+
+		// [D7] Disabled while multiple sessions are visible.
+		const spaceConstrainedObs = derived<boolean>(reader =>
+			enabledObs.read(reader) &&
+			!this.multipleSessionsVisibleObs.read(reader) &&
+			smallWindowObs.read(reader) &&
+			editorVisibleObs.read(reader) &&
+			auxiliaryBarVisibleObs.read(reader));
+
+		this._previousSpaceConstrained = spaceConstrainedObs.get();
+
+		this._register(autorun(reader => {
+			// While the editor is maximized the side layout is forced (D5); leave the
+			// sidebar to the maximize/restore logic and re-evaluate on un-maximize.
+			if (editorMaximizedObs.read(reader)) {
+				return;
+			}
+
+			const constrained = spaceConstrainedObs.read(reader);
+
+			// [D7] While the controller restores a session's layout (e.g. switching
+			// sessions reveals the saved side panel), re-baseline instead of reacting
+			// so navigation never auto-hides the sidebar — only in-session changes do.
+			if (this._isRestoringSessionLayout) {
+				this._previousSpaceConstrained = constrained;
+				return;
+			}
+
+			if (constrained === this._previousSpaceConstrained) {
+				return;
+			}
+			this._previousSpaceConstrained = constrained;
+
+			if (constrained) {
+				this._setSidebarAutoHidden(true);
+			} else if (!this._userClosedSidebar) {
+				this._setSidebarAutoHidden(false);
+			}
+		}));
+
+		// Track manual sidebar toggles: a manual close suppresses auto-open, a manual
+		// open resumes auto-management. Maximize toggles the sidebar too, but its
+		// enter/restore pair self-cancels here, so it needs no special handling.
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId !== Parts.SIDEBAR_PART || this._applyingAutoSidebar) {
+				return;
+			}
+			this._userClosedSidebar = !e.visible;
+		}));
+	}
+
+	private _setSidebarAutoHidden(hidden: boolean): void {
+		if (this._layoutService.isVisible(Parts.SIDEBAR_PART) === !hidden) {
+			return;
+		}
+		this._applyingAutoSidebar = true;
+		try {
+			this._layoutService.setPartHidden(hidden, Parts.SIDEBAR_PART);
+		} finally {
+			this._applyingAutoSidebar = false;
+		}
 	}
 
 	// [B4] Snapshot the active session's aux-bar state when persisting.
@@ -178,19 +288,19 @@ export class LayoutController extends BaseLayoutController {
 	 * keep it open and switch to the Changes view; if closed, keep it closed. The
 	 * resulting state is persisted so later syncs don't fall back to hidden.
 	 */
-	private _onNewSessionSubmitted(sessionResource: URI): void {
+	private _onNewSessionSubmitted(sessionResource: URI): void | Promise<unknown> {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (auxiliaryBarVisible) {
-			this._viewsService.openView(CHANGES_VIEW_ID, false);
-		}
 		this._viewStateBySession.set(sessionResource, {
 			auxiliaryBarVisible,
 			auxiliaryBarActiveViewContainerId: auxiliaryBarVisible ? CHANGES_VIEW_CONTAINER_ID : undefined,
 		});
+		if (auxiliaryBarVisible) {
+			return this._viewsService.openView(CHANGES_VIEW_ID, false);
+		}
 	}
 
 	// [D3] Restore the auxiliary bar in strict priority order.
-	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
+	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void | Promise<unknown> {
 		// [D3a] No resource / no workspace → do nothing.
 		if (!sessionResource || !hasWorkspace) {
 			return;
@@ -200,10 +310,9 @@ export class LayoutController extends BaseLayoutController {
 		if (isUntitled) {
 			if (this._newSessionViewState && !this._newSessionViewState.auxiliaryBarVisible) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			} else {
-				this._openDefaultAuxiliaryBarContainer(hasChanges);
+				return;
 			}
-			return;
+			return this._openDefaultAuxiliaryBarContainer(hasChanges);
 		}
 
 		const savedState = this._viewStateBySession.get(sessionResource);
@@ -217,19 +326,18 @@ export class LayoutController extends BaseLayoutController {
 		// [D3c] Restore the user's last explicit choice, but only if that pane is still pinned.
 		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
 		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
-			this._viewsService.openViewContainer(savedContainerId, false);
-			return;
+			return this._viewsService.openViewContainer(savedContainerId, false);
 		}
 
-		this._openDefaultAuxiliaryBarContainer(hasChanges);
+		return this._openDefaultAuxiliaryBarContainer(hasChanges);
 	}
 
 	/** [D3d] Prefer Changes when the session has changes, otherwise Files (falling back to Changes if Files is hidden). */
-	private _openDefaultAuxiliaryBarContainer(hasChanges: boolean): void {
+	private _openDefaultAuxiliaryBarContainer(hasChanges: boolean): Promise<unknown> {
 		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
-			this._viewsService.openView(CHANGES_VIEW_ID, false);
+			return this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
-			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+			return this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 		}
 	}
 
@@ -255,9 +363,4 @@ export class LayoutController extends BaseLayoutController {
 			this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
 		}
 	}
-}
-
-// Registered as the layout controller for every layout except web phone.
-if (!(isWeb && isMobile)) {
-	registerWorkbenchContribution2(LayoutController.ID, LayoutController, WorkbenchPhase.AfterRestored);
 }
