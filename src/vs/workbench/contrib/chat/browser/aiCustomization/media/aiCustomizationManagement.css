@@ -900,7 +900,7 @@
 }
 
 .ai-customization-management-editor .tools-list-chevron:focus {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 	border-radius: 4px;
 }
@@ -955,7 +955,7 @@
 
 /* Search match highlighting in tool set / tool names */
 .ai-customization-management-editor .tools-list-row-label .highlight {
-	font-weight: bold;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-list-highlightForeground);
 }
 

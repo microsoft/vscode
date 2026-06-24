@@ -229,7 +229,7 @@ export class ToolsListWidget extends Disposable {
 		learnMore.href = 'https://code.visualstudio.com/docs/agent-customization/tools?referrer=in-product';
 		this._register(DOM.addDisposableListener(learnMore, 'click', e => {
 			e.preventDefault();
-			this._openerService.open(URI.parse(learnMore.href));
+			void this._openerService.open(URI.parse(learnMore.href));
 		}));
 	}
 
