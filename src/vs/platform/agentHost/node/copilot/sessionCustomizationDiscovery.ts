@@ -475,10 +475,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
 		throwIfCancelled(token);
 
-		if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
-			return;
-		}
-
 		const rootUri = joinPath(base, ...root.path);
 		let stat: IFileStatWithMetadata | undefined = undefined;
 		let children: IFileStatWithMetadata[] = [];
@@ -491,6 +487,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		// Filenames are dynamic for these roots, so we watch the whole directory.
 		// `addWatch` upgrades to recursive if any root requests it.
+		await this._watchAncestors(base, root.path, watchRootUris, token);
 		addWatch(watchRootUris, rootUri, root.recursive ?? false, rootUri);
 
 		if (root.type === DiscoveredType.Skill) {

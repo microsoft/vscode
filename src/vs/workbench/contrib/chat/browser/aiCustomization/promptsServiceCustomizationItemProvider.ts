@@ -32,9 +32,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	constructor(
 		private readonly getActiveDescriptor: () => IHarnessDescriptor,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
-		private readonly productService: IProductService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.onDidChange = Event.any(
 			this.promptsService.onDidChangeCustomAgents,

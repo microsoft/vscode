@@ -91,6 +91,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 
 const $ = DOM.$;
 
@@ -1288,7 +1289,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const sessionResource = this.harnessService.activeSessionResource.get();
-		const provider = this.itemsModel.getActiveItemProvider();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
 		if (!provider.provideSourceFolders) {
 			return undefined;
 		}
