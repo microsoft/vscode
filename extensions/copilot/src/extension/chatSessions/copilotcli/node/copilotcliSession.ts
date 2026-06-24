@@ -1435,7 +1435,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
-				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				const copilotUsage = (event.data as unknown as Record<string, unknown>).copilotUsage;
 				let copilotUsageNanoAiu: number | undefined;
 				if (copilotUsage && typeof copilotUsage === 'object') {
 					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
