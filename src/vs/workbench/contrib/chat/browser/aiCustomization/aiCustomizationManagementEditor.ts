@@ -86,10 +86,11 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, ICustomizationSourceFolder, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 
 const $ = DOM.$;
 
@@ -1288,59 +1289,31 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const provider = this.itemsModel.getActiveItemProvider();
-		const allFolders = await provider.provideSourceFolders?.(sessionResource, type, CancellationToken.None) ?? [];
-
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Partition folders by whether they're under the active project root.
-		// We can't rely on a storage tag (tilde-expanded user paths can look
-		// local), so we use the project root as the authoritative boundary.
-		let matchingFolders: readonly ICustomizationSourceFolder[];
-		if (target === 'workspace') {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
-						return false;
-					}
-					// When the active harness specifies workspaceSubpaths, only offer
-					// directories whose path includes one of those sub-paths.
-					if (subpaths) {
-						return matchesWorkspaceSubpath(f.uri.path, subpaths);
-					}
-					return true;
-				})
-				: [];
-		} else {
-			let userFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
-				: allFolders;
-
-			// When the active harness restricts user roots, only offer
-			// directories under the harness-accessible user roots
-			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
-			const filter = this.harnessService.getStorageSourceFilter(type);
-			if (filter.includedUserFileRoots) {
-				const roots = filter.includedUserFileRoots;
-				userFolders = userFolders.filter(f =>
-					roots.some(root => isEqualOrParent(f.uri, root))
-				);
-			}
-			matchingFolders = userFolders;
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// extension host provider that has no provideSourceFolders
+			return undefined;
 		}
 
-		// Deduplicate by URI (the provider may return the same path from
-		// multiple discovery sources).
-		const seen = new Set<string>();
-		matchingFolders = matchingFolders.filter(f => {
-			const key = f.uri.toString();
-			if (seen.has(key)) {
-				return false;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (target === 'workspace') {
+				if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
+			} else {
+				if ((!projectRoot || !isEqualOrParent(f.uri, projectRoot)) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
 			}
-			seen.add(key);
-			return true;
-		});
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
