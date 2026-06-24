@@ -12,7 +12,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, ICopilotManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, INativeManagedSettingsService, IFileManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -258,9 +258,9 @@ suite('AccountPolicyService', () => {
 		});
 	});
 
-	test('should apply managed-settings policy data from Copilot managed-settings service', async () => {
-		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
-		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
+	test('should apply managed-settings policy data from native managed-settings service', async () => {
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
@@ -273,7 +273,7 @@ suite('AccountPolicyService', () => {
 		assert.deepStrictEqual({
 			policy: policyService.getPolicyValue('PolicySettingF'),
 			configuration: policyConfiguration.configurationModel.getValue('setting.F'),
-			registeredManagedSettings: copilotManagedSettingsService.registeredManagedSettings,
+			registeredManagedSettings: nativeManagedSettingsService.registeredManagedSettings,
 		}, {
 			policy: false,
 			configuration: false,
@@ -288,8 +288,8 @@ suite('AccountPolicyService', () => {
 		// Server says 'enable', native MDM says 'disable'. The server is the authoritative
 		// source when present, so native MDM is ignored entirely and the gated policy is NOT
 		// forced to `false`.
-		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
-		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
@@ -306,8 +306,8 @@ suite('AccountPolicyService', () => {
 	test('managed settings: native MDM applies when the server provides no managed settings', async () => {
 		// No server managed settings — native MDM is the authoritative source and forces the
 		// gated policy to `false`.
-		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
-		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
@@ -320,6 +320,45 @@ suite('AccountPolicyService', () => {
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
 	});
 
+	test('managed settings: three-channel precedence Server > MDM > File', async () => {
+		// All three channels provide the same key with different values.
+		// Server says 'enable', MDM says 'disable', File says 'file-value'.
+		// Server should win.
+		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value' });
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' } };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		// Server value 'enable' wins — policy is not forced to false
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+	});
+
+	test('managed settings: file-based settings apply when server and MDM are empty', async () => {
+		// Only the file channel provides a value — it should be used.
+		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({}));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		// File value 'disable' applies — policy is forced to false
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+	});
+
 	test('managed settings: an object-typed setting resolves identically from server and native MDM JSON strings', async () => {
 		// Structured-setting invariant: whether the canonical JSON string arrives via the server
 		// account policy bag or via native MDM, PolicyConfiguration must parse it back into the
@@ -329,10 +368,10 @@ suite('AccountPolicyService', () => {
 
 		const resolveEnabledPlugins = async (source: { server?: string; mdm?: string }): Promise<unknown> => {
 			const accountService = disposables.add(new DefaultAccountService(TestProductService));
-			const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService(
+			const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService(
 				source.mdm !== undefined ? { [COPILOT_ENABLED_PLUGINS_KEY]: source.mdm } : {},
 			));
-			const svc = disposables.add(new AccountPolicyService(logService, accountService, undefined, copilotManagedSettingsService));
+			const svc = disposables.add(new AccountPolicyService(logService, accountService, undefined, nativeManagedSettingsService));
 			const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 			await defaultConfiguration.initialize();
 			const config = disposables.add(new PolicyConfiguration(defaultConfiguration, svc, new NullLogService()));
@@ -403,7 +442,7 @@ suite('AccountPolicyService', () => {
 		protected async _updatePolicyDefinitions(): Promise<void> { /* no-op */ }
 	}
 
-	class FakeCopilotManagedSettingsService implements ICopilotManagedSettingsService {
+	class FakeNativeManagedSettingsService implements INativeManagedSettingsService {
 		readonly _serviceBrand: undefined;
 		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
 		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
@@ -432,6 +471,14 @@ suite('AccountPolicyService', () => {
 		dispose(): void {
 			this._onDidChangeManagedSettings.dispose();
 		}
+	}
+
+	class FakeFileManagedSettingsService implements IFileManagedSettingsService {
+		readonly _serviceBrand: undefined;
+		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
+		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
+
+		constructor(public managedSettings: ManagedSettingsData = {}) { }
 	}
 
 	async function setupGate(opts: {
