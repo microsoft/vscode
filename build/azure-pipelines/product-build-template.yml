@@ -104,7 +104,7 @@ stages:
         jobs:
           - template: product-copilot.yml@self
             parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:

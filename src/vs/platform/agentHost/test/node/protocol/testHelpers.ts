@@ -7,8 +7,8 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -80,6 +80,19 @@ export class TestProtocolClient {
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+	}
+
+	/**
+	 * Dispatch a strongly-typed protocol action (fire-and-forget write-ahead).
+	 *
+	 * Prefer this over the raw {@link notify} escape hatch: the action payload
+	 * is checked against the {@link StateAction} union at compile time, so a
+	 * malformed or incomplete action (e.g. an approval missing its required
+	 * `confirmed` field) is caught by the type-checker rather than silently
+	 * shipped over the wire and reduced into `undefined`.
+	 */
+	dispatch(params: DispatchActionParams): void {
+		this.notify('dispatchAction', params);
 	}
 
 	/** Send a JSON-RPC request and await the response. */
@@ -316,11 +329,11 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 }
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
+	c.dispatch({
 		channel: session,
 		clientSeq,
 		action: {
-			type: 'chat/turnStarted',
+			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		},

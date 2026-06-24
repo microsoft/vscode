@@ -85,6 +85,20 @@ A built-in find widget filters the list by session title and section label. When
 
 Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is managed by `ISessionsListModelService` and persisted locally (not synced to providers).
 
+### Manual Reordering (Drag & Drop)
+
+Regular sessions can be reordered by dragging them up or down within the list. An insertion line is shown between rows while dragging.
+
+- **Storage** — reordering stores a synthetic numeric *sort key* per session in `ISessionsListModelService` (persisted locally, not synced). It is used **only** for sorting; the provider's real `createdAt`/`updatedAt` are never modified. A separate override map is kept for each sort mode (Created vs Updated).
+- **Sort key** — on drop, the new key is the midpoint between the effective keys of the sessions immediately above and below the drop point. Dropping above the first session uses the current time (so it sorts to the top). Dropping below the last session steps below the last key.
+- **Dropping the fake value** — if a session's natural timestamp already sorts it into the dropped slot (e.g. after dragging it down and back), the stored override is removed so the list falls back to natural ordering.
+- **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Today").
+- **Grouping by Workspace** — reordering is restricted to within the same workspace group; drops onto another workspace are rejected.
+- **Scope** — only regular sessions reorder. Drops onto the Pinned and Done sections, section headers, and "show more" rows are rejected.
+- **Multi-selection** — dragging multiple selected sessions moves them as a contiguous block, preserving their relative order. The drag label reads `"N sessions"`. Dragging sessions into the sessions grid opens all of them.
+
+The insertion line relies on the base list widget's `drop-target-before`/`drop-target-after` feedback (colored by `list.dropBetweenBackground`). The widget converts an "after" indicator on row *i* into a "before" indicator on row *i+1*, so hovering the bottom half of the upper row and the top half of the lower row render the exact same DOM line with no shift.
+
 ### Read / Unread
 
 - Sessions start as **unread**
@@ -124,7 +138,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
+| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace" and "Mark All as Done". The Done section restores sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
 ### View Title Menus
 
@@ -146,7 +160,7 @@ registerAction2(class MySessionAction extends Action2 {
             menu: {
                 id: SessionItemContextMenuId,
                 group: '1_edit',
-                when: ContextKeyExpr.equals('chatSessionType', 'my-session-type'),
+                when: ContextKeyExpr.equals('sessionType', 'my-session-type'),
             },
         });
     }
@@ -170,8 +184,8 @@ Context keys available for `when` clauses when contributing to session list menu
 | `sessionIsArchived` | boolean | Whether the session is archived |
 | `sessionIsRead` | boolean | Whether the session has been read |
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
-| `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `chatSessionProviderId` | string | Provider ID |
+| `sessionType` | string | Session type ID (use to scope actions to specific providers) |
+| `sessionProviderId` | string | Provider ID |
 
 ### Per-Section
 

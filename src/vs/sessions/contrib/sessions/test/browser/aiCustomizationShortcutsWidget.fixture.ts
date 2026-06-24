@@ -16,6 +16,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ILanguageModelToolsService, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -26,7 +28,7 @@ import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, SESSIONS_CUSTOMIZATIONS
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
 // Ensure color registrations are loaded
@@ -195,7 +197,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidVisibleEditorsChange = Event.None;
 				override readonly onDidEditorsChange = Event.None;
 			}());
-			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = observableValue('mockActiveSession', undefined);
 			}());
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
@@ -203,6 +205,12 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
+			}());
+			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
+				override readonly toolSets = observableValue<Iterable<IToolSet>>('mockToolSets', []);
+			}());
+			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
+				override observe() { return observableValue<IToolEnablementState>('mockToolEnablement', { toolSets: new Map(), tools: new Map() }); }
 			}());
 		},
 	});

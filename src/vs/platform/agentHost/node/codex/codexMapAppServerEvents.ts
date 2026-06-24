@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -22,6 +24,7 @@ import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/Rea
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
+import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
 import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
@@ -47,6 +50,20 @@ export interface ICodexSessionMapState {
 	readonly itemToReasoningPartId: Map<string, string>;
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
+	/**
+	 * Live registry of the session's client-provided (`dynamicTools`) tools,
+	 * keyed by contributing workbench client. A `dynamicToolCall` tool-call
+	 * start is stamped with the owning client (so the workbench routes
+	 * execution back to it) resolved via {@link ActiveClientToolSet.ownerOf}.
+	 */
+	clientToolSet: ActiveClientToolSet;
+	/**
+	 * Names of the agent host's server tools (executed in-process). A
+	 * `dynamicToolCall` for one of these omits the `Client` contributor so the
+	 * workbench does not try to route execution to a client — the agent host
+	 * answers the `item/tool/call` directly.
+	 */
+	serverToolNames: ReadonlySet<string>;
 }
 
 export interface ICodexToolCallEntry {
@@ -56,13 +73,44 @@ export interface ICodexToolCallEntry {
 	output: string;
 }
 
-export function createCodexSessionMapState(): ICodexSessionMapState {
+export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set(), clientToolSet: ActiveClientToolSet = new ActiveClientToolSet()): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
 		itemToToolCall: new Map(),
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
+		clientToolSet,
+		serverToolNames,
 	};
+}
+
+/**
+ * Clear the per-turn bookkeeping maps so streamed parts, tool-calls, and
+ * reasoning parts from a finished (or preempted) turn don't bleed into the
+ * next one. Does NOT touch {@link ICodexSessionMapState.currentTurnId},
+ * which tracks the codex app-server turn id and is owned by the
+ * turn/started + turn/completed handlers.
+ */
+export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
+	state.itemToPartId.clear();
+	state.itemToToolCall.clear();
+	state.itemToReasoningPartId.clear();
+}
+
+/**
+ * Collect the plain-text portions of a codex `userMessage` item's
+ * `content` (an array of {@link UserInput}). Non-text inputs (images,
+ * skills, mentions) are ignored. Multiple text parts are joined with a
+ * blank line, mirroring {@link mapTurnStarted}'s reconstruction.
+ */
+export function extractUserInputText(content: readonly UserInput[]): string {
+	const collected: string[] = [];
+	for (const c of content) {
+		if (c.type === 'text') {
+			collected.push(c.text);
+		}
+	}
+	return collected.join('\n\n');
 }
 
 function reasoningKey(itemId: string, kind: 'summary' | 'text', index: number): string {
@@ -152,20 +200,13 @@ export function mapTurnStarted(
 	fallbackUserText: string,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = params.turn.id;
-	state.itemToPartId.clear();
-	state.itemToToolCall.clear();
-	state.itemToReasoningPartId.clear();
+	resetCodexTurnMapState(state);
 	let userText = fallbackUserText;
 	const first = params.turn.items?.[0];
 	if (first && first.type === 'userMessage') {
-		const collected: string[] = [];
-		for (const c of first.content) {
-			if (c.type === 'text') {
-				collected.push(c.text);
-			}
-		}
+		const collected = extractUserInputText(first.content);
 		if (collected.length > 0) {
-			userText = collected.join('\n\n');
+			userText = collected;
 		}
 	}
 	return [
@@ -277,7 +318,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'shell',
 				displayName: 'Run shell command',
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -292,7 +333,7 @@ export function mapItemStarted(
 				invocationMessage: command,
 				toolInput: command,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 		];
 	}
@@ -312,7 +353,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'web_search',
 				displayName: 'Web search',
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -327,7 +368,7 @@ export function mapItemStarted(
 				invocationMessage: query,
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 		];
 	}
@@ -410,6 +451,11 @@ export function mapItemStarted(
 		const toolName = params.item.namespace ? `${params.item.namespace}.${params.item.tool}` : params.item.tool;
 		const toolInput = toolInputText(params.item.arguments);
 		const output = dynamicToolOutput(params.item.contentItems);
+		// Server tools (registered under their bare name) execute in-process, so
+		// they carry no `Client` contributor; only client-provided tools route
+		// execution back to the owning workbench client.
+		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
+		const ownerClientId = isServerTool ? undefined : state.clientToolSet.ownerOf(params.item.tool);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -423,6 +469,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
+				...(ownerClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,

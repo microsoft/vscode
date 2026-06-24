@@ -28,6 +28,12 @@ import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
 
 import './browser/web.main.js';
 
+// Per-session layout controller. The web bundle serves both the web desktop and
+// the web phone layouts; each controller self-registers behind its own platform
+// guard so the correct one is contributed at runtime.
+import './contrib/layout/browser/desktopSessionLayoutController.js';
+import './contrib/layout/browser/mobileSessionLayoutController.js';
+
 //#endregion
 
 
@@ -197,6 +203,7 @@ import '../workbench/contrib/terminal/browser/terminalInstanceService.js';
 import '../workbench/contrib/tasks/browser/taskService.js';
 import '../workbench/contrib/tags/browser/workspaceTagsService.js';
 import '../workbench/contrib/issue/browser/issue.contribution.js';
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
