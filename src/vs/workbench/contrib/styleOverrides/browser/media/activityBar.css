@@ -134,7 +134,7 @@
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .active-item-indicator {
 	z-index: 0;
 	top: 4px;
-	left: 0px;
+	left: 0;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -150,7 +150,7 @@
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):hover .active-item-indicator {
 	z-index: 0;
 	top: 4px;
-	left: 0px;
+	left: 0;
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
