@@ -114,7 +114,7 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 		const { result } = await this._dialogService.prompt<PermissionDecision>({
 			type: Severity.Info,
 			message: localize('browser.permissions.prompt', "{0} wants access to {1}", displayOrigin(origin), descriptor.label),
-			detail: localize('browser.permissions.detail', "This will allow it to:\n\n{0}", descriptor.description),
+			detail: `• ${descriptor.description}`,
 			buttons: [
 				{
 					label: localize('browser.permissions.allow', "Allow"),
