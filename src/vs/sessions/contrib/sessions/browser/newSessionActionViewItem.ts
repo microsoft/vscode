@@ -39,7 +39,6 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		private readonly inTitleBar: boolean,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -72,7 +71,8 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			if (!this.action.enabled) {
 				return;
 			}
-			logSessionsInteraction(this.telemetryService, 'newSession', this.inTitleBar ? 'titleBar' : 'sidebar');
+			const source = this.element?.closest('.part.titlebar') ? 'titleBar' : 'sidebar';
+			logSessionsInteraction(this.telemetryService, 'newSession', source);
 			this.actionRunner.run(this.action);
 		}));
 
@@ -161,12 +161,11 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		const onDidRegister = this._register(new Emitter<void>());
 		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
 		for (const menu of menus) {
-			const inTitleBar = menu === Menus.TitleBarLeftLayout;
 			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}
-				return instantiationService.createInstance(NewSessionActionViewItem, action, inTitleBar);
+				return instantiationService.createInstance(NewSessionActionViewItem, action);
 			}, onDidRegister.event));
 		}
 		onDidRegister.fire();
