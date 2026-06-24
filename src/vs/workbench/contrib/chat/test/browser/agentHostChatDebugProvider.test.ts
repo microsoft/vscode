@@ -80,6 +80,37 @@ suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => 
 		);
 	});
 
+	test('per-model modelMetrics are attributed exactly to each model\'s own turns', () => {
+		// Two models across three turns. Each model's exact input/cache/AIU from
+		// `modelMetrics` must land only on that model's turns, so summing by model
+		// is exact (not an even split of the session total across all turns).
+		const multiModel = [
+			{ type: 'session.start', id: 's', parentId: null, timestamp: '2026-06-17T00:00:00.000Z', data: { selectedModel: 'A' } },
+			{ type: 'user.message', id: 'u', parentId: 's', timestamp: '2026-06-17T00:00:00.000Z', data: { content: 'go' } },
+			{ type: 'assistant.turn_start', id: 'ts', parentId: 'u', timestamp: '2026-06-17T00:00:01.000Z', data: { turnId: '0' } },
+			{ type: 'assistant.message', id: 'm1', parentId: 'ts', timestamp: '2026-06-17T00:00:01.100Z', data: { model: 'A', outputTokens: 10, turnId: '0' } },
+			{ type: 'assistant.message', id: 'm2', parentId: 'm1', timestamp: '2026-06-17T00:00:01.200Z', data: { model: 'A', outputTokens: 20, turnId: '0' } },
+			{ type: 'assistant.message', id: 'm3', parentId: 'm2', timestamp: '2026-06-17T00:00:01.300Z', data: { model: 'B', outputTokens: 30, turnId: '0' } },
+			{ type: 'assistant.turn_end', id: 'te', parentId: 'm3', timestamp: '2026-06-17T00:00:02.000Z', data: { turnId: '0' } },
+			{ type: 'session.shutdown', id: 'sd', parentId: 'te', timestamp: '2026-06-17T00:00:03.000Z', data: { modelMetrics: { A: { usage: { inputTokens: 300, cacheReadTokens: 90 }, totalNanoAiu: 2_000_000_000 }, B: { usage: { inputTokens: 100, cacheReadTokens: 0 }, totalNanoAiu: 6_000_000_000 } } } },
+		];
+		const { events } = convertAgentHostEventsToDebugEvents(multiModel, sessionResource);
+		const turns = events.filter((e): e is IChatDebugModelTurnEvent => e.kind === 'modelTurn');
+		const sumFor = (model: string, pick: (t: IChatDebugModelTurnEvent) => number | undefined) =>
+			turns.filter(t => t.model === model).reduce((acc, t) => acc + (pick(t) ?? 0), 0);
+
+		assert.deepStrictEqual(
+			{
+				aSum: { input: sumFor('A', t => t.inputTokens), cached: sumFor('A', t => t.cachedTokens), aic: sumFor('A', t => t.copilotUsageNanoAiu) / 1_000_000_000 },
+				bSum: { input: sumFor('B', t => t.inputTokens), cached: sumFor('B', t => t.cachedTokens), aic: sumFor('B', t => t.copilotUsageNanoAiu) / 1_000_000_000 },
+			},
+			{
+				aSum: { input: 300, cached: 90, aic: 2 },
+				bSum: { input: 100, cached: 0, aic: 6 },
+			},
+		);
+	});
+
 	test('live fallback (no session.shutdown) contributes AIU only — input/cache stay blank (F1)', () => {
 		// In-progress case: no session.shutdown, and the live path supplies AIU
 		// only (input/cache can't be summed reliably — see sumChatStateUsage).
@@ -95,8 +126,7 @@ suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => 
 		);
 	});
 
-	test('a zero-usage session.shutdown takes precedence over the live fallback', () => {
-		// A finished session whose shutdown summary reports zero usage must NOT
+	test('a zero-usage session.shutdown takes precedence over the live fallback', () => {		// A finished session whose shutdown summary reports zero usage must NOT
 		// fall back to live AIU: zero is then a known total, not "unknown".
 		const zeroShutdown = [
 			{ type: 'session.start', id: 's', parentId: null, timestamp: '2026-06-17T00:00:00.000Z', data: {} },

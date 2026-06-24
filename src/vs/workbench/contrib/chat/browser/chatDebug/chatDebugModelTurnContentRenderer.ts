@@ -10,6 +10,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IChatDebugEventModelTurnContent } from '../../common/chatDebugService.js';
 import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
+import { formatNanoAiuAsAic } from './chatDebugTypes.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 
 const $ = DOM.$;
@@ -60,6 +61,9 @@ export async function renderModelTurnContent(content: IChatDebugEventModelTurnCo
 	}
 	if (content.totalTokens !== undefined) {
 		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.totalTokens', "Total tokens: {0}", numberFormatter.value.format(content.totalTokens))));
+	}
+	if (content.copilotUsageNanoAiu !== undefined) {
+		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.credits', "Credits (AIC): {0}", formatNanoAiuAsAic(content.copilotUsageNanoAiu))));
 	}
 	if (content.timeToFirstTokenInMillis !== undefined) {
 		DOM.append(detailsContainer, $('div', undefined, localize('chatDebug.modelTurn.ttft', "Time to first token: {0}ms", numberFormatter.value.format(content.timeToFirstTokenInMillis))));
@@ -119,6 +123,9 @@ export function modelTurnContentToPlainText(content: IChatDebugEventModelTurnCon
 	}
 	if (content.totalTokens !== undefined) {
 		lines.push(localize('chatDebug.modelTurn.totalTokensLabel', "Total tokens: {0}", numberFormatter.value.format(content.totalTokens)));
+	}
+	if (content.copilotUsageNanoAiu !== undefined) {
+		lines.push(localize('chatDebug.modelTurn.creditsLabel', "Credits (AIC): {0}", formatNanoAiuAsAic(content.copilotUsageNanoAiu)));
 	}
 	if (content.maxInputTokens !== undefined) {
 		lines.push(localize('chatDebug.modelTurn.maxInputTokensLabel', "Max input tokens: {0}", numberFormatter.value.format(content.maxInputTokens)));
