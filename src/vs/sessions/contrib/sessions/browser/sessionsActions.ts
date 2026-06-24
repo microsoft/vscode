@@ -363,7 +363,7 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 // The main chat is always shown and cannot be closed, so its entry is checked and
 // disabled.
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
-	submenu: Menus.SessionChats,
+	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Conversations"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
@@ -372,14 +372,14 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 });
 
 /**
- * Populates the {@link Menus.SessionChats} submenu for the active session. The
- * "New Chat" action and one toggle action per chat are (re)registered whenever the
- * active session or its chat list changes, mirroring the per-session dropdown
+ * Populates the {@link Menus.SessionConversations} submenu for the active session.
+ * The "New Chat" action and one toggle action per chat are (re)registered whenever
+ * the active session or its chat list changes, mirroring the per-session dropdown
  * contents.
  */
-export class SessionChatsMenuContribution extends Disposable implements IWorkbenchContribution {
+export class SessionConversationsMenuContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.sessions.chatsMenu';
+	static readonly ID = 'workbench.contrib.sessions.conversationsMenu';
 
 	constructor(
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -399,7 +399,7 @@ export class SessionChatsMenuContribution extends Disposable implements IWorkben
 						id: 'sessions.chatCompositeBar.addChat',
 						title: localize2('chatCompositeBar.addChat', "New Chat"),
 						icon: Codicon.add,
-						menu: { id: Menus.SessionChats, group: 'navigation', order: 0 },
+						menu: { id: Menus.SessionConversations, group: 'navigation', order: 0 },
 					});
 				}
 				override async run(): Promise<void> {
@@ -424,7 +424,7 @@ export class SessionChatsMenuContribution extends Disposable implements IWorkben
 							title,
 							toggled: isOpen ? ContextKeyExpr.true() : undefined,
 							precondition: isMain ? ContextKeyExpr.false() : undefined,
-							menu: { id: Menus.SessionChats, group: '1_chats', order: index },
+							menu: { id: Menus.SessionConversations, group: '1_chats', order: index },
 						});
 					}
 					override async run(): Promise<void> {
