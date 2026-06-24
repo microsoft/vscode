@@ -16,7 +16,7 @@ import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/brow
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../browser/menus.js';
-import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionModelPickerOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -295,7 +295,7 @@ registerAction2(class extends Action2 {
 				order: 1,
 				// Hidden on phone when the active provider supplies a combined
 				// mode + model picker instead (see MobileChatInputConfigPicker).
-				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), ActiveSessionUsesCombinedConfigPickerContext.negate()),
+				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 			}],
 		});
 	}
