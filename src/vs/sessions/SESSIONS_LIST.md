@@ -112,12 +112,14 @@ The insertion line relies on the base list widget's `drop-target-before`/`drop-t
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
 - **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
+- **Mobile group collapse** — workspace and group headers only collapse/expand from the chevron button, which stays visible on phone so opening the first session row does not share a touch target with the header band
 
 ### Mobile
 
 On phone layout (`IsPhoneLayoutContext`):
 
 - Session rows are taller for touch targets; inline toolbars are always visible (no hover)
+- Workspace/group collapse chevrons are always visible and are the only phone tap target for collapsing a section
 - A **filter chips** row appears below the header with status toggles (Completed, In Progress, Failed) and a Sort chip
 - Sort/Group options open as a **bottom sheet** instead of a menu
 

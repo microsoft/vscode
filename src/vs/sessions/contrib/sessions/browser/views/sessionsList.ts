@@ -26,6 +26,7 @@ import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/ac
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -631,12 +632,36 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
+	element: ISessionSection | undefined;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
-	readonly chevron: HTMLElement;
+	readonly chevron: HTMLButtonElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
+}
+
+interface ISessionSectionRendererDelegate {
+	toggleCollapsed(element: ISessionSection | ISessionGroupItem): void;
+}
+
+function registerSectionCollapseToggle<T extends ISessionSection | ISessionGroupItem>(
+	chevron: HTMLButtonElement,
+	disposables: DisposableStore,
+	getElement: () => T | undefined,
+	toggleCollapsed: (element: T) => void
+): void {
+	for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+		disposables.add(DOM.addDisposableListener(chevron, eventType, e => e.stopPropagation()));
+	}
+	disposables.add(DOM.addDisposableListener(chevron, DOM.EventType.CLICK, e => {
+		const element = getElement();
+		if (element) {
+			e.preventDefault();
+			toggleCollapsed(element);
+		}
+	}));
+	disposables.add(Gesture.ignoreTarget(chevron));
 }
 
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
@@ -646,6 +671,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 
 	constructor(
+		private readonly delegate: ISessionSectionRendererDelegate,
 		private readonly hideSectionCount: boolean,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -658,8 +684,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
+		const chevron = DOM.append(container, $<HTMLButtonElement>('button.session-section-chevron'));
+		chevron.type = 'button';
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -667,7 +693,18 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, chevron, contextKeyService, disposables };
+		const template: ISessionSectionTemplate = {
+			container,
+			element: undefined,
+			label,
+			count,
+			toolbar,
+			chevron,
+			contextKeyService,
+			disposables
+		};
+		registerSectionCollapseToggle(chevron, disposables, () => template.element, element => this.delegate.toggleCollapsed(element));
+		return template;
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -675,6 +712,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		if (!isSessionSection(element)) {
 			return;
 		}
+		template.element = element;
 		this.templatesByElement.set(element, template);
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
@@ -685,7 +723,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			template.count.style.display = '';
 		}
 
-		this.updateChevron(template, node.collapsible, node.collapsed);
+		this.updateChevron(template, node.collapsible, node.collapsed, element.label);
 
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
@@ -701,23 +739,35 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
 		const template = this.templatesByElement.get(element);
 		if (template) {
-			this.updateChevron(template, true, collapsed);
+			this.updateChevron(template, true, collapsed, element.label);
 		}
 	}
 
-	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean, label: string): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
 			template.chevron.classList.add('collapsible');
 			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
+			template.chevron.disabled = false;
+			template.chevron.tabIndex = 0;
+			template.chevron.setAttribute('aria-expanded', String(!collapsed));
+			template.chevron.setAttribute('aria-label', collapsed
+				? localize('expandSection', "Expand {0}", label)
+				: localize('collapseSection', "Collapse {0}", label));
+		} else {
+			template.chevron.disabled = true;
+			template.chevron.tabIndex = -1;
+			template.chevron.removeAttribute('aria-expanded');
+			template.chevron.removeAttribute('aria-label');
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
 		if (isSessionSection(node.element)) {
 			this.templatesByElement.delete(node.element);
 		}
+		template.element = undefined;
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
@@ -731,11 +781,12 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 interface ISessionGroupTemplate {
 	readonly container: HTMLElement;
+	element: ISessionGroupItem | undefined;
 	readonly label: HTMLElement;
 	readonly inputContainer: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
-	readonly chevron: HTMLElement;
+	readonly chevron: HTMLButtonElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -747,6 +798,7 @@ interface ISessionGroupTemplate {
 interface ISessionGroupRendererDelegate {
 	commitEdit(group: ISessionGroup, name: string): void;
 	cancelEdit(group: ISessionGroup): void;
+	toggleCollapsed(element: ISessionGroupItem): void;
 }
 
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
@@ -769,8 +821,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
-		const chevron = DOM.append(container, $('span.session-section-chevron'));
-		chevron.setAttribute('aria-hidden', 'true');
+		const chevron = DOM.append(container, $<HTMLButtonElement>('button.session-section-chevron'));
+		chevron.type = 'button';
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -778,7 +830,20 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, count, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		const template: ISessionGroupTemplate = {
+			container,
+			element: undefined,
+			label,
+			inputContainer,
+			count,
+			toolbar,
+			chevron,
+			contextKeyService,
+			disposables,
+			elementDisposables: disposables.add(new DisposableStore())
+		};
+		registerSectionCollapseToggle(chevron, disposables, () => template.element, element => this.delegate.toggleCollapsed(element));
+		return template;
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -787,11 +852,12 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			return;
 		}
 		template.elementDisposables.clear();
+		template.element = element;
 		this.templatesByElement.set(element, template);
 
 		template.label.textContent = element.group.name;
 		template.count.textContent = String(element.sessions.length);
-		this.updateChevron(template, node.collapsible, node.collapsed);
+		this.updateChevron(template, node.collapsible, node.collapsed, element.group.name);
 		template.toolbar.context = element;
 
 		template.container.classList.toggle('session-group-editing', element.editing);
@@ -850,16 +916,27 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	updateCollapseState(element: ISessionGroupItem, collapsed: boolean): void {
 		const template = this.templatesByElement.get(element);
 		if (template) {
-			this.updateChevron(template, true, collapsed);
+			this.updateChevron(template, true, collapsed, element.group.name);
 		}
 	}
 
-	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean): void {
+	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean, label: string): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
 			template.chevron.classList.add('collapsible');
 			const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			template.chevron.classList.add(...ThemeIcon.asClassNameArray(icon));
+			template.chevron.disabled = false;
+			template.chevron.tabIndex = 0;
+			template.chevron.setAttribute('aria-expanded', String(!collapsed));
+			template.chevron.setAttribute('aria-label', collapsed
+				? localize('expandSection', "Expand {0}", label)
+				: localize('collapseSection', "Collapse {0}", label));
+		} else {
+			template.chevron.disabled = true;
+			template.chevron.tabIndex = -1;
+			template.chevron.removeAttribute('aria-expanded');
+			template.chevron.removeAttribute('aria-label');
 		}
 	}
 
@@ -867,6 +944,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		if (isSessionGroupItem(node.element)) {
 			this.templatesByElement.delete(node.element);
 		}
+		template.element = undefined;
 		template.elementDisposables.clear();
 	}
 
@@ -1293,6 +1371,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -1333,10 +1412,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
+		const sectionRenderer = new SessionSectionRenderer({
+			toggleCollapsed: element => this.toggleSectionCollapsed(element),
+		}, true /* hideSectionCount */, instantiationService, contextKeyService);
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
+			toggleCollapsed: element => this.toggleSectionCollapsed(element),
 		}, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
@@ -1425,6 +1507,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
+				expandOnlyOnTwistieClick: element => {
+					if (!!IsPhoneLayoutContext.getValue(contextKeyService) && (isSessionSection(element) || isSessionGroupItem(element))) {
+						return true;
+					}
+					return this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick';
+				},
 			}
 		));
 
@@ -2422,6 +2510,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.openWindowSourceFolder = folder;
 		this.update();
+	}
+
+	private toggleSectionCollapsed(element: ISessionSection | ISessionGroupItem): void {
+		if (this.tree.hasElement(element)) {
+			this.tree.setFocus([element]);
+			this.tree.toggleCollapsed(element);
+		}
 	}
 
 	collapseAllSections(): void {
