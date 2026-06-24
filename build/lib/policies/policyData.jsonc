@@ -46,7 +46,7 @@
             "localization": {
                 "description": {
                     "key": "mcp.enterpriseManagedAuth.idp.policy",
-                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."
                 }
             },
             "type": "object",
