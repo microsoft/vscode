@@ -242,7 +242,7 @@
 		},
 		// Add // when pressing enter from inside line comment
 		{
-			"beforeText": "^\\s*//|\\s//\\s",
+			"beforeText": "^\\s*//\\s*\\S|\\s//\\s+\\S",
 			"afterText": "^(?!\\s*$)",
 			"action": {
 				"indent": "none",
