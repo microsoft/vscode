@@ -372,8 +372,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn about optimizing usage"),
 		});
 		const message = tryAutoLink
-			? localize({ key: 'quota.trajectory.messageWithTryAuto', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0} or {1}", tryAutoLink, learnMoreLink)
-			: localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0}", learnMoreLink);
+			? localize({ key: 'quota.trajectory.messageWithTryAuto', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0} or {1}.", tryAutoLink, learnMoreLink)
+			: localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0}.", learnMoreLink);
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
