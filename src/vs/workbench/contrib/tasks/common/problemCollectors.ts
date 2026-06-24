@@ -57,6 +57,11 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 	private markers: Map<string, Map<string, Map<string, IMarkerData>>>;
 	// [owner] -> [resource] -> number;
 	private deliveredMarkers: Map<string, Map<string, number>>;
+	// [owner] -> [resource] -> Set<markerkey> of the markers this collector last delivered.
+	// Unlike `markers`/`deliveredMarkers` this is intentionally NOT reset between background
+	// begin/end cycles so the collector can still clean up markers it created earlier, even if
+	// the document changed its open/closed state in the meantime (see issue #322730).
+	private ownMarkers: Map<string, Map<string, Set<string>>>;
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
@@ -102,6 +107,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		this.resourcesToClean = new Map<string, Map<string, URI>>();
 		this.markers = new Map<string, Map<string, Map<string, IMarkerData>>>();
 		this.deliveredMarkers = new Map<string, Map<string, number>>();
+		this.ownMarkers = new Map<string, Map<string, Set<string>>>();
 		this._register(this.modelService.onModelAdded((model) => {
 			this.openModels[model.uri.toString()] = true;
 		}, this, this.modelListeners));
@@ -271,9 +277,16 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 			if (
 				applyTo === ApplyToKind.allDocuments ||
 				(applyTo === ApplyToKind.openDocuments && this.openModels[uriAsString]) ||
-				(applyTo === ApplyToKind.closedDocuments && !this.openModels[uriAsString])
+				(applyTo === ApplyToKind.closedDocuments && !this.openModels[uriAsString]) ||
+				// The matcher's `applyTo` no longer matches the document's current open/closed
+				// state, but the marker still belongs to this collector (e.g. it was reported for
+				// a closed document that has since been opened). Clean it up so it doesn't get
+				// stranded, but only as long as no other producer has taken over the resource
+				// under this owner (see issue #322730).
+				this.ownsCurrentMarkers(owner, uri)
 			) {
 				uris.push(uri);
+				this.forgetOwnMarkers(owner, uriAsString);
 			}
 		});
 		this.markerService.remove(owner, uris);
@@ -329,7 +342,42 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 			markers.forEach(value => toSet.push(value));
 			this.markerService.changeOne(owner, URI.parse(resource), toSet);
 			reported.set(resource, markers.size);
+			this.recordOwnMarkers(owner, resource, toSet);
 		}
+	}
+
+	private recordOwnMarkers(owner: string, resource: string, markers: IMarkerData[]): void {
+		let perOwner = this.ownMarkers.get(owner);
+		if (!perOwner) {
+			perOwner = new Map<string, Set<string>>();
+			this.ownMarkers.set(owner, perOwner);
+		}
+		perOwner.set(resource, new Set(markers.map(marker => IMarkerData.makeKey(marker))));
+	}
+
+	private forgetOwnMarkers(owner: string, resource: string): void {
+		const perOwner = this.ownMarkers.get(owner);
+		if (perOwner && perOwner.delete(resource) && perOwner.size === 0) {
+			this.ownMarkers.delete(owner);
+		}
+	}
+
+	/**
+	 * Returns `true` when the markers currently in the marker service for the given owner and
+	 * resource are exactly the markers this collector last delivered. This is used to detect
+	 * whether the collector still owns a resource's markers (and may therefore clean them up) or
+	 * whether another producer sharing the same owner has since replaced them.
+	 */
+	private ownsCurrentMarkers(owner: string, resource: URI): boolean {
+		const ownKeys = this.ownMarkers.get(owner)?.get(resource.toString());
+		if (!ownKeys) {
+			return false;
+		}
+		const current = this.markerService.read({ owner, resource });
+		if (current.length !== ownKeys.size) {
+			return false;
+		}
+		return current.every(marker => ownKeys.has(IMarkerData.makeKey(marker)));
 	}
 
 	private getDeliveredMarkersPerOwner(owner: string): Map<string, number> {
