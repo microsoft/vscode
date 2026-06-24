@@ -57,7 +57,7 @@ interface IDefaultAccountConfig {
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
-export enum DefaultAccountStatus {
+export const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',

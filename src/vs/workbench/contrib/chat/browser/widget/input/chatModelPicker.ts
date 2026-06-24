@@ -79,6 +79,13 @@ const ModelPickerSection = {
 } as const;
 
 /**
+ * Id of the synthetic "Trust Workspace..." entry shown in Restricted Mode. It is
+ * a command (not a selectable model), so the accessibility provider gives it a
+ * plain `menuitem` role instead of `menuitemradio`.
+ */
+const RESTRICTED_MODE_TRUST_ACTION_ID = 'restrictedModeTrust';
+
+/**
  * Returns a human-readable display name for a model vendor.
  * Looks up the registered provider descriptor's displayName first,
  * then falls back to capitalizing the raw vendor id.
@@ -496,7 +503,7 @@ export function buildModelPickerItems(
 		});
 		items.push({
 			item: {
-				id: 'restrictedModeTrust',
+				id: RESTRICTED_MODE_TRUST_ACTION_ID,
 				enabled: !!onRequestTrust,
 				checked: false,
 				class: undefined,
@@ -893,14 +900,21 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.isSectionToggle) {
 				return undefined;
 			}
-			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+			// The Restricted Mode Trust action is a command, not a selectable
+			// model, so it exposes no checked state.
+			if (element.kind === ActionListItemKind.Action && element.item?.id !== RESTRICTED_MODE_TRUST_ACTION_ID) {
+				return !!element?.item?.checked;
+			}
+			return undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
 			if (element.isSectionToggle) {
 				return 'menuitem';
 			}
 			switch (element.kind) {
-				case ActionListItemKind.Action: return 'menuitemradio';
+				// The Restricted Mode Trust action is a command, not a model
+				// choice, so announce it as a plain menuitem rather than a radio.
+				case ActionListItemKind.Action: return element.item?.id === RESTRICTED_MODE_TRUST_ACTION_ID ? 'menuitem' : 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';
 				default: return 'separator';
 			}

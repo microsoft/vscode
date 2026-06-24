@@ -172,6 +172,14 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
 	});
 
+	test('accessibility provider announces the Restricted Mode Trust action as a plain menuitem (not a radio)', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const trust = getActionItems(callBuild([], { restrictedMode: true, onRequestTrust: () => { } })).find(a => a.item?.id === 'restrictedModeTrust')!;
+		assert.ok(trust, 'expected a Trust Workspace action');
+		assert.strictEqual(provider.getRole(trust), 'menuitem');
+		assert.strictEqual(provider.isChecked(trust), undefined);
+	});
+
 	test('accessibility provider includes inline source and right-aligned multiplier', () => {
 		const provider = getModelPickerAccessibilityProvider();
 		assert.strictEqual(provider.getAriaLabel({
