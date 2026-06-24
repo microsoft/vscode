@@ -14,7 +14,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagement.ts                # IDs + context keys
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
-├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
+├── aiCustomizationListWidget.ts                # Search + grouped list
 ├── aiCustomizationItemsModel.ts                # IAICustomizationItemsModel: aggregated item model + section counts
 ├── aiCustomizationItemSource.ts                # Item pipeline: ICustomizationItem → IAICustomizationListItem view model
 ├── aiCustomizationWelcomePage.ts               # Welcome page host (AICustomizationWelcomePage + implementation interface)
@@ -263,8 +263,6 @@ The MCP Servers section combines locally known MCP servers with MCP servers repo
 
 The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
 
-With the harness selector dropdown hidden in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
-
 ### Item Badges
 
 `IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name. For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
@@ -306,4 +304,4 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor harness selector.
+User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor.
