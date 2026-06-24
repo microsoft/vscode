@@ -482,7 +482,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
 			children = stat.children ?? [];
 		} catch {
-			// Root does not exist (or is unreadable) — nothing to discover or watch.
+			// Root does not exist (or is unreadable) — still discover it as a possible source folder.
 		}
 
 		// Filenames are dynamic for these roots, so we watch the whole directory.
