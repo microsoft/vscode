@@ -35,7 +35,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
+import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
@@ -398,7 +398,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
 		this._ensureAuthenticated();
 		if (config.fork) {
-			throw new Error('TODO: Phase 6.5: fork requires message-UUID lookup via sdk.getSessionMessages');
+			return this._forkSession(config, config.fork);
 		}
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -446,6 +446,98 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provisional: true,
 			...(project ? { project } : {}),
 		};
+	}
+
+	/**
+	 * Fork an existing session at a protocol `turnId` (the last KEPT turn N,
+	 * keep `[0..N]` INCLUSIVE) into a brand-new session. Unlike the non-fork
+	 * path this materializes EAGERLY: the SDK's `forkSession` writes the
+	 * forked transcript to disk synchronously, so the result is NOT
+	 * provisional (CONTEXT M9). Per M9 the SDK `Query` is NOT started here:
+	 * fork writes the session file and resolves its working directory from
+	 * the SDK record, then materialization is deferred to the first
+	 * {@link sendMessage}, which finds no in-memory entry and resumes from
+	 * disk via {@link _resumeSession}. Starting the `Query` here would fire
+	 * `onDidMaterializeSession` and emit pipeline progress signals before
+	 * `AgentService.createSession` has registered the forked session, each
+	 * landing on a session the service does not know about yet.
+	 *
+	 * The protocol `turnId` is NOT the SDK's `upToMessageId`: the SDK wants
+	 * the envelope `uuid` of the last assistant message of turn N, which
+	 * {@link resolveForkAnchorUuid} reconstructs by walking the source
+	 * transcript on demand (no persisted turn→uuid map — see phase13-plan.md).
+	 *
+	 * `config.fork.turnIdMapping` is intentionally ignored: Copilot's
+	 * `remapTurnIds` rewrites a per-turn SDK-event-id DB that Claude does
+	 * not maintain, and the SDK's `forkSession` already remaps every
+	 * internal message uuid.
+	 */
+	private async _forkSession(config: IAgentCreateSessionConfig, fork: NonNullable<IAgentCreateSessionConfig['fork']>): Promise<IAgentCreateSessionResult> {
+		if (isSubagentSession(fork.session)) {
+			throw new Error('Cannot fork a subagent session');
+		}
+		const sourceSessionId = AgentSession.id(fork.session);
+		const existingSource = this._findAnySession(sourceSessionId);
+		if (existingSource && !existingSource.isPipelineReady) {
+			throw new Error('Cannot fork a provisional/never-sent session');
+		}
+		// Serialize against the SOURCE session so the transcript read + fork
+		// can't race an in-flight `sendMessage` mutating that session.
+		return this._sessionSequencer.queue(sourceSessionId, async () => {
+			const messages = await this._sdkService.getSessionMessages(sourceSessionId, { includeSystemMessages: true });
+			const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId);
+			if (upToMessageId === undefined) {
+				throw new Error(`Cannot fork session ${sourceSessionId}: turn ${fork.turnId} not found in transcript`);
+			}
+			const { sessionId: newSessionId } = await this._sdkService.forkSession(sourceSessionId, { upToMessageId });
+			const newSessionUri = AgentSession.uri(this.id, newSessionId);
+
+			// Inherit the source's model / permissionMode / agent (with create-
+			// config overrides) by writing the new session's overlay now, so the
+			// lazy `_resumeSession` on the first `sendMessage` reads it and seeds
+			// `Options` from it. `customizationDirectory` is deliberately NOT
+			// inherited: it points at the source's per-session synced plugin dir
+			// (Phase 11), so the fork re-syncs its own on first materialize.
+			let sourceOverlay: IClaudeSessionOverlay = {};
+			try {
+				sourceOverlay = await this._metadataStore.read(fork.session);
+			} catch (err) {
+				this._logService.warn(`[Claude] fork: source overlay read failed for ${sourceSessionId}; continuing with defaults`, err);
+			}
+			const model = config.model ?? sourceOverlay.model;
+			const agent = config.agent ?? sourceOverlay.agent;
+			const permissionMode = narrowClaudePermissionMode(config.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? sourceOverlay.permissionMode;
+			await this._metadataStore.write(newSessionUri, {
+				...(model ? { model } : {}),
+				...(permissionMode ? { permissionMode } : {}),
+				...(agent ? { agent } : {}),
+			});
+
+			// Per CONTEXT M9, fork does NOT start the SDK `Query` here. Resolve
+			// the forked session's working directory + project from the freshly
+			// written SDK record and return; the `Query` materializes lazily on
+			// the first `sendMessage`, which finds no in-memory entry and
+			// resumes from disk via `_resumeSession`. Materializing now would
+			// fire `onDidMaterializeSession` and emit pipeline progress signals
+			// (e.g. `serverToolsChanged`) before `AgentService.createSession`
+			// has registered the forked session, each landing on an "unknown
+			// session".
+			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
+			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectory;
+			let project: IAgentSessionProjectInfo | undefined;
+			if (workingDirectory) {
+				try {
+					project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+				} catch (err) {
+					this._logService.warn(`[Claude] fork: project resolution failed for ${newSessionId}; continuing without project`, err);
+				}
+			}
+			return {
+				session: newSessionUri,
+				workingDirectory,
+				...(project ? { project } : {}),
+			};
+		});
 	}
 
 	/**

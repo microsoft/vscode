@@ -58,6 +58,52 @@ export function mapSessionMessagesToTurns(
 	return builder.finish();
 }
 
+/**
+ * Phase 6.5 — translate a protocol `turnId` into the SDK envelope `uuid`
+ * that `forkSession({ upToMessageId })` accepts (INCLUSIVE), for the
+ * "keep turns `[0..N]` inclusive" fork semantic where `turnId` names the
+ * last KEPT turn N.
+ *
+ * Walks the flat `SessionMessage[]` once, reusing {@link parseSessionMessage}
+ * so the turn-boundary rule stays identical to {@link ReplayBuilder} — a
+ * `'user-text'` envelope opens a turn (and its `uuid` is the `Turn.id`),
+ * while `'user-tool-results'` and `'system-notification'` do NOT flip the
+ * turn. Returns the `uuid` of the **last `'assistant'` envelope of turn N**;
+ * if turn N has no assistant envelope (user-only / aborted mid-turn), falls
+ * back to the `turnId` (the user-text envelope `uuid`) itself — still a
+ * valid INCLUSIVE anchor that keeps turn N's user message. Returns
+ * `undefined` only when `turnId` is never seen in the transcript.
+ *
+ * Always returns an envelope `uuid` (never an Anthropic `msg_…` id), the id
+ * class `forkSession` requires (see phase13-plan.md id-correctness note).
+ */
+export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+	let seenTarget = false;
+	let lastAssistantUuid: string | undefined;
+	for (const msg of messages) {
+		const parsed = parseSessionMessage(msg);
+		if (parsed === undefined) {
+			continue;
+		}
+		if (parsed.kind === 'user-text') {
+			if (seenTarget) {
+				// First genuine user-text after turn N started → turn N is over.
+				break;
+			}
+			if (parsed.uuid === turnId) {
+				seenTarget = true;
+			}
+		} else if (parsed.kind === 'assistant' && seenTarget) {
+			lastAssistantUuid = parsed.uuid;
+		}
+		// 'user-tool-results' / 'system-notification' never flip the turn.
+	}
+	if (!seenTarget) {
+		return undefined;
+	}
+	return lastAssistantUuid ?? turnId;
+}
+
 // #region Parsed message union — narrow-at-the-seam adapter
 
 interface UserTextBlock { readonly type: 'text'; readonly text: string }
