@@ -104,6 +104,14 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	readonly onDidReportCreditsEmitter = new Emitter<IClaudeProxyCreditsReport>();
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this.onDidReportCreditsEmitter.event;
 
+	/** Tests fire this to simulate the session's in-flight requests draining. */
+	readonly onDidSettleSessionEmitter = new Emitter<string>();
+	readonly onDidSettleSession: Event<string> = this.onDidSettleSessionEmitter.event;
+
+	/** Tests set entries here to simulate outstanding in-flight requests per session. */
+	readonly inFlightSessions = new Set<string>();
+	hasInFlightForSession(sessionId: string): boolean { return this.inFlightSessions.has(sessionId); }
+
 	async start(token: string): Promise<IClaudeProxyHandle> {
 		this.startCalls.push({ token });
 		return {
@@ -113,7 +121,10 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 		};
 	}
 
-	dispose(): void { this.onDidReportCreditsEmitter.dispose(); }
+	dispose(): void {
+		this.onDidReportCreditsEmitter.dispose();
+		this.onDidSettleSessionEmitter.dispose();
+	}
 }
 
 class FakeCopilotApiService implements ICopilotApiService {
@@ -3270,6 +3281,8 @@ suite('ClaudeAgent', () => {
 		class RecordingProxyService implements IClaudeProxyService {
 			declare readonly _serviceBrand: undefined;
 			readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = Event.None;
+			readonly onDidSettleSession: Event<string> = Event.None;
+			hasInFlightForSession(_sessionId: string): boolean { return false; }
 			async start(_token: string): Promise<IClaudeProxyHandle> {
 				return {
 					baseUrl: 'http://127.0.0.1:0',

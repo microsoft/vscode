@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -31,7 +32,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -253,6 +254,21 @@ function convertProtocolAnswers(raw: Record<string, ChatInputAnswer> | undefined
 // =============================================================================
 // Chat session
 // =============================================================================
+
+/**
+ * After the user cancels a turn, billed Copilot credits for `/v1/messages`
+ * requests that were in flight keep settling until the SDK subprocess unwinds
+ * and the proxy drains. The agent host marks the turn's credits `final` (via
+ * `_meta.copilotUsage.final`) once the proxy reports the session has no
+ * outstanding requests; {@link AgentHostSessionHandler._observeTurn} defers
+ * finalizing the cancelled response's cost footer until that marker arrives so
+ * the footer reflects the full billed amount instead of undercounting.
+ *
+ * This hard cap is a pure failsafe: if the marker never arrives (e.g. the agent
+ * host wedged), finalize from whatever usage has settled by then so the
+ * response cannot stay open indefinitely.
+ */
+const CANCEL_CREDIT_DRAIN_MAX_MS = 8000;
 
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
@@ -1706,6 +1722,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
+			// On cancel the turn goes terminal immediately (optimistic
+			// `ChatTurnCancelled`), but billed credits for in-flight requests
+			// keep settling for a short window afterwards. Defer finishing to
+			// the cancel handler's drain so the footer isn't snapshotted before
+			// those credits arrive (which would undercount the cost). The token
+			// flips synchronously at cancel — before the optimistic dispatch and
+			// this autorun run — so checking it here avoids a flag-ordering race.
+			if (opts.cancellationToken.isCancellationRequested) {
+				return;
+			}
 			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
 				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error, this._chatErrorContext());
 				const content = forwarded
@@ -1717,16 +1743,37 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		store.add(opts.cancellationToken.onCancellationRequested(() => {
-			// On cancellation the protocol turn has not been finalized yet
-			// (the `ChatTurnCancelled` dispatch round-trips asynchronously), so
-			// resolve with the current turn rather than `undefined`. This keeps
-			// the turn's accumulated `usage` so the response footer still shows
-			// the model and the credits consumed before the interruption.
-			// Mark it `Cancelled` so error-detail extraction treats it as a
-			// non-error terminal turn (an already-finalized turn keeps its own
-			// state).
-			const current = turn$.get();
-			finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
+			if (terminated) {
+				return;
+			}
+			// On cancellation the protocol turn finalizes asynchronously and,
+			// crucially, billed Copilot credits for `/v1/messages` requests that
+			// were in flight keep settling after the user cancels (the SDK
+			// subprocess unwinds gracefully; each request reports its credits as
+			// it completes). Finalizing the response immediately would snapshot
+			// the turn before those credits land and undercount the cost footer.
+			// The agent host emits a `final` usage marker once the proxy reports
+			// the session has no in-flight requests left — the deterministic
+			// signal that all billed credits have settled — so wait for that
+			// before finalizing. The chat already renders as cancelled via the
+			// optimistic state; only the internal footer finalization is deferred.
+			const settle = () => {
+				const current = turn$.get();
+				finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
+			};
+			store.add(autorun(reader => {
+				const usage = usage$.read(reader);
+				if (terminated) {
+					return;
+				}
+				if (readUsageInfoMeta(usage).copilotUsage?.final === true) {
+					settle();
+				}
+			}));
+			// Failsafe: if the `final` marker never arrives (e.g. the agent host
+			// wedged), finalize from whatever usage has settled by the cap so the
+			// response cannot stay open indefinitely.
+			store.add(disposableTimeout(settle, CANCEL_CREDIT_DRAIN_MAX_MS));
 		}));
 
 		return store;

@@ -83,6 +83,24 @@ export interface IClaudeProxyService {
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
+	 * Fires when a session's in-flight `/v1/messages` count transitions to
+	 * zero — i.e. every request the session had outstanding has resolved (clean
+	 * end, error, or abort). Consumers use this as the deterministic signal that
+	 * no further {@link onDidReportCredits} can arrive for the session's current
+	 * turn, so a cancelled turn's billed credits are fully settled. The payload
+	 * is the decoded session id.
+	 */
+	readonly onDidSettleSession: Event<string>;
+
+	/**
+	 * Whether the session currently has any in-flight `/v1/messages` request.
+	 * Pair with {@link onDidSettleSession}: a terminal turn whose session reports
+	 * `false` here is already fully settled (no settle event will follow), so
+	 * credits can be finalized immediately.
+	 */
+	hasInFlightForSession(sessionId: string): boolean;
+
+	/**
 	 * Start the proxy (if not already running) and return a refcounted
 	 * handle. The supplied `githubToken` becomes the active token for
 	 * outbound CAPI requests; if multiple callers hold handles
@@ -157,6 +175,12 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
 
+	private readonly _onDidSettleSession = new Emitter<string>();
+	readonly onDidSettleSession: Event<string> = this._onDidSettleSession.event;
+
+	/** Count of in-flight `/v1/messages` requests per session id. */
+	private readonly _inFlightBySession = new Map<string, number>();
+
 	constructor(
 		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -166,6 +190,37 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	protected createState(githubToken: string): IClaudeProxyState {
 		return { githubToken };
+	}
+
+	hasInFlightForSession(sessionId: string): boolean {
+		return (this._inFlightBySession.get(sessionId) ?? 0) > 0;
+	}
+
+	/** Increment the session's in-flight count when a `/v1/messages` request starts. */
+	private _acquireInFlight(sessionId: string | undefined): void {
+		if (sessionId === undefined) {
+			return;
+		}
+		this._inFlightBySession.set(sessionId, (this._inFlightBySession.get(sessionId) ?? 0) + 1);
+	}
+
+	/**
+	 * Decrement the session's in-flight count when a `/v1/messages` request ends.
+	 * Fires {@link onDidSettleSession} on the 1→0 transition so consumers learn
+	 * the session has no outstanding billed requests.
+	 */
+	private _releaseInFlight(sessionId: string | undefined): void {
+		if (sessionId === undefined) {
+			return;
+		}
+		const next = (this._inFlightBySession.get(sessionId) ?? 0) - 1;
+		if (next > 0) {
+			this._inFlightBySession.set(sessionId, next);
+			return;
+		}
+		this._inFlightBySession.delete(sessionId);
+		this._logService.trace(`[${PROXY_USER_FACING_NAME}] session settled (no in-flight): session=${sessionId}`);
+		this._onDidSettleSession.fire(sessionId);
 	}
 
 	async start(githubToken: string): Promise<IClaudeProxyHandle> {
@@ -184,6 +239,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	override dispose(): void {
 		super.dispose();
 		this._onDidReportCredits.dispose();
+		this._onDidSettleSession.dispose();
 	}
 
 	protected override writeInternalError(res: http.ServerResponse): void {
@@ -365,6 +421,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 			clientGone: false,
 		};
 		runtime.inFlight.add(entry);
+		this._acquireInFlight(sessionId);
 		const onClose = () => {
 			entry.clientGone = true;
 			entry.ac.abort();
@@ -396,6 +453,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		} finally {
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
+			this._releaseInFlight(sessionId);
 		}
 	}
 
