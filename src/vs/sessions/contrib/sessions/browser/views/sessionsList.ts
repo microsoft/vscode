@@ -27,7 +27,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatSessionProviderIdContext, ChatSessionSupportsDeleteContext, ChatSessionSupportsRenameContext, ChatSessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -2164,10 +2164,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionIsReadContext.key, this.isSessionRead(element)],
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[SessionItemInGroupContext.key, inGroup],
-			[ChatSessionTypeContext.key, element.sessionType],
-			[ChatSessionProviderIdContext.key, element.providerId],
-			[ChatSessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
-			[ChatSessionSupportsDeleteContext.key, element.capabilities.supportsDelete ?? false],
+			[SessionTypeContext.key, element.sessionType],
+			[SessionProviderIdContext.key, element.providerId],
+			[SessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
+			[SessionSupportsDeleteContext.key, element.capabilities.supportsDelete ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
