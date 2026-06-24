@@ -936,14 +936,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
 				this._telemetryFirstTranscriptionMs = Date.now();
 			}
-			this._updateUserTurn(e.text, e.committed ?? '', e.status === 'partial');
+
+			let text = e.text;
+
+			// Check for send keyword trigger (when auto-send is disabled).
+			if (this._pttToggleMode && this._pttHeld && !this._isAutoSendEnabled()) {
+				const strippedText = this._checkSendKeyword(text);
+				if (strippedText !== undefined) {
+					text = strippedText;
+					this._updateUserTurn(text, e.committed ?? '', false);
+					this._finishPtt();
+					return;
+				}
+			}
+
+			this._updateUserTurn(text, e.committed ?? '', e.status === 'partial');
 			if (e.status !== 'partial') {
 				if (!this._pttHeld) {
 					this._voiceState.set('processing', undefined);
 					this._statusText.set('Processing...', undefined);
 				}
 				// Persist the user's final transcript (local-only, no backend coordination).
-				this._persistTurn('user', e.text);
+				this._persistTurn('user', text);
 			}
 			// Restart silence countdown for auto-send in toggle mode.
 			if (this._pttToggleMode && this._pttHeld) {
@@ -1305,6 +1319,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _isAutoSendEnabled(): boolean {
 		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
 		return typeof delayMs === 'number' && delayMs >= 0;
+	}
+
+	/**
+	 * Check if the transcript text ends with the configured send keyword.
+	 * Returns the text with the keyword stripped if found, or undefined if not.
+	 */
+	private _checkSendKeyword(text: string): string | undefined {
+		const keyword = this.configurationService.getValue<string>('agents.voice.sendKeyword');
+		if (!keyword) {
+			return undefined;
+		}
+		const trimmed = text.trimEnd();
+		const keywordLower = keyword.toLowerCase();
+		if (trimmed.toLowerCase().endsWith(keywordLower)) {
+			// Strip the keyword from the end
+			const stripped = trimmed.slice(0, trimmed.length - keyword.length).trimEnd();
+			return stripped || undefined; // return undefined if nothing left (don't send empty)
+		}
+		return undefined;
 	}
 
 	/** Re-enter listening via synthetic short tap. */
