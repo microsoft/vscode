@@ -135,8 +135,8 @@
 	z-index: 0;
 	top: 4px;
 	left: 0px;
-	width: 26px;
-	height: 26px;
+	width: 24px;
+	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
@@ -151,8 +151,8 @@
 	z-index: 0;
 	top: 4px;
 	left: 0px;
-	width: 26px;
-	height: 26px;
+	width: 24px;
+	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-list-hoverBackground);
 }
@@ -171,6 +171,18 @@
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) .action-label.codicon {
 	color: var(--vscode-descriptionForeground) !important;
+}
+
+.style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon,
+.style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon {
+	top: -2px;
+	left: -2px;
+}
+
+.style-override .pane-composite-part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon,
+.style-override .pane-composite-part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.uri-icon {
+	top: 0px;
+	left: 0px;
 }
 
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon,
@@ -214,10 +226,21 @@
 	padding: 0 4px;
 }
 
+/*
+ * Text-label composites (`.action-item` without `.icon`, e.g. panel titles)
+ * inherit the base ~35px-tall item via `line-height`. Match the icon items at a
+ * compact 24px so both tab styles share the same height.
+ */
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon),
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+	height: 24px;
+	line-height: 24px;
+}
+
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label::before {
-	left: 1px;
-	top: 1px;
+	left: 0px;
+	top: 0px;
 }
 
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
@@ -225,15 +248,15 @@
 }
 
 /*
- * Auxiliary bar only: give its composite icon items a shorter 28px height so the
+ * Auxiliary bar only: give its composite icon items a shorter 24px height so the
  * single Chat item reads as a compact, balanced chip. Scoped to the auxiliary
  * bar so the primary activity bar keeps its default item height.
  */
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon,
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	height: 26px;
+	height: 24px;
 	padding: 0;
-	width: 26px;
+	width: 24px;
 }
 
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .active-item-indicator,
@@ -243,5 +266,11 @@
 
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
 	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+/* Space the composite items apart with a small gap in the auxiliary bar and base panel. */
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .actions-container,
+.style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
