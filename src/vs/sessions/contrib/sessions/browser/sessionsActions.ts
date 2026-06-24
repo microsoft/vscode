@@ -6,8 +6,8 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -20,7 +20,7 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowConte
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -372,10 +372,13 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 });
 
 /**
- * Populates the {@link Menus.SessionConversations} submenu for the active session.
- * The "New Chat" action and one toggle action per chat are (re)registered whenever
- * the active session or its chat list changes, mirroring the per-session dropdown
- * contents.
+ * Populates the {@link Menus.SessionConversations} submenu for every visible
+ * session. {@link Menus.SessionBarToolbar} is rendered once per session view
+ * (header/floating toolbar) against that view's scoped context key service, so
+ * the submenu items are scoped per session via {@link SessionIdContext}: each
+ * session's "New Chat" action and per-chat toggle actions only render in (and
+ * act on) their own session's toolbar. The actions are (re)registered whenever
+ * the set of visible sessions or their chat lists change.
  */
 export class SessionConversationsMenuContribution extends Disposable implements IWorkbenchContribution {
 
@@ -387,57 +390,75 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 	) {
 		super();
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
-			if (!session) {
-				return;
+			for (const session of this._sessionsService.visibleSessions.read(reader)) {
+				if (session) {
+					reader.store.add(this._registerSessionConversations(session, reader));
+				}
 			}
+		}));
+	}
 
-			const that = this;
-			reader.store.add(registerAction2(class extends Action2 {
+	private _registerSessionConversations(session: IActiveSession, reader: IReader): IDisposable {
+		const store = new DisposableStore();
+		const that = this;
+
+		// Scope every entry to this session's toolbar: the submenu is rendered once
+		// per session view against its own scoped context key service, where
+		// `sessionId` resolves to that view's session.
+		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
+
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `sessions.chatCompositeBar.addChat.${session.sessionId}`,
+					title: localize2('chatCompositeBar.addChat', "New Chat"),
+					icon: Codicon.add,
+					menu: { id: Menus.SessionConversations, group: 'navigation', order: 0, when: scopedToSession },
+				});
+			}
+			override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
+				const target = forwardedSession ?? session;
+				await that._sessionsService.openNewChatInSession(target);
+				that._sessionsPartService.focusSession(target);
+			}
+		}));
+
+		const allChats = session.chats.read(reader);
+		const mainUri = session.mainChat.read(reader).resource.toString();
+		const openUris = new Set(session.openChats.read(reader).map(chat => chat.resource.toString()));
+
+		allChats.forEach((chat, index) => {
+			const chatUri = chat.resource.toString();
+			const isOpen = openUris.has(chatUri);
+			const isMain = chatUri === mainUri;
+			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
+			store.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: 'sessions.chatCompositeBar.addChat',
-						title: localize2('chatCompositeBar.addChat', "New Chat"),
-						icon: Codicon.add,
-						menu: { id: Menus.SessionConversations, group: 'navigation', order: 0 },
+						id: `sessions.toggleChat.${chatUri}`,
+						title,
+						toggled: isOpen ? ContextKeyExpr.true() : undefined,
+						precondition: isMain ? ContextKeyExpr.false() : undefined,
+						menu: { id: Menus.SessionConversations, group: '1_chats', order: index, when: scopedToSession },
 					});
 				}
-				override async run(): Promise<void> {
-					await that._sessionsService.openNewChatInSession(session);
-					that._sessionsPartService.focusSession(session);
+				override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
+					const target = forwardedSession ?? session;
+					const targetChat = target.chats.get().find(c => c.resource.toString() === chatUri);
+					if (!targetChat) {
+						return;
+					}
+					if (target.openChats.get().some(c => c.resource.toString() === chatUri)) {
+						await that._sessionsService.closeChat(target, targetChat);
+					} else {
+						// Opening a closed chat also un-hides it in the tab strip.
+						await that._sessionsService.openChat(target, targetChat.resource);
+					}
 				}
 			}));
+		});
 
-			const allChats = session.chats.read(reader);
-			const mainUri = session.mainChat.read(reader).resource.toString();
-			const openUris = new Set(session.openChats.read(reader).map(chat => chat.resource.toString()));
-
-			allChats.forEach((chat, index) => {
-				const chatUri = chat.resource.toString();
-				const isOpen = openUris.has(chatUri);
-				const isMain = chatUri === mainUri;
-				const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
-				reader.store.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: `sessions.toggleChat.${chatUri}`,
-							title,
-							toggled: isOpen ? ContextKeyExpr.true() : undefined,
-							precondition: isMain ? ContextKeyExpr.false() : undefined,
-							menu: { id: Menus.SessionConversations, group: '1_chats', order: index },
-						});
-					}
-					override async run(): Promise<void> {
-						if (isOpen) {
-							await that._sessionsService.closeChat(session, chat);
-						} else {
-							// Opening a closed chat also un-hides it in the tab strip.
-							await that._sessionsService.openChat(session, chat.resource);
-						}
-					}
-				}));
-			});
-		}));
+		return store;
 	}
 }
 
