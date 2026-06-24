@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// E-lite: Component Governance (CG) NOTICE cutover.
+// Component Governance (CG) NOTICE cutover.
 //
 // During each platform compile stage this script pulls the CG-generated NOTICE
 // (produced by the parallel Quality stage as the `notice_output` artifact) and
@@ -16,7 +16,7 @@
 // by then the added wall-clock is near-zero; otherwise we block for at most a
 // short budget and then DEGRADE to the legacy mixin notice.
 //
-// Design notes (see oss-cutover design log):
+// Design notes:
 //   * copy-then-overwrite: mixin-quality.ts is left untouched (shared chokepoint
 //     used by 8+ pipelines). The legacy ThirdPartyNotices.txt it lays down is
 //     our guaranteed fallback, so we never ship with NO notice.
@@ -25,9 +25,9 @@
 //   * SHORT poll budget (not the copilot 30min): a missing artifact must degrade
 //     to fallback fast, otherwise the non-fatal design is defeated by a 30min hang.
 //   * Three greppable markers so a build log answers "fresh vs stale vs off":
-//       [notice-elite] RESULT=fresh     overwrote from notice_output (logs producer)
-//       [notice-elite] RESULT=fallback  artifact missing -> kept legacy notice
-//       [notice-elite] RESULT=disabled  feature flag off -> kept legacy notice
+//       [notice-cutover] RESULT=fresh     overwrote from notice_output (logs producer)
+//       [notice-cutover] RESULT=fallback  artifact missing -> kept legacy notice
+//       [notice-cutover] RESULT=disabled  feature flag off -> kept legacy notice
 
 import fs from 'fs';
 import path from 'path';
@@ -62,7 +62,7 @@ const POLL_ATTEMPTS = 20;
 const POLL_INTERVAL_MS = 30_000;
 
 function log(message: string): void {
-	console.log(`[notice-elite] [${new Date().toISOString()}] ${message}`);
+	console.log(`[notice-cutover] [${new Date().toISOString()}] ${message}`);
 }
 
 interface TimelineRecord {
@@ -92,17 +92,17 @@ interface NoticeArtifact {
 
 function installDiagnostics(): void {
 	process.on('uncaughtException', err => {
-		console.error('[notice-elite] Uncaught exception:', err);
+		console.error('[notice-cutover] Uncaught exception:', err);
 		// Non-fatal: never break packaging because of a notice problem.
 		process.exit(0);
 	});
 	process.on('unhandledRejection', reason => {
-		console.error('[notice-elite] Unhandled rejection:', reason);
+		console.error('[notice-cutover] Unhandled rejection:', reason);
 		process.exit(0);
 	});
 	for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK'] as const) {
 		process.on(signal, () => {
-			console.error(`[notice-elite] Received ${signal}, exiting.`);
+			console.error(`[notice-cutover] Received ${signal}, exiting.`);
 			process.exit(0);
 		});
 	}
@@ -336,7 +336,7 @@ async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefine
 
 			log(`  * Not ready yet, waiting ${POLL_INTERVAL_MS / 1000}s...`);
 		} catch (err) {
-			console.error(`[notice-elite] WARNING: poll attempt failed: ${err}`);
+			console.error(`[notice-cutover] WARNING: poll attempt failed: ${err}`);
 		}
 
 		await new Promise(c => setTimeout(c, POLL_INTERVAL_MS));
@@ -387,6 +387,6 @@ async function main(): Promise<void> {
 
 main().catch(err => {
 	// Non-fatal: log and exit 0 so packaging proceeds with the legacy notice.
-	console.error('[notice-elite] Non-fatal error; keeping legacy notice:', err);
+	console.error('[notice-cutover] Non-fatal error; keeping legacy notice:', err);
 	process.exitCode = 0;
 });
