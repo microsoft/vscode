@@ -17854,6 +17854,11 @@ declare module 'vscode' {
 		 * The human-readable name of the account.
 		 */
 		readonly label: string;
+
+		/**
+		 * The optional avatar URL of the account.
+		 */
+		readonly avatarUrl?: string;
 	}
 
 	/**

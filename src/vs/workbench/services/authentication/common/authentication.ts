@@ -16,6 +16,7 @@ export const INTERNAL_AUTH_PROVIDER_PREFIX = '__';
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	avatarUrl?: string;
 }
 
 export interface AuthenticationSession {
