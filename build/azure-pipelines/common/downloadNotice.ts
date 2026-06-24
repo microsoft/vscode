@@ -47,9 +47,14 @@ const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 // Poll budget: 20 attempts x 30s = 10 minutes. Deliberately far below the
 // copilot 30min so a never-produced artifact degrades to fallback quickly, but
 // with generous margin over the parallel Quality stage (CG + scan + merge).
-// The PRIMARY gate accepts the instant ThirdPartyNotices.new.txt appears in the
-// container listing (observed ~3-4min), so the budget is mostly safety margin;
-// the Quality-completion backstop ends the wait early if the file never lands.
+// The gate accepts only once ThirdPartyNotices.new.txt has been downloaded,
+// extracted, and validated non-empty (>1KB) -- merely seeing it in the
+// container listing is NOT sufficient, because the listing entry can appear
+// before the file's content has finished committing (see waitForNotice). On
+// such a mid-upload miss we keep polling rather than falling back, so a
+// fast-compiling platform can never ship the legacy notice while its peers
+// ship the CG notice. The Quality-completion backstop ends the wait early only
+// when .new.txt was never produced at all.
 // NB: this is the OUTER artifact-availability poll. It is unrelated to the
 // inner retry() wrapper in retry.ts, which independently retries each AZDO API
 // call up to 10 times for transient network errors and emits no attempt log.
@@ -121,11 +126,14 @@ async function getPipelineArtifacts(): Promise<NoticeArtifact[]> {
 }
 
 // Lists the FILES inside a container artifact via the AZDO container-items API.
-// Container-artifact file uploads are atomic per file: a file only appears in
-// this listing AFTER its upload has finished, so seeing ThirdPartyNotices.new.txt
-// here means it is fully written and safe to download. Returns the file paths,
-// or undefined if the listing could not be retrieved (transient error) so the
-// caller can distinguish "file genuinely absent" from "could not check".
+// NOTE: a file path can appear in this listing slightly BEFORE its content has
+// finished committing to the container (observed in build 450517: the listing
+// showed ThirdPartyNotices.new.txt one poll before the artifact download
+// actually yielded it). So this listing is a NECESSARY but not SUFFICIENT
+// readiness signal -- the caller must still download+extract+validate the file
+// before accepting it. Returns the file paths, or undefined if the listing
+// could not be retrieved (transient error) so the caller can distinguish "file
+// genuinely absent" from "could not check".
 async function listArtifactFiles(artifact: NoticeArtifact): Promise<string[] | undefined> {
 	// resource.data for a container artifact looks like: #/<containerId>/<rootPath>
 	const match = /^#\/(\d+)\/(.+)$/.exec(artifact.resource.data ?? '');
@@ -205,8 +213,52 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 	});
 }
 
-// Returns the artifact if it appears within the short budget, otherwise undefined.
-async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
+interface ExtractedNotice {
+	readonly shippingPath: string;
+	readonly metaFile: string | undefined;
+	readonly size: number;
+}
+
+// Downloads + extracts the notice_output artifact into tmpDir and validates that
+// ThirdPartyNotices.new.txt is actually present AND non-empty (>1KB). Returns the
+// extracted notice on success, or undefined if the file is missing/too small in
+// the EXTRACTED output -- which, when the container listing claimed it was there,
+// means the content is still committing (mid-upload). The caller treats undefined
+// as "not ready yet" and re-polls; it must NEVER be treated as terminal fallback,
+// because a fast platform that hits this window would otherwise ship the legacy
+// notice while its peers ship the CG notice (the cross-arch mismatch bug).
+async function tryExtractNotice(artifact: NoticeArtifact, tmpDir: string): Promise<ExtractedNotice | undefined> {
+	fs.rmSync(tmpDir, { recursive: true, force: true });
+	fs.mkdirSync(tmpDir, { recursive: true });
+	const artifactZipPath = path.join(tmpDir, 'notice_output.zip');
+
+	log('  * downloading notice_output artifact to verify content...');
+	await retry(() => downloadArtifact(artifact, artifactZipPath));
+
+	log('  * extracting notice_output artifact...');
+	const files = await unzip(artifactZipPath, tmpDir);
+	const shipping = files.find(f => path.basename(f) === SHIPPING_NOTICE_NAME);
+
+	if (!shipping) {
+		log(`  * ${SHIPPING_NOTICE_NAME} listed but not yet in extracted output (mid-upload); will recheck next poll.`);
+		return undefined;
+	}
+
+	const size = fs.statSync(shipping).size;
+	// Guard: a tiny file means the merge produced nothing usable OR the upload is
+	// still in flight. Either way, do not accept it -- re-poll.
+	if (size <= 1024) {
+		log(`  * ${SHIPPING_NOTICE_NAME} extracted but too small (${size} bytes; mid-upload or empty merge); will recheck next poll.`);
+		return undefined;
+	}
+
+	const metaFile = files.find(f => path.basename(f) === 'notice-meta.txt');
+	return { shippingPath: shipping, metaFile, size };
+}
+
+// Returns the validated, extracted CG NOTICE if it becomes available within the
+// short budget, otherwise undefined (caller keeps the legacy notice).
+async function waitForNotice(tmpDir: string): Promise<ExtractedNotice | undefined> {
 	const startTime = Date.now();
 
 	for (let index = 0; index < POLL_ATTEMPTS; index++) {
@@ -215,9 +267,9 @@ async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
 		try {
 			log(`Waiting for ${ARTIFACT_NAME} artifact (attempt ${index + 1}/${POLL_ATTEMPTS}, ${elapsed}s elapsed)...`);
 
-			// The Quality job state is only a BACKSTOP now (see below): if it has
-			// completed and .new.txt is still absent, the file is never coming and
-			// we give up early instead of burning the whole budget.
+			// The Quality job state is only a BACKSTOP (see below): if it has
+			// completed and .new.txt never even appeared in the listing, the file
+			// is never coming and we give up early instead of burning the budget.
 			const qualityJob = await getQualityJob().catch(() => undefined);
 			if (qualityJob) {
 				log(`  * Quality job: state=${qualityJob.state}, result=${qualityJob.result ?? 'n/a'}`);
@@ -228,15 +280,12 @@ async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
 
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
 			if (artifact) {
-				// PRIMARY GATE: accept the instant ThirdPartyNotices.new.txt actually
-				// exists inside the container artifact. The artifact is populated in
-				// TWO phases by two Quality-stage steps (first generated.txt + meta,
-				// then seconds-to-minutes later the shipping .new.txt). The artifact
-				// NAME appears after phase 1, so checking the NAME alone races. But a
-				// container file appears in the listing only after its upload finishes,
-				// so the listing is an exact, race-free readiness signal -- and it lets
-				// us accept as soon as .new.txt lands rather than waiting for the whole
-				// Quality job to finish (which observably wastes ~80s of margin).
+				// The notice_output container is populated in TWO phases by the
+				// Quality stage (first generated.txt + meta, then seconds-to-minutes
+				// later the shipping .new.txt). We accept ONLY once .new.txt has been
+				// downloaded, extracted, and validated non-empty -- the listing alone
+				// races against content-commit (build 450517 armhf), so on a listing
+				// hit we attempt a real download+extract and re-poll if it isn't ready.
 				const files = await listArtifactFiles(artifact).catch(() => undefined);
 				if (files === undefined) {
 					// Could not list (transient error or unexpected data shape). Do not
@@ -245,16 +294,29 @@ async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
 				} else {
 					log(`  * notice_output files: ${files.map(f => path.basename(f)).join(', ') || '(empty)'}`);
 					if (files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME)) {
-						log(`  * ${SHIPPING_NOTICE_NAME} present in artifact; accepting.`);
-						return artifact;
-					}
-					// BACKSTOP: file confirmed absent AND the Quality job has finished
-					// => it is never coming. Fall back instead of polling the full budget.
-					if (qualityJob && qualityJob.state === 'completed') {
-						log(`  * Quality job completed but ${SHIPPING_NOTICE_NAME} absent from artifact; giving up.`);
+						log(`  * ${SHIPPING_NOTICE_NAME} listed; verifying extracted content...`);
+						const extracted = await tryExtractNotice(artifact, tmpDir).catch(err => {
+							// A download/extract failure here (e.g. partial zip mid-upload)
+							// is NOT terminal: keep polling within budget.
+							log(`  * download/extract attempt failed (${err}); will recheck next poll.`);
+							return undefined;
+						});
+						if (extracted) {
+							log(`  * ${SHIPPING_NOTICE_NAME} extracted and validated (${extracted.size} bytes); accepting.`);
+							return extracted;
+						}
+						// Listed but not yet downloadable/valid: fall through to wait + re-poll.
+						// Deliberately NO early give-up here even if the Quality job reports
+						// "completed" -- the artifact upload is async (continueOnError) and may
+						// still be finalizing, so we let the budget bound the wait.
+					} else if (qualityJob && qualityJob.state === 'completed') {
+						// BACKSTOP: .new.txt was never even listed AND Quality finished
+						// => it is never coming. Fall back instead of polling the full budget.
+						log(`  * Quality job completed but ${SHIPPING_NOTICE_NAME} never appeared in artifact; giving up.`);
 						return undefined;
+					} else {
+						log(`  * ${SHIPPING_NOTICE_NAME} not in artifact yet; waiting...`);
 					}
-					log(`  * ${SHIPPING_NOTICE_NAME} not in artifact yet; waiting...`);
 				}
 			} else if (qualityJob && qualityJob.state === 'completed') {
 				log('  * Quality job completed but no notice_output artifact; giving up.');
@@ -269,6 +331,7 @@ async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
 		await new Promise(c => setTimeout(c, POLL_INTERVAL_MS));
 	}
 
+	log(`Poll budget exhausted (${POLL_ATTEMPTS} attempts) without a valid ${SHIPPING_NOTICE_NAME}.`);
 	return undefined;
 }
 
@@ -282,43 +345,20 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const artifact = await waitForArtifact();
-	if (!artifact) {
-		log(`RESULT=fallback ${ARTIFACT_NAME} artifact unavailable within budget; keeping legacy notice.`);
-		return;
-	}
-
 	const tmpDir = path.resolve('.build/tmp-notice');
-	fs.rmSync(tmpDir, { recursive: true, force: true });
-	fs.mkdirSync(tmpDir, { recursive: true });
-	const artifactZipPath = path.join(tmpDir, 'notice_output.zip');
-
-	log('Downloading notice_output artifact...');
-	await retry(() => downloadArtifact(artifact, artifactZipPath));
-
-	log('Extracting notice_output artifact...');
-	const files = await unzip(artifactZipPath, tmpDir);
-	const shipping = files.find(f => path.basename(f) === SHIPPING_NOTICE_NAME);
-
-	if (!shipping) {
-		log(`RESULT=fallback artifact present but ${SHIPPING_NOTICE_NAME} missing; keeping legacy notice.`);
-		fs.rmSync(tmpDir, { recursive: true, force: true });
-		return;
-	}
-
-	const size = fs.statSync(shipping).size;
-	// Guard: a tiny file means the merge produced nothing usable. Keep legacy.
-	if (size <= 1024) {
-		log(`RESULT=fallback ${SHIPPING_NOTICE_NAME} too small (${size} bytes); keeping legacy notice.`);
+	const notice = await waitForNotice(tmpDir);
+	if (!notice) {
+		// Only reached on GENUINE exhaustion or a confirmed never-produced artifact
+		// -- never on a transient mid-upload miss (those re-poll inside waitForNotice).
+		log(`RESULT=fallback ${SHIPPING_NOTICE_NAME} unavailable within budget; keeping legacy notice.`);
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 		return;
 	}
 
 	// Log provenance for legal traceability: which build/commit produced this NOTICE.
-	const metaFile = files.find(f => path.basename(f) === 'notice-meta.txt');
-	if (metaFile) {
+	if (notice.metaFile) {
 		log('NOTICE provenance:');
-		for (const line of fs.readFileSync(metaFile, 'utf8').split(/\r?\n/)) {
+		for (const line of fs.readFileSync(notice.metaFile, 'utf8').split(/\r?\n/)) {
 			if (line.trim()) {
 				log(`    ${line}`);
 			}
@@ -326,8 +366,8 @@ async function main(): Promise<void> {
 	}
 
 	const legacySize = fs.existsSync(TARGET_NOTICE) ? fs.statSync(TARGET_NOTICE).size : 0;
-	fs.copyFileSync(shipping, TARGET_NOTICE);
-	log(`RESULT=fresh overwrote ${TARGET_NOTICE} with CG NOTICE (${size} bytes; legacy was ${legacySize} bytes).`);
+	fs.copyFileSync(notice.shippingPath, TARGET_NOTICE);
+	log(`RESULT=fresh overwrote ${TARGET_NOTICE} with CG NOTICE (${notice.size} bytes; legacy was ${legacySize} bytes).`);
 
 	fs.rmSync(tmpDir, { recursive: true, force: true });
 }
