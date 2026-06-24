@@ -276,10 +276,12 @@ const searchRoots = {
 		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
 		{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
 		{ path: ['.github', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+		{ path: ['.github', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
 	],
 	user: [
 		{ path: ['.copilot', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
 		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
 		{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+		{ path: ['.copilot', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
 	],
 };
