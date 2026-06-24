@@ -9,19 +9,19 @@
  * Makes the editor tabs in the regular workbench look like the Agents window
  * tabs: transparent, rounded, borderless pills with a subtle active highlight.
  *
- * All rules are gated behind the `.style-override-tabs` class, which the
+ * All rules are gated behind the `.style-override` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
  * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Mirrors
  * the Agents window styling defined in
  * src/vs/sessions/browser/media/style.css.
  */
 
-.style-override-tabs .part.editor .title.tabs {
+.style-override .part.editor .title.tabs {
 	background-color: transparent !important;
 	--editor-group-tab-height: 26px !important;
 }
 
-.style-override-tabs .part.editor .tabs-container > .tab {
+.style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -34,22 +34,22 @@
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
-.style-override-tabs .part.editor .tabs-and-actions-container {
+.style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
-	padding: 4px 0;
+	padding: 4px 0 4px 4px;
 }
 
-.style-override-tabs .part.editor .tabs-container > .tab.active {
+.style-override .part.editor .tabs-container > .tab.active {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
-.style-override-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
 }
 
-.style-override-tabs .part.editor .tabs-container > .tab .tab-border-top-container,
-.style-override-tabs .part.editor .tabs-container > .tab .tab-border-bottom-container {
+.style-override .part.editor .tabs-container > .tab .tab-border-top-container,
+.style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
 }
 
@@ -60,7 +60,7 @@
  * the editor tabs: normal case, 12px/600 type, a subtle background on the
  * active tab and no underline.
  */
-.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	text-transform: none !important;
 	padding: 0 8px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -72,24 +72,24 @@
  * does not reach the label (an explicit font-size on the element wins over the
  * inherited value), so the type must be set on the label itself.
  */
-.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
-.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
 /*
  * Drop the underline active indicator in favour of the pill background. The
  * default rules set the border with `!important`, so match their specificity
- * (with the extra `.style-override-tabs` class winning) for the checked and
+ * (with the extra `.style-override` class winning) for the checked and
  * focused states.
  */
-.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
@@ -104,8 +104,8 @@
  * them the rounded-pill look: normal case, 12px/600 type, a subtle background
  * on the active tab and no underline indicator.
  */
-.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
-.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	text-transform: none !important;
 	padding: 0 8px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -115,15 +115,15 @@
  * The text lives in `.action-label`, which carries its own `font-size: 11px`
  * from the base action bar styles, so the type must be set on the label itself.
  */
-.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
-.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
-.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
-.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
@@ -131,20 +131,20 @@
  * Drop the underline active indicator in favour of the pill background. The
  * base rules (auxiliaryBarPart.css / paneCompositePart.css) paint the indicator
  * with `!important` from `.part.auxiliarybar` selectors, so match their
- * specificity (with the extra `.style-override-tabs` class winning) across the
+ * specificity (with the extra `.style-override` class winning) across the
  * `.title` and `.header-or-footer` checked and focused states.
  */
-.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.style-override-tabs .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
-.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-.style-override-tabs .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
 	border-bottom-width: 0 !important;
 }
 
-.style-override-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
@@ -156,22 +156,22 @@
  * pill look as the editor and panel tabs: drop the underline, round the label
  * and show a subtle background on the active (checked) tab.
  */
-.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	border-bottom: none !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 2px 8px !important;
 }
 
-.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
-.style-override-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(:focus) {
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(:focus) {
 	border-bottom-color: transparent !important;
 }
 
 /* Drop the underline beneath the settings header controls row. */
-.style-override-tabs .settings-editor > .settings-header > .settings-header-controls {
+.style-override .settings-editor > .settings-header > .settings-header-controls {
 	border-bottom: none !important;
 }

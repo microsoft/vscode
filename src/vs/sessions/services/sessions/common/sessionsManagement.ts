@@ -20,9 +20,11 @@ import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './se
  */
 export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions {
 	/**
-	 * Start the session without navigating into it: the new-session composer
-	 * stays put and the started session shows up in the sessions list. Only
-	 * honored by {@link ISessionsManagementService.sendNewChatRequest}.
+	 * Start the session without navigating into it: the composer stays put and
+	 * the started session/chat shows up in the sessions list. Honored by
+	 * {@link ISessionsManagementService.sendNewChatRequest} (new sessions) and
+	 * {@link ISessionsManagementService.sendRequest} (a new chat within an
+	 * existing session).
 	 */
 	readonly background?: boolean;
 }
@@ -57,6 +59,18 @@ export interface ICreateNewSessionOptions {
 }
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
+
+/**
+ * Options for {@link ISessionsManagementService.createNewChatInSession}.
+ */
+export interface ICreateNewChatInSessionOptions {
+	/**
+	 * Always create a fresh chat instead of reusing an existing untitled one.
+	 * Used to reset the composer right after a background send, where the
+	 * just-sent chat may still transiently report `Untitled`.
+	 */
+	readonly forceNew?: boolean;
+}
 
 /**
  * Event fired when sessions change within a provider.
@@ -225,10 +239,12 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its
-	 * provider so it can be shown as the new-chat-in-session view. Returns the
-	 * chat, or `undefined` when the provider could not be resolved.
+	 * provider so it can be shown as the new-chat-in-session view. Pass
+	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
+	 * chat. Returns the chat, or `undefined` when the provider could not be
+	 * resolved.
 	 */
-	createNewChatInSession(session: ISession): Promise<IChat | undefined>;
+	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to
@@ -266,6 +282,10 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Send a request for an existing chat within a session.
+	 *
+	 * When {@link ISendRequestOptions.background} is set, the send runs
+	 * fire-and-forget and the view is not navigated into the sent chat, so the
+	 * caller can keep composing (e.g. start a parallel conversation).
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 

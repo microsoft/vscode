@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16 → 17**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -1093,6 +1093,9 @@ Shipped in PR #318113. Two-tier model:
   single "Discovered in Claude" Open Plugins-conformant on-disk tree under
   `IAgentPluginManager.basePath`, namespaced by working-directory hash and
   nonce-stable across repeated bundles of the same SDK snapshot.
+  **(Superseded by Phase 16: the synthetic-stub bundle was replaced by a
+  disk scan returning real editable `file:` URIs; `ClaudeSdkCustomizationBundler`
+  is deleted.)**
 
 **Per-session ownership.** All customization state lives on
 `ClaudeAgentSession`:
@@ -1107,6 +1110,7 @@ Shipped in PR #318113. Two-tier model:
   demand from `getSessionCustomizations`. Repeated calls with the same SDK
   snapshot skip the rewrite. The tree is intentionally a cross-session warm
   cache (not deleted on session dispose).
+  **(Superseded by Phase 16 — this bundler is deleted; see Phase 16.)**
 
 Full step-by-step plan: [phase11-plan.md](./phase11-plan.md).
 
@@ -1276,22 +1280,33 @@ fork end-to-end ships in Phase 6.5.
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net
+### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net ✅ **DONE**
 
-**Status as of 2026-06-12:** Runtime shape is per-SDK `urlTemplate` +
-runtime `{sdkTarget}` substitution (replaced the per-platform
-`{url, sha256}` pair so macOS Universal bundles can share one
-`product.json`; see
-[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md) and the
-follow-up `urlTemplate` PR). The Claude and Codex SDK distributions are
-declared in `product.json` and downloaded on demand by
+> **Implementation contract / retrospective:
+> [phase15-plan.md](./phase15-plan.md).** That file documents what
+> actually shipped — runtime downloader, the `build/agent-sdk/` tarball
+> pipeline, the per-platform `produce.ts` step, and the gulpfile
+> `product.json` stamping. The summary below stays high-level for roadmap
+> continuity.
+
+**Status:** both the runtime and the build pipeline have landed. Runtime
+shape is per-SDK `urlTemplate` + runtime `{sdkTarget}` substitution
+(replaced the per-platform `{url, sha256}` pair so macOS Universal bundles
+can share one `product.json`). The Claude and Codex SDK distributions are
+declared in `product.json` (built by the per-platform
+[`produce.ts`](../../../../../../build/agent-sdk/produce.ts) step and
+stamped into `product.json` by `packageTask` in
+[`gulpfile.vscode.ts`](../../../../../../build/gulpfile.vscode.ts)) and
+downloaded on demand by
 [`agentSdkDownloader.ts`](../agentSdkDownloader.ts) into
 `<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`. The
 hand-supplied paths (`chat.agentHost.claudeAgent.path` →
 `AgentHostClaudeSdkRootEnvVar`, see
 [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148), and the
 Codex equivalent) survive as a **dev override** only — set them to bypass
-the download.
+the download. SDK versions are pinned in
+[`build/agent-sdk/agents/<sdk>/package.json`](../../../../../../build/agent-sdk/agents/claude/package.json)
+(today: Claude `0.3.169`, Codex `0.135.0`).
 
 **Shape:**
 
@@ -1328,105 +1343,329 @@ the download.
   registered and never appears in the agent picker (matches the
   pre-CDN UX).
 
-**Exit criteria (met for runtime; build is a follow-up PR):**
+**Exit criteria (met):**
 - Fresh insiders install can use Claude/Codex without manually
   installing the SDK or setting any path.
-- SDK version bumps are now build-pipeline changes that re-pin
-  `product.agentSdks[pkg]` per platform during packaging.
+- SDK version bumps are now build-pipeline changes that re-pin the SDK
+  version in `build/agent-sdk/agents/<sdk>/package.json` (+ lockfile);
+  the per-platform `produce.ts` step republishes the tarballs and
+  `packageTask` re-stamps `product.agentSdks[pkg]` during packaging.
 - Dev override keeps working for SDK development.
 
-**Build pipeline** — see `build/agent-sdk/` for the tarball production
-and CDN upload tooling, including the deterministic-tar setup that
-makes `verify-determinism.ts` enforceable in CI. The inline integration
-into each `packageTask(platform, arch, ...)` so that the gulpfile patches
-`product.json` directly (no `AgentSDK` pipeline stage, no
-`aggregate.ts`) ships in a follow-up PR per
-[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md) §PR 2.
+**Build pipeline** — see [`build/agent-sdk/`](../../../../../../build/agent-sdk/README.md)
+for the tarball production and CDN upload tooling, including the
+deterministic-tar setup. The per-platform
+[`agent-sdk-produce.yml`](../../../../../../build/azure-pipelines/common/agent-sdk-produce.yml)
+template runs `produce.ts` before each `gulp vscode-<platform>-<arch>-min-ci`
+step; `packageTask`'s `jsonEditor` callback then merges the results into
+`product.json` via `readAgentSdkResults()` (no separate `AgentSDK`
+pipeline stage, no `aggregate.ts`). Full retrospective in
+[phase15-plan.md](./phase15-plan.md).
 
-### Phase 16 — Eager session materialization at create time
+### Phase 16 — Editable customization resolution via disk scan
 
-**Status:** follow-up to Phase 11. Phase 11's
-`getProjectedSessionCustomizations` already returns the SDK-resolved
-customization tier when the pipeline is bound, but for provisional
-sessions it returns only the client-pushed half. The full picture —
-SDK-discovered skills (`~/.claude/skills/**`), agents (`.claude/agents/**`),
-and `~/.claude/settings.json` MCP servers — only materializes after the
-first `sendMessage`. Workbench UX wants the full list available
-immediately on `createSession` so a draft session can show its true
-capability surface before the user types.
+> **Redesigned 2026-06-17.** This phase originally proposed "eager
+> session materialization at create time" — warming the SDK inside
+> `createSession` so `getSessionCustomizations` could return the
+> SDK-resolved tier before the first `sendMessage`. That premise is
+> **retired.** Investigation (below) showed the SDK query APIs can't
+> deliver what the customization UX actually needs, and that a disk
+> scan — not a warm session — is the right resolution path. The
+> warm-at-create machinery (and its JSONL-write-timing / cleanup-on-
+> discard tail) is no longer part of this phase.
 
-**Direction:** collapse the provisional/materialize split for the
-non-fork `createSession` path. `createSession` synchronously
-materializes (spawns the SDK subprocess, opens the proxy refcount,
-runs the metadata write, fires `onDidMaterializeSession`) before
-returning.
+**Status:** follow-up to Phase 11. Phase 11 bundles the SDK-discovered
+customization tier (`Query.supportedCommands()` / `supportedAgents()` /
+`mcpServerStatus()`) into a synthetic "Discovered in Claude" plugin
+tree. The problem: those SDK APIs return **only names + descriptions —
+no file paths and no content** (`SlashCommand` / `AgentInfo` /
+`McpServerStatus` in `sdk.d.ts`). So today's bundler synthesizes **stub
+files** (frontmatter with name + description, empty body) and ships
+URIs pointing at those *stubs*. A user who opens a "Discovered in
+Claude" item edits a generated stub, not their real
+`~/.claude/agents/foo.md` — and there is no real content anywhere in
+the projection.
 
-**Why this is its own phase, not part of Phase 11.** Phase 11's
-projector and SDK snapshot work stand on their own — they make
-`getSessionCustomizations` correct *whenever* the pipeline is bound.
-The eager-materialize change rewrites the M9 lifecycle contract,
-touches the `_sessionSequencer`'s first-send branch, changes
-disposable semantics for never-used sessions, and updates CONTEXT.md.
-Coupling the two would inflate Phase 11's blast radius for no review
-benefit; landing them serially keeps each change small.
+**Driver:** the customization surface must give the user the **real,
+editable file path** of each customization (agents, skills, slash
+commands, MCP servers). Content follows for free — like
+`CopilotAgent`, we ship the real `uri` and the client reads content on
+demand by opening it; we do **not** need to ship content bytes through
+the protocol.
+
+**Direction:** resolve customizations by **scanning the file system**
+(the `CopilotAgent` model), not by trusting the SDK query payloads.
+The SDK list becomes a **post-materialize filter**, not the source of
+the data.
+
+- **Pre-materialization (provisional / draft):** a disk scan resolves
+  the full set with real paths + parsed metadata. No warm SDK session
+  required, so `createSession` stays **cold and provisional** — no
+  subprocess, no proxy refcount, no JSONL, fully invisible in the
+  sidebar until the first `sendMessage`. **The provisional/materialize
+  split is preserved, not collapsed.** Show *everything* discovered on
+  disk (optimistic — no session yet to say what's actually active).
+- **Post-materialization (live session):** intersect the disk-scan
+  superset with the SDK's "known" set (`supportedCommands` /
+  `supportedAgents` / `mcpServerStatus`, matched by name per type).
+  A customization discovered on disk that the live session did **not**
+  load (malformed, disabled, wrong `settingSource`, shadowed by
+  precedence) is **hidden** post-materialize. The warm session already
+  exists here, so the filter is free.
+
+**Why a disk scan (and why it's not really duplicating Claude).**
+`CopilotAgent` already scans disk for customizations
+(`sessionCustomizationDiscovery.ts` — which *already* walks
+`.claude/agents` and `.claude/skills`) and parses frontmatter via the
+shared `pluginParsers.ts` (`parseAgentFile` / `parseSkillFile` /
+`readSkills` / `readMcpServers`). The Claude provider reuses that
+infrastructure. The genuinely net-new surface is only: **user-home
+`~/.claude/**`**, **`~/.claude/commands`** (slash commands), and
+**Claude's `settings.json` / `.mcp.json` MCP format** — i.e. encoding
+Claude's directory conventions, not reimplementing Claude.
 
 **Scope:**
 
-- `ClaudeAgent.createSession` calls `_materializeProvisional(sessionId)`
-  synchronously before returning. Return value's `provisional` flag is
-  either dropped or redefined ("no on-disk transcript yet" rather than
-  "no SDK" — settle in the plan).
-- `_sessionSequencer`'s "first call materializes" branch in
-  `sendMessage` is removed; every reachable session has a live pipeline.
-- `disposeSession` for a never-sent session now tears down a live
-  subprocess (the existing teardown handles it but is no longer free —
-  audit cost).
-- Fork path (Phase 6.5, when it lands) already materializes synchronously
-  on `forkSession` return — semantics align naturally.
-- CONTEXT.md M9: revise the "Provisional sessions own no SDK
-  resources" invariant; relax the "two-phase contract is locked"
-  framing; update the lifecycle tables to reflect "creation is the
-  materialize trigger". Phase 16 owns the doc update.
-- Tests that exercise the provisional → first-send materialize race
-  (Phase 10.5 regression coverage, Phase 11 mid-turn toggle race)
-  reworked against the new contract.
-- `getSessionCustomizations` for a freshly-created session now returns
-  the full SDK-resolved + client-pushed projection without waiting on
-  a send.
+- New Claude customization **disk-scan resolver** (mirrors
+  `CopilotAgent`'s discovery) covering, scoped by the session's `cwd`
+  + user home + `settingSources`:
+  - agents — `~/.claude/agents/**`, `<cwd>/.claude/agents/**`
+  - skills — `~/.claude/skills/**`, `<cwd>/.claude/skills/**`
+  - slash commands — `~/.claude/commands/**`, `<cwd>/.claude/commands/**`
+  - MCP servers — `~/.claude/settings.json`, `<cwd>/.claude/settings.json`,
+    `<cwd>/.mcp.json`
+  - Reuse `pluginParsers.ts` + `sessionCustomizationDiscovery.ts` where
+    possible; add Claude-specific roots + the `settings.json` MCP parser.
+- Each resolved item ships a **real `uri`** (editable file path) + parsed
+  name/description, replacing the synthetic-stub bundler for the
+  discovered tier.
+- Rules (CLAUDE.md + `.claude/rules/**`) are scanned and surfaced too;
+  they have no SDK counterpart, so they bypass the post-materialize
+  filter (always kept).
+- `getSessionCustomizations`:
+  - **provisional:** client-pushed ∪ full disk scan (no filter).
+  - **materialized:** client-pushed ∪ (disk scan ∩ SDK-known set).
+- The synthetic-stub `claudeSdkCustomizationBundler` is **deleted**; the
+  SDK-only non-editable fallback is generated declaratively inline in
+  `buildDiscoveredCustomizations` (no stub files on disk).
+- **Read-only built-in tier** (added during implementation): a curated set
+  of built-in slash commands (13) + built-in agents (5) is surfaced
+  read-only pre-materialize for discoverability (on the `agent-builtin:`
+  scheme), then superseded by the live SDK set post-materialize. Lives in
+  `claudeBuiltinCommands.ts`. Built-ins are display-only — `contrib/chat`
+  is untouched, so clicking one does not render content (accepted; a
+  read-only editor view is a future request).
+- `createSession` is **unchanged** in lifecycle terms: stays
+  provisional, no warm SDK, no `onDidMaterializeSession` at create.
+  The provisional path simply gains a disk scan for its customization
+  projection.
 
-**Trade-offs accepted (documented for posterity):**
+**What this phase explicitly does NOT do (retired from the old design):**
 
-- Drafting is no longer free — every `createSession` pays a subprocess
-  spawn, plugin sync, proxy refcount, and metadata write.
-- A draft the user cancels without sending costs the same as a session
-  that runs a turn (minus the actual model call).
-- The two-phase model (provisional → materialized) collapses into a
-  single phase for non-fork creation. Fork already materializes
-  eagerly; this aligns the two paths.
+- No eager / warm materialization inside `createSession`.
+- No collapsing of the provisional/materialize split.
+- No `IAgentCreateSessionResult.provisional` change, no
+  `_sessionSequencer` first-send-branch removal, no `onDidMaterialize`
+  ordering rework, no JSONL-write-timing investigation, no
+  cleanup-on-discard net. The lifecycle (M9) is untouched.
 
-**Open design points** (settle in the phase plan when scheduled):
+**Open design points** (settle in the phase plan):
 
-- Does `IAgentCreateSessionResult.provisional` get dropped, or
-  redefined to mean "no on-disk SDK transcript yet" (true until the
-  first message lands and the SDK persists)? Workbench callers may
-  rely on the flag for deferred-notification semantics.
-- `_onDidMaterializeSession` fires from inside `createSession`. The
-  service-layer deferred `sessionAdded` dispatch (`agentService.ts:412`)
-  must still see the event between the create and the visibility
-  window — verify ordering.
-- Failure modes: if materialization throws (proxy down, SDK install
-  broken), does `createSession` reject? Probably yes — the user has
-  no usable session anyway. Today's lazy path lets the failure surface
-  on first `sendMessage` instead; eager surfaces it earlier, which is
-  arguably better UX.
-- E2E coverage: a workbench scenario that creates a session and
-  inspects `getSessionCustomizations` *without* sending a message,
-  verifies the full SDK-resolved list is present.
+- **SDK-knows-it-but-not-found-on-disk** (built-ins, plugin-provided,
+  or an unscanned dir): show it as a **non-editable name/description
+  entry** (so the active capability list stays complete) or **drop**
+  it? Leaning *show as non-editable* — retains the honest active set
+  while only the locatable items are editable.
+- **Skills vs commands mapping** — the SDK surfaces skills via
+  `reloadSkills()` / `supportedCommands()` as `SlashCommand[]`, but the
+  disk layout separates `~/.claude/commands` (slash commands) from
+  `~/.claude/skills` (skills). The name-match filter needs a per-type
+  mapping so a skill isn't matched against a command.
+- **File watching** — do we re-scan on disk change (live updates to the
+  customization list) or scan once per `getSessionCustomizations` call?
+  Prefer correlated watchers via `fileService.createWatcher` if live.
+- **MCP completeness pre-materialize** — disk-scan reads declared MCP
+  servers from `settings.json`; their *connection status* is only known
+  post-materialize via `mcpServerStatus()`. Pre-materialize entries
+  carry config but no live status.
 
-Exit criteria: `getSessionCustomizations(freshlyCreatedSession)`
-returns the full SDK + client-pushed projection synchronously after
-`createSession` resolves; M9 doc updated; Phase 10.5 / 11 race tests
-reworked and green.
+Exit criteria: opening a discovered agent / skill / command from a
+Claude session's customization list opens the **real on-disk file**
+(editable), not a synthetic stub; a provisional (never-sent) session
+lists the full disk-scanned set; a materialized session hides on-disk
+customizations the live session did not load, and surfaces
+SDK-known-but-not-on-disk items as **non-editable** entries; the
+synthetic-stub bundler is **deleted** (the non-editable fallback and the
+curated built-in agents/skills tier are generated declaratively inline,
+no stub files on disk); `createSession` lifecycle (provisional, cold) is
+unchanged. **Shipped.**
+
+### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan
+
+> **Driver.** Phase 16's disk scan surfaces agents, skills, slash commands,
+> MCP servers, and rules — but **hooks** and **Claude-native plugins** that
+> the *user or workspace* has configured are still invisible in the
+> customization list. Both already *run* (the runtime loads them via
+> `settingSources` + `includeHookEvents`), but the user cannot see or edit
+> them from the Agents window. This phase closes that **surfacing** gap for
+> both, mirroring Phase 16's provisional/materialize semantics and its
+> "real editable `file:` URI, no synthetic stub" rule. It does **not**
+> change the SDK loading path.
+>
+> **Scope is user/workspace-configured surfaces only** — hooks and plugins
+> the *user* set up in their `~/.claude` / workspace `.claude`, not what the
+> agent host injects into the SDK (the proxy env, the in-process
+> client-tool MCP server from Phase 10, or the synced client customizations
+> from Phase 11).
+
+**Reference docs** (verified 2026-06-23):
+
+- [Hooks reference](https://code.claude.com/docs/en/hooks.md) — hook
+  locations table: `~/.claude/settings.json` (user), `.claude/settings.json`
+  (project), `.claude/settings.local.json` (local), plus plugin
+  `hooks/hooks.json` and skill/agent frontmatter. `disableAllHooks`
+  short-circuits a scope.
+- [Plugins reference](https://code.claude.com/docs/en/plugins-reference.md)
+  — `enabledPlugins` lives in the same `settings.json` scopes; marketplace
+  plugins are cached under `~/.claude/plugins/cache/...`; `@skills-dir`
+  plugins live in-place under `~/.claude/skills/<name>/.claude-plugin/`
+  and `<cwd>/.claude/skills/<name>/.claude-plugin/`.
+- [SDK plugins](https://code.claude.com/docs/en/agent-sdk/plugins.md) — a
+  *bare* SDK app must pass plugins as `Options.plugins: [{ type: 'local',
+  path }]`. **But with `settingSources` enabled (our config), the runtime
+  auto-loads `.claude` plugins** — so the host must NOT also pass them
+  (`claudeSkills.ts` skips `.claude` dirs "to avoid duplicates").
+  `Options.plugins` stays client-only.
+- [SDK hooks](https://code.claude.com/docs/en/agent-sdk/hooks.md) — shell
+  command hooks from settings files run **only when the matching
+  `settingSources` entry is enabled** (it is, for user/project/local).
+
+#### Part A — Hooks (surface only; already loaded)
+
+Hooks from user/project/local `settings.json` already **fire** at runtime
+because `settingSources` loads them and `includeHookEvents: true` streams
+their events. The gap is purely **discovery/surfacing** in the customization
+list. There is no SDK enumeration API for active hooks (no
+`supportedHooks()`), so — unlike agents/skills/MCP — hooks are surfaced from
+disk **only** and bypass the post-materialize SDK-intersection filter
+(same as rules in Phase 16).
+
+- New scanner under `node/claude/customizations/scan/` that reads the
+  `hooks` block from `~/.claude/settings.json`,
+  `<cwd>/.claude/settings.json`, and `<cwd>/.claude/settings.local.json`,
+  honoring `settingSources`. **Reuse the existing parser**
+  ([`pluginParsers.ts`](../../../agentPlugins/common/pluginParsers.ts)):
+  `parseHooksJson` already understands Claude's nested
+  `{ matcher, hooks: [...] }` shape, the `HOOK_TYPE_MAP` event names, and
+  `disableAllHooks`, and emits a protocol `HookCustomization` via
+  `makeHookCustomization`. The net-new work is the Claude settings-scope
+  roots, not the parser.
+- Each surfaced hook group carries the **real `settings.json` URI**
+  (editable), the event name, and the matcher — opening it from the
+  customization list opens the settings file, like the read-only `/hooks`
+  menu but editable.
+- A scope whose `disableAllHooks` is `true` contributes no hook entries.
+- **Out of scope:** `managed`-policy hooks (matches the existing
+  `managed`-excluded `settingSources` non-goal); skill/agent-frontmatter
+  hooks (those ride along with their owning component, already surfaced in
+  Phase 16).
+
+#### Part B — Claude-native plugins (surface only)
+
+Native plugins are **already loaded** by the SDK runtime via
+`settingSources: ['user', 'project', 'local']` — the same mechanism that
+auto-loads `.claude` agents / skills / hooks. The gap is purely
+**surfacing** them in the customization list. They must **not** be added
+to `Options.plugins`: that channel is exclusively for client/host-provided
+plugins *outside* `.claude` (the Phase 11 `clientCustomizationsDiff` dirs,
+[`claudeAgentSession.ts:324`](./claudeAgentSession.ts#L324) /
+[`:414`](./claudeAgentSession.ts#L414)), and the production extension
+explicitly **skips `.claude` dirs to avoid duplicate loading**
+([`claudeSkills.ts`](../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeSkills.ts)
+`isClaudeDirectory` filter; `claudeCodeAgent.ts` builds `Options.plugins`
+only from `getPluginLocations()`). Plumbing native plugins in would
+**double-load** them.
+
+- **Discover** enabled native plugins by reading `enabledPlugins` from the
+  user/project/local `settings.json` scopes and resolving each to its
+  on-disk root:
+  - marketplace installs → `~/.claude/plugins/cache/<...>/` (the
+    current version dir; orphaned version dirs skipped);
+  - `@skills-dir` plugins → in-place under `~/.claude/skills/<name>/`
+    and `<cwd>/.claude/skills/<name>/` when a `.claude-plugin/plugin.json`
+    is present.
+  Parse each manifest with the shared `parsePlugin` / `CLAUDE_FORMAT`
+  ([`pluginParsers.ts`](../../../agentPlugins/common/pluginParsers.ts)
+  `manifestPath: '.claude-plugin/plugin.json'`,
+  `hookConfigPath: 'hooks/hooks.json'`) and surface the plugin plus its
+  bundled components (skills / agents / hooks / MCP servers) with their
+  **real `file:` URIs**.
+- **No `Options.plugins` change, no host-side rebind to load.** The
+  runtime owns loading; a mid-session `enabledPlugins` edit takes effect on
+  the runtime's next `settingSources` read / restart (the same path as any
+  `settings.json` change). The `ClaudeCustomizationWatcher` only refreshes
+  the **displayed list**.
+
+#### Provisional / materialize semantics (both parts)
+
+Same as Phase 16 — **no eager materialization, no lifecycle change**:
+
+- **Provisional (pre-send):** show the full disk-scanned hook + plugin set
+  (optimistic; no live session yet).
+- **Materialized (live):** hooks stay disk-only (no SDK filter). Native
+  plugins **are** enumerable post-materialize — the SDK `system/init`
+  message reports loaded `plugins` and their namespaced `skills` /
+  `slash_commands`
+  ([SDK plugins](https://code.claude.com/docs/en/agent-sdk/plugins.md)) —
+  so a plugin declared in `enabledPlugins` but **not** loaded by the live
+  session (bad path, manifest error, untrusted workspace) is hidden
+  post-materialize, matching Phase 16's "hide on-disk items the live
+  session did not load" rule.
+- **Watching:** extend `ClaudeCustomizationWatcher`
+  ([`claudeSessionCustomizationDiscovery.ts`](./customizations/claudeSessionCustomizationDiscovery.ts))
+  so edits to `settings.json` / `settings.local.json` (hook block +
+  `enabledPlugins`) and to a resolved plugin's manifest re-fire
+  `onDidCustomizationsChange`. The `.claude` roots are already watched;
+  the settings files largely are too (Phase 16 watches `<userHome>/.claude`
+  + `<cwd>/.claude` recursively).
+
+**Tests:**
+
+- Unit: hook scanner yields `HookCustomization` entries with real
+  settings-file URIs from a temp `~/.claude/settings.json` +
+  `<cwd>/.claude/settings.json`; `disableAllHooks` drops a scope;
+  `managed` is never read.
+- Unit: plugin resolver maps `enabledPlugins` → cache / skills-dir roots,
+  parses each manifest, and yields the plugin + bundled components with
+  real URIs; a missing/orphaned dir is skipped.
+- Unit: provisional `getSessionCustomizations` returns the full
+  hook+plugin set; materialized intersects native plugins against the SDK
+  `init` plugin list while leaving hooks unfiltered.
+- Regression: the existing `claudeSdkOptions.test.ts` still passes
+  **unmodified** — `Options.plugins` is untouched (native plugins are
+  auto-loaded, not host-plumbed).
+- Integration: a temp plugin enabled in `enabledPlugins` is auto-loaded by
+  the live session (appears in the captured `init.plugins`) and its skill
+  is invocable — **without** any host-added `Options.plugins` entry.
+
+**Manual E2E:**
+
+- Add a `PostToolUse` hook to `~/.claude/settings.json`; it appears in the
+  Claude session's customization list with an editable URI, and firing a
+  `Write` triggers it.
+- Install a marketplace plugin via the Claude CLI, enable it, open a Claude
+  session: the plugin and its skills appear in the list and the skill is
+  invocable from the agent.
+
+**Exit criteria:** user/workspace-configured hooks and Claude-native
+plugins appear in the customization list with **real editable URIs**
+(no synthetic stubs); enabled native plugins continue to be auto-loaded by
+the runtime (verified via the captured `init.plugins`) with **no**
+host-added `Options.plugins` entry; provisional sessions show the full
+disk set, materialized sessions hide native plugins the live session did
+not load; the `createSession` provisional/cold lifecycle (M9) is
+unchanged. Ships as two PRs: Part A (hooks) then Part B (native plugins).
+Detailed implementation contract: [phase17-plan.md](./phase17-plan.md).
 
 ---
 
@@ -1476,6 +1715,8 @@ reworked and green.
   Host itself is the isolation boundary.
 - **Including `managed` in `settingSources`.** Match the reference's
   `['user', 'project', 'local']`. Revisit if managed-policy users complain.
+  Phase 17's hook + native-plugin disk scan follows the same exclusion —
+  `managed`-policy hooks and plugins are not surfaced.
 - **Tracking Bash-tool file edits** in Phase 8. Documented gap;
   follow-up if needed.
 - **Per-session GitHub token** in the proxy. Single-tenant for v1.
