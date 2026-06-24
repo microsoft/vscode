@@ -218,7 +218,8 @@
  * label where its width is not pinned to 24px, so without this the label sits at
  * the flex start (left) and the glyph reads as horizontally off-center.
  */
-.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before, .monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:has(.codicon-more)::before{
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more::before,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more::before {
 	position: relative;
 }
 
