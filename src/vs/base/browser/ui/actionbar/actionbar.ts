@@ -79,7 +79,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 	};
 
 	// View Items
-	viewItems: IActionViewItem[];
+	private _viewItems: IActionViewItem[];
+	get viewItems(): readonly IActionViewItem[] { return this._viewItems; }
+
 	private readonly viewItemDisposables = this._register(new DisposableMap<IActionViewItem>());
 	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
@@ -91,7 +93,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private focusable: boolean = true;
 
 	// Elements
-	domNode: HTMLElement;
+	readonly domNode: HTMLElement;
 	protected readonly actionsList: HTMLElement;
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
@@ -130,7 +132,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._actionRunnerDisposables.add(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._actionRunnerDisposables.add(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
 
-		this.viewItems = [];
+		this._viewItems = [];
 		this.focusedItem = undefined;
 
 		this.domNode = document.createElement('div');
@@ -380,10 +382,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
-				this.viewItems.push(item);
+				this._viewItems.push(item);
 			} else {
 				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
-				this.viewItems.splice(index, 0, item);
+				this._viewItems.splice(index, 0, item);
 				index++;
 			}
 		});
@@ -424,32 +426,18 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	getWidth(index: number): number {
-		if (index >= 0 && index < this.actionsList.children.length) {
-			const item = this.actionsList.children.item(index);
-			if (item) {
-				return item.clientWidth;
-			}
-		}
-
-		return 0;
+		return this.actionsList.children.item(index)?.clientWidth ?? 0;
 	}
 
 	getHeight(index: number): number {
-		if (index >= 0 && index < this.actionsList.children.length) {
-			const item = this.actionsList.children.item(index);
-			if (item) {
-				return item.clientHeight;
-			}
-		}
-
-		return 0;
+		return this.actionsList.children.item(index)?.clientHeight ?? 0;
 	}
 
 	pull(index: number): void {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.childNodes[index].remove();
 			this.viewItemDisposables.deleteAndDispose(this.viewItems[index]);
-			dispose(this.viewItems.splice(index, 1));
+			dispose(this._viewItems.splice(index, 1));
 			this.refreshRole();
 		}
 	}
@@ -459,7 +447,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			return;
 		}
 
-		this.viewItems = dispose(this.viewItems);
+		this._viewItems = dispose(this._viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);
 		this.refreshRole();
@@ -623,7 +611,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	override dispose(): void {
 		this._context = undefined;
-		this.viewItems = dispose(this.viewItems);
+		this._viewItems = dispose(this._viewItems);
 		this.getContainer().remove();
 		super.dispose();
 	}

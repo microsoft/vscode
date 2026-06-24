@@ -18,7 +18,7 @@ import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWor
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpWorkbenchService, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { IMcpConfigPath, IMcpWorkbenchService, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 interface CollectionState extends IDisposable {
@@ -89,6 +89,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					type: McpServerTransportType.HTTP,
 					uri: URI.parse(config.url),
 					headers: Object.entries(config.headers || {}),
+					oauth: config.oauth,
 				} : {
 					type: McpServerTransportType.Stdio,
 					command: config.command,
@@ -130,8 +131,8 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 				const newCollection: McpCollectionDefinition = {
 					id,
 					label: mcpConfigPath?.label ?? '',
+					order: mcpConfigPath?.order ?? McpCollectionSortOrder.User,
 					presentation: {
-						order: serverDefinitions[0]?.presentation?.order,
 						origin: mcpConfigPath?.uri,
 					},
 					remoteAuthority: mcpConfigPath?.remoteAuthority ?? null,

@@ -1,0 +1,17 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes function definitions from same file",
+        "stateFile": "./explain.10.state.json",
+        "keywords": {
+            "anyOf": [
+                "println",
+                "prints",
+                "print"
+            ],
+            "not": [
+                "main2"
+            ]
+        }
+    }
+]

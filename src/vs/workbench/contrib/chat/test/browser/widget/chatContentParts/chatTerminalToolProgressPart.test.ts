@@ -9,7 +9,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
-import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,15 +32,10 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	}
 
 	function setupAutoExpandLogic(): void {
-		// Create a mock command detection capability
-		const mockCommandDetection = {
+		// Use the real TerminalToolAutoExpand class with event-based interface
+		const autoExpand = store.add(new TerminalToolAutoExpand({
 			onCommandExecuted: onCommandExecuted.event,
 			onCommandFinished: onCommandFinished.event,
-		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
-
-		// Use the real TerminalToolAutoExpand class
-		const autoExpand = store.add(new TerminalToolAutoExpand({
-			commandDetection: mockCommandDetection,
 			onWillData: onWillData.event,
 			shouldAutoExpand,
 			hasRealOutput,
@@ -196,16 +190,11 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	test('already expanded output prevents additional auto-expand', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		isExpanded = true;
 
-		// Create a mock command detection capability
-		const mockCommandDetection = {
-			onCommandExecuted: onCommandExecuted.event,
-			onCommandFinished: onCommandFinished.event,
-		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
-
 		// Track if event was fired
 		let eventFired = false;
 		const autoExpand = store.add(new TerminalToolAutoExpand({
-			commandDetection: mockCommandDetection,
+			onCommandExecuted: onCommandExecuted.event,
+			onCommandFinished: onCommandFinished.event,
 			onWillData: onWillData.event,
 			shouldAutoExpand: () => !isExpanded && !userToggledOutput,
 			hasRealOutput: () => hasRealOutputValue,

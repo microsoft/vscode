@@ -204,6 +204,7 @@ export interface IChatFileContribution {
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IExtensionContributions {
@@ -237,6 +238,7 @@ export interface IExtensionContributions {
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
 	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
@@ -543,13 +545,6 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
-}
-
-export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
-	return enabledApiProposals.map(proposal => {
-		const [proposalName, version] = proposal.split('@');
-		return { proposalName, version: version ? parseInt(version) : undefined };
-	});
 }
 
 export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {

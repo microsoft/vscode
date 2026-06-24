@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/dotnet/razor/blob/master/src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json",
+		"This file has been converted from https://github.com/dotnet/roslyn/blob/master/src/Razor/src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor/commit/743f32a68c61809b22fd84e8748c3686ef1bb8b8",
+	"version": "https://github.com/dotnet/roslyn/commit/79e211a2e4287f9f7508089b81311b2c7fdc169f",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"injections": {

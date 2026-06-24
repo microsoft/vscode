@@ -11,8 +11,6 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -28,8 +26,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -96,12 +93,10 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
+		shimmer: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -118,7 +113,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
+		this._titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -140,6 +135,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const checkmarksEnabled = showCheckmarks.read(r);
 			elements.root.classList.toggle('collapsed', !value);
 
+			const isInProgress = !output && !isError;
 			if (isError) {
 				btn.icon = Codicon.error;
 			} else {
@@ -147,6 +143,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
 			}
+			elements.root.classList.toggle('shimmer-progress', shimmer && isInProgress);
 
 			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
 
@@ -222,25 +219,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		// Create the text model lazily when rendering
-		const textModel = this._register(this.modelService.createModel(
-			part.data,
-			this.languageService.createById(part.languageId),
-			undefined,
-			true
-		));
-
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
-			textModel: Promise.resolve(textModel),
+			text: part.data,
 			codeBlockIndex: part.codeBlockIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);

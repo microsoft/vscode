@@ -1,0 +1,13 @@
+{
+	"publisher": "ms-vscode",
+	"name": "simulation-test-runner",
+	"version": "0.0.4",
+	"displayName": "STest Runner",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"main": "./dist/simulation-extension.js",
+	"activationEvents": [
+		"onStartupFinished"
+	]
+}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
-import { IHoverPositionOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
@@ -24,9 +23,7 @@ export interface IChatInputPickerOptions {
 
 	readonly actionContext?: IChatExecuteActionContext;
 
-	readonly hideChevrons: IObservable<boolean>;
-
-	readonly hoverPosition?: IHoverPositionOptions;
+	readonly compact: IObservable<boolean>;
 }
 
 /**
@@ -53,9 +50,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			const hideChevrons = this.pickerOptions.hideChevrons.read(reader);
+			const compact = this.pickerOptions.compact.read(reader);
 			if (this.element) {
-				this.element.classList.toggle('hide-chevrons', hideChevrons);
+				this.element.classList.toggle('compact', compact);
 				this.renderLabel(this.element);
 			}
 		}));
@@ -77,9 +74,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		container.classList.add('chat-input-picker-item');
 
 		// Apply initial collapsed state now that this.element exists
-		const hideChevrons = this.pickerOptions.hideChevrons.get();
+		const compact = this.pickerOptions.compact.get();
 		if (this.element) {
-			this.element.classList.toggle('hide-chevrons', hideChevrons);
+			this.element.classList.toggle('compact', compact);
 			this.renderLabel(this.element);
 		}
 	}

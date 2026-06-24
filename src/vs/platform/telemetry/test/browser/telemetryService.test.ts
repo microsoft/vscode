@@ -212,6 +212,22 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
+	test('setCommonProperty adds property to all subsequent events', function () {
+		const testAppender = new TestTelemetryAppender();
+		const service = new TelemetryService({
+			appenders: [testAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('eventBeforeSet');
+		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
+		service.publicLog('eventAfterSet');
+
+		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
+		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+
+		service.dispose();
+	});
+
 	test('telemetry on by default', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
@@ -390,6 +406,84 @@ suite('TelemetryService', () => {
 			assert.strictEqual(testAppender.events[0].data.callstack.indexOf(settings.filePrefix), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.stack[4].replace(settings.randomUserFile, settings.anonymizedRandomUserFile)), -1);
 			assert.strictEqual(testAppender.events[0].data.callstack.split('\n').length, settings.stack.length);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry redacts only offending frames and preserves the rest of the callstack', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// A frame whose function name matches the broad `Generic Secret` heuristic
+			// (`getStorageKey` contains `key(`) previously caused the entire callstack
+			// to be redacted. See https://github.com/microsoft/vscode/issues/301200.
+			const stack = [
+				'Error: Something failed',
+				'    at StorageService.getStorageKey (out/vs/platform/storage/storage.js:1:200)',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+				'    at Bar.baz (out/vs/workbench/bar.js:5:60)',
+			];
+
+			const error: any = new Error('Something failed');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			// The whole stack must not collapse into a single redaction marker.
+			assert.notStrictEqual(cs, '<REDACTED: Generic Secret>', 'Entire callstack should not be redacted');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
+			// Only the offending frame is redacted, the others remain intact.
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Non-offending frames should be preserved');
+			assert.notStrictEqual(cs.indexOf('Bar.baz'), -1, 'Non-offending frames should be preserved');
+			assert.strictEqual(cs.indexOf('getStorageKey'), -1, 'Offending frame should be redacted');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry still redacts a frame whose trailing token relies on the newline delimiter', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			// `getApiKey` ends the line, so the `Generic Secret` heuristic only
+			// matches because of the following newline. Per-line redaction must
+			// re-append that delimiter so this frame is still redacted, matching
+			// the previous whole-string behavior.
+			const stack = [
+				'Error: boom',
+				'    at Service.getApiKey',
+				'    at Foo.run (out/vs/workbench/foo.js:3:40)',
+			];
+
+			const error: any = new Error('boom');
+			error.stack = stack.join('\n');
+			Errors.onUnexpectedError(error);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs: string = testAppender.events[0].data.callstack;
+			assert.strictEqual(cs.indexOf('getApiKey'), -1, 'Trailing-token frame should still be redacted');
+			assert.notStrictEqual(cs.indexOf('Foo.run'), -1, 'Other frames should be preserved');
+			assert.strictEqual(cs.split('\n').length, stack.length, 'All frames should be preserved');
 
 			errorTelemetry.dispose();
 			service.dispose();
@@ -1039,6 +1133,45 @@ suite('TelemetryService', () => {
 		errorTelemetry.dispose();
 		service.dispose();
 		sinon.restore();
+	}));
+
+	test('Unexpected Error Telemetry strips web origin but preserves path in web stack traces when piiPaths includes origin', sinonTestFn(function (this: any) {
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const testAppender = new TestTelemetryAppender();
+			const webOrigin = 'https://codespace-host.github.dev';
+			const service = new TestErrorTelemetryService({ appenders: [testAppender], piiPaths: [webOrigin] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const bundlePath = '/static/build/bundle.js';
+			const stack = [
+				`Error: Something failed`,
+				`    at x3t._delegate (${webOrigin}${bundlePath}:1:200953)`,
+				`    at y4u.run (${webOrigin}${bundlePath}:1:304822)`,
+				`    at DedicatedWorkerGlobalScope.self.onmessage`,
+			];
+
+			const webError: any = new Error('Something failed');
+			webError.stack = stack.join('\n');
+
+			Errors.onUnexpectedError(webError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.strictEqual(testAppender.getEventsCount(), 1);
+			const cs = testAppender.events[0].data.callstack;
+			// Verify the web origin is stripped (not leaked as PII)
+			assert.strictEqual(cs.indexOf(webOrigin), -1, 'Web origin should be stripped');
+			assert.strictEqual(cs.indexOf('https://'), -1, 'HTTPS scheme should be stripped');
+			// Verify the bundle path is preserved for debugging
+			assert.notStrictEqual(cs.indexOf(bundlePath), -1, 'Bundle path should be preserved');
+
+			errorTelemetry.dispose();
+			service.dispose();
+		} finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
 	}));
 
 	ensureNoDisposablesAreLeakedInTestSuite();

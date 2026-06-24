@@ -17,13 +17,13 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
@@ -211,6 +211,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
+		const configService = accessor.get(IConfigurationService);
 
 		if (this._keep) {
 			session.accept(entry.modifiedURI);
@@ -218,7 +219,9 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			session.reject(entry.modifiedURI);
 		}
 
-		await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		}
 	}
 }
 
@@ -270,6 +273,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
+		const configService = accessor.get(IConfigurationService);
 
 		if (this._accept) {
 			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
@@ -277,7 +281,7 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
 
-		if (entry.changesCount.get() === 0) {
+		if (configService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve) && entry.changesCount.get() === 0) {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
@@ -327,11 +331,6 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 				group: 'a_resolve',
 				order: 2,
 				when: ContextKeyExpr.and(ctxReviewModeEnabled)
-			}, {
-				id: MenuId.ChatEditorInlineExecute,
-				group: 'a_resolve',
-				order: 2,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled, CTX_HOVER_MODE)
 			}]
 		});
 	}

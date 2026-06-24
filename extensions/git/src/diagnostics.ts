@@ -85,7 +85,11 @@ export class GitCommitInputBoxDiagnosticsManager {
 			const threshold = index === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
 
 			if (line.text.length > threshold) {
-				const diagnostic = new Diagnostic(line.range, l10n.t('{0} characters over {1} in current line', line.text.length - threshold, threshold), this.severity);
+				const charactersOver = line.text.length - threshold;
+				const lineLengthMessage = charactersOver === 1
+					? l10n.t('{0} character over {1} in current line', charactersOver, threshold)
+					: l10n.t('{0} characters over {1} in current line', charactersOver, threshold);
+				const diagnostic = new Diagnostic(line.range, lineLengthMessage, this.severity);
 				diagnostic.code = DiagnosticCodes.line_length;
 
 				diagnostics.push(diagnostic);

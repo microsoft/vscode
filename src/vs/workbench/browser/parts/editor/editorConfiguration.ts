@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority, toRegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -36,22 +36,22 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		{
 			id: 'workbench.input.interactive',
 			label: localize('interactiveWindow', 'Interactive Window'),
-			priority: RegisteredEditorPriority.builtin
+			priority: toRegisteredEditorPriorityInfo(RegisteredEditorPriority.builtin)
 		},
 		{
 			id: 'mainThreadWebview-markdown.preview',
 			label: localize('markdownPreview', "Markdown Preview"),
-			priority: RegisteredEditorPriority.builtin
+			priority: toRegisteredEditorPriorityInfo(RegisteredEditorPriority.builtin)
 		},
 		{
 			id: 'mainThreadWebview-simpleBrowser.view',
 			label: localize('simpleBrowser', "Simple Browser"),
-			priority: RegisteredEditorPriority.builtin
+			priority: toRegisteredEditorPriorityInfo(RegisteredEditorPriority.builtin)
 		},
 		{
 			id: 'mainThreadWebview-browserPreview',
 			label: localize('livePreview', "Live Preview"),
-			priority: RegisteredEditorPriority.builtin
+			priority: toRegisteredEditorPriorityInfo(RegisteredEditorPriority.builtin)
 		}
 	];
 
@@ -70,6 +70,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private autoLockConfigurationNode: IConfigurationNode | undefined;
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
 	private editorAssociationsConfigurationNode: IConfigurationNode | undefined;
+	private diffEditorAssociationsConfigurationNode: IConfigurationNode | undefined;
 	private editorLargeFileConfirmationConfigurationNode: IConfigurationNode | undefined;
 
 	constructor(
@@ -99,7 +100,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private updateDynamicEditorConfigurations(): void {
 		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorConfigurations.AUTO_LOCK_EXTRA_EDITORS].filter(e => !DynamicEditorConfigurations.AUTO_LOCK_REMOVE_EDITORS.has(e.id));
-		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(e => e.id);
+		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority.editor !== RegisteredEditorPriority.exclusive).map(e => e.id);
 
 		// Build config from registered editors
 		const autoLockGroupConfiguration: IJSONSchemaMap = Object.create(null);
@@ -152,9 +153,30 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		this.editorAssociationsConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
-				'workbench.editorAssociations': {
+				[editorsAssociationsSettingId]: {
 					type: 'object',
 					markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
+					patternProperties: {
+						'.*': {
+							type: 'string',
+							enum: binaryEditorCandidates,
+						}
+					},
+					agentsWindow: {
+						default: editorsAssociationsAgentsWindowDefault
+					}
+				}
+			}
+		};
+
+		// Registers setting for diffEditorAssociations
+		const oldDiffEditorAssociationsConfigurationNode = this.diffEditorAssociationsConfigurationNode;
+		this.diffEditorAssociationsConfigurationNode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				[diffEditorsAssociationsSettingId]: {
+					type: 'object',
+					markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 					patternProperties: {
 						'.*': {
 							type: 'string',
@@ -185,12 +207,14 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 				this.autoLockConfigurationNode,
 				this.defaultBinaryEditorConfigurationNode,
 				this.editorAssociationsConfigurationNode,
+				this.diffEditorAssociationsConfigurationNode,
 				this.editorLargeFileConfirmationConfigurationNode
 			],
 			remove: coalesce([
 				oldAutoLockConfigurationNode,
 				oldDefaultBinaryEditorConfigurationNode,
 				oldEditorAssociationsConfigurationNode,
+				oldDiffEditorAssociationsConfigurationNode,
 				oldEditorLargeFileConfirmationConfigurationNode
 			])
 		});

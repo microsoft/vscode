@@ -120,7 +120,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
 			this._collections.set([...currentCollections, collection]
-				.sort((a, b) => (a.presentation?.order || 0) - (b.presentation?.order || 0)), undefined);
+				.sort((a, b) => a.order - b.order), undefined);
 		}
 
 		return {

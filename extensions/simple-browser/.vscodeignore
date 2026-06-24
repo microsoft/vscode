@@ -2,6 +2,7 @@ test/**
 test-workspace/**
 src/**
 tsconfig*.json
+**/*.tsbuildinfo
 out/test/**
 out/**
 esbuild*.mts

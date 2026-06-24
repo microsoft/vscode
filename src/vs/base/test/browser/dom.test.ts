@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -529,6 +530,149 @@ suite('dom', () => {
 			assert.strictEqual(callCount, 2);
 
 			scheduler.dispose();
+		});
+	});
+
+	suite('DisposableResizeObserver', () => {
+		// Captures the callback handed to a `ResizeObserver` so tests can fire
+		// deliveries synthetically. Returned via dependency injection — no
+		// global mutation, no `any` casts.
+		interface FakeResizeObserverHandle {
+			ctor: typeof ResizeObserver;
+			fire: (entries: ResizeObserverEntry[]) => void;
+			disconnects: number;
+		}
+
+		function createFakeResizeObserverCtor(): FakeResizeObserverHandle {
+			const handle: FakeResizeObserverHandle = {
+				ctor: undefined!,
+				fire: () => { throw new Error('observer not constructed'); },
+				disconnects: 0,
+			};
+			class FakeResizeObserver implements ResizeObserver {
+				constructor(callback: ResizeObserverCallback) {
+					handle.fire = entries => callback(entries, this);
+				}
+				observe(_target: Element, _options?: ResizeObserverOptions): void { /* no-op */ }
+				unobserve(_target: Element): void { /* no-op */ }
+				disconnect(): void { handle.disconnects++; }
+			}
+			handle.ctor = FakeResizeObserver;
+			return handle;
+		}
+
+		function fakeEntry(target: Element = document.createElement('div')): ResizeObserverEntry {
+			const size: ResizeObserverSize = { blockSize: 0, inlineSize: 0 };
+			return {
+				target,
+				contentRect: target.getBoundingClientRect(),
+				borderBoxSize: [size],
+				contentBoxSize: [size],
+				devicePixelContentBoxSize: [size],
+			};
+		}
+
+		test('callback runs synchronously with the entries the browser delivered', () => {
+			const fake = createFakeResizeObserverCtor();
+			let calls = 0;
+			let received: ResizeObserverEntry[] | undefined;
+			const observer = new DisposableResizeObserver('test.sync', (entries) => {
+				calls++;
+				received = entries;
+			}, mainWindow, { resizeObserverCtor: fake.ctor });
+			const a = fakeEntry();
+			const b = fakeEntry();
+			fake.fire([a, b]);
+			assert.strictEqual(calls, 1, 'callback runs synchronously inside the resize-observation phase');
+			assert.deepStrictEqual(received, [a, b], 'entries are forwarded as-is');
+			observer.dispose();
+		});
+
+		test('each native delivery invokes the callback once (no batching)', () => {
+			const fake = createFakeResizeObserverCtor();
+			let calls = 0;
+			const observer = new DisposableResizeObserver('test.noBatch', () => { calls++; }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			fake.fire([fakeEntry()]);
+			assert.strictEqual(calls, 2, 'wrapper does not coalesce deliveries');
+			observer.dispose();
+		});
+
+		test('dispose disconnects the underlying observer', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('test.dispose', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			observer.dispose();
+			assert.strictEqual(fake.disconnects, 1);
+		});
+
+		test('exceptions in the user callback do not propagate', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('test.throw', () => { throw new Error('boom'); }, mainWindow, { resizeObserverCtor: fake.ctor });
+			// Browser would not catch a throw out of the native callback; we
+			// must guard so a single bad consumer does not break delivery for
+			// every other observer in the realm. The wrapper routes the throw
+			// to onUnexpectedError, so swap the handler for the duration of
+			// this test so the test runner does not flag it as a failure.
+			const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(() => { /* swallow expected */ });
+			try {
+				assert.doesNotThrow(() => fake.fire([fakeEntry()]));
+			} finally {
+				setUnexpectedErrorHandler(originalErrorHandler);
+			}
+			observer.dispose();
+		});
+
+		test('exposes the configured name for attribution', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver(
+				'my-observer',
+				() => { /* noop */ },
+				mainWindow,
+				{ resizeObserverCtor: fake.ctor },
+			);
+			assert.strictEqual(observer.name, 'my-observer');
+			observer.dispose();
+		});
+
+		test('getRecentDisposableResizeObserverAttributionForLoopError returns undefined for unrelated messages', () => {
+			assert.strictEqual(getRecentDisposableResizeObserverAttributionForLoopError(undefined), undefined);
+			assert.strictEqual(getRecentDisposableResizeObserverAttributionForLoopError('Uncaught TypeError: foo'), undefined);
+		});
+
+		test('getRecentDisposableResizeObserverAttributionForLoopError returns last invoked observer name for the loop warning', () => {
+			const fake = createFakeResizeObserverCtor();
+			const a = new DisposableResizeObserver('a', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			const fakeB = createFakeResizeObserverCtor();
+			const b = new DisposableResizeObserver('b', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fakeB.ctor });
+			fakeB.fire([fakeEntry()]);
+			const attribution = getRecentDisposableResizeObserverAttributionForLoopError(
+				'ResizeObserver loop completed with undelivered notifications.',
+			);
+			assert.ok(attribution, 'attribution string must be produced for the loop warning');
+			assert.ok(attribution!.startsWith('[DisposableResizeObserver(b)] '), 'attribution prefixes the message with the most recently invoked observer name');
+			a.dispose();
+			b.dispose();
+		});
+
+		test('getRecentDisposableResizeObserverAttributionForLoopError clears after the current task so unrelated later errors are not mis-attributed', async () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('scoped', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			// Slot is set synchronously and survives microtasks (so it is
+			// still set when Chromium dispatches the loop warning at the end
+			// of the resize-observation phase).
+			await Promise.resolve();
+			assert.ok(getRecentDisposableResizeObserverAttributionForLoopError('ResizeObserver loop completed with undelivered notifications.'));
+			// A 0-ms timer (next macrotask) clears the slot.
+			await new Promise(resolve => setTimeout(resolve, 0));
+			assert.strictEqual(
+				getRecentDisposableResizeObserverAttributionForLoopError('ResizeObserver loop completed with undelivered notifications.'),
+				undefined,
+				'slot must be cleared by the next task so an unrelated later error does not inherit a stale observer name',
+			);
+			observer.dispose();
 		});
 	});
 

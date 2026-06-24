@@ -34,9 +34,9 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		fileService: IFileService,
 		pathService: IPathService,
 		logService: ILogService,
-		instantiationService: IInstantiationService,
+		workspaceContextService: IWorkspaceContextService,
 	) {
-		super(fileService, pathService, logService, instantiationService);
+		super(fileService, pathService, logService, workspaceContextService);
 	}
 
 	start(enablementModel: IEnablementModel): void {
@@ -85,6 +85,7 @@ suite('AgentPlugin format detection', () => {
 	const mockEnablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
 		setEnabled: () => { },
+		remove: () => { },
 	};
 
 	function createDiscovery(): TestPluginDiscovery {
@@ -92,8 +93,14 @@ suite('AgentPlugin format detection', () => {
 			fileService,
 			instantiationService.get(IPathService),
 			logService,
-			instantiationService,
+			instantiationService.get(IWorkspaceContextService),
 		));
+	}
+
+	function getDiscoveredPlugins(discovery: TestPluginDiscovery) {
+		const plugins = discovery.plugins.get();
+		assert.ok(plugins, 'Expected plugin discovery to have completed');
+		return plugins;
 	}
 
 	async function writeFile(path: string, content: string): Promise<void> {
@@ -105,6 +112,13 @@ suite('AgentPlugin format detection', () => {
 		return URI.from({ scheme: Schemas.inMemory, path });
 	}
 
+	test('starts unresolved until first refresh completes', () => {
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+
+		assert.strictEqual(discovery.plugins.get(), undefined);
+	});
+
 	test('detects Open Plugin format when .plugin/plugin.json exists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/my-open-plugin');
 		await writeFile('/plugins/my-open-plugin/.plugin/plugin.json', JSON.stringify({ name: 'my-open-plugin' }));
@@ -114,7 +128,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		// Verify the plugin read commands from the standard commands/ directory
@@ -131,7 +145,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].commands, cmds => cmds.length > 0);
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'greet');
@@ -146,10 +160,48 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].commands, cmds => cmds.length > 0);
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'run');
+	}));
+
+	test('plugin label uses manifest `name` when no marketplace metadata is present', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		// Direct-installed plugin (no marketplace metadata) with a `name` in
+		// its manifest — the label should use the manifest name, not the
+		// uglier directory basename.
+		const uri = pluginUri('/plugins/_direct/sukumarp2022--slide-creator-plugin');
+		await writeFile('/plugins/_direct/sukumarp2022--slide-creator-plugin/plugin.json', JSON.stringify({
+			name: 'Slide Creator',
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		assert.deepStrictEqual(plugins.map(p => p.label), ['Slide Creator']);
+	}));
+
+	test('plugin label falls back to basename when manifest `name` is missing or invalid', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const missingUri = pluginUri('/plugins/missing-name');
+		await writeFile('/plugins/missing-name/plugin.json', JSON.stringify({}));
+
+		const blankUri = pluginUri('/plugins/blank-name');
+		await writeFile('/plugins/blank-name/plugin.json', JSON.stringify({ name: '   ' }));
+
+		const nonStringUri = pluginUri('/plugins/non-string-name');
+		await writeFile('/plugins/non-string-name/plugin.json', JSON.stringify({ name: 42 }));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([missingUri, blankUri, nonStringUri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		assert.deepStrictEqual(
+			plugins.map(p => p.label).sort(),
+			['blank-name', 'missing-name', 'non-string-name'],
+		);
 	}));
 
 	test('Open Plugin format takes priority over Claude format', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -174,7 +226,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
@@ -196,7 +248,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
@@ -217,7 +269,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].mcpServerDefinitions, defs => defs.length > 0);
@@ -234,7 +286,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length > 0);
@@ -251,7 +303,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length > 0);
@@ -271,7 +323,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length > 0);
@@ -290,7 +342,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].agents, a => a.length > 0);
@@ -310,7 +362,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length >= 2);
@@ -333,7 +385,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length > 0);
@@ -357,7 +409,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].commands, c => c.length >= 3);
@@ -380,7 +432,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].agents, a => a.length >= 2);
@@ -402,7 +454,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		// Only default skills/ directory should be scanned; the traversal path is rejected.
@@ -424,7 +476,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].commands, c => c.length > 0);
@@ -446,7 +498,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		assert.strictEqual(plugins[0].label, 'no-manifest');
 
@@ -476,7 +528,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].hooks, h => h.length > 0);
 		assert.strictEqual(plugins[0].hooks.get().length, 1);
@@ -497,7 +549,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].hooks, h => h.length > 0);
 		assert.strictEqual(plugins[0].hooks.get().length, 1);
@@ -519,7 +571,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].hooks, h => h.length > 0);
 		assert.strictEqual(plugins[0].hooks.get().length, 1);
@@ -541,7 +593,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
 		assert.strictEqual(plugins[0].mcpServerDefinitions.get()[0].name, 'custom-server');
@@ -565,7 +617,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		// When inline mcpServers is an object in the manifest, it is treated as
@@ -599,7 +651,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].hooks, h => h.length > 0);
 
@@ -623,7 +675,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].commands, c => c.length >= 2);
@@ -646,7 +698,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].commands, c => c.length >= 2);
@@ -669,7 +721,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].agents, a => a.length >= 2);
@@ -691,7 +743,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].skills, s => s.length > 0);
@@ -717,7 +769,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].hooks, h => h.length > 0);
 		assert.strictEqual(plugins[0].hooks.get().length, 1);
@@ -739,7 +791,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
 		assert.strictEqual(plugins[0].mcpServerDefinitions.get()[0].name, 'custom-server');
@@ -755,7 +807,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length >= 2);
@@ -776,7 +828,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length >= 3);
@@ -799,7 +851,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length >= 2);
@@ -822,7 +874,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length === 1 && i[0].name === 'visible');
@@ -841,7 +893,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length > 0);
@@ -863,7 +915,7 @@ suite('AgentPlugin format detection', () => {
 		discovery.start(mockEnablementModel);
 		await discovery.setSourcesAndRefresh([uri]);
 
-		const plugins = discovery.plugins.get();
+		const plugins = getDiscoveredPlugins(discovery);
 		assert.strictEqual(plugins.length, 1);
 
 		await waitForState(plugins[0].instructions, i => i.length > 0);
@@ -871,5 +923,64 @@ suite('AgentPlugin format detection', () => {
 		const instruction = plugins[0].instructions.get()[0];
 		assert.strictEqual(instruction.name, 'my-rule');
 		assert.ok(instruction.uri.path.endsWith('/rules/my-rule.mdc'));
+	}));
+
+	test('PLUGIN_ROOT expansion in inline MCP server definitions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/mcp-root');
+		await writeFile('/plugins/mcp-root/.plugin/plugin.json', JSON.stringify({
+			name: 'mcp-root',
+			mcpServers: {
+				'my-server': {
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--config', '${PLUGIN_ROOT}/config.json'],
+					cwd: '${PLUGIN_ROOT}',
+					env: { 'CONFIG_DIR': '${PLUGIN_ROOT}/etc' },
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
+		const server = plugins[0].mcpServerDefinitions.get()[0];
+		assert.strictEqual(server.name, 'my-server');
+		const config: any = server.configuration;
+		assert.ok(!config.command.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
+		assert.ok(!config.args[1].includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
+		assert.ok(!config.cwd.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in cwd, got: ${config.cwd}`);
+		assert.ok(!config.env['CONFIG_DIR'].includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in env, got: ${config.env['CONFIG_DIR']}`);
+		assert.strictEqual(config.env['PLUGIN_ROOT'], uri.fsPath, 'Expected PLUGIN_ROOT env var to be set');
+	}));
+
+	test('CLAUDE_PLUGIN_ROOT expansion in MCP server definitions from .mcp.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/claude-mcp-root');
+		await writeFile('/plugins/claude-mcp-root/.claude-plugin/plugin.json', JSON.stringify({ name: 'claude-mcp-root' }));
+		await writeFile('/plugins/claude-mcp-root/.mcp.json', JSON.stringify({
+			mcpServers: {
+				'claude-server': {
+					command: '${CLAUDE_PLUGIN_ROOT}/run.sh',
+					args: ['--dir', '${CLAUDE_PLUGIN_ROOT}/data'],
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
+		const server = plugins[0].mcpServerDefinitions.get()[0];
+		const config: any = server.configuration;
+		assert.ok(!config.command.includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
+		assert.ok(!config.args[1].includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
+		assert.strictEqual(config.env['CLAUDE_PLUGIN_ROOT'], uri.fsPath, 'Expected CLAUDE_PLUGIN_ROOT env var to be set');
 	}));
 });

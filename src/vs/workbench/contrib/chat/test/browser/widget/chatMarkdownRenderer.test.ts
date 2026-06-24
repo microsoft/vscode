@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,6 +23,34 @@ suite('ChatMarkdownRenderer', () => {
 		const md = new MarkdownString('a');
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.textContent);
+	});
+
+	test('plain text fast path preserves rendered markdown shape', () => {
+		const md = new MarkdownString('Hello, world. This is plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
+		const result = store.add(testRenderer.render(md));
+
+		assert.deepStrictEqual({
+			outerHTML: result.element.outerHTML,
+			textContent: result.element.textContent,
+		}, {
+			outerHTML: '<div class="rendered-markdown"><p>Hello, world. This is plain.</p></div>',
+			textContent: 'Hello, world. This is plain.',
+		});
+	});
+
+	test('plain text fast path reuses target element', () => {
+		const md = new MarkdownString('Hello, world.');
+		const target = document.createElement('div');
+		target.appendChild(document.createElement('span'));
+		const result = store.add(testRenderer.render(md, undefined, target));
+
+		assert.deepStrictEqual({
+			sameElement: result.element === target,
+			outerHTML: target.outerHTML,
+		}, {
+			sameElement: true,
+			outerHTML: '<div class="rendered-markdown"><p>Hello, world.</p></div>',
+		});
 	});
 
 	test('supportHtml with one-line markdown', async () => {
@@ -112,5 +141,29 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('code block ending at end of content does not leak body tag', async () => {
+		const md = new MarkdownString('text\n```ts\nconst x = 1;\n```');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md));
+		const textContent = result.element.textContent;
+		assert.ok(!textContent?.includes('</body>'), `Rendered text should not contain </body>, got: ${textContent}`);
+	});
+
+	test('fillInIncompleteTokens closes bare codespan when supportHtml is set', () => {
+		// Regression: the chat content renderer wraps `supportHtml` markdown
+		// in `<body>...</body>`, which produces a trailing html token. The
+		// paragraph/codespan fixup in `fillInIncompleteTokens` must still
+		// fire so streaming a partial backtick (e.g. the agent host
+		// "Created isolated worktree for branch `xyz" announcement) does
+		// not leave a bare ` in the DOM until the closing backtick arrives.
+		const md = new MarkdownString('Created isolated worktree for branch `xyz', { supportHtml: true });
+		const result = store.add(testRenderer.render(md, { fillInIncompleteTokens: true }));
+
+		const codeEl = result.element.querySelector('code');
+		assert.ok(codeEl, `Expected a <code> element in: ${result.element.outerHTML}`);
+		assert.strictEqual(codeEl!.textContent, 'xyz');
+		assert.ok(!result.element.textContent?.includes('`'), `Rendered text should not contain a bare backtick, got: ${result.element.textContent}`);
 	});
 });

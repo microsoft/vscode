@@ -1217,9 +1217,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		/* __GDPR__
 			"typingsInstalled" : {
 				"owner": "mjbvz",
-				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"installedPackages": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]

@@ -85,4 +85,8 @@ export class GitRepository extends Disposable implements IGitRepository {
 	async diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]> {
 		return this.delegate.diffBetweenWithStats(this.rootUri, ref1, ref2, path);
 	}
+
+	async diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]> {
+		return this.delegate.diffBetweenWithStats2(this.rootUri, ref, path);
+	}
 }

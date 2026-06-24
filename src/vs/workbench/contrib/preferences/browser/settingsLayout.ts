@@ -156,6 +156,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'workbench/screencastmode',
 					label: localize('screencastMode', "Screencast Mode"),
 					settings: ['screencastMode.*']
+				},
+				{
+					id: 'workbench/browser',
+					label: localize('browser', "Browser"),
+					settings: ['workbench.browser.*']
 				}
 			]
 		},
@@ -202,7 +207,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.alternativeToolAction.*',
 						'chat.codeBlock.*',
 						'chat.editing.explainChanges.enabled',
-						'chat.editMode.hidden',
 						'chat.editorAssociations',
 						'chat.extensionUnification.*',
 						'chat.inlineReferences.*',

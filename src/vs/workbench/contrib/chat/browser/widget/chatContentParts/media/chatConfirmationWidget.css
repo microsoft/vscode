@@ -22,6 +22,11 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 }
 
+.chat-confirmation-widget-message {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
 .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
 	width: 100%;
 	border-radius: 3px;
@@ -93,9 +98,9 @@
 }
 
 .chat-confirmation-widget-message h3 {
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 4px 0 8px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown p a {
@@ -103,7 +108,8 @@
 }
 
 .chat-confirmation-widget-title small {
-	font-size: 1em;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	opacity: 0.7;
 
 	&::before {
@@ -112,15 +118,23 @@
 }
 
 .chat-confirmation-widget .chat-buttons-container,
-.chat-confirmation-widget .chat-confirmation-widget-message {
+.chat-confirmation-widget .chat-confirmation-widget-message-scrollable {
 	flex-basis: 100%;
-	padding: 0 8px;
 	margin: 8px 0;
 
 
 	&:last-child {
 		margin-bottom: 0;
 	}
+}
+
+.chat-confirmation-widget .chat-buttons-container,
+.chat-confirmation-widget .chat-confirmation-widget-message {
+	padding: 0 8px;
+}
+
+.chat-confirmation-widget2 > .chat-confirmation-widget-message-scrollable {
+	min-height: 0;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-message-container {
@@ -223,6 +237,11 @@
 	justify-content: space-between;
 	column-gap: 10px;
 
+	.chat-title {
+		font-size: var(--vscode-agents-fontSize-heading3);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
+	}
+
 	.rendered-markdown {
 		line-height: 24px !important;
 
@@ -288,7 +307,7 @@
 		flex: 1;
 		min-width: 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-agents-fontSize-label1);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -331,8 +350,8 @@
 		display: inline-flex;
 		gap: 4px;
 		margin-left: 6px;
-		font-size: 11px;
-		font-weight: 500;
+		font-size: var(--vscode-agents-fontSize-label2);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		flex-shrink: 0;
 	}
 
@@ -436,7 +455,7 @@
 	}
 
 	.monaco-button-dropdown > .monaco-button.monaco-dropdown-button.codicon[class*='codicon-'] {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 }
 
@@ -472,7 +491,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		&:hover  {
@@ -502,6 +521,26 @@
 
 	.show-checkmarks .chat-confirmation-widget .chat-confirmation-widget-title {
 		padding-left: 2px;
+	}
+
+	/* shimmer animation for collapsible tool widgets (e.g. MCP tools) */
+	.chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+		display: none;
+	}
+
+	.chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title-inner > .rendered-markdown > p {
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 
 }

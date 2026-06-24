@@ -868,5 +868,5 @@ export function getStashDescription(stash: Stash): string | undefined {
 }
 
 export function isCopilotWorktreeFolder(path: string): boolean {
-	return basename(path).startsWith('copilot-');
+	return basename(path).startsWith('copilot-') || basename(path).startsWith('agents-');
 }
