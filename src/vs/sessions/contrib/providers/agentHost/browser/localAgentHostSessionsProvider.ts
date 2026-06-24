@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -83,10 +84,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IStorageService storageService: IStorageService,
+		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 

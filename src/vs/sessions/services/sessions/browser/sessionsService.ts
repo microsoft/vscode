@@ -16,7 +16,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -142,10 +141,8 @@ export interface ISessionsService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
-	 * Close a chat from the session view. A brand-new chat with no conversation
-	 * yet is deleted outright since it has no content worth preserving; any other
-	 * chat is hidden from the tab strip and can be reopened from the session
-	 * header's chats dropdown.
+	 * Close a chat from the session view. The chat is hidden from the tab strip
+	 * and can be reopened from the session header's chats dropdown.
 	 */
 	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
@@ -153,13 +150,6 @@ export interface ISessionsService {
 	 * Reopen a previously closed chat so it is shown again in the tab strip.
 	 */
 	reopenChat(session: IActiveSession, chat: IChat): Promise<void>;
-
-	/**
-	 * Whether a chat is brand-new with no conversation yet. Such chats are
-	 * deleted (not hidden) when closed, and are excluded from the session
-	 * header's chats dropdown since there is nothing to reopen.
-	 */
-	isEmptyChat(chat: IChat): boolean;
 
 	/**
 	 * Open the new-session composer.
@@ -292,7 +282,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
-		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -603,35 +592,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat): Promise<void> {
-		// A brand-new chat with no conversation has nothing worth keeping, so
-		// closing it discards it entirely. Established chats are only hidden from
-		// the tab strip (reopenable from the session header's chats dropdown).
-		if (this.isEmptyChat(chat)) {
-			await this.sessionsManagementService.deleteChat(session, chat.resource);
-		} else {
-			this._visibility.closeChat(session, chat);
-		}
+		// Closing hides the chat from the tab strip; it stays reopenable from the
+		// session header's chats dropdown.
+		this._visibility.closeChat(session, chat);
 	}
 
 	async reopenChat(session: IActiveSession, chat: IChat): Promise<void> {
 		this._visibility.reopenChat(session, chat);
-	}
-
-	/**
-	 * Whether a chat is brand-new with no conversation yet. Such chats are
-	 * deleted (not hidden) on close, and are excluded from the chats dropdown.
-	 *
-	 * `SessionStatus.Untitled` covers providers that model an unsent draft, but
-	 * not every provider uses it — agent-host peer chats are created live and
-	 * report {@link SessionStatus.Completed}. So we also consult the loaded chat
-	 * model's request count, which is the provider-agnostic source of truth.
-	 */
-	isEmptyChat(chat: IChat): boolean {
-		if (chat.status.get() === SessionStatus.Untitled) {
-			return true;
-		}
-		const model = this.chatService.getSession(chat.resource);
-		return !!model && model.getRequests().length === 0;
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {

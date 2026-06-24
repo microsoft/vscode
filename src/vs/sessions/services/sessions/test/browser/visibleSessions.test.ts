@@ -1010,5 +1010,3 @@ suite('VisibleSession - close/reopen chats', () => {
 		});
 	});
 });
-
-

@@ -287,7 +287,7 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -298,7 +298,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
 	instantiationService.stub(IFileDialogService, {});
-	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: options?.confirmDelete ?? true }) });
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
 		getAllChatSessionContributions: () => contributions,
@@ -1838,8 +1838,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('deleteChat disposes the peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const provider = createProvider(disposables, agentHost, undefined);
+		test('deleteChat prompts for confirmation and disposes the peer chat when confirmed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { confirmDelete: true });
 			const session = setupMultiChatSession(provider, 'multi-del');
 			const sessionUri = AgentSession.uri('copilotcli', 'multi-del').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -1855,6 +1855,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await provider.deleteChat(session.sessionId, peer!.resource);
 
 			assert.deepStrictEqual(agentHost.disposedChats.map(u => u.toString()), [peerChat]);
+		}));
+
+		test('deleteChat does not dispose the peer chat when the confirmation is cancelled', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost, undefined, { confirmDelete: false });
+			const session = setupMultiChatSession(provider, 'multi-del-cancel');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-del-cancel').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-del-cancel', 'copilotcli', makeState('multi-del-cancel', [
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			assert.ok(peer);
+			await provider.deleteChat(session.sessionId, peer!.resource);
+
+			assert.deepStrictEqual(agentHost.disposedChats, []);
 		}));
 
 		test('single-chat catalog degrades to the default chat only', () => {

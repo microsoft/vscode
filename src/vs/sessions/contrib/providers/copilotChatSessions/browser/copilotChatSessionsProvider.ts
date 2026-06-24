@@ -14,6 +14,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
@@ -1468,6 +1469,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -1879,6 +1881,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// fires a changed event on the parent session instead of a removed event.
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {
+			// Confirm deletion
+			const confirmed = await this.dialogService.confirm({
+				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+				detail: localize('deleteChat.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteChat.delete', "Delete")
+			});
+			if (!confirmed.confirmed) {
+				return;
+			}
+
 			await this._deleteAgentSessions([agentSession]);
 		} else {
 			// Untitled chat (not yet committed) - clean up directly

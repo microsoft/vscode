@@ -72,10 +72,6 @@ export class ConversationsDropdownActionViewItem extends DropdownMenuActionViewI
 		const mainUri = mainChat.resource.toString();
 
 		const chatActions = allChats
-			// Exclude brand-new chats with no conversation yet: closing them
-			// deletes rather than hides, so there is nothing to reopen. The main
-			// chat is always listed even if empty.
-			.filter(chat => chat.resource.toString() === mainUri || !this._sessionsService.isEmptyChat(chat))
 			.map(chat => {
 				const chatUri = chat.resource.toString();
 				const isOpen = openUris.has(chatUri);

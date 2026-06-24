@@ -11,7 +11,6 @@ import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollable
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
@@ -87,7 +86,6 @@ export class ChatCompositeBar extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -282,9 +280,9 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible. Closing a brand-new
-		// (never-sent) chat deletes it; closing an established chat hides it from the
-		// tab strip (reopenable from the chats dropdown in the session header).
+		// Close action — only for non-main chats, always visible. Closing hides the
+		// chat from the tab strip (reopenable from the chats dropdown in the
+		// session header); use Delete to remove it permanently.
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -326,18 +324,9 @@ export class ChatCompositeBar extends Disposable {
 		// Delete permanently removes the chat (destructive). Only non-main chats
 		// can be deleted; the main chat lives and dies with its session.
 		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
-			if (!this._session) {
-				return;
+			if (this._session) {
+				await this._sessionsManagementService.deleteChat(this._session, chat.resource);
 			}
-			const confirmed = await this._dialogService.confirm({
-				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
-				detail: localize('deleteChat.detail', "This action cannot be undone."),
-				primaryButton: localize('deleteChat.delete', "Delete")
-			});
-			if (!confirmed.confirmed) {
-				return;
-			}
-			await this._sessionsManagementService.deleteChat(this._session, chat.resource);
 		}));
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
