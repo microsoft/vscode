@@ -915,19 +915,23 @@ export class AgentSideEffects extends Disposable {
 				this._changesets.onSessionTruncated(channel);
 				break;
 			}
-			case ActionType.SessionActiveClientChanged: {
+			case ActionType.SessionActiveClientSet: {
 				const agent = this._options.getAgent(channel);
 				if (!agent) {
 					break;
 				}
-				// Always forward client tools, even if empty, to clear previous client's tools
-				const clientId = action.activeClient?.clientId;
-				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
-
-				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(URI.parse(channel), clientId ?? '', refs).catch(err => {
-					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
+				const activeClient = action.activeClient;
+				const handle = agent.getOrCreateActiveClient(URI.parse(channel), {
+					clientId: activeClient.clientId,
+					displayName: activeClient.displayName,
 				});
+				handle.tools = activeClient.tools;
+				handle.customizations = activeClient.customizations ?? [];
+				break;
+			}
+			case ActionType.SessionActiveClientRemoved: {
+				const agent = this._options.getAgent(channel);
+				agent?.removeActiveClient(URI.parse(channel), action.clientId);
 				break;
 			}
 			case ActionType.RootConfigChanged: {
@@ -944,9 +948,9 @@ export class AgentSideEffects extends Disposable {
 				const agent = this._options.getAgent(channel);
 				if (agent) {
 					const sessionState = this._stateManager.getSessionState(channel);
-					const toolClientId = sessionState?.activeClient?.clientId;
-					if (toolClientId) {
-						agent.setClientTools(URI.parse(channel), toolClientId, action.tools);
+					const isActiveClient = sessionState?.activeClients.some(c => c.clientId === action.clientId);
+					if (isActiveClient) {
+						agent.getOrCreateActiveClient(URI.parse(channel), { clientId: action.clientId }).tools = action.tools;
 					}
 				}
 				break;

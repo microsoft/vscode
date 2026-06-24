@@ -35,11 +35,13 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter } from '../../browser/baseAgentHostSessionsProvider.js';
 import { CHANGESET_UPDATE_THROTTLE_MS } from '../../browser/agentHostChangesetConstants.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -320,6 +322,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
+	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
@@ -1034,6 +1037,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				modifiedAt: 0,
 			},
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			customizations: [{
 				type: CustomizationType.Plugin,
@@ -1158,6 +1162,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				modifiedAt: 0,
 			},
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			customizations: [{
 				type: CustomizationType.Plugin,
@@ -1172,7 +1177,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(fired > afterRoot, 'expected event to fire on session state customization change');
 
 		// A second state update with the SAME customizations reference must
-		// NOT fire — only churn in `customizations` / `activeClient.customizations`
+		// NOT fire — only churn in `customizations` / `activeClients[].customizations`
 		// counts.
 		const afterFirstCustomization = fired;
 		agentHost.setSessionState('cust-events', 'copilotcli', {
@@ -1185,6 +1190,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				modifiedAt: 0,
 			},
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			// Same identity as before:
 			customizations: (provider as unknown as { _lastSessionStates: Map<string, SessionState> })._lastSessionStates.get(session!.sessionId)?.customizations,
@@ -1227,6 +1233,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				modifiedAt: 0,
 			},
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			customizations,
 		};
@@ -1271,6 +1278,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				modifiedAt: 0,
 			},
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			customizations: [{
 				type: CustomizationType.Plugin,
@@ -1770,6 +1778,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					modifiedAt: 0,
 				},
 				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
 				chats,
 				...(opts?.defaultChat ? { defaultChat: opts.defaultChat } : {}),
 			};
@@ -1806,6 +1815,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chatFragments: ['', 'peer-1'],
 				mainIsDefault: true,
 				peerTitle: 'Peer',
+			});
+		});
+
+		test('a new peer chat is presented as Untitled until its first request is sent', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-new');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-new').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			// Host commits the peer chat eagerly (Completed); mark it new first.
+			(session as AgentHostSessionAdapter).markChatAsNew('peer-1');
+			agentHost.setSessionState('multi-new', 'copilotcli', makeState('multi-new', [
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			const peer = () => session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			const whileNew = peer()!.status.get();
+
+			(session as AgentHostSessionAdapter).markChatAsSent('peer-1');
+			const afterSent = peer()!.status.get();
+
+			assert.deepStrictEqual({ whileNew, afterSent }, {
+				whileNew: SessionStatus.Untitled,
+				afterSent: SessionStatus.Completed,
 			});
 		});
 
@@ -2156,7 +2191,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		await assert.rejects(
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
-			/not found or not a new session/,
+			/not found/,
 		);
 	});
 
@@ -2244,6 +2279,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config,
 		};
@@ -2275,6 +2311,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fullState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-schema').toString(), provider: 'copilotcli', title: 'Schema Preserve Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config: {
 				schema: {
@@ -2392,6 +2429,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState('pr-sticky', 'copilotcli', {
 			summary: { resource: AgentSession.uri('copilotcli', 'pr-sticky').toString(), provider: 'copilotcli', title: 'PR Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			_meta: { git: { hasGitHubRemote: true, githubOwner: 'owner', githubRepo: 'repo', branchName: 'feature' } },
 		});
@@ -2448,6 +2486,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'rep-1').toString(), provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config,
 		};
@@ -2500,6 +2539,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'policy-write').toString(), provider: 'copilotcli', title: 'Policy Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config,
 		};
@@ -2556,6 +2596,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'schema-write').toString(), provider: 'copilotcli', title: 'Schema Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config,
 		};
@@ -2623,6 +2664,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'rep-2').toString(), provider: 'copilotcli', title: 'No-op Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config,
 		};
@@ -2649,6 +2691,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'cfg-merge').toString(), provider: 'copilotcli', title: 'Merge Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config: {
 				schema: {
@@ -2689,6 +2732,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'cfg-replace').toString(), provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
 			chats: [],
 			config: {
 				schema: {

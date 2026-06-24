@@ -23,7 +23,7 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -40,6 +40,7 @@ import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
@@ -93,7 +94,11 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const multiplier = m.billing?.multiplier;
+	const billing = m.billing as ICAPIModelBilling | undefined;
+	// priceCategory may appear as a top-level model field depending on the CAPI version.
+	const priceCategory = typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
+		? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+		: undefined;
 	return {
 		provider,
 		// CAPI/endpoint format, dotted version (e.g. `claude-haiku-4.5`) — the
@@ -107,7 +112,7 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		supportsVision: !!supports?.vision,
 		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
-		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
+		_meta: createPricingMetaFromBilling(billing, priceCategory),
 	};
 }
 
@@ -124,6 +129,40 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 // (pre-materialize fields: project, abortController, provisionalModel,
 // provisionalConfig). The legacy `IClaudeProvisionalSession` map shape
 // was retired in Phase 10.5 Step 3a.
+
+/**
+ * Claude active-client handle. Tools read/write through the live session's
+ * {@link SessionClientToolsModel}; customization assignment kicks off the
+ * agent's async sync (via the provided closure). The handle caches the last
+ * assigned customization inputs so the getter reflects what the client most
+ * recently published.
+ */
+class ClaudeActiveClientHandle implements IActiveClient {
+	private _customizations: readonly ClientPluginCustomization[] = [];
+
+	constructor(
+		readonly clientId: string,
+		readonly displayName: string | undefined,
+		private readonly _getTools: () => readonly ToolDefinition[],
+		private readonly _setTools: (tools: readonly ToolDefinition[]) => void,
+		private readonly _syncCustomizations: (customizations: readonly ClientPluginCustomization[]) => void,
+	) { }
+
+	get tools(): readonly ToolDefinition[] {
+		return this._getTools();
+	}
+	set tools(tools: readonly ToolDefinition[]) {
+		this._setTools(tools);
+	}
+
+	get customizations(): readonly ClientPluginCustomization[] {
+		return this._customizations;
+	}
+	set customizations(customizations: readonly ClientPluginCustomization[]) {
+		this._customizations = customizations;
+		this._syncCustomizations(customizations);
+	}
+}
 
 /**
  * Phase 4 skeleton {@link IAgent} provider for the Claude Agent SDK.
@@ -183,6 +222,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * is idempotent if the key has already been removed.
 	 */
 	private readonly _sessions = this._register(new DisposableMap<string, ClaudeSessionEntry>());
+
+	/** Stable active-client handles, keyed by `${sessionId}\0${clientId}`. */
+	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
 	/**
 	 * Phase 6: fired once per session when {@link _materializeProvisional}
@@ -562,6 +604,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				sess.abortController.abort();
 			}
 			this._sessions.deleteAndDispose(sessionId);
+			this._pruneActiveClientHandles(sessionId);
 		});
 	}
 
@@ -792,6 +835,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			await Promise.all(sessionIds.map(sessionId =>
 				this._disposeSequencer.queue(sessionId, async () => {
 					this._sessions.deleteAndDispose(sessionId);
+					this._pruneActiveClientHandles(sessionId);
 				})
 			));
 		})();
@@ -940,14 +984,47 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
-	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
 		const sessionId = AgentSession.id(session);
-		this._logService.info(`[Claude:${sessionId}] setClientTools clientId=${clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`);
-		const sess = this._findAnySession(sessionId);
-		if (!sess) {
-			return;
+		const key = `${sessionId}\u0000${client.clientId}`;
+		let handle = this._activeClientHandles.get(key);
+		if (!handle) {
+			handle = new ClaudeActiveClientHandle(
+				client.clientId,
+				client.displayName,
+				() => this._findAnySession(sessionId)?.getClientTools(client.clientId) ?? [],
+				tools => {
+					this._logService.info(`[Claude:${sessionId}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`);
+					this._findAnySession(sessionId)?.setClientTools(client.clientId, tools);
+				},
+				customizations => { void this.syncClientCustomizations(session, client.clientId, [...customizations]); },
+			);
+			this._activeClientHandles.set(key, handle);
 		}
-		sess.setClientTools(tools, clientId);
+		return handle;
+	}
+
+	removeActiveClient(session: URI, clientId: string): void {
+		const sessionId = AgentSession.id(session);
+		this._activeClientHandles.delete(`${sessionId}\u0000${clientId}`);
+		// Tools are written synchronously, so remove them immediately. The
+		// customization sync runs inside the session sequencer, so serialize
+		// its removal there too — otherwise a late in-flight sync could
+		// resurrect the removed client's customizations after it has left.
+		this._findAnySession(sessionId)?.removeClientTools(clientId);
+		void this._sessionSequencer.queue(sessionId, async () => {
+			this._findAnySession(sessionId)?.removeClientCustomizations(clientId);
+		}).catch(() => { /* session torn down */ });
+	}
+
+	/** Drop cached active-client handles belonging to a session being torn down. */
+	private _pruneActiveClientHandles(sessionId: string): void {
+		const prefix = `${sessionId}\u0000`;
+		for (const key of [...this._activeClientHandles.keys()]) {
+			if (key.startsWith(prefix)) {
+				this._activeClientHandles.delete(key);
+			}
+		}
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
@@ -966,26 +1043,25 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry?.session.completeClientToolCall(toolCallId, result);
 	}
 
-	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		const sessionId = AgentSession.id(session);
 		const sess = this._findAnySession(sessionId);
 		if (!sess) {
-			this._logService.warn(`[Claude:${sessionId}] setClientCustomizations: session not found`);
+			this._logService.warn(`[Claude:${sessionId}] syncClientCustomizations: session not found`);
 			return [];
 		}
 		// Run inside the session sequencer so that a fire-and-forget
-		// `setClientCustomizations` from `AgentSideEffects` cannot race
-		// ahead of a first `sendMessage`: if `sendMessage` is already
-		// queued, the sync runs first or queues behind it; either way
-		// the materialize call reads the most recently adopted plugin
-		// set, never an empty one mid-sync.
+		// customization sync cannot race ahead of a first `sendMessage`: if
+		// `sendMessage` is already queued, the sync runs first or queues
+		// behind it; either way the materialize call reads the most recently
+		// adopted plugin set, never an empty one mid-sync.
 		return this._sessionSequencer.queue(sessionId, async () => {
 			const synced = await this._pluginManager.syncCustomizations(
 				clientId,
 				customizations,
 				status => this._fireCustomizationUpdated(session, { customization: status }),
 			);
-			sess.adoptClientCustomizations(synced);
+			sess.adoptClientCustomizations(clientId, synced);
 			return synced;
 		});
 	}

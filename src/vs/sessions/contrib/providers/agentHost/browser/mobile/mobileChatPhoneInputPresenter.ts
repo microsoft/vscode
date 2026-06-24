@@ -270,7 +270,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 						// tracker and could push the chip update into a
 						// different input than the model write.
 						this._chatWidgetService.getWidgetBySessionResource(session.resource)
-							?.input.setCurrentLanguageModel(action.model);
+							?.input.setCurrentLanguageModel(action.model, true);
 					}
 					if (session && ahProvider) {
 						// Persist to the shared storage key so the empty

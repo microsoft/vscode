@@ -640,7 +640,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
-			state.activeClient = config.activeClient;
+			state.activeClients = config.activeClient ? [config.activeClient] : [];
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
 			}
@@ -654,7 +654,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
-			state.activeClient = config?.activeClient;
+			state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
 			}

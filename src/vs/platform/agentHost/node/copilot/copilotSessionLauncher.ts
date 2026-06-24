@@ -15,7 +15,7 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
-import type { ActiveClientState } from '../activeClientState.js';
+import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
@@ -64,9 +64,9 @@ type CopilotSessionLaunchConfig = ResumeSessionConfig & {
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
  * refreshed. Root MCP servers participate in restart detection because they
- * are merged into the SDK session config. The owning `clientId` is
+ * are merged into the SDK session config. The owning `clientId`s are
  * deliberately NOT part of this snapshot: client identity is tracked live via
- * {@link ActiveClientState} so a window
+ * {@link ActiveClientToolSet} so a window
  * reload (new `clientId`, identical tools/plugins) does not force a restart.
  */
 export interface IActiveClientSnapshot {
@@ -116,12 +116,13 @@ interface ICopilotSessionLaunchBase {
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
-	 * Live, long-lived holder of the owning client's identity. Read at
-	 * tool-call stamp time so a window reload (new `clientId`, identical
-	 * tools) stamps subsequent client tool calls with the current id
-	 * rather than the one frozen into {@link snapshot} at creation.
+	 * Live, long-lived registry of every active client's tool contributions.
+	 * Read at tool-call stamp time so a window reload (new `clientId`,
+	 * identical tools) stamps subsequent client tool calls with the current
+	 * owning id rather than the one frozen into {@link snapshot} at creation,
+	 * and so a tool call is attributed to whichever client contributed it.
 	 */
-	readonly activeClientState: ActiveClientState;
+	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
 }

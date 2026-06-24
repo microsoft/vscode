@@ -101,7 +101,7 @@ import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdown
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
@@ -116,6 +116,7 @@ const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
+const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -161,6 +162,57 @@ export interface IChatListItemTemplate {
 	readonly checkpointRestoreToolbar: MenuWorkbenchToolBar;
 	readonly checkpointContainer: HTMLElement;
 	readonly checkpointRestoreContainer: HTMLElement;
+}
+
+function escapeMarkdownLinkLabel(label: string): string {
+	return label.replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+}
+
+export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
+	const renderedAsUsed = !!review.isUsed;
+	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
+	// Prefer the structured fields from `ChatPlanReviewPart`; fall
+	// back to the combined `feedback` string for older results.
+	let overall = data?.feedbackOverall?.trim();
+	const inlineMd = data?.feedbackInlineMarkdown?.trim();
+	if (!overall && !inlineMd && data?.feedback) {
+		overall = data.feedback.trim();
+	}
+
+	const content = new MarkdownString(undefined, { supportThemeIcons: true });
+	if (overall) {
+		content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+	} else {
+		content.appendText(message);
+	}
+
+	if (renderedAsUsed) {
+		const reviewContent = review.content.trim();
+		const planUri = review.planUri ? URI.revive(review.planUri) : undefined;
+		if (reviewContent || planUri) {
+			content.appendMarkdown('\n\n');
+			if (reviewContent) {
+				content.appendMarkdown(reviewContent);
+			}
+			if (planUri) {
+				if (reviewContent) {
+					content.appendMarkdown('\n\n');
+				}
+				const planFileName = basename(planUri);
+				const label = planFileName
+					? localize('chat.planReview.openFullPlanFile', "Open full plan file ({0})", planFileName)
+					: localize('chat.planReview.openFullPlan', "Open full plan file");
+				const planWidgetUri = planUri.with({ query: planUri.query ? `${planUri.query}&vscodeLinkType=file` : 'vscodeLinkType=file' });
+				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
+			}
+		}
+	}
+
+	if (inlineMd) {
+		content.appendMarkdown('\n\n');
+		content.appendMarkdown(inlineMd);
+	}
+	return content;
 }
 
 interface IItemHeightChangeParams {
@@ -492,7 +544,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		const newWidth = width - 40; // padding
+		const newWidth = width - (this.rendererOptions.contentHorizontalPadding ?? DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING);
 		if (newWidth !== this._currentLayoutWidth.get()) {
 			this._currentLayoutWidth.set(newWidth, undefined);
 			for (const editor of this._editorPool.inUse()) {
@@ -3097,24 +3149,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pending → used transition and trigger a re-render.
 			const renderedAsUsed = !!review.isUsed;
 			const isPending = !renderedAsUsed;
-			const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
-			// Prefer the structured fields from `ChatPlanReviewPart`; fall
-			// back to the combined `feedback` string for older results.
-			let overall = data?.feedbackOverall?.trim();
-			const inlineMd = data?.feedbackInlineMarkdown?.trim();
-			if (!overall && !inlineMd && data?.feedback) {
-				overall = data.feedback.trim();
-			}
-			const content = new MarkdownString(undefined, { supportThemeIcons: true });
-			if (overall) {
-				content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
-			} else {
-				content.appendText(message);
-			}
-			if (inlineMd) {
-				content.appendMarkdown('\n\n');
-				content.appendMarkdown(inlineMd);
-			}
+			const content = buildPlanReviewProgressContent(review, message);
 			const progressPart = this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ content },

@@ -196,6 +196,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.vscode.id),
 				description: localize('copilot.toolSet.vscode.description', 'Use VS Code features'),
+				deprecated: true,
 			}
 		));
 
@@ -207,6 +208,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
+				deprecated: true,
 			}
 		));
 
@@ -218,6 +220,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.book.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
+				deprecated: true,
 			}
 		));
 
@@ -229,6 +232,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.agent.id),
 				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
+				deprecated: true,
 			}
 		));
 	}
@@ -1639,27 +1643,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 
 		// compare by id as toolset instances may be different (e.g. ToolSetForModel)
-		const eneabledToolSetIds = new Set<string>();
-		const eneabledToolIds = new Set<string>();
+		const enabledToolSetIds = new Set<string>();
+		const enabledToolIds = new Set<string>();
 		for (const [tool, enabled] of map) {
 			if (enabled) {
 				if (isToolSet(tool)) {
-					eneabledToolSetIds.add(tool.id);
+					enabledToolSetIds.add(tool.id);
 				} else {
-					eneabledToolIds.add(tool.id);
+					enabledToolIds.add(tool.id);
 				}
 			}
 		}
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (isToolSet(tool)) {
-				if (eneabledToolSetIds.has(tool.id)) {
+				if (enabledToolSetIds.has(tool.id)) {
 					result.push(fullReferenceName);
 					for (const memberTool of tool.getTools()) {
 						toolsCoveredByEnabledToolSet.add(memberTool);
 					}
 				}
 			} else {
-				if (eneabledToolIds.has(tool.id) && !toolsCoveredByEnabledToolSet.has(tool)) {
+				if (enabledToolIds.has(tool.id) && !toolsCoveredByEnabledToolSet.has(tool)) {
 					result.push(fullReferenceName);
 				}
 			}
@@ -1731,7 +1735,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return referenceName;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; detail?: string; legacyFullNames?: string[]; deprecated?: boolean; hiddenInToolsPicker?: boolean }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -1745,7 +1749,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.legacyFullNames, this._contextKeyService);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.detail, options?.legacyFullNames, options?.deprecated, options?.hiddenInToolsPicker, this._contextKeyService);
 
 		this._toolSets.add(result);
 		return result;
