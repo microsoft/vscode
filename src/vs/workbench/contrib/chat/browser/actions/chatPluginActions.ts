@@ -46,11 +46,7 @@ export class ManagePluginsAction extends Action2 {
 }
 
 interface IInstallFromSourceActionOptions {
-	/**
-	 * When `true`, suppresses revealing the installed plugin in the Extensions
-	 * viewlet after a successful install. Used when the action is invoked from a
-	 * surface that presents its own installed view (e.g. the customizations editor).
-	 */
+	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
 	readonly skipReveal?: boolean;
 }
 
@@ -143,6 +139,13 @@ class InstallFromSourceAction extends Action2 {
 						}
 						store.dispose();
 					}
+				} catch (e) {
+					// An unexpected failure (e.g. cancelled trust prompt) would otherwise
+					// leave the hidden input box and awaited promise stuck. Re-show it with
+					// the error so the user can retry or cancel.
+					const detail = e instanceof Error ? e.message : String(e);
+					inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+					inputBox.show();
 				} finally {
 					installing = false;
 					if (!store.isDisposed) {

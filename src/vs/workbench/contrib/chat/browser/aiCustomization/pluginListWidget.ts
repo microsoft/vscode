@@ -558,7 +558,7 @@ export class PluginListWidget extends Disposable {
 
 		// Back button (visible only in marketplace browse mode)
 		const backButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to installed plugins");
+		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to Installed Plugins");
 		this.backButton = this._register(new Button(backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backToInstalledLabel, ariaLabel: backToInstalledLabel }));
 		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('pluginBrowseBack', "Back")}`;
 		this.backButton.element.classList.add('list-add-button');
