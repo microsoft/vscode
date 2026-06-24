@@ -7,7 +7,7 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions, IBrowserViewPermissionRequestEvent } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -17,6 +17,7 @@ import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { BrowserSession } from './browserSession.js';
 import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
+import { ISerializedBrowserPermissionsSnapshot } from '../common/browserPermissions.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -44,6 +45,11 @@ export class BrowserView extends Disposable {
 
 	private _currentHistoryHandle: IBrowserHistoryItemHandle | undefined;
 	private _explicitNavigationPending = false;
+	/**
+	 * Active index in the webContents navigation history list.
+	 * Used to tell whether a navigation appended a new entry or replaced the current one in place.
+	 */
+	private _lastCommittedEntryIndex = -1;
 
 	readonly debugger: BrowserViewDebugger;
 	readonly emulator: BrowserViewEmulator;
@@ -96,6 +102,12 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidChangeRemoteStatus = this._register(new Emitter<boolean>());
 	readonly onDidChangeRemoteStatus: Event<boolean> = this._onDidChangeRemoteStatus.event;
+
+	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
+	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
+
+	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
+	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
 
 	constructor(
 		public readonly id: string,
@@ -214,6 +226,16 @@ export class BrowserView extends Disposable {
 		this._register(this.session.remote.onDidStart(fireRemoteStatus));
 		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
+		this._register(this.session.permissions.onDidRequestPermission(e => {
+			if (e.webContents === this.webContents && !this._isDisposed) {
+				e.claim();
+				this._onDidRequestPermission.fire(e.request);
+			}
+		}));
+		this._register(this.session.permissions.onDidChange(() => {
+			this._onDidChangePermissions.fire(this.session.permissions.serialize());
+		}));
+
 		this.setupEventListeners();
 	}
 
@@ -287,7 +309,7 @@ export class BrowserView extends Disposable {
 			this._currentHistoryHandle?.update({ title });
 		});
 
-		const fireNavigationEvent = (url: string, createNewHistoryItem: boolean) => {
+		const fireNavigationEvent = (url: string) => {
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -295,11 +317,7 @@ export class BrowserView extends Disposable {
 				canGoForward: webContents.navigationHistory.canGoForward(),
 				certificateError: this.session.trust.getCertificateError(url)
 			});
-			if (createNewHistoryItem) {
-				this._trackVisit(url);
-			} else {
-				this._currentHistoryHandle?.update({ url });
-			}
+			this._recordNavigation(url);
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
@@ -369,8 +387,14 @@ export class BrowserView extends Disposable {
 		});
 
 		// Navigation events (when URL actually changes)
-		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url, true));
-		webContents.on('did-navigate-in-page', (_, url) => fireNavigationEvent(url, false));
+		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url));
+		webContents.on('did-navigate-in-page', (_, url, isMainFrame) => {
+			// Ignore subframe (iframe) navigations: they must not rewrite the
+			// main frame's URL bar or its history entry.
+			if (isMainFrame) {
+				fireNavigationEvent(url);
+			}
+		});
 
 		webContents.on('did-navigate', () => {
 			// Chromium resets the zoom factor to its per-origin default (100%) when
@@ -495,19 +519,33 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
-	 * Record a successful navigation in the session's history and remember the
-	 * resulting handle so subsequent title/favicon updates can refine it.
+	 * Record a committed navigation in the session's history.
 	 */
-	private _trackVisit(url: string): void {
+	private _recordNavigation(url: string): void {
+		const webContents = this._view.webContents;
+		const activeIndex = webContents.navigationHistory.getActiveIndex();
+
 		if (!isTrackableHistoryUrl(url)) {
 			this._currentHistoryHandle = undefined;
+			this._lastCommittedEntryIndex = activeIndex;
 			return;
 		}
+
+		// A commit that leaves the active index unchanged replaced the current
+		// entry in place; refine the existing history item rather than appending
+		// a duplicate.
+		const handle = this._currentHistoryHandle;
+		if (handle && activeIndex === this._lastCommittedEntryIndex) {
+			handle.update({ url, title: webContents.getTitle() });
+			return;
+		}
+		this._lastCommittedEntryIndex = activeIndex;
+
 		const userInitiated = this._explicitNavigationPending;
 		this._explicitNavigationPending = false;
 		this._currentHistoryHandle = this.session.history.add(
 			url,
-			this._view.webContents.getTitle(),
+			webContents.getTitle(),
 			this._lastFavicon,
 			userInitiated,
 		);
@@ -538,7 +576,8 @@ export class BrowserView extends Disposable {
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			storageKeys: this.session.history.storageKeys,
+			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
+			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
 			isRemoteSession: this.session.remote.isRemote,

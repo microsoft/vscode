@@ -21,7 +21,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, SessionSummaryMeta } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -55,6 +55,14 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 
 /** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
+
+/**
+ * Configuration key that controls whether Copilot SDK sessions running a Claude
+ * Opus 4.8 model apply the Opus 4.8-tuned system-prompt section overrides.
+ * Forwarded into the agent host's root config (`opus48Prompt`) by
+ * `AgentHostCopilotPromptContribution`.
+ */
+export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -481,6 +489,14 @@ export interface IAgentSessionMetadata {
 	 */
 	readonly changesets?: readonly Changeset[];
 	/**
+	 * Side-channel metadata for the session summary, propagated
+	 * to clients via per-session state subscriptions.
+	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
+	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
+	 * `readSessionGitHubState`) for well-known slots.
+	 */
+	readonly _summaryMeta?: SessionSummaryMeta;
+	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.
 	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
@@ -638,6 +654,14 @@ export interface IAgentCreateSessionConfig {
 		 */
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
 	};
+}
+
+/** Options for creating an additional chat within a session. */
+export interface IAgentCreateChatOptions {
+	/** Optional display title for the new chat. */
+	readonly title?: string;
+	/** Optional model override; defaults to the session's model. */
+	readonly model?: ModelSelection;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -857,8 +881,34 @@ export interface IAgent {
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
+	/** Send a user message into an existing session. When `chat` is provided
+	 * (and differs from the default chat), the harness routes the message to
+	 * that specific chat within a multi-chat session. */
+	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void>;
+
+	/**
+	 * Create an additional chat within an existing session, backed by a new
+	 * conversation that shares the session's scope (working directory, model,
+	 * agent, customizations). Optional: harnesses that do not support multiple
+	 * concurrent chats simply omit it. The `chat` URI is the client-chosen
+	 * channel the new chat will be addressed by.
+	 */
+	createChat?(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+
+	/**
+	 * Dispose an additional chat created via {@link createChat}, freeing its
+	 * backing conversation. The session's default chat cannot be disposed in
+	 * isolation; it lives and dies with the session.
+	 */
+	disposeChat?(session: URI, chat: URI): Promise<void>;
+
+	/**
+	 * Returns the persisted catalog of additional (non-default) peer chats for a
+	 * session as their channel URIs. Used to re-register peer chats (and seed
+	 * their history) when a session is restored after a process restart.
+	 * Optional: harnesses without multi-chat persistence omit it.
+	 */
+	getChats?(session: URI): Promise<readonly URI[]>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
@@ -882,19 +932,24 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	/** Abort the current turn, stopping any in-flight processing. */
-	abortSession(session: URI): Promise<void>;
+	/** Abort the current turn, stopping any in-flight processing. When `chat`
+	 * is provided, only that chat's in-flight turn is aborted. */
+	abortSession(session: URI, chat?: URI): Promise<void>;
 
-	/** Change the model for an existing session. */
-	changeModel(session: URI, model: ModelSelection): Promise<void>;
+	/** Change the model for an existing session. When `chat` is provided (an
+	 * additional peer chat's URI), the change targets that chat's conversation
+	 * rather than the session's default chat. */
+	changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void>;
 
 	/**
 	 * Change (or clear) the selected custom agent for an existing session.
 	 * Passing `undefined` clears the selection and resets the session to no
 	 * selected custom agent (provider default behavior). Optional so non-
-	 * Copilot agents can opt out.
+	 * Copilot agents can opt out. When `chat` is provided (an additional peer
+	 * chat's URI), the change targets that chat's conversation rather than the
+	 * session's default chat.
 	 */
-	changeAgent?(session: URI, agent: AgentSelection | undefined): Promise<void>;
+	changeAgent?(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void>;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
@@ -1067,6 +1122,17 @@ export interface IAgentService {
 
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+
+	/**
+	 * Create an additional chat within an existing session. Spins up the
+	 * backing conversation in the harness (sharing the session's scope) and
+	 * registers the chat in the session's catalog so subscribers observe a
+	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
+	 */
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+
+	/** Dispose an additional chat created via {@link createChat}. */
+	disposeChat(session: URI, chat: URI): Promise<void>;
 
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
@@ -1351,6 +1417,15 @@ export interface IAgentConnection {
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
 	disposeSession(session: URI): Promise<void>;
+
+	/**
+	 * Create an additional peer chat inside an existing session. `chat` is a
+	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
+	 * chat to the session's catalog and publishes `session/chatAdded`.
+	 */
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	/** Dispose an additional chat created via {@link createChat}. */
+	disposeChat(chat: URI): Promise<void>;
 
 	// ---- Terminal lifecycle -------------------------------------------------
 	createTerminal(params: CreateTerminalParams): Promise<void>;

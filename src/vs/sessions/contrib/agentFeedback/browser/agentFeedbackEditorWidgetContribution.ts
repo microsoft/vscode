@@ -239,15 +239,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined!, addReplyAction: undefined! };
 
-			itemActions.editAction = this._eventStore.add(new Action(
-				'agentFeedback.widget.edit',
-				nls.localize('editComment', "Edit"),
-				ThemeIcon.asClassName(Codicon.edit),
-				true,
-				(): void => { this._startEditing(comment, text, itemActions); },
-			));
-			actionBar.push(itemActions.editAction, { icon: true, label: false });
-
 			itemActions.addReplyAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.addReply',
 				nls.localize('addToComment', "Add to Comment"),
@@ -257,10 +248,19 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			));
 			actionBar.push(itemActions.addReplyAction, { icon: true, label: false });
 
+			itemActions.editAction = this._eventStore.add(new Action(
+				'agentFeedback.widget.edit',
+				nls.localize('editComment', "Edit"),
+				ThemeIcon.asClassName(Codicon.edit),
+				true,
+				(): void => { this._startEditing(comment, text, itemActions); },
+			));
+			actionBar.push(itemActions.editAction, { icon: true, label: false });
+
 			if (comment.canConvertToAgentFeedback) {
 				itemActions.convertAction = this._eventStore.add(new Action(
 					'agentFeedback.widget.convert',
-					nls.localize('convertComment', "Convert to Agent Feedback"),
+					nls.localize('convertComment', "Accept"),
 					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
