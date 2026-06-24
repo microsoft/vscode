@@ -582,7 +582,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config = config;
 
 		this._register(autorun(reader => {
-			const defs = this._activeClientService.clientTools.read(reader);
+			const defs = this._activeClientService.getClientTools(this._config.sessionType).read(reader);
 			for (const [sessionResource] of this._activeSessions) {
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
