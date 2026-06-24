@@ -14,6 +14,18 @@
 		width: calc(100% - 20px);
 	}
 
+	/* PROTO: pulsing yellow background to make "Input needed" sessions easy to spot. */
+	.monaco-list-row:has(.session-item.needs-input) {
+		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.monaco-list-row:has(.session-item.needs-input) {
+			animation: none;
+			background-color: color-mix(in srgb, var(--vscode-list-warningForeground, #cca700) 8%, transparent);
+		}
+	}
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -478,6 +490,19 @@
 
 	50% {
 		opacity: 0.4;
+	}
+}
+
+/* PROTO: yellow background pulse for "Input needed" session rows. */
+@keyframes session-needs-input-accent-pulse {
+
+	0%,
+	100% {
+		background-color: transparent;
+	}
+
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground, #cca700) 12%, transparent);
 	}
 }
 
