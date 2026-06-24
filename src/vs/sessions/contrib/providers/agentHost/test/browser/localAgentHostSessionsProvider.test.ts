@@ -123,8 +123,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatOptions }[] = [];
 	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 		this.createdChats.push({ session, chat, options });
-		// Mirror the host: append the new chat to the session catalog so the
-		// provider's `waitForState` on `cached.chats` resolves.
 		const key = session.toString();
 		const existing = this._sessionStateValues.get(key) as SessionState | undefined;
 		if (existing && Array.isArray(existing.chats)) {
@@ -1846,7 +1844,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(sessionUri, 'peer-1');
 
-			// Host commits the peer chat eagerly (Completed); mark it new first.
 			(session as AgentHostSessionAdapter).markChatAsNew('peer-1');
 			agentHost.setSessionState('multi-new', 'copilotcli', makeState('multi-new', [
 				makeChatSummary(defaultChat, ''),
@@ -1864,6 +1861,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 				afterSent: SessionStatus.Completed,
 			});
 		});
+
+		test('forkChat forwards the source chat and turn to the host and surfaces a new peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-fork');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+
+			agentHost.setSessionState('multi-fork', 'copilotcli', makeState('multi-fork', [
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+
+			const call = agentHost.createdChats.at(-1);
+			assert.deepStrictEqual({
+				forkSource: call?.options?.fork?.source.toString(),
+				forkTurnId: call?.options?.fork?.turnId,
+				forkedIsPeer: !!forked.resource.fragment,
+				forkedInCatalog: session.chats.get().some(c => c.resource.toString() === forked.resource.toString()),
+			}, {
+				forkSource: sessionUri,
+				forkTurnId: 'turn-1',
+				forkedIsPeer: true,
+				forkedInCatalog: true,
+			});
+		}));
 
 		test('deleteChat prompts for confirmation and disposes the peer chat when confirmed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const provider = createProvider(disposables, agentHost, undefined, { confirmDelete: true });
@@ -1901,32 +1924,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await provider.deleteChat(session.sessionId, peer!.resource);
 
 			assert.deepStrictEqual(agentHost.disposedChats, []);
-		}));
-
-		test('forkChat forwards the source chat and turn to the host and surfaces a new peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const provider = createProvider(disposables, agentHost);
-			const session = setupMultiChatSession(provider, 'multi-fork');
-			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
-			const defaultChat = buildDefaultChatUri(sessionUri);
-
-			agentHost.setSessionState('multi-fork', 'copilotcli', makeState('multi-fork', [
-				makeChatSummary(defaultChat, ''),
-			], { defaultChat }));
-
-			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1');
-
-			const call = agentHost.createdChats.at(-1);
-			assert.deepStrictEqual({
-				forkSource: call?.options?.fork?.source.toString(),
-				forkTurnId: call?.options?.fork?.turnId,
-				forkedIsPeer: !!forked.resource.fragment,
-				forkedInCatalog: session.chats.get().some(c => c.resource.toString() === forked.resource.toString()),
-			}, {
-				forkSource: sessionUri,
-				forkTurnId: 'turn-1',
-				forkedIsPeer: true,
-				forkedInCatalog: true,
-			});
 		}));
 
 		test('single-chat catalog degrades to the default chat only', () => {
@@ -2238,7 +2235,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		await assert.rejects(
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
-			/not found/,
+			/not found or not a new session/,
 		);
 	});
 
@@ -2447,7 +2444,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- gitHubInfo / PR icon -------
 
-	test.skip('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('keeps a resolved PR number sticky across gitHubInfo recomputes (no re-lookup / icon flap)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A GitHub service that resolves a PR number asynchronously (mirroring the
 		// real `findPullRequestNumberByHeadBranch` REST lookup) and hands out a
 		// live PR model. We count lookups so we can assert the number is resolved

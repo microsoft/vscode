@@ -8,6 +8,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasWorkspaceContext,
 	SessionIsArchivedContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
@@ -36,6 +37,7 @@ interface ISessionContextKeys {
 	readonly workspaceIsVirtual: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 }
@@ -64,6 +66,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 		};
@@ -111,6 +114,8 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
+
+	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 }
 
 /**
