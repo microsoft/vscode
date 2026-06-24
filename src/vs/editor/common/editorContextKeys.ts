@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../nls.js';
+import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 
 export namespace EditorContextKeys {
 
@@ -60,6 +60,9 @@ export namespace EditorContextKeys {
 
 	export const standaloneColorPickerVisible = new RawContextKey<boolean>('standaloneColorPickerVisible', false, nls.localize('standaloneColorPickerVisible', "Whether the standalone color picker is visible"));
 	export const standaloneColorPickerFocused = new RawContextKey<boolean>('standaloneColorPickerFocused', false, nls.localize('standaloneColorPickerFocused', "Whether the standalone color picker is focused"));
+
+	export const isComposing = new RawContextKey<boolean>('isComposing', false, nls.localize('isComposing', "Whether the editor is in the composition mode"));
+
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or
 	 * (future) a diff editor
@@ -90,4 +93,5 @@ export namespace EditorContextKeys {
 	export const hasMultipleDocumentFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentFormattingProvider', false, nls.localize('editorHasMultipleDocumentFormattingProvider', "Whether the editor has multiple document formatting providers"));
 	export const hasMultipleDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentSelectionFormattingProvider', false, nls.localize('editorHasMultipleDocumentSelectionFormattingProvider', "Whether the editor has multiple document selection formatting providers"));
 
+	export const selectionHasDiagnostics = new RawContextKey<boolean>('editorSelectionHasDiagnostics', false, nls.localize('editorSelectionHasDiagnostics', "Whether any diagnostic is present in the current editor selection"));
 }

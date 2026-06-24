@@ -10,3 +10,9 @@ export function startServer(_: any): any {
 export function createServer(_: any): any {
 	throw new Error('Not implemented');
 }
+
+export class LoopbackAuthServer {
+	constructor(..._args: any[]) {
+		throw new Error('Not implemented');
+	}
+}

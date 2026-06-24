@@ -19,7 +19,7 @@ declare module 'vscode' {
 		tunnelFeatures?: {
 			elevation: boolean;
 			/**
-			 * One of the the options must have the ID "private".
+			 * One of the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
 			/**
@@ -31,7 +31,7 @@ declare module 'vscode' {
 
 	export interface TunnelProvider {
 		/**
-		 * Provides port forwarding capabilities. If there is a resolver that already provids tunnels, then the resolver's provider will
+		 * Provides port forwarding capabilities. If there is a resolver that already provides tunnels, then the resolver's provider will
 		 * be used. If multiple providers are registered, then only the first will be used.
 		 */
 		provideTunnel(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token: CancellationToken): ProviderResult<Tunnel>;

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { SuggestModel } from './suggestModel.js';
 
 export class OvertypingCapturer implements IDisposable {
 

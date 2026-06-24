@@ -6,10 +6,9 @@
 import {
 	window, languages, Uri, Disposable, commands, QuickPickItem,
 	extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind,
-	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n
+	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n, DocumentSelector, Diagnostic
 } from 'vscode';
-import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
-import { DocumentSelector } from 'vscode-languageclient';
+import { CommandIds, ErrorCodes, isSchemaResolveError, JSONLanguageStatus, JSONSchemaSettings, SettingIds } from './jsonClient';
 
 type ShowSchemasInput = {
 	schemas: string[];
@@ -169,7 +168,7 @@ export function createLanguageStatusItem(documentSelector: DocumentSelector, sta
 	statusItem.name = l10n.t('JSON Validation Status');
 	statusItem.severity = LanguageStatusSeverity.Information;
 
-	const showSchemasCommand = commands.registerCommand('_json.showAssociatedSchemaList', showSchemaList);
+	const showSchemasCommand = commands.registerCommand(CommandIds.showAssociatedSchemaList, showSchemaList);
 
 	const activeEditorListener = window.onDidChangeActiveTextEditor(() => {
 		updateLanguageStatus();
@@ -186,19 +185,19 @@ export function createLanguageStatusItem(documentSelector: DocumentSelector, sta
 				const schemas = (await statusRequest(document.uri.toString())).schemas;
 				statusItem.detail = undefined;
 				if (schemas.length === 0) {
-					statusItem.text = l10n.t('No Schema Validation');
+					statusItem.text = l10n.t('No schema validation');
 					statusItem.detail = l10n.t('no JSON schema configured');
 				} else if (schemas.length === 1) {
-					statusItem.text = l10n.t('Schema Validated');
+					statusItem.text = l10n.t('Schema validated');
 					statusItem.detail = l10n.t('JSON schema configured');
 				} else {
-					statusItem.text = l10n.t('Schema Validated');
+					statusItem.text = l10n.t('Schema validated');
 					statusItem.detail = l10n.t('multiple JSON schemas configured');
 				}
 				statusItem.command = {
-					command: '_json.showAssociatedSchemaList',
+					command: CommandIds.showAssociatedSchemaList,
 					title: l10n.t('Show Schemas'),
-					arguments: [{ schemas, uri: document.uri.toString() } as ShowSchemasInput]
+					arguments: [{ schemas, uri: document.uri.toString() } satisfies ShowSchemasInput]
 				};
 			} catch (e) {
 				statusItem.text = l10n.t('Unable to compute used schemas: {0}', e.message);
@@ -276,6 +275,89 @@ export function createDocumentSymbolsLimitItem(documentSelector: DocumentSelecto
 	statusItem.text = l10n.t('Outline');
 	statusItem.detail = l10n.t('only {0} document symbols shown for performance reasons', limit);
 	statusItem.command = { command: openSettingsCommand, arguments: [settingId], title: configureSettingsLabel };
+	return Disposable.from(statusItem);
+}
+
+
+export function createSchemaLoadStatusItem(newItem: (fileSchemaError: Diagnostic) => Disposable) {
+	let statusItem: Disposable | undefined;
+	const fileSchemaErrors: Map<string, Diagnostic> = new Map();
+
+	const toDispose: Disposable[] = [];
+	toDispose.push(window.onDidChangeActiveTextEditor(textEditor => {
+		statusItem?.dispose();
+		statusItem = undefined;
+		const doc = textEditor?.document;
+		if (doc) {
+			const fileSchemaError = fileSchemaErrors.get(doc.uri.toString());
+			if (fileSchemaError !== undefined) {
+				statusItem = newItem(fileSchemaError);
+			}
+		}
+	}));
+	toDispose.push(workspace.onDidCloseTextDocument(document => {
+		fileSchemaErrors.delete(document.uri.toString());
+	}));
+
+	function update(uri: Uri, diagnostics: Diagnostic[]) {
+		const fileSchemaError = diagnostics.find(isSchemaResolveError);
+		const uriString = uri.toString();
+
+		if (fileSchemaError === undefined) {
+			fileSchemaErrors.delete(uriString);
+			if (statusItem && uriString === window.activeTextEditor?.document.uri.toString()) {
+				statusItem.dispose();
+				statusItem = undefined;
+			}
+		} else {
+			const current = fileSchemaErrors.get(uriString);
+			if (current?.message === fileSchemaError.message) {
+				return;
+			}
+			fileSchemaErrors.set(uriString, fileSchemaError);
+			if (uriString === window.activeTextEditor?.document.uri.toString()) {
+				statusItem?.dispose();
+				statusItem = newItem(fileSchemaError);
+			}
+		}
+	}
+	return {
+		update,
+		dispose() {
+			statusItem?.dispose();
+			toDispose.forEach(d => d.dispose());
+			toDispose.length = 0;
+			statusItem = undefined;
+			fileSchemaErrors.clear();
+		}
+	};
+}
+
+
+
+export function createSchemaLoadIssueItem(documentSelector: DocumentSelector, schemaDownloadEnabled: boolean | undefined, diagnostic: Diagnostic): Disposable {
+	const statusItem = languages.createLanguageStatusItem('json.documentSymbolsStatus', documentSelector);
+	statusItem.name = l10n.t('JSON Outline Status');
+	statusItem.severity = LanguageStatusSeverity.Error;
+	statusItem.text = 'Schema download issue';
+	if (!workspace.isTrusted) {
+		statusItem.detail = l10n.t('Workspace untrusted');
+		statusItem.command = { command: CommandIds.workbenchTrustManage, title: 'Configure Trust' };
+	} else if (!schemaDownloadEnabled) {
+		statusItem.detail = l10n.t('Download disabled');
+		statusItem.command = { command: CommandIds.workbenchActionOpenSettings, arguments: [SettingIds.enableSchemaDownload], title: 'Configure' };
+	} else if (typeof diagnostic.code === 'number' && diagnostic.code === ErrorCodes.UntrustedSchemaError) {
+		statusItem.detail = l10n.t('Location untrusted');
+		const schemaUri = diagnostic.relatedInformation?.[0]?.location.uri;
+		if (schemaUri) {
+			statusItem.command = { command: CommandIds.configureTrustedDomainsCommandId, arguments: [schemaUri.toString()], title: 'Configure Trusted Domains' };
+		} else {
+			statusItem.command = { command: CommandIds.workbenchActionOpenSettings, arguments: [SettingIds.trustedDomains], title: 'Configure Trusted Domains' };
+		}
+	} else {
+		statusItem.detail = l10n.t('Unable to resolve schema');
+		statusItem.command = { command: CommandIds.retryResolveSchemaCommandId, title: 'Retry' };
+	}
 	return Disposable.from(statusItem);
 }
 

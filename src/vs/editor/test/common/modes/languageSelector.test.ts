@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { LanguageSelector, score, selectLanguageIds } from '../../../common/languageSelector.js';
 
 suite('LanguageSelector', function () {
 
@@ -172,5 +172,28 @@ suite('LanguageSelector', function () {
 			notebookType: '*'
 		}, obj.uri, obj.langId, true, undefined, undefined);
 		assert.strictEqual(value, 0);
+	});
+
+	test('selectLanguageIds', function () {
+		const result = new Set<string>();
+
+		selectLanguageIds('typescript', result);
+		assert.deepStrictEqual([...result], ['typescript']);
+
+		result.clear();
+		selectLanguageIds({ language: 'python', scheme: 'file' }, result);
+		assert.deepStrictEqual([...result], ['python']);
+
+		result.clear();
+		selectLanguageIds({ scheme: 'file' }, result);
+		assert.deepStrictEqual([...result], []);
+
+		result.clear();
+		selectLanguageIds(['javascript', { language: 'css' }, { scheme: 'untitled' }], result);
+		assert.deepStrictEqual([...result].sort(), ['css', 'javascript']);
+
+		result.clear();
+		selectLanguageIds('*', result);
+		assert.deepStrictEqual([...result], ['*']);
 	});
 });

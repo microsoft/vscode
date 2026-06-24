@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { HighlightedLabel } from '../../browser/ui/highlightedlabel/highlightedLabel.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('HighlightedLabel', () => {
 	let label: HighlightedLabel;
 
 	setup(() => {
-		label = new HighlightedLabel(document.createElement('div'), { supportIcons: true });
+		label = new HighlightedLabel(document.createElement('div'));
 	});
 
 	test('empty label', function () {
@@ -21,6 +21,11 @@ suite('HighlightedLabel', () => {
 	test('no decorations', function () {
 		label.set('hello');
 		assert.strictEqual(label.element.innerHTML, 'hello');
+	});
+
+	test('colored symbol icon', function () {
+		label.set('$(symbol-class) hello', undefined, undefined, undefined, true);
+		assert.strictEqual(label.element.innerHTML, '<span class="codicon codicon-symbol-class codicon-colored"></span> hello');
 	});
 
 	test('escape html', function () {

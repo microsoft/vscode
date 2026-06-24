@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IEditorMemento, IEditorCloseEvent, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtUri } from 'vs/base/common/resources';
-import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { IEditorMemento, IEditorCloseEvent, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { EditorPane } from './editorPane.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtUri } from '../../../../base/common/resources.js';
+import { DisposableMap, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 
 /**
  * Base class of editors that want to store and restore view state.
@@ -27,7 +27,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	private readonly groupListener = this._register(new MutableDisposable());
 
-	private editorViewStateDisposables: Map<EditorInput, IDisposable> | undefined;
+	private editorViewStateDisposables: DisposableMap<EditorInput, IDisposable> | undefined;
 
 	constructor(
 		id: string,
@@ -95,13 +95,13 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		// is disposed.
 		if (!this.tracksDisposedEditorViewState()) {
 			if (!this.editorViewStateDisposables) {
-				this.editorViewStateDisposables = new Map<EditorInput, IDisposable>();
+				this.editorViewStateDisposables = this._register(new DisposableMap<EditorInput, IDisposable>());
 			}
 
 			if (!this.editorViewStateDisposables.has(input)) {
 				this.editorViewStateDisposables.set(input, Event.once(input.onWillDispose)(() => {
 					this.clearEditorViewState(resource, this.group);
-					this.editorViewStateDisposables?.delete(input);
+					this.editorViewStateDisposables?.deleteAndDispose(input);
 				}));
 			}
 		}
@@ -114,6 +114,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 			(!this.shouldRestoreEditorViewState(input) && !this.group.contains(input))
 		) {
 			this.clearEditorViewState(resource, this.group);
+			this.editorViewStateDisposables?.deleteAndDispose(input);
 		}
 
 		// Otherwise we save the view state
@@ -126,7 +127,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 		// new editor: check with workbench.editor.restoreViewState setting
 		if (context?.newInGroup) {
-			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') !== false /* restore by default */;
 		}
 
 		// existing editor: always restore viewstate
@@ -183,18 +184,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 
 	protected clearEditorViewState(resource: URI, group?: IEditorGroup): void {
 		this.viewState.clearEditorState(resource, group);
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this.editorViewStateDisposables) {
-			for (const [, disposables] of this.editorViewStateDisposables) {
-				disposables.dispose();
-			}
-
-			this.editorViewStateDisposables = undefined;
-		}
 	}
 
 	//#region Subclasses should/could override based on needs

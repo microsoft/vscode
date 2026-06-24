@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
+import { diffEditorDefaultOptions } from './diffEditor.js';
+import { editorOptionsRegistry } from './editorOptions.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
+import * as nls from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
@@ -25,6 +26,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: EDITOR_MODEL_DEFAULTS.tabSize,
 			minimum: 1,
+			maximum: 100,
 			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		'editor.indentSize': {
@@ -62,15 +64,17 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
 		'editor.wordBasedSuggestions': {
-			enum: ['off', 'currentDocument', 'matchingDocuments', 'allDocuments'],
-			default: 'matchingDocuments',
+			enum: ['off', 'offWithInlineSuggestions', 'currentDocument', 'matchingDocuments', 'allDocuments'],
+			default: 'offWithInlineSuggestions',
 			enumDescriptions: [
 				nls.localize('wordBasedSuggestions.off', 'Turn off Word Based Suggestions.'),
+				nls.localize('wordBasedSuggestions.offWithInlineSuggestions', 'Turn off Word Based Suggestions when Inline Suggestions are present.'),
 				nls.localize('wordBasedSuggestions.currentDocument', 'Only suggest words from the active document.'),
 				nls.localize('wordBasedSuggestions.matchingDocuments', 'Suggest words from all open documents of the same language.'),
-				nls.localize('wordBasedSuggestions.allDocuments', 'Suggest words from all open documents.')
+				nls.localize('wordBasedSuggestions.allDocuments', 'Suggest words from all open documents.'),
 			],
-			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document and from which documents they are computed.")
+			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document and from which documents they are computed."),
+			experiment: { mode: 'auto' },
 		},
 		'editor.semanticHighlighting.enabled': {
 			enum: [true, false, 'configuredByTheme'],
@@ -94,7 +98,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.experimental.asyncTokenization': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
 			tags: ['experimental'],
 		},
@@ -108,6 +112,51 @@ const editorConfiguration: IConfigurationNode = {
 			default: false,
 			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 			tags: ['experimental'],
+		},
+		'editor.experimental.treeSitterTelemetry': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `#editor.experimental.preferTreeSitter#` for specific languages will take precedence."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		'editor.experimental.preferTreeSitter.css': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for css."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		'editor.experimental.preferTreeSitter.typescript': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for typescript."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		'editor.experimental.preferTreeSitter.ini': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for ini."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		'editor.experimental.preferTreeSitter.regex': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.regex', "Controls whether tree sitter parsing should be turned on for regex. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for regex."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
@@ -158,7 +207,8 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderSideBySide,
-			description: nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline.")
+			description: nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline."),
+			agentsWindow: { default: true },
 		},
 		'diffEditor.renderSideBySideInlineBreakpoint': {
 			type: 'number',
@@ -168,17 +218,20 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.useInlineViewWhenSpaceIsLimited': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.useInlineViewWhenSpaceIsLimited,
-			description: nls.localize('useInlineViewWhenSpaceIsLimited', "If enabled and the editor width is too small, the inline view is used.")
+			description: nls.localize('useInlineViewWhenSpaceIsLimited', "If enabled and the editor width is too small, the inline view is used."),
+			agentsWindow: { default: true },
 		},
 		'diffEditor.renderMarginRevertIcon': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderMarginRevertIcon,
-			description: nls.localize('renderMarginRevertIcon', "When enabled, the diff editor shows arrows in its glyph margin to revert changes.")
+			description: nls.localize('renderMarginRevertIcon', "When enabled, the diff editor shows arrows in its glyph margin to revert changes."),
+			agentsWindow: { default: false },
 		},
 		'diffEditor.renderGutterMenu': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderGutterMenu,
-			description: nls.localize('renderGutterMenu', "When enabled, the diff editor shows a special gutter for revert and stage actions.")
+			description: nls.localize('renderGutterMenu', "When enabled, the diff editor shows a special gutter for revert and stage actions."),
+			agentsWindow: { default: false },
 		},
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
@@ -188,7 +241,8 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.renderIndicators': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderIndicators,
-			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes."),
+			agentsWindow: { default: false },
 		},
 		'diffEditor.codeLens': {
 			type: 'boolean',
@@ -207,18 +261,20 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['legacy', 'advanced'],
+			enum: ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
 			default: diffEditorDefaultOptions.diffAlgorithm,
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-			],
-			tags: ['experimental'],
+				nls.localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
+				nls.localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
+			]
 		},
 		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.hideUnchangedRegions.enabled,
 			markdownDescription: nls.localize('hideUnchangedRegions.enabled', "Controls whether the diff editor shows unchanged regions."),
+			agentsWindow: { default: true },
 		},
 		'diffEditor.hideUnchangedRegions.revealLineCount': {
 			type: 'integer',
@@ -247,7 +303,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showEmptyDecorations,
 			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
-		}
+		},
+		'diffEditor.experimental.useTrueInlineView': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
+			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+		},
 	}
 };
 
@@ -295,3 +356,15 @@ export function isDiffEditorConfigurationKey(key: string): boolean {
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(editorConfiguration);
+
+export async function registerEditorFontConfigurations(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
+	const editorKeysWithFont = ['editor.fontFamily'];
+	const fontSnippets = await getFontSnippets();
+	for (const key of editorKeysWithFont) {
+		if (
+			editorConfiguration.properties && editorConfiguration.properties[key]
+		) {
+			editorConfiguration.properties[key].defaultSnippets = fontSnippets;
+		}
+	}
+}

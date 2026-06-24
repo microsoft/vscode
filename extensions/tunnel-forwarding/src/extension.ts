@@ -21,13 +21,25 @@ export const enum TunnelPrivacyId {
  */
 const CLEANUP_TIMEOUT = 10_000;
 
-const cliPath = process.env.VSCODE_FORWARDING_IS_DEV
-	? path.join(__dirname, '../../../cli/target/debug/code')
-	: path.join(
-		vscode.env.appRoot,
-		process.platform === 'darwin' ? 'bin' : '../../bin',
-		vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders',
-	) + (process.platform === 'win32' ? '.exe' : '');
+const versionFolder = vscode.env.appCommit?.substring(0, 10);
+let cliPath: string;
+if (process.env.VSCODE_FORWARDING_IS_DEV) {
+	cliPath = path.join(__dirname, '../../../cli/target/debug/code');
+} else {
+	let binPath: string;
+	if (process.platform === 'darwin') {
+		binPath = 'bin';
+	} else if (process.platform === 'win32' && versionFolder && vscode.env.appRoot.includes(versionFolder)) {
+		binPath = '../../../bin';
+	} else {
+		binPath = '../../bin';
+	}
+
+	const cliName = vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders';
+	const extension = process.platform === 'win32' ? '.exe' : '';
+
+	cliPath = path.join(vscode.env.appRoot, binPath, cliName) + extension;
+}
 
 class Tunnel implements vscode.Tunnel {
 	private readonly disposeEmitter = new vscode.EventEmitter<void>();
@@ -37,6 +49,7 @@ class Tunnel implements vscode.Tunnel {
 	constructor(
 		public readonly remoteAddress: { port: number; host: string },
 		public readonly privacy: TunnelPrivacyId,
+		public readonly protocol: 'http' | 'https',
 	) { }
 
 	public setPortFormat(formatString: string) {
@@ -82,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			{
 				tunnelFeatures: {
 					elevation: false,
-					protocol: false,
+					protocol: true,
 					privacyOptions: [
 						{ themeIcon: 'globe', id: TunnelPrivacyId.Public, label: vscode.l10n.t('Public') },
 						{ themeIcon: 'lock', id: TunnelPrivacyId.Private, label: vscode.l10n.t('Private') },
@@ -152,6 +165,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 		const tunnel = new Tunnel(
 			tunnelOptions.remoteAddress,
 			(tunnelOptions.privacy as TunnelPrivacyId) || TunnelPrivacyId.Private,
+			tunnelOptions.protocol === 'https' ? 'https' : 'http',
 		);
 
 		this.tunnels.add(tunnel);
@@ -238,7 +252,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 			return;
 		}
 
-		const ports = [...this.tunnels].map(t => ({ number: t.remoteAddress.port, privacy: t.privacy }));
+		const ports = [...this.tunnels].map(t => ({ number: t.remoteAddress.port, privacy: t.privacy, protocol: t.protocol }));
 		this.state.process.stdin.write(`${JSON.stringify(ports)}\n`);
 
 		if (ports.length === 0 && !this.state.cleanupTimeout) {

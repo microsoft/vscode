@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { Range } from 'vs/base/common/range';
-import { OmitOptional } from 'vs/base/common/types';
-import 'vs/css!./contextview';
+import { BrowserFeatures } from '../../canIUse.js';
+import * as DOM from '../../dom.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
+import * as platform from '../../../common/platform.js';
+import { OmitOptional } from '../../../common/types.js';
+import './contextview.css';
+
+export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -31,18 +33,6 @@ export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
 	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
 }
 
-export const enum AnchorAlignment {
-	LEFT, RIGHT
-}
-
-export const enum AnchorPosition {
-	BELOW, ABOVE
-}
-
-export const enum AnchorAxisAlignment {
-	VERTICAL, HORIZONTAL
-}
-
 export interface IDelegate {
 	/**
 	 * The anchor where to position the context view.
@@ -61,7 +51,9 @@ export interface IDelegate {
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
 
-	// context views with higher layers are rendered over contet views with lower layers
+	/**
+	 * context views with higher layers are rendered higher in z-index order
+	 */
 	layer?: number; // Default: 0
 }
 
@@ -71,64 +63,40 @@ export interface IContextViewProvider {
 	layout(): void;
 }
 
-export interface IPosition {
-	top: number;
-	left: number;
-}
+export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {
+	// Get the element's position and size (to anchor the view)
+	if (DOM.isHTMLElement(anchor)) {
+		const elementPosition = DOM.getDomNodePagePosition(anchor);
 
-export interface ISize {
-	width: number;
-	height: number;
-}
+		// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
+		// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+		// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
+		const zoom = DOM.getDomNodeZoomLevel(anchor);
 
-export interface IView extends IPosition, ISize { }
-
-export const enum LayoutAnchorPosition {
-	Before,
-	After
-}
-
-export enum LayoutAnchorMode {
-	AVOID,
-	ALIGN
-}
-
-export interface ILayoutAnchor {
-	offset: number;
-	size: number;
-	mode?: LayoutAnchorMode; // default: AVOID
-	position: LayoutAnchorPosition;
-}
-
-/**
- * Lays out a one dimensional view next to an anchor in a viewport.
- *
- * @returns The view offset within the viewport.
- */
-export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
-	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
-
-	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
-		}
-
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
-		}
-
-		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
+		return {
+			top: elementPosition.top * zoom,
+			left: elementPosition.left * zoom,
+			width: elementPosition.width * zoom,
+			height: elementPosition.height * zoom
+		};
+	} else if (isAnchor(anchor)) {
+		return {
+			top: anchor.y,
+			left: anchor.x,
+			width: anchor.width || 1,
+			height: anchor.height || 2
+		};
 	} else {
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
-		}
-
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
-		}
-
-		return 0; // sad case, lay it over the anchor
+		return {
+			top: anchor.posy,
+			left: anchor.posx,
+			// We are about to position the context view where the mouse
+			// cursor is. To prevent the view being exactly under the mouse
+			// when showing and thus potentially triggering an action within,
+			// we treat the mouse location like a small sized block element.
+			width: 2,
+			height: 2
+		};
 	}
 }
 
@@ -169,13 +137,11 @@ export class ContextView extends Disposable {
 		if (this.container) {
 			this.toDisposeOnSetContainer.dispose();
 
+			this.view.remove();
 			if (this.shadowRoot) {
-				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
 				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
-			} else {
-				this.container.removeChild(this.view);
 			}
 
 			this.container = null;
@@ -268,82 +234,14 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		const anchor = this.delegate!.getAnchor();
-
-		// Compute around
-		let around: IView;
-
-		// Get the element's position and size (to anchor the view)
-		if (anchor instanceof HTMLElement) {
-			const elementPosition = DOM.getDomNodePagePosition(anchor);
-
-			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
-			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-			const zoom = DOM.getDomNodeZoomLevel(anchor);
-
-			around = {
-				top: elementPosition.top * zoom,
-				left: elementPosition.left * zoom,
-				width: elementPosition.width * zoom,
-				height: elementPosition.height * zoom
-			};
-		} else if (isAnchor(anchor)) {
-			around = {
-				top: anchor.y,
-				left: anchor.x,
-				width: anchor.width || 1,
-				height: anchor.height || 2
-			};
-		} else {
-			around = {
-				top: anchor.posy,
-				left: anchor.posx,
-				// We are about to position the context view where the mouse
-				// cursor is. To prevent the view being exactly under the mouse
-				// when showing and thus potentially triggering an action within,
-				// we treat the mouse location like a small sized block element.
-				width: 2,
-				height: 2
-			};
-		}
-
-		const viewSizeWidth = DOM.getTotalWidth(this.view);
-		const viewSizeHeight = DOM.getTotalHeight(this.view);
-
-		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
-
-		let top: number;
-		let left: number;
-
-		const activeWindow = DOM.getActiveWindow();
-		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-
-			// if view intersects vertically with anchor,  we must avoid the anchor
-			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-		} else {
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
-
-			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
-
-			// if view intersects horizontally with anchor, we must avoid the anchor
-			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
-				verticalAnchor.mode = LayoutAnchorMode.AVOID;
-			}
-
-			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
-		}
+		const anchor = getAnchorRect(this.delegate!.getAnchor());
+		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
+		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
+		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		const anchorPosition = this.delegate!.anchorPosition;
+		const anchorAlignment = this.delegate!.anchorAlignment;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
+		const { top, left } = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
@@ -351,8 +249,13 @@ export class ContextView extends Disposable {
 		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
+
+		// Account for container scroll when positioning the context view
+		const containerScrollTop = this.container!.scrollTop || 0;
+		const containerScrollLeft = this.container!.scrollLeft || 0;
+
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top) + containerScrollTop}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left) + containerScrollLeft}px`;
 		this.view.style.width = 'initial';
 	}
 
@@ -364,7 +267,9 @@ export class ContextView extends Disposable {
 			delegate.onHide(data);
 		}
 
-		this.toDisposeOnClean.dispose();
+		const toDispose = this.toDisposeOnClean;
+		this.toDisposeOnClean = Disposable.None;
+		toDispose.dispose();
 
 		DOM.hide(this.view);
 	}
@@ -416,7 +321,7 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
 	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
 	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
 
 	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
 	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }

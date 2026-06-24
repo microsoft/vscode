@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BlockCommentCommand } from 'vs/editor/contrib/comment/browser/blockCommentCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ICommand } from '../../../../common/editorCommon.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { BlockCommentCommand } from '../../browser/blockCommentCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 
 function _testCommentCommand(lines: string[], selection: Selection, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand, expectedLines: string[], expectedSelection: Selection): void {
 	const languageId = 'commentMode';

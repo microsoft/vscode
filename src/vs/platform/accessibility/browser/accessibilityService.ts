@@ -3,26 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { alert, status } from 'vs/base/browser/ui/aria/aria';
-import { mainWindow } from 'vs/base/browser/window';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { addDisposableListener } from '../../../base/browser/dom.js';
+import { alert, status } from '../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from '../common/accessibility.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
 	declare readonly _serviceBrand: undefined;
 
 	private _accessibilityModeEnabledContext: IContextKey<boolean>;
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
-	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
+	protected readonly _onDidChangeScreenReaderOptimized = this._register(new Emitter<void>());
 
 	protected _configMotionReduced: 'auto' | 'on' | 'off';
 	protected _systemMotionReduced: boolean;
-	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
+	protected readonly _onDidChangeReducedMotion = this._register(new Emitter<void>());
+
+	protected _configTransparencyReduced: 'auto' | 'on' | 'off';
+	protected _systemTransparencyReduced: boolean;
+	protected readonly _onDidChangeReducedTransparency = this._register(new Emitter<void>());
+
+	private _linkUnderlinesEnabled: boolean;
+	protected readonly _onDidChangeLinkUnderline = this._register(new Emitter<void>());
 
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -42,6 +49,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 				this._configMotionReduced = this._configurationService.getValue('workbench.reduceMotion');
 				this._onDidChangeReducedMotion.fire();
 			}
+			if (e.affectsConfiguration('workbench.reduceTransparency')) {
+				this._configTransparencyReduced = this._configurationService.getValue('workbench.reduceTransparency');
+				this._onDidChangeReducedTransparency.fire();
+			}
 		}));
 		updateContextKey();
 		this._register(this.onDidChangeScreenReaderOptimized(() => updateContextKey()));
@@ -50,7 +61,15 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 
+		const reduceTransparencyMatcher = mainWindow.matchMedia(`(prefers-reduced-transparency: reduce)`);
+		this._systemTransparencyReduced = reduceTransparencyMatcher.matches;
+		this._configTransparencyReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceTransparency');
+
+		this._linkUnderlinesEnabled = this._configurationService.getValue('accessibility.underlineLinks');
+
 		this.initReducedMotionListeners(reduceMotionMatcher);
+		this.initReducedTransparencyListeners(reduceTransparencyMatcher);
+		this.initLinkUnderlineListeners();
 	}
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
@@ -64,12 +83,53 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		const updateRootClasses = () => {
 			const reduce = this.isMotionReduced();
-			this._layoutService.mainContainer.classList.toggle('reduce-motion', reduce);
-			this._layoutService.mainContainer.classList.toggle('enable-motion', !reduce);
+			this._layoutService.mainContainer.classList.toggle('monaco-reduce-motion', reduce);
+			this._layoutService.mainContainer.classList.toggle('monaco-enable-motion', !reduce);
 		};
 
 		updateRootClasses();
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
+	}
+
+	private initReducedTransparencyListeners(reduceTransparencyMatcher: MediaQueryList) {
+
+		this._register(addDisposableListener(reduceTransparencyMatcher, 'change', () => {
+			this._systemTransparencyReduced = reduceTransparencyMatcher.matches;
+			if (this._configTransparencyReduced === 'auto') {
+				this._onDidChangeReducedTransparency.fire();
+			}
+		}));
+
+		const updateRootClasses = () => {
+			const reduce = this.isTransparencyReduced();
+			this._layoutService.mainContainer.classList.toggle('monaco-reduce-transparency', reduce);
+		};
+
+		updateRootClasses();
+		this._register(this.onDidChangeReducedTransparency(() => updateRootClasses()));
+	}
+
+	private initLinkUnderlineListeners() {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.underlineLinks')) {
+				const linkUnderlinesEnabled = this._configurationService.getValue<boolean>('accessibility.underlineLinks');
+				this._linkUnderlinesEnabled = linkUnderlinesEnabled;
+				this._onDidChangeLinkUnderline.fire();
+			}
+		}));
+
+		const updateLinkUnderlineClasses = () => {
+			const underlineLinks = this._linkUnderlinesEnabled;
+			this._layoutService.mainContainer.classList.toggle('underline-links', underlineLinks);
+		};
+
+		updateLinkUnderlineClasses();
+
+		this._register(this.onDidChangeLinkUnderlines(() => updateLinkUnderlineClasses()));
+	}
+
+	public onDidChangeLinkUnderlines(listener: () => void) {
+		return this._onDidChangeLinkUnderline.event(listener);
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
@@ -77,8 +137,23 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	}
 
 	isScreenReaderOptimized(): boolean {
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
+		const config = this.getAccessibilitySupportConfigurationValue();
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	}
+
+	private getAccessibilitySupportConfigurationValue(): 'auto' | 'off' | 'on' {
+		const inspectedValue = this._configurationService.inspect<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+
+		// Resolve the setting explicitly in scope precedence order to avoid relying on
+		// resource-dependent resolution in this global service.
+		return inspectedValue.policyValue
+			?? inspectedValue.memoryValue
+			?? inspectedValue.workspaceFolderValue
+			?? inspectedValue.workspaceValue
+			?? inspectedValue.userValue
+			?? inspectedValue.applicationValue
+			?? inspectedValue.defaultValue
+			?? 'auto';
 	}
 
 	get onDidChangeReducedMotion(): Event<void> {
@@ -88,6 +163,15 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	isMotionReduced(): boolean {
 		const config = this._configMotionReduced;
 		return config === 'on' || (config === 'auto' && this._systemMotionReduced);
+	}
+
+	get onDidChangeReducedTransparency(): Event<void> {
+		return this._onDidChangeReducedTransparency.event;
+	}
+
+	isTransparencyReduced(): boolean {
+		const config = this._configTransparencyReduced;
+		return config === 'on' || (config === 'auto' && this._systemTransparencyReduced);
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {

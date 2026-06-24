@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchListOptionsUpdate } from 'vs/platform/list/browser/listService';
-import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel, INotebookViewZoneChangeAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IListContextMenuEvent, IListEvent, IListMouseEvent } from '../../../../../base/browser/ui/list/list.js';
+import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchListOptionsUpdate } from '../../../../../platform/list/browser/listService.js';
+import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel, INotebookCellOverlayChangeAccessor, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CellPartsCollection } from './cellPart.js';
+import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
+import { ICellRange } from '../../common/notebookRange.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
 
 export interface INotebookCellList extends ICoordinatesConverter {
@@ -31,11 +32,11 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
-	onWillScroll: Event<ScrollEvent>;
-	onDidScroll: Event<ScrollEvent>;
-	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
-	onDidChangeContentHeight: Event<number>;
-	onDidChangeVisibleRanges: Event<void>;
+	readonly onWillScroll: Event<ScrollEvent>;
+	readonly onDidScroll: Event<ScrollEvent>;
+	readonly onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
+	readonly onDidChangeContentHeight: Event<number>;
+	readonly onDidChangeVisibleRanges: Event<void>;
 	visibleRanges: ICellRange[];
 	scrollTop: number;
 	scrollHeight: number;
@@ -66,6 +67,8 @@ export interface INotebookCellList extends ICoordinatesConverter {
 	revealOffsetInCenterIfOutsideViewport(offset: number): void;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void;
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
@@ -120,3 +123,5 @@ export interface ICoordinatesConverter {
 	modelIndexIsVisible(modelIndex: number): boolean;
 	convertModelIndexToViewIndex(modelIndex: number): number;
 }
+
+export const collapsedCellTTPolicy = createTrustedTypesPolicy('collapsedCellPreview', { createHTML: value => value });

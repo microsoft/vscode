@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import * as paths from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { CharCode } from './charCode.js';
+import { MarshalledId } from './marshallingIds.js';
+import * as paths from './path.js';
+import { isWindows } from './platform.js';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -22,7 +22,11 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
-		throw new Error('[UriError]: Scheme contains illegal characters.');
+		const matches = [...ret.scheme.matchAll(/[^\w\d+.-]/gu)];
+		const detail = matches.length > 0
+			? ` Found '${matches[0][0]}' at index ${matches[0].index} (${matches.length} total)`
+			: '';
+		throw new Error(`[UriError]: Scheme contains illegal characters.${detail} (len:${ret.scheme.length})`);
 	}
 
 	// path, http://tools.ietf.org/html/rfc3986#section-3.3
@@ -97,11 +101,11 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  */
 export class URI implements UriComponents {
 
-	static isUri(thing: any): thing is URI {
+	static isUri(thing: unknown): thing is URI {
 		if (thing instanceof URI) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return typeof (<URI>thing).authority === 'string'
@@ -355,7 +359,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path: ${uri.toString()}`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {
@@ -413,6 +417,10 @@ export class URI implements UriComponents {
 			return result;
 		}
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `URI(${this.toString()})`;
+	}
 }
 
 export interface UriComponents {
@@ -423,7 +431,7 @@ export interface UriComponents {
 	fragment?: string;
 }
 
-export function isUriComponents(thing: any): thing is UriComponents {
+export function isUriComponents(thing: unknown): thing is UriComponents {
 	if (!thing || typeof thing !== 'object') {
 		return false;
 	}
@@ -469,6 +477,7 @@ class Uri extends URI {
 	}
 
 	override toJSON(): UriComponents {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const res = <UriState>{
 			$mid: MarshalledId.Uri
 		};

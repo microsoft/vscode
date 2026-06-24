@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import assert from 'assert';
+import { ScrollbarState } from '../../../../browser/ui/scrollbar/scrollbarState.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ScrollbarState', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('inflates slider size', () => {
 		const actual = new ScrollbarState(0, 14, 0, 339, 42423, 32787);
 

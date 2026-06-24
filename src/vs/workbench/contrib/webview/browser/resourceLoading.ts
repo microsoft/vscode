@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isUNC } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { normalize, sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isUNC } from '../../../../base/common/extpath.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { getWebviewContentMimeType } from '../../../../platform/webview/common/mimeTypes.js';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied, NotModified }
@@ -24,6 +25,7 @@ export namespace WebviewResourceResponse {
 			public readonly etag: string | undefined,
 			public readonly mtime: number | undefined,
 			public readonly mimeType: string,
+			public readonly size: number,
 		) { }
 	}
 
@@ -43,54 +45,69 @@ export namespace WebviewResourceResponse {
 }
 
 export async function loadLocalResource(
+	accessor: ServicesAccessor,
 	requestUri: URI,
 	options: {
 		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
+		range?: { readonly start: number; readonly end?: number };
 	},
-	fileService: IFileService,
-	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	logService.debug(`loadLocalResource - begin. requestUri=${requestUri}`);
+	const uriIdentityService = accessor.get(IUriIdentityService);
+	const fileService = accessor.get(IFileService);
+	const logService = accessor.get(ILogService);
 
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, uriIdentityService);
 
-	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+	logService.trace(`Webview.loadLocalResource - trying to load resource. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
 	if (!resourceToLoad) {
+		logService.trace(`Webview.loadLocalResource - access denied. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 		return WebviewResourceResponse.AccessDenied;
 	}
 
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch }, token);
-		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
+		const readOptions: { etag?: string; position?: number; length?: number } = { etag: options.ifNoneMatch };
+		if (options.range) {
+			readOptions.position = options.range.start;
+			if (options.range.end !== undefined) {
+				if (options.range.end < options.range.start) {
+					return WebviewResourceResponse.Failed;
+				}
+				readOptions.length = options.range.end - options.range.start + 1;
+			}
+		}
+		const result = await fileService.readFileStream(resourceToLoad, readOptions, token);
+		logService.trace(`Webview.loadLocalResource - Loaded. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime, result.size);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
 			const result = err.fileOperationResult;
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				logService.trace(`Webview.loadLocalResource - not modified. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 				return new WebviewResourceResponse.NotModified(mime, (err.options as IWriteFileOptions | undefined)?.mtime);
 			}
 		}
 
 		// Otherwise the error is unexpected.
-		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
-		console.log(err);
-
+		logService.error(`Webview.loadLocalResource - Error using fileReader. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 		return WebviewResourceResponse.Failed;
 	}
 }
 
-function getResourceToLoad(
+export function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
+	uriIdentityService: IUriIdentityService,
 ): URI | undefined {
+	const requestUriNoQueryString = requestUri.with({ query: '' });
 	for (const root of roots) {
-		if (containsResource(root, requestUri)) {
+		if (containsResource(root, requestUriNoQueryString, uriIdentityService)) {
 			return normalizeResourcePath(requestUri);
 		}
 	}
@@ -98,20 +115,30 @@ function getResourceToLoad(
 	return undefined;
 }
 
-function containsResource(root: URI, resource: URI): boolean {
-	if (root.scheme !== resource.scheme) {
+function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
+	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
 		return false;
 	}
 
-	let resourceFsPath = normalize(resource.fsPath);
-	let rootPath = normalize(root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep));
-
-	if (isUNC(root.fsPath) && isUNC(resource.fsPath)) {
-		rootPath = rootPath.toLowerCase();
-		resourceFsPath = resourceFsPath.toLowerCase();
+	// Compare unc paths case-insensitively
+	if (root.scheme === Schemas.file && isUNC(root.fsPath)) {
+		if (resource.scheme === Schemas.file && isUNC(resource.fsPath)) {
+			return uriIdentityService.extUri.isEqualOrParent(
+				resource.with({
+					path: resource.path.toLowerCase(),
+					authority: resource.authority.toLowerCase()
+				}),
+				root.with({
+					path: root.path.toLowerCase(),
+					authority: root.authority.toLowerCase()
+				}),
+				/* ignoreFragment */ true
+			);
+		}
+		return false;
 	}
 
-	return resourceFsPath.startsWith(rootPath);
+	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
 }
 
 function normalizeResourcePath(resource: URI): URI {

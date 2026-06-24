@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition } from './core/position.js';
 
 export interface IGuidesTextModelPart {
 	/**
@@ -17,7 +17,7 @@ export interface IGuidesTextModelPart {
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
-	 * Requests the the indent guides for the given range of lines.
+	 * Requests the indent guides for the given range of lines.
 	 * `result[i]` will contain the indent guides of the `startLineNumber + i`th line.
 	 * @internal
 	 */

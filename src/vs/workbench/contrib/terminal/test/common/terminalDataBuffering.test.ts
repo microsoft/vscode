@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TerminalDataBufferer } from '../../../../../platform/terminal/common/terminalDataBuffering.js';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -14,21 +14,21 @@ suite('Workbench - TerminalDataBufferer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let bufferer: TerminalDataBufferer;
-	let counter: { [id: number]: number };
-	let data: { [id: number]: string };
+	let counter: Map<number, number>;
+	let data: Map<number, string>;
 
 	setup(async () => {
-		counter = {};
-		data = {};
+		counter = new Map();
+		data = new Map();
 		bufferer = store.add(new TerminalDataBufferer((id, e) => {
-			if (!(id in counter)) {
-				counter[id] = 0;
+			if (!counter.has(id)) {
+				counter.set(id, 0);
 			}
-			counter[id]++;
-			if (!(id in data)) {
-				data[id] = '';
+			counter.set(id, counter.get(id)! + 1);
+			if (!data.has(id)) {
+				data.set(id, '');
 			}
-			data[id] = e;
+			data.set(id, e);
 		}));
 	});
 
@@ -45,13 +45,13 @@ suite('Workbench - TerminalDataBufferer', () => {
 
 		terminalOnData.fire('4');
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
+		assert.strictEqual(counter.get(1), 1);
+		assert.strictEqual(data.get(1), '123');
 
 		await wait(0);
 
-		assert.strictEqual(counter[1], 2);
-		assert.strictEqual(data[1], '4');
+		assert.strictEqual(counter.get(1), 2);
+		assert.strictEqual(data.get(1), '4');
 	});
 
 	test('start 2', async () => {
@@ -69,17 +69,17 @@ suite('Workbench - TerminalDataBufferer', () => {
 		terminal2OnData.fire('6');
 		terminal2OnData.fire('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assert.strictEqual(counter.get(1), undefined);
+		assert.strictEqual(data.get(1), undefined);
+		assert.strictEqual(counter.get(2), undefined);
+		assert.strictEqual(data.get(2), undefined);
 
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assert.strictEqual(counter.get(1), 1);
+		assert.strictEqual(data.get(1), '123');
+		assert.strictEqual(counter.get(2), 1);
+		assert.strictEqual(data.get(2), '4567');
 	});
 
 	test('stop', async () => {
@@ -94,8 +94,8 @@ suite('Workbench - TerminalDataBufferer', () => {
 		bufferer.stopBuffering(1);
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
+		assert.strictEqual(counter.get(1), 1);
+		assert.strictEqual(data.get(1), '123');
 	});
 
 	test('start 2 stop 1', async () => {
@@ -113,18 +113,18 @@ suite('Workbench - TerminalDataBufferer', () => {
 		terminal2OnData.fire('6');
 		terminal2OnData.fire('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assert.strictEqual(counter.get(1), undefined);
+		assert.strictEqual(data.get(1), undefined);
+		assert.strictEqual(counter.get(2), undefined);
+		assert.strictEqual(data.get(2), undefined);
 
 		bufferer.stopBuffering(1);
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assert.strictEqual(counter.get(1), 1);
+		assert.strictEqual(data.get(1), '123');
+		assert.strictEqual(counter.get(2), 1);
+		assert.strictEqual(data.get(2), '4567');
 	});
 
 	test('dispose should flush remaining data events', async () => {
@@ -142,17 +142,17 @@ suite('Workbench - TerminalDataBufferer', () => {
 		terminal2OnData.fire('6');
 		terminal2OnData.fire('7');
 
-		assert.strictEqual(counter[1], undefined);
-		assert.strictEqual(data[1], undefined);
-		assert.strictEqual(counter[2], undefined);
-		assert.strictEqual(data[2], undefined);
+		assert.strictEqual(counter.get(1), undefined);
+		assert.strictEqual(data.get(1), undefined);
+		assert.strictEqual(counter.get(2), undefined);
+		assert.strictEqual(data.get(2), undefined);
 
 		bufferer.dispose();
 		await wait(0);
 
-		assert.strictEqual(counter[1], 1);
-		assert.strictEqual(data[1], '123');
-		assert.strictEqual(counter[2], 1);
-		assert.strictEqual(data[2], '4567');
+		assert.strictEqual(counter.get(1), 1);
+		assert.strictEqual(data.get(1), '123');
+		assert.strictEqual(counter.get(2), 1);
+		assert.strictEqual(data.get(2), '4567');
 	});
 });

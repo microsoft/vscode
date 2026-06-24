@@ -37,16 +37,16 @@
 	clip-path: inset(50%);
 }
 
-.monaco-editor, .monaco-diff-editor .synthetic-focus,
-.monaco-editor, .monaco-diff-editor [tabindex="0"]:focus,
-.monaco-editor, .monaco-diff-editor [tabindex="-1"]:focus,
-.monaco-editor, .monaco-diff-editor button:focus,
-.monaco-editor, .monaco-diff-editor input[type=button]:focus,
-.monaco-editor, .monaco-diff-editor input[type=checkbox]:focus,
-.monaco-editor, .monaco-diff-editor input[type=search]:focus,
-.monaco-editor, .monaco-diff-editor input[type=text]:focus,
-.monaco-editor, .monaco-diff-editor select:focus,
-.monaco-editor, .monaco-diff-editor textarea:focus {
+.monaco-editor .synthetic-focus, .monaco-diff-editor .synthetic-focus,
+.monaco-editor [tabindex="0"]:focus, .monaco-diff-editor [tabindex="0"]:focus,
+.monaco-editor [tabindex="-1"]:focus, .monaco-diff-editor [tabindex="-1"]:focus,
+.monaco-editor button:focus, .monaco-diff-editor button:focus,
+.monaco-editor input[type=button]:focus, .monaco-diff-editor input[type=button]:focus,
+.monaco-editor input[type=checkbox]:focus, .monaco-diff-editor input[type=checkbox]:focus,
+.monaco-editor input[type=search]:focus, .monaco-diff-editor input[type=search]:focus,
+.monaco-editor input[type=text]:focus, .monaco-diff-editor input[type=text]:focus,
+.monaco-editor select:focus, .monaco-diff-editor select:focus,
+.monaco-editor textarea:focus, .monaco-diff-editor textarea:focus {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;

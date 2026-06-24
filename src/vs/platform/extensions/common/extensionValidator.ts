@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { IExtensionManifest } from './extensions.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -34,7 +34,7 @@ export interface INormalizedVersion {
 }
 
 const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
-const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -104,8 +104,8 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 	if (version.preRelease) {
 		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
 		if (match) {
-			const [, year, month, day] = match;
-			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+			const [, year, month, day, hours, minutes] = match;
+			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours) || 0, Number(minutes) || 0);
 		}
 	}
 
@@ -267,6 +267,12 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 			return validations;
 		}
 	}
+	if (typeof extensionManifest.extensionAffinity !== 'undefined') {
+		if (!isStringArray(extensionManifest.extensionAffinity)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.extensionAffinity', "property `{0}` can be omitted or must be of type `string[]`", 'extensionAffinity')]);
+			return validations;
+		}
+	}
 	if (typeof extensionManifest.activationEvents !== 'undefined') {
 		if (!isStringArray(extensionManifest.activationEvents)) {
 			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents')]);
@@ -314,12 +320,13 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 	}
 
 	const notices: string[] = [];
-	const isValid = isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
-	if (!isValid) {
+	const validExtensionVersion = isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
+	if (!validExtensionVersion) {
 		for (const notice of notices) {
 			validations.push([Severity.Error, notice]);
 		}
 	}
+
 	return validations;
 }
 
@@ -371,7 +378,7 @@ function isVersionValid(currentVersion: string, date: ProductDate, requestedVers
 	return true;
 }
 
-function isStringArray(arr: string[]): boolean {
+function isStringArray(arr: readonly string[]): boolean {
 	if (!Array.isArray(arr)) {
 		return false;
 	}

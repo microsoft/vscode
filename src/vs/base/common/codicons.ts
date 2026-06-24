@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ThemeIcon } from 'vs/base/common/themables';
-import { register } from 'vs/base/common/codiconsUtil';
-import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
+import { ThemeIcon } from './themables.js';
+import { register } from './codiconsUtil.js';
+import { codiconsLibrary } from './codiconsLibrary.js';
 
 
 /**
@@ -47,6 +47,8 @@ export const codiconsDerived = {
 	gitFetch: register('git-fetch', 0xec1d),
 	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
 	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
+	chatImport: register('chat-import', 0xec86),
+	chatExport: register('chat-export', 0xec87),
 
 } as const;
 

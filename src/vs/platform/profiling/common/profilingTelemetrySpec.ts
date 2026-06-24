@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { errorHandler } from 'vs/base/common/errors';
+import { ILogService } from '../../log/common/log.js';
+import { BottomUpSample } from './profilingModel.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { errorHandler } from '../../../base/common/errors.js';
 
 type TelemetrySampleData = {
 	selfTime: number;
@@ -67,7 +67,18 @@ class PerformanceError extends Error {
 	readonly selfTime: number;
 
 	constructor(data: SampleData) {
-		super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+		// Since the stacks are available via the sample
+		// we can avoid collecting them when constructing the error.
+		if (Error.hasOwnProperty('stackTraceLimit')) {
+			// eslint-disable-next-line local/code-no-any-casts
+			const Err = Error as any as { stackTraceLimit: number }; // For the monaco editor checks.
+			const stackTraceLimit = Err.stackTraceLimit;
+			Err.stackTraceLimit = 0;
+			super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+			Err.stackTraceLimit = stackTraceLimit;
+		} else {
+			super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+		}
 		this.name = 'PerfSampleError';
 		this.selfTime = data.sample.selfTime;
 

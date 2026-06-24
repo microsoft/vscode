@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IIconRegistry, Extensions as IconRegistryExtensions } from 'vs/platform/theme/common/iconRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import * as resources from 'vs/base/common/resources';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { extname, posix } from 'vs/base/common/path';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { extname, posix } from '../../../../base/common/path.js';
 
 interface IIconExtensionPoint {
 	[id: string]: {
@@ -60,7 +60,7 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 							defaultSnippets: [{ body: { fontPath: '${1:myiconfont.woff}', fontCharacter: '${2:\\\\E001}' } }]
 						}
 					],
-					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.'),
+					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an existing ThemeIcon or an icon in an icon font.'),
 				}
 			},
 			required: ['description', 'default'],
@@ -105,12 +105,12 @@ export class IconExtensionPoint {
 						}
 						const extensionLocation = extension.description.extensionLocation;
 						const iconFontLocation = resources.joinPath(extensionLocation, defaultIcon.fontPath);
+						const fontId = getFontId(extension.description, defaultIcon.fontPath);
+						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						if (!resources.isEqualOrParent(iconFontLocation, extensionLocation)) {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.path', "Expected `contributes.icons.default.fontPath` ({0}) to be included inside extension's folder ({0}).", iconFontLocation.path, extensionLocation.path));
 							return;
 						}
-						const fontId = getFontId(extension.description, defaultIcon.fontPath);
-						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						iconRegistry.registerIcon(id, {
 							fontCharacter: defaultIcon.fontCharacter,
 							font: {

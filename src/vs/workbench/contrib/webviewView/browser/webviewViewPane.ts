@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewBadge, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-
-declare const ResizeObserver: any;
+import { addDisposableListener, EventType, findParentWithClass, getWindow } from '../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { Memento } from '../../../common/memento.js';
+import { IViewBadge, IViewDescriptorService } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
+import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
+import { IWebviewViewService, WebviewView } from './webviewViewService.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const storageKeys = {
 	webviewState: 'webviewState',
 } as const;
+
+interface WebviewViewState {
+	[storageKeys.webviewState]?: string | undefined;
+}
 
 export class WebviewViewPane extends ViewPane {
 
@@ -52,7 +53,6 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _rootContainer?: HTMLElement;
-	private _resizeObserver?: any;
 
 	private readonly defaultTitle: string;
 	private setTitle: string | undefined;
@@ -60,11 +60,9 @@ export class WebviewViewPane extends ViewPane {
 	private badge: IViewBadge | undefined;
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
-	private readonly memento: Memento;
-	private readonly viewState: MementoObject;
+	private readonly memento: Memento<WebviewViewState>;
+	private readonly viewState: WebviewViewState;
 	private readonly extensionId?: ExtensionIdentifier;
-
-	private _repositionTimeout?: any;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -74,7 +72,6 @@ export class WebviewViewPane extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -86,7 +83,7 @@ export class WebviewViewPane extends ViewPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.ViewTitle, showActions: ViewPaneShowActions.WhenExpanded }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 
@@ -114,8 +111,6 @@ export class WebviewViewPane extends ViewPane {
 	override dispose() {
 		this._onDispose.fire();
 
-		clearTimeout(this._repositionTimeout);
-
 		super.dispose();
 	}
 
@@ -130,18 +125,19 @@ export class WebviewViewPane extends ViewPane {
 		this._container = container;
 		this._rootContainer = undefined;
 
-		if (!this._resizeObserver) {
-			this._resizeObserver = new ResizeObserver(() => {
-				setTimeout(() => {
-					this.layoutWebview();
-				}, 0);
-			});
+		// The webview iframe lives in an overlay at the document root for DOM
+		// reasons (iframes can't be reparented). This means it's outside the
+		// normal Tab order of the sidebar. Add a tabbable proxy element so
+		// keyboard users can Tab into the webview content.
+		container.tabIndex = 0;
+		container.setAttribute('role', 'document');
+		this._register(addDisposableListener(container, 'focus', (e) => {
+			if (e.target === container && this._webview.value) {
+				this._webview.value.focus();
+			}
+		}));
 
-			this._register(toDisposable(() => {
-				this._resizeObserver.disconnect();
-			}));
-			this._resizeObserver.observe(container);
-		}
+		this.layoutWebview();
 	}
 
 	public override saveState() {
@@ -151,12 +147,6 @@ export class WebviewViewPane extends ViewPane {
 
 		this.memento.saveMemento();
 		super.saveState();
-	}
-
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-
-		this.layoutWebview(new Dimension(width, height));
 	}
 
 	private updateTreeVisibility() {
@@ -187,9 +177,7 @@ export class WebviewViewPane extends ViewPane {
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
 
-		if (this._container) {
-			this.layoutWebview();
-		}
+		this.layoutWebview();
 
 		this._webviewDisposables.add(toDisposable(() => {
 			this._webview.value?.release(this);
@@ -272,11 +260,7 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 
-	override onDidScrollRoot() {
-		this.layoutWebview();
-	}
-
-	private doLayoutWebview(dimension?: Dimension) {
+	private layoutWebview() {
 		const webviewEntry = this._webview.value;
 		if (!this._container || !webviewEntry) {
 			return;
@@ -286,15 +270,7 @@ export class WebviewViewPane extends ViewPane {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container, dimension, this._rootContainer);
-	}
-
-	private layoutWebview(dimension?: Dimension) {
-		this.doLayoutWebview(dimension);
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => this.doLayoutWebview(dimension), 200);
+		webviewEntry.setAnchorElement(this._container, this._rootContainer);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {

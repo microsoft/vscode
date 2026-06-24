@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isEqual, toLocalResource } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableStore, dispose, IReference } from 'vs/base/common/lifecycle';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
+import { URI } from '../../../../base/common/uri.js';
+import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInput, IUntypedEditorOptions } from '../../../common/editor/editorInput.js';
+import { AbstractTextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
+import { IUntitledTextEditorModel } from './untitledTextEditorModel.js';
+import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from '../../textfile/common/textfiles.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { isEqual, toLocalResource } from '../../../../base/common/resources.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { DisposableStore, dispose, IReference } from '../../../../base/common/lifecycle.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ICustomEditorLabelService } from '../../editor/common/customEditorLabelService.js';
 
 /**
  * An editor input to be used for untitled text buffers.

@@ -3,24 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { isBoolean } from 'vs/base/common/types';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isWeb } from 'vs/base/common/platform';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap, IExtensionContributions } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
+import { ExtensionsRegistry } from './extensionsRegistry.js';
+import { getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ExtensionUntrustedWorkspaceSupport } from '../../../../base/common/product.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../workspaces/common/workspaceTrust.js';
+import { isBoolean } from '../../../../base/common/types.js';
+import { IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
+
+export const EXTENSIONS_SUPPORT_AGENTS_WINDOW = 'extensions.supportAgentsWindow';
+
+const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionContributions> = new Set([
+	'themes',
+	'iconThemes',
+	'productIconThemes',
+	'colors',
+	'keybindings',
+	'jsonValidation',
+	'localizations',
+	'grammars',
+	'languages',
+]);
 
 export interface IExtensionManifestPropertiesService {
 	readonly _serviceBrand: undefined;
@@ -32,6 +46,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnUI(manifest: IExtensionManifest): boolean;
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -49,6 +64,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	private _productVirtualWorkspaceSupportMap: ExtensionIdentifierMap<{ default?: boolean; override?: boolean }> | null = null;
 	private _configuredVirtualWorkspaceSupportMap: ExtensionIdentifierMap<boolean> | null = null;
+	private _configuredSessionsWindowSupportMap: ExtensionIdentifierMap<boolean> | null = null;
 
 	private readonly _configuredExtensionWorkspaceTrustRequestMap: ExtensionIdentifierMap<{ supported: ExtensionUntrustedWorkspaceSupportType; version?: string }>;
 	private readonly _productExtensionWorkspaceTrustRequestMap: Map<string, ExtensionUntrustedWorkspaceSupport>;
@@ -75,6 +91,22 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 				this._productExtensionWorkspaceTrustRequestMap.set(id, productService.extensionUntrustedWorkspaceSupport[id]);
 			}
 		}
+	}
+
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean {
+		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
+		if (configuredSessionsWindowSupport !== undefined) {
+			return configuredSessionsWindowSupport;
+		}
+
+		// In the sessions window only extensions that have no code are currently allowed to run
+		if (manifest.main || manifest.browser) {
+			return false;
+		}
+
+		// Only allow extensions that contribute to themes and other declarative, non-executing contribution points
+		const contributionPoints = Object.keys(manifest.contributes || {}) as Array<keyof IExtensionContributions>;
+		return contributionPoints.every(point => SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS.has(point));
 	}
 
 	prefersExecuteOnUI(manifest: IExtensionManifest): boolean {
@@ -345,6 +377,22 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 		return this._configuredVirtualWorkspaceSupportMap.get(extensionId);
+	}
+
+	private getConfiguredSessionsWindowSupport(manifest: IExtensionManifest): boolean | undefined {
+		if (this._configuredSessionsWindowSupportMap === null) {
+			const configuredSessionsWindowSupportMap = new ExtensionIdentifierMap<boolean>();
+			const configuredSessionsWindowSupport = this.configurationService.getValue<{ [key: string]: boolean }>(EXTENSIONS_SUPPORT_AGENTS_WINDOW) || {};
+			for (const id of Object.keys(configuredSessionsWindowSupport)) {
+				if (configuredSessionsWindowSupport[id] !== undefined) {
+					configuredSessionsWindowSupportMap.set(id, configuredSessionsWindowSupport[id]);
+				}
+			}
+			this._configuredSessionsWindowSupportMap = configuredSessionsWindowSupportMap;
+		}
+
+		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		return this._configuredSessionsWindowSupportMap.get(extensionId);
 	}
 
 	private getConfiguredExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType | undefined {

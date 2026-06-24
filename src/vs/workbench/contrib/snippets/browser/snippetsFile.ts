@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
-import { localize } from 'vs/nls';
-import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { relativePath } from 'vs/base/common/resources';
-import { isObject } from 'vs/base/common/types';
-import { tail } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { WindowIdleValue, getActiveWindow } from 'vs/base/browser/dom';
+import { parse as jsonParse, getNodeType } from '../../../../base/common/json.js';
+import { localize } from '../../../../nls.js';
+import { extname, basename } from '../../../../base/common/path.js';
+import { SnippetParser, Variable, Placeholder, Text } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
+import { KnownSnippetVariableNames } from '../../../../editor/contrib/snippet/browser/snippetVariables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { relativePath } from '../../../../base/common/resources.js';
+import { isObject } from '../../../../base/common/types.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
+import { match as matchGlob } from '../../../../base/common/glob.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 class SnippetBodyInsights {
 
@@ -54,7 +55,7 @@ class SnippetBodyInsights {
 		if (textmateSnippet.placeholders.length === 0) {
 			this.isTrivial = true;
 		} else if (placeholderMax === 0) {
-			const last = tail(textmateSnippet.children);
+			const last = textmateSnippet.children.at(-1);
 			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 
@@ -114,6 +115,8 @@ export class Snippet {
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
 		readonly snippetIdentifier: string,
+		readonly include?: string[],
+		readonly exclude?: string[],
 		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
@@ -139,6 +142,34 @@ export class Snippet {
 	get usesSelection(): boolean {
 		return this._bodyInsights.value.usesSelectionVariable;
 	}
+
+	isFileIncluded(resourceUri: URI): boolean {
+		const uriPath = resourceUri.scheme === Schemas.file ? resourceUri.fsPath : resourceUri.path;
+		const fileName = basename(uriPath);
+
+		const getMatchTarget = (pattern: string): string => {
+			return pattern.includes('/') ? uriPath : fileName;
+		};
+
+		if (this.exclude) {
+			for (const pattern of this.exclude.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return false;
+				}
+			}
+		}
+
+		if (this.include) {
+			for (const pattern of this.include.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		return true;
+	}
 }
 
 
@@ -148,9 +179,11 @@ interface JsonSerializedSnippet {
 	scope?: string;
 	prefix: string | string[] | undefined;
 	description: string;
+	include?: string | string[];
+	exclude?: string | string[];
 }
 
-function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
+function isJsonSerializedSnippet(thing: unknown): thing is JsonSerializedSnippet {
 	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
 }
 
@@ -193,7 +226,7 @@ export class SnippetFile {
 	}
 
 	private _filepathSelect(selector: string, bucket: Snippet[]): void {
-		// for `fooLang.json` files all snippets are accepted
+		// for `fooLang.json` files apply inclusion/exclusion rules only
 		if (selector + '.json' === basename(this.location.path)) {
 			bucket.push(...this.data);
 		}
@@ -287,6 +320,24 @@ export class SnippetFile {
 			scopes = [];
 		}
 
+		let include: string[] | undefined;
+		if (snippet.include) {
+			if (Array.isArray(snippet.include)) {
+				include = snippet.include;
+			} else if (typeof snippet.include === 'string') {
+				include = [snippet.include];
+			}
+		}
+
+		let exclude: string[] | undefined;
+		if (snippet.exclude) {
+			if (Array.isArray(snippet.exclude)) {
+				exclude = snippet.exclude;
+			} else if (typeof snippet.exclude === 'string') {
+				exclude = [snippet.exclude];
+			}
+		}
+
 		let source: string;
 		if (this._extension) {
 			// extension snippet -> show the name of the extension
@@ -315,6 +366,8 @@ export class SnippetFile {
 				source,
 				this.source,
 				this._extension ? `${relativePath(this._extension.extensionLocation, this.location)}/${name}` : `${basename(this.location.path)}/${name}`,
+				include,
+				exclude,
 				this._extension?.identifier,
 			));
 		}

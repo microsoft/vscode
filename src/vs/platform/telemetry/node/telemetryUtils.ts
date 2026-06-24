@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
-import { getMachineId, getSqmMachineId, getdevDeviceId } from 'vs/base/node/id';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadService } from 'vs/platform/state/node/state';
-import { machineIdKey, sqmIdKey, devDeviceIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { stripUTF8BOM } from '../../../base/common/strings.js';
+import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../../base/node/id.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateReadService } from '../../state/node/state.js';
+import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
 
 
 export async function resolveMachineId(stateService: IStateReadService, logService: ILogService): Promise<string> {
@@ -30,11 +31,10 @@ export async function resolveSqmId(stateService: IStateReadService, logService: 
 	return sqmId;
 }
 
-export async function resolvedevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
+export async function resolveDevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
 	let devDeviceId = stateService.getItem<string>(devDeviceIdKey);
 	if (typeof devDeviceId !== 'string') {
-		devDeviceId = await getdevDeviceId(logService.error.bind(logService));
+		devDeviceId = await getDevDeviceId(logService.error.bind(logService));
 	}
-
-	return devDeviceId;
+	return stripUTF8BOM(devDeviceId);
 }

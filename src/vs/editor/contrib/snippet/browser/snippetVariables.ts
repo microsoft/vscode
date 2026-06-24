@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import * as path from 'vs/base/common/path';
-import { dirname } from 'vs/base/common/resources';
-import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import * as nls from 'vs/nls';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import * as path from '../../../../base/common/path.js';
+import { dirname } from '../../../../base/common/resources.js';
+import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { Text, Variable, VariableResolver } from './snippetParser.js';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
+import * as nls from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
 export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
@@ -25,12 +25,15 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURRENT_HOUR': true,
 	'CURRENT_MINUTE': true,
 	'CURRENT_SECOND': true,
+	'CURRENT_MILLISECOND': true,
 	'CURRENT_DAY_NAME': true,
 	'CURRENT_DAY_NAME_SHORT': true,
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
 	'CURRENT_SECONDS_UNIX': true,
+	'CURRENT_MILLISECONDS_UNIX': true,
 	'CURRENT_TIMEZONE_OFFSET': true,
+	'CURRENT_TIMEZONE_NAME': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -41,6 +44,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'TM_FILENAME': true,
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
+	'TM_DIRECTORY_BASE': true,
 	'TM_FILEPATH': true,
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
@@ -185,6 +189,12 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
 
+		} else if (name === 'TM_DIRECTORY_BASE') {
+			if (path.dirname(this._model.uri.fsPath) === '.') {
+				return '';
+			}
+			return path.basename(path.dirname(this._model.uri.fsPath));
+
 		} else if (name === 'TM_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri);
 		} else if (name === 'RELATIVE_FILEPATH') {
@@ -265,42 +275,51 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
 	private readonly _date = new Date();
+	private _timezoneName: string | undefined;
 
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 
-		if (name === 'CURRENT_YEAR') {
-			return String(this._date.getFullYear());
-		} else if (name === 'CURRENT_YEAR_SHORT') {
-			return String(this._date.getFullYear()).slice(-2);
-		} else if (name === 'CURRENT_MONTH') {
-			return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
-		} else if (name === 'CURRENT_DATE') {
-			return String(this._date.getDate().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_HOUR') {
-			return String(this._date.getHours().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_MINUTE') {
-			return String(this._date.getMinutes().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_SECOND') {
-			return String(this._date.getSeconds().valueOf()).padStart(2, '0');
-		} else if (name === 'CURRENT_DAY_NAME') {
-			return TimeBasedVariableResolver.dayNames[this._date.getDay()];
-		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
-			return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
-		} else if (name === 'CURRENT_MONTH_NAME') {
-			return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
-		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
-		} else if (name === 'CURRENT_SECONDS_UNIX') {
-			return String(Math.floor(this._date.getTime() / 1000));
-		} else if (name === 'CURRENT_TIMEZONE_OFFSET') {
-			const rawTimeOffset = this._date.getTimezoneOffset();
-			const sign = rawTimeOffset > 0 ? '-' : '+';
-			const hours = Math.trunc(Math.abs(rawTimeOffset / 60));
-			const hoursString = (hours < 10 ? '0' + hours : hours);
-			const minutes = Math.abs(rawTimeOffset) - hours * 60;
-			const minutesString = (minutes < 10 ? '0' + minutes : minutes);
-			return sign + hoursString + ':' + minutesString;
+		switch (name) {
+			case 'CURRENT_YEAR':
+				return String(this._date.getFullYear());
+			case 'CURRENT_YEAR_SHORT':
+				return String(this._date.getFullYear()).slice(-2);
+			case 'CURRENT_MONTH':
+				return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
+			case 'CURRENT_DATE':
+				return String(this._date.getDate().valueOf()).padStart(2, '0');
+			case 'CURRENT_HOUR':
+				return String(this._date.getHours().valueOf()).padStart(2, '0');
+			case 'CURRENT_MINUTE':
+				return String(this._date.getMinutes().valueOf()).padStart(2, '0');
+			case 'CURRENT_SECOND':
+				return String(this._date.getSeconds().valueOf()).padStart(2, '0');
+			case 'CURRENT_MILLISECOND':
+				return String(this._date.getMilliseconds().valueOf()).padStart(3, '0');
+			case 'CURRENT_DAY_NAME':
+				return TimeBasedVariableResolver.dayNames[this._date.getDay()];
+			case 'CURRENT_DAY_NAME_SHORT':
+				return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
+			case 'CURRENT_MONTH_NAME':
+				return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
+			case 'CURRENT_MONTH_NAME_SHORT':
+				return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
+			case 'CURRENT_SECONDS_UNIX':
+				return String(Math.floor(this._date.getTime() / 1000));
+			case 'CURRENT_MILLISECONDS_UNIX':
+				return String(this._date.getTime());
+			case 'CURRENT_TIMEZONE_OFFSET': {
+				const rawTimeOffset = this._date.getTimezoneOffset();
+				const sign = rawTimeOffset > 0 ? '-' : '+';
+				const hours = Math.trunc(Math.abs(rawTimeOffset / 60));
+				const hoursString = (hours < 10 ? '0' + hours : hours);
+				const minutes = Math.abs(rawTimeOffset) - hours * 60;
+				const minutesString = (minutes < 10 ? '0' + minutes : minutes);
+				return sign + hoursString + ':' + minutesString;
+			}
+			case 'CURRENT_TIMEZONE_NAME':
+				return this._timezoneName ??= Intl.DateTimeFormat().resolvedOptions().timeZone;
 		}
 
 		return undefined;

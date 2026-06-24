@@ -59,6 +59,10 @@
 	margin: 0;
 }
 
+.debug-var-hover-pre span {
+	display: inline !important;
+}
+
 /* Do not push text with inline decoration when decoration on start of line */
 .monaco-editor .debug-top-stack-frame-column.start-of-line {
 	position: absolute;

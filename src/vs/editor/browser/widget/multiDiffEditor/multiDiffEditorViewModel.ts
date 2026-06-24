@@ -3,33 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, derived, observableValue, transaction } from 'vs/base/common/observable';
-import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from 'vs/base/common/observableInternal/utils';
-import { URI } from 'vs/base/common/uri';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ITransaction, ObservablePromise, ObservableResolvedPromise, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { rejectIfNotCanceled, timeout } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IDiffEditorViewModel } from '../../../common/editorCommon.js';
+import { IModelService } from '../../../common/services/model.js';
+import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
+import { RefCounted } from '../diffEditor/utils.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
+	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
 
-	public readonly items = mapObservableArrayCached(this, this._documents, (d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
-		.recomputeInitiallyAndOnChange(this._store);
+	private readonly _documentsArr = derived(this, reader => {
+		const result = this._documents.read(reader);
+		if (result === 'loading') { return []; }
+		return result;
+	});
+
+	public readonly isLoading;
+	private readonly _waitForNewDiffs: IObservable<ObservablePromise<readonly RefCounted<DocumentDiffItemViewModel>[]>>;
+
+	public readonly items: IObservable<readonly DocumentDiffItemViewModel[]>;
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
-	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this, (reader, lastValue) => this.focusedDiffItem.read(reader) ?? lastValue);
+	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
+		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1) ? lastValue : undefined
+	);
 
-	public async waitForDiffs(): Promise<void> {
-		for (const d of this.items.get()) {
-			await d.diffEditorViewModel.waitForDiff();
+	public async waitForDiffOr1s(): Promise<void> {
+		if (this._documents.get() === 'loading') {
+			await waitForState(this._documents, documents => documents !== 'loading');
 		}
+
+		await this._waitForNewDiffs.get().promise;
 	}
 
 	public collapseAll(): void {
@@ -54,14 +68,53 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	constructor(
 		public readonly model: IMultiDiffEditorModel,
-		private readonly _instantiationService: IInstantiationService,
+		private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		this._documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
+
+		const allItems = mapObservableArrayCached(
+			this,
+			this._documentsArr,
+			(d, store) => store.add(RefCounted.create(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this)))
+		).recomputeInitiallyAndOnChange(this._store);
+
+		this._waitForNewDiffs = derived(this, reader => {
+			const next = allItems.read(reader);
+			const unresolved = next.filter(i => !i.object.waitForInitialDiffOr1s.promiseResult.read(undefined));
+			if (unresolved.length === 0) {
+				return ObservablePromise.resolved(next);
+			}
+			return new ObservablePromise(
+				Promise.all(unresolved.map(i => i.object.waitForInitialDiffOr1s.promise)).then(() => next)
+			);
+		});
+
+		const resolved = new ObservableResolvedPromise(this._waitForNewDiffs, [] as readonly RefCounted<DocumentDiffItemViewModel>[], this._store);
+
+		this.items = derived(this, reader => {
+			const resolvedItems = resolved.lastResolved.read(reader);
+			return resolvedItems.map(i => {
+				const ref = reader.store.add(i.createNewRef(i));
+				return ref.object;
+			});
+		});
+
+		this.isLoading = derived(this, reader =>
+			this._documents.read(reader) === 'loading' || resolved.isResolving.read(reader)
+		);
 	}
 }
 
 export class DocumentDiffItemViewModel extends Disposable {
-	public readonly diffEditorViewModel: IDiffEditorViewModel;
+	/**
+	 * The diff editor view model keeps its inner objects alive.
+	*/
+	public readonly diffEditorViewModelRef: RefCounted<IDiffEditorViewModel>;
+	public get diffEditorViewModel(): IDiffEditorViewModel {
+		return this.diffEditorViewModelRef.object;
+	}
+	public readonly waitForInitialDiffOr1s: ObservablePromise<void>;
 	public readonly collapsed = observableValue<boolean>(this, false);
 
 	public readonly lastTemplateData = observableValue<{ contentHeight: number; selections: Selection[] | undefined }>(
@@ -69,8 +122,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 		{ contentHeight: 500, selections: undefined, }
 	);
 
-	public get originalUri(): URI | undefined { return this.entry.value!.original?.uri; }
-	public get modifiedUri(): URI | undefined { return this.entry.value!.modified?.uri; }
+	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
+	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
 
@@ -81,13 +134,26 @@ export class DocumentDiffItemViewModel extends Disposable {
 		this._isFocusedSource.set(source, tx);
 	}
 
+	private readonly _documentDiffItemRef: RefCounted<IDocumentDiffItem>;
+	public get documentDiffItem(): IDocumentDiffItem {
+		return this._documentDiffItemRef.object;
+	}
+
+	public readonly isAlive = observableValue<boolean>(this, true);
+
 	constructor(
-		public readonly entry: LazyPromise<IDocumentDiffItem>,
+		documentDiffItem: RefCounted<IDocumentDiffItem>,
 		private readonly _editorViewModel: MultiDiffEditorViewModel,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
+
+		this._register(toDisposable(() => {
+			this.isAlive.set(false, undefined);
+		}));
+
+		this._documentDiffItemRef = this._register(documentDiffItem.createNewRef(this));
 
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
@@ -98,20 +164,33 @@ export class DocumentDiffItemViewModel extends Disposable {
 			};
 		}
 
-		const options = this._instantiationService.createInstance(DiffEditorOptions, updateOptions(this.entry.value!.options || {}));
-		if (this.entry.value!.onOptionsDidChange) {
-			this._register(this.entry.value!.onOptionsDidChange(() => {
-				options.updateOptions(updateOptions(this.entry.value!.options || {}));
+		const options = this._instantiationService.createInstance(DiffEditorOptions, updateOptions(this.documentDiffItem.options || {}));
+		if (this.documentDiffItem.onOptionsDidChange) {
+			this._register(this.documentDiffItem.onOptionsDidChange(() => {
+				options.updateOptions(updateOptions(this.documentDiffItem.options || {}));
 			}));
 		}
 
-		const originalTextModel = this.entry.value!.original ?? this._register(this._modelService.createModel('', null));
-		const modifiedTextModel = this.entry.value!.modified ?? this._register(this._modelService.createModel('', null));
+		const diffEditorViewModelStore = new DisposableStore();
+		const originalTextModel = this.documentDiffItem.original ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const modifiedTextModel = this.documentDiffItem.modified ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		diffEditorViewModelStore.add(this._documentDiffItemRef.createNewRef(this));
 
-		this.diffEditorViewModel = this._register(this._instantiationService.createInstance(DiffEditorViewModel, {
-			original: originalTextModel,
-			modified: modifiedTextModel,
-		}, options));
+		this.diffEditorViewModelRef = this._register(RefCounted.createWithDisposable(
+			this._instantiationService.createInstance(DiffEditorViewModel, {
+				original: originalTextModel,
+				modified: modifiedTextModel,
+			}, options),
+			diffEditorViewModelStore,
+			this
+		));
+
+		this.waitForInitialDiffOr1s = new ObservablePromise(
+			Promise.race([
+				this.diffEditorViewModel.waitForDiff().catch(rejectIfNotCanceled),
+				timeout(1000, cancelOnDispose(this._store)).catch(rejectIfNotCanceled),
+			])
+		);
 	}
 
 	public getKey(): string {

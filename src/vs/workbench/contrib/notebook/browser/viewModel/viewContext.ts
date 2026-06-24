@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { IBaseCellEditorOptions } from '../notebookBrowser.js';
+import { NotebookEventDispatcher } from './eventDispatcher.js';
+import { NotebookOptions } from '../notebookOptions.js';
 
 export class ViewContext {
 	constructor(

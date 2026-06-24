@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
-import { IS_NEW_KEY, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
-import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { TestLifecycleMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
+import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { ILifecycleMainService } from '../../../lifecycle/electron-main/lifecycleMainService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
+import { IS_NEW_KEY, StorageScope } from '../../common/storage.js';
+import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from '../../electron-main/storageMain.js';
+import { StorageMainService } from '../../electron-main/storageMainService.js';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey } from '../../../telemetry/common/telemetry.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
+import { UserDataProfilesMainService } from '../../../userDataProfile/electron-main/userDataProfile.js';
+import { TestLifecycleMainService } from '../../../test/electron-main/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 suite('StorageMainService', function () {
 
@@ -37,16 +37,19 @@ suite('StorageMainService', function () {
 	const inMemoryProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
-		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryProfileRoot,
 		globalStorageHome: joinPath(inMemoryProfileRoot, 'globalStorageHome'),
 		settingsResource: joinPath(inMemoryProfileRoot, 'settingsResource'),
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
+		mcpResource: joinPath(inMemoryProfileRoot, 'mcp.json'),
+		languageModelsResource: joinPath(inMemoryProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
+		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
+		agentPluginsHome: joinPath(inMemoryProfileRoot, 'agentPluginsHome'),
 	};
 
 	class TestStorageMainService extends StorageMainService {
@@ -115,7 +118,7 @@ suite('StorageMainService', function () {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), lifecycleMainService, fileService, uriIdentityService));
+		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService(), productService)), lifecycleMainService, fileService, uriIdentityService));
 
 		disposables.add(testStorageService.applicationStorage);
 
@@ -133,6 +136,12 @@ suite('StorageMainService', function () {
 		const profile = inMemoryProfile;
 
 		return testStorage(storageMainService.profileStorage(profile), StorageScope.PROFILE);
+	});
+
+	test('basics (application shared)', function () {
+		const storageMainService = createStorageService();
+
+		return testStorage(storageMainService.applicationSharedStorage, StorageScope.APPLICATION_SHARED);
 	});
 
 	test('basics (workspace)', function () {
@@ -187,6 +196,7 @@ suite('StorageMainService', function () {
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, workspaceStorage2);
 
+		await profileStorage2.close();
 		await workspaceStorage2.close();
 	});
 
@@ -256,6 +266,22 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
+	});
+
+	test('application shared storage closed onWillShutdown', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const storageMainService = createStorageService(lifecycleMainService);
+
+		const applicationSharedStorage = storageMainService.applicationSharedStorage;
+		let didCloseApplicationSharedStorage = false;
+		disposables.add(applicationSharedStorage.onDidCloseStorage(() => {
+			didCloseApplicationSharedStorage = true;
+		}));
+
+		await applicationSharedStorage.init();
+		await lifecycleMainService.fireOnWillShutdown();
+
+		strictEqual(didCloseApplicationSharedStorage, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

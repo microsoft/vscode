@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
-import { hash } from 'vs/base/common/hash';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { compareAnything } from './comparers.js';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
+import { hash } from './hash.js';
+import { sep } from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { equalsIgnoreCase } from './strings.js';
 
 //#region Fuzzy scorer
 
@@ -173,9 +173,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
-	// Consecutive match bonus
+	// Consecutive match bonus: sequences up to 3 get the full bonus (6)
+	// and the remainder gets half the bonus (3). This helps reduce the
+	// overall boost for long sequence matches.
 	if (matchesSequenceLength > 0) {
-		score += (matchesSequenceLength * 5);
+		score += (Math.min(matchesSequenceLength, 3) * 6) + (Math.max(0, matchesSequenceLength - 3) * 3);
 
 		// if (DEBUG) {
 		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
@@ -320,7 +322,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
+	const score = fuzzyScore(query.normalized, query.normalizedLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}
@@ -681,25 +683,25 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 }
 
 function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, accessor: IItemAccessor<T>): number {
-	let matchStart: number = -1;
-	let matchEnd: number = -1;
+	let matchStart = -1;
+	let matchEnd = -1;
 
 	// If we have description matches, the start is first of description match
-	if (score.descriptionMatch && score.descriptionMatch.length) {
+	if (score.descriptionMatch?.length) {
 		matchStart = score.descriptionMatch[0].start;
 	}
 
 	// Otherwise, the start is the first label match
-	else if (score.labelMatch && score.labelMatch.length) {
+	else if (score.labelMatch?.length) {
 		matchStart = score.labelMatch[0].start;
 	}
 
 	// If we have label match, the end is the last label match
 	// If we had a description match, we add the length of the description
 	// as offset to the end to indicate this.
-	if (score.labelMatch && score.labelMatch.length) {
+	if (score.labelMatch?.length) {
 		matchEnd = score.labelMatch[score.labelMatch.length - 1].end;
-		if (score.descriptionMatch && score.descriptionMatch.length) {
+		if (score.descriptionMatch?.length) {
 			const itemDescription = accessor.getItemDescription(item);
 			if (itemDescription) {
 				matchEnd += itemDescription.length;
@@ -708,7 +710,7 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 	}
 
 	// If we have just a description match, the end is the last description match
-	else if (score.descriptionMatch && score.descriptionMatch.length) {
+	else if (score.descriptionMatch?.length) {
 		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1].end;
 	}
 
@@ -716,15 +718,15 @@ function computeLabelAndDescriptionMatchDistance<T>(item: T, score: IItemScore, 
 }
 
 function compareByMatchLength(matchesA?: IMatch[], matchesB?: IMatch[]): number {
-	if ((!matchesA && !matchesB) || ((!matchesA || !matchesA.length) && (!matchesB || !matchesB.length))) {
+	if ((!matchesA && !matchesB) || ((!matchesA?.length) && (!matchesB?.length))) {
 		return 0; // make sure to not cause bad comparing when matches are not provided
 	}
 
-	if (!matchesB || !matchesB.length) {
+	if (!matchesB?.length) {
 		return -1;
 	}
 
-	if (!matchesA || !matchesA.length) {
+	if (!matchesA?.length) {
 		return 1;
 	}
 
@@ -809,7 +811,7 @@ export interface IPreparedQueryPiece {
 
 	/**
 	 * In addition to the normalized path, will have
-	 * whitespace and wildcards removed.
+	 * whitespace, wildcards, quotes, ellipsis, and trailing hash characters removed.
 	 */
 	normalized: string;
 	normalizedLowercase: string;
@@ -898,8 +900,13 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
-	// we remove quotes here because quotes are used for exact match search
-	const normalized = stripWildcards(pathNormalized).replace(/\s|"/g, '');
+	// remove certain characters that help find better results:
+	// - quotes: are used for exact match search
+	// - wildcards: are used for fuzzy matching
+	// - whitespace: are used to separate queries
+	// - ellipsis: sometimes used to indicate any path segments
+	// - trailing hash: used by some language servers (e.g. rust-analyzer) as query modifiers
+	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '').replace(/(?<=.)#$/, '');
 
 	return {
 		pathNormalized,

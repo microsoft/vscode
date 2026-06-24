@@ -142,7 +142,7 @@ pub fn make_singleton_server(
 	}
 }
 
-pub async fn start_singleton_server<'a>(
+pub async fn start_singleton_server(
 	args: SingletonServerArgs<'_>,
 ) -> Result<ServerTermination, AnyError> {
 	let shutdown_rx = ShutdownRequest::create_rx([
@@ -239,7 +239,8 @@ impl BroadcastLogSink {
 
 	fn replay_and_subscribe(
 		&self,
-	) -> ConcatReceivable<Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>, broadcast::Receiver<Vec<u8>>> {
+	) -> ConcatReceivable<Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>, broadcast::Receiver<Vec<u8>>>
+	{
 		let (log_replay_tx, log_replay_rx) = mpsc::unbounded_channel();
 
 		for log in self.recent.lock().unwrap().iter() {

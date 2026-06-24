@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostNotebookRenderersShape, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, ExtHostNotebookRenderersShape, MainContext, MainThreadNotebookRenderersShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { INotebookRendererMessagingService } from '../../contrib/notebook/common/notebookRendererMessagingService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookRenderers)
 export class MainThreadNotebookRenderers extends Disposable implements MainThreadNotebookRenderersShape {

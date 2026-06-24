@@ -4,31 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ITextEditorSelection, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkOpeners';
-import { TerminalCapability, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ITextEditorSelection, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { TerminalBuiltinLinkType } from '../../browser/links.js';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from '../../browser/terminalLinkOpeners.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { Terminal } from '@xterm/xterm';
-import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../services/search/common/search.js';
+import { SearchService } from '../../../../../services/search/common/searchService.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import type { IMarker } from '@xterm/headless';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -114,7 +117,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			}
 		} as Partial<IEditorService>);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
 	});
 
 	suite('TerminalSearchLinkOpener', () => {
@@ -146,9 +149,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				duration: 0,
 				executedX: undefined,
 				startX: undefined,
+				// eslint-disable-next-line local/code-no-any-casts
 				marker: {
 					line: 0
-				} as Partial<IXtermMarker> as any,
+				} as Partial<IMarker> as any,
+				id: generateUuid()
 			})]);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
@@ -285,12 +290,14 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					duration: 0,
 					executedX: undefined,
 					startX: undefined,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any,
+					} as Partial<IMarker> as any,
 					exitCode: 0,
 					commandStartLineContent: '',
-					markProperties: {}
+					markProperties: {},
+					id: generateUuid()
 				})]);
 				await opener.open({
 					text: 'file.txt',
@@ -513,6 +520,47 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 			});
 
+			test('should not misinterpret ISO 8601 timestamps as line:column numbers', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
+				// Intentionally not set the file so it does not get picked up as localFile.
+				fileService.setFiles([]);
+				await opener.open({
+					text: 'test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+				await opener.open({
+					text: './test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 36, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+
+				// Test when file exists, and there are preceding arguments
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/folder/test-2025-04-28T14:30:00+02:00.log' })
+				]);
+				await opener.open({
+					text: './test-2025-04-28T14:30:00+02:00.log',
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
+					type: TerminalBuiltinLinkType.LocalFile
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
+					source: 'editor'
+				});
+			});
+
+
 		});
 
 		suite('Windows', () => {
@@ -547,9 +595,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					startX: undefined,
 					timestamp: 0,
 					duration: 0,
+					// eslint-disable-next-line local/code-no-any-casts
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any,
+					} as Partial<IMarker> as any,
+					id: generateUuid()
 				})]);
 				await opener.open({
 					text: 'file.txt',
@@ -913,6 +963,46 @@ suite('Workbench - TerminalLinkOpeners', () => {
 						endColumn: undefined,
 						endLineNumber: undefined
 					},
+				});
+			});
+
+			test('should not misinterpret ISO 8601 timestamps as line:column numbers', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, 'c:/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Windows);
+				// Intentionally not set the file so it does not get picked up as localFile.
+				fileService.setFiles([]);
+				await opener.open({
+					text: 'test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+				await opener.open({
+					text: '.\\test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 36, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+
+				// Test when file exists, and there are preceding arguments
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: 'c:/folder/test-2025-04-28T14:30:00+02:00.log' })
+				]);
+				await opener.open({
+					text: '.\\test-2025-04-28T14:30:00+02:00.log',
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
+					type: TerminalBuiltinLinkType.LocalFile
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
+					source: 'editor'
 				});
 			});
 		});

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { Emitter } from 'vs/base/common/event';
+import { IExtensionTipsService, IConfigBasedExtensionTip } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations.js';
+import { localize } from '../../../../nls.js';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../platform/workspace/common/workspace.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
 

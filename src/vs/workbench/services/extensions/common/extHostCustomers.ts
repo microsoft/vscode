@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostProxy } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionHostKind } from './extensionHostKind.js';
+import { IExtensionHostProxy } from './extensionHostProxy.js';
+import { IInternalExtensionService } from './extensions.js';
+import { IRPCProtocol, ProxyIdentifier } from './proxyIdentifier.js';
 
 export interface IExtHostContext extends IRPCProtocol {
 	readonly remoteAuthority: string | null;
@@ -18,7 +18,7 @@ export interface IExtHostContext extends IRPCProtocol {
 export interface IInternalExtHostContext extends IExtHostContext {
 	readonly internalExtensionService: IInternalExtensionService;
 	_setExtensionHostProxy(extensionHostProxy: IExtensionHostProxy): void;
-	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<any>[]): void;
+	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<unknown>[]): void;
 }
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
@@ -50,8 +50,8 @@ class ExtHostCustomersRegistryImpl {
 
 	public static readonly INSTANCE = new ExtHostCustomersRegistryImpl();
 
-	private _namedCustomers: IExtHostNamedCustomer<any>[];
-	private _customers: IExtHostCustomerCtor<any>[];
+	private _namedCustomers: IExtHostNamedCustomer<IDisposable>[];
+	private _customers: IExtHostCustomerCtor<IDisposable>[];
 
 	constructor() {
 		this._namedCustomers = [];
@@ -62,14 +62,14 @@ class ExtHostCustomersRegistryImpl {
 		const entry: IExtHostNamedCustomer<T> = [id, ctor];
 		this._namedCustomers.push(entry);
 	}
-	public getNamedCustomers(): IExtHostNamedCustomer<any>[] {
+	public getNamedCustomers(): IExtHostNamedCustomer<IDisposable>[] {
 		return this._namedCustomers;
 	}
 
 	public registerCustomer<T extends IDisposable>(ctor: IExtHostCustomerCtor<T>): void {
 		this._customers.push(ctor);
 	}
-	public getCustomers(): IExtHostCustomerCtor<any>[] {
+	public getCustomers(): IExtHostCustomerCtor<IDisposable>[] {
 		return this._customers;
 	}
 }

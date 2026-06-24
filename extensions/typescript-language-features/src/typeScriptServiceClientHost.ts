@@ -14,6 +14,7 @@ import { ServiceConfigurationProvider } from './configuration/configuration';
 import { DiagnosticLanguage, LanguageDescription } from './configuration/languageDescription';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
+import { readUnifiedConfig } from './utils/configuration';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
 import { LogLevelMonitor } from './logging/logLevelMonitor';
@@ -90,8 +91,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			services,
 			allModeIds));
 
-		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
-			this.diagnosticsReceived(kind, resource, diagnostics);
+		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics, spans }) => {
+			this.diagnosticsReceived(kind, resource, diagnostics, spans);
 		}, null, this._disposables);
 
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
@@ -193,9 +194,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configurationChanged(): void {
-		const typescriptConfig = vscode.workspace.getConfiguration('typescript');
-
-		this.reportStyleCheckAsWarnings = typescriptConfig.get('reportStyleChecksAsWarnings', true);
+		this.reportStyleCheckAsWarnings = readUnifiedConfig<boolean>('reportStyleChecksAsWarnings', true, { scope: null, fallbackSection: 'typescript' });
 	}
 
 	private async findLanguage(resource: vscode.Uri): Promise<LanguageProvider | undefined> {
@@ -236,14 +235,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private async diagnosticsReceived(
 		kind: DiagnosticKind,
 		resource: vscode.Uri,
-		diagnostics: Proto.Diagnostic[]
+		diagnostics: Proto.Diagnostic[],
+		spans: Proto.TextSpan[] | undefined,
 	): Promise<void> {
 		const language = await this.findLanguage(resource);
 		if (language) {
 			language.diagnosticsReceived(
 				kind,
 				resource,
-				this.createMarkerDatas(diagnostics, language.diagnosticSource));
+				this.createMarkerDatas(diagnostics, language.diagnosticSource),
+				spans?.map(span => typeConverters.Range.fromTextSpan(span)));
 		}
 	}
 

@@ -4,29 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { NotSupportedError } from 'vs/base/common/errors';
-import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Promises } from 'vs/base/common/async';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto, TerminalCompletionListDto } from './extHost.protocol.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../base/common/uri.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { localize } from '../../../nls.js';
+import { NotSupportedError } from '../../../base/common/errors.js';
+import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, WindowsShellType } from '../../../platform/terminal/common/terminal.js';
+import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
+import { ThemeColor } from '../../../base/common/themables.js';
+import { Promises } from '../../../base/common/async.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
+import { IExtHostCommands } from './extHostCommands.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { hasKey } from '../../../base/common/types.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -56,6 +60,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
+	registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -81,10 +86,10 @@ export class ExtHostTerminal extends Disposable {
 	private _disposed: boolean = false;
 	private _pidPromise: Promise<number | undefined>;
 	private _cols: number | undefined;
-	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
+	private _pidPromiseComplete: ((value: number | undefined) => unknown) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false };
+	private _state: vscode.TerminalState = { isInteractedWith: false, shell: undefined };
 	private _selection: string | undefined;
 
 	shellIntegration: vscode.TerminalShellIntegration | undefined;
@@ -189,11 +194,13 @@ export class ExtHostTerminal extends Disposable {
 			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
 			isTransient: options.isTransient ?? undefined,
+			shellIntegrationNonce: options.shellIntegrationNonce ?? undefined,
+			titleTemplate: options.titleTemplate ?? undefined,
 		});
 	}
 
 
-	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, internalOptions?: ITerminalInternalOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
+	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, internalOptions?: ITerminalInternalOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor, shellIntegrationNonce?: string, titleTemplate?: string): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -203,7 +210,9 @@ export class ExtHostTerminal extends Disposable {
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(location, parentTerminal),
-			isTransient: true
+			isTransient: true,
+			shellIntegrationNonce: shellIntegrationNonce ?? undefined,
+			titleTemplate: titleTemplate ?? undefined,
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
@@ -214,11 +223,11 @@ export class ExtHostTerminal extends Disposable {
 
 	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | { viewColumn: EditorGroupColumn; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
 		if (typeof location === 'object') {
-			if ('parentTerminal' in location && location.parentTerminal && parentTerminal) {
+			if (hasKey(location, { parentTerminal: true }) && location.parentTerminal && parentTerminal) {
 				return { parentTerminal };
 			}
 
-			if ('viewColumn' in location) {
+			if (hasKey(location, { viewColumn: true })) {
 				return { viewColumn: ViewColumn.from(location.viewColumn), preserveFocus: location.preserveFocus };
 			}
 
@@ -257,7 +266,22 @@ export class ExtHostTerminal extends Disposable {
 
 	public setInteractedWith(): boolean {
 		if (!this._state.isInteractedWith) {
-			this._state = { isInteractedWith: true };
+			this._state = {
+				...this._state,
+				isInteractedWith: true
+			};
+			return true;
+		}
+		return false;
+	}
+
+	public setShellType(shellType: TerminalShellType | undefined): boolean {
+
+		if (this._state.shell !== shellType) {
+			this._state = {
+				...this._state,
+				shell: shellType
+			};
 			return true;
 		}
 		return false;
@@ -291,7 +315,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = new Emitter<number | undefined>();
 	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
@@ -318,11 +342,16 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.handleInput?.(data);
 	}
 
+	sendSignal(signal: string): void {
+		// Extension owned terminals don't support sending signals directly to processes
+		// This could be extended in the future if the pseudoterminal API is enhanced
+	}
+
 	resize(cols: number, rows: number): void {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -397,7 +426,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
-	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
+	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>> = new Map();
+	private readonly _profileProviders: Map<string, { provider: vscode.TerminalProfileProvider; extension: IExtensionDescription }> = new Map();
 	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
@@ -440,9 +470,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._extHostCommands.registerArgumentProcessor({
 			processArgument: arg => {
-				const deserialize = (arg: any) => {
-					const cast = arg as ISerializedTerminalInstanceContext;
-					return this.getTerminalById(cast.instanceId)?.value;
+				const deserialize = (arg: ISerializedTerminalInstanceContext) => {
+					return this.getTerminalById(arg.instanceId)?.value;
 				};
 				switch (arg?.$mid) {
 					case MarshalledId.TerminalContext: return deserialize(arg);
@@ -488,7 +517,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(options.location, internalOptions, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
+		terminal.createExtensionTerminal(options.location, internalOptions, this._serializeParentTerminal(options, internalOptions).resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color), options.shellIntegrationNonce, options.titleTemplate).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -498,7 +527,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _serializeParentTerminal(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): ITerminalInternalOptions {
 		internalOptions = internalOptions ? internalOptions : {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+		if (options.location && typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
 			const parentTerminal = options.location.parentTerminal;
 			if (parentTerminal) {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
@@ -508,7 +537,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			}
 		} else if (options.location && typeof options.location !== 'object') {
 			internalOptions.location = options.location;
-		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
+		} else if (internalOptions.location && typeof internalOptions.location === 'object' && hasKey(internalOptions.location, { splitActiveTerminal: true })) {
 			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;
@@ -582,6 +611,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): Promise<void> {
+		// Release any cached terminal links and cancel in-flight link providers for this terminal
+		this._terminalLinkCache.delete(id);
+		const cancellationSource = this._terminalLinkCancellationSource.get(id);
+		if (cancellationSource) {
+			this._terminalLinkCancellationSource.delete(id);
+			cancellationSource.dispose(true);
+		}
+
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];
@@ -609,7 +646,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			shellArgs: shellLaunchConfigDto.args,
 			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
 			env: shellLaunchConfigDto.env,
-			hideFromUser: shellLaunchConfigDto.hideFromUser
+			hideFromUser: shellLaunchConfigDto.hideFromUser,
+			titleTemplate: shellLaunchConfigDto.titleTemplate
 		};
 		const terminal = new ExtHostTerminal(this._proxy, id, creationOptions, name);
 		this._terminals.push(terminal);
@@ -719,30 +757,55 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return Promise.resolve(id);
 	}
 
-	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
-		this._linkProviders.add(provider);
-		if (this._linkProviders.size === 1) {
-			this._proxy.$startLinkProvider();
-		}
-		return new VSCodeDisposable(() => {
-			this._linkProviders.delete(provider);
-			if (this._linkProviders.size === 0) {
-				this._proxy.$stopLinkProvider();
-			}
-		});
-	}
-
 
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
 		}
-		this._profileProviders.set(id, provider);
+		this._profileProviders.set(id, { provider, extension });
 		this._proxy.$registerProfileProvider(id, extension.identifier.value);
 		return new VSCodeDisposable(() => {
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
+	}
+
+	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+		if (this._completionProviders.has(extension.identifier.value)) {
+			throw new Error(`Terminal completion provider "${extension.identifier.value}" already registered`);
+		}
+		this._completionProviders.set(extension.identifier.value, provider);
+		this._proxy.$registerCompletionProvider(extension.identifier.value, extension.identifier.value, ...triggerCharacters);
+		return new VSCodeDisposable(() => {
+			this._completionProviders.delete(extension.identifier.value);
+			this._proxy.$unregisterCompletionProvider(extension.identifier.value);
+		});
+	}
+
+	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<TerminalCompletionListDto | undefined> {
+		const token = new CancellationTokenSource().token;
+		if (token.isCancellationRequested || !this.activeTerminal) {
+			return undefined;
+		}
+
+		const provider = this._completionProviders.get(id);
+		if (!provider) {
+			return;
+		}
+
+		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
+		if (completions === null || completions === undefined) {
+			return undefined;
+		}
+		const pathSeparator = !isWindows || this.activeTerminal.state?.shell === WindowsShellType.GitBash ? '/' : '\\';
+		return TerminalCompletionList.from(completions, pathSeparator);
+	}
+
+	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {
+		const terminal = this.getTerminalById(id);
+		if (terminal?.setShellType(shellType)) {
+			this._onDidChangeTerminalState.fire(terminal.value);
+		}
 	}
 
 	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
@@ -792,23 +855,55 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		const token = new CancellationTokenSource().token;
-		let profile = await this._profileProviders.get(id)?.provideTerminalProfile(token);
+		const profileProviderData = this._profileProviders.get(id);
+		if (!profileProviderData) {
+			throw new Error(`No terminal profile provider registered for id "${id}"`);
+		}
+		let profile = await profileProviderData.provider.provideTerminalProfile(token);
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profile && !('options' in profile)) {
+		if (profile && !hasKey(profile, { options: true })) {
 			profile = { options: profile };
 		}
 
-		if (!profile || !('options' in profile)) {
+		if (!profile || !hasKey(profile, { options: true })) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		if ('pty' in profile.options) {
-			this.createExtensionTerminal(profile.options, options);
+		const hasTerminalTitleProposal = isProposedApiEnabled(profileProviderData.extension, 'terminalTitle');
+		if (!hasTerminalTitleProposal && profile.options.titleTemplate !== undefined) {
+			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` returned from TerminalProfileProvider is ignored because the \`terminalTitle\` proposed API is not enabled.`);
+			profile = { options: { ...profile.options, titleTemplate: undefined } };
+		}
+		// options.titleTemplate is not explicitly stripped here because the profileOptions
+		// assignment below only applies it when hasTerminalTitleProposal is true.
+		if (!hasTerminalTitleProposal && options.titleTemplate !== undefined) {
+			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` passed to createContributedTerminalProfile is ignored because the \`terminalTitle\` proposed API is not enabled.`);
+		}
+
+		const profileOptions = hasTerminalTitleProposal && options.titleTemplate && !profile.options.titleTemplate
+			? { ...profile.options, titleTemplate: options.titleTemplate }
+			: profile.options;
+
+		if (hasKey(profileOptions, { pty: true })) {
+			this.createExtensionTerminal(profileOptions, options);
 			return;
 		}
-		this.createTerminalFromOptions(profile.options, options);
+		this.createTerminalFromOptions(profileOptions, options);
+	}
+
+	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
+		this._linkProviders.add(provider);
+		if (this._linkProviders.size === 1) {
+			this._proxy.$startLinkProvider();
+		}
+		return new VSCodeDisposable(() => {
+			this._linkProviders.delete(provider);
+			if (this._linkProviders.size === 0) {
+				this._proxy.$stopLinkProvider();
+			}
+		});
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
@@ -832,10 +927,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		for (const provider of this._linkProviders) {
 			promises.push(Promises.withAsyncBody(async r => {
-				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
-				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
-				if (!cancellationSource.token.isCancellationRequested) {
-					r({ provider, links });
+				const cancelSubscription = cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
+				try {
+					const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
+					if (!cancellationSource.token.isCancellationRequested) {
+						r({ provider, links });
+					}
+				} finally {
+					cancelSubscription.dispose();
 				}
 			}));
 		}
@@ -921,7 +1020,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
-			collection = new UnifiedEnvironmentVariableCollection();
+			collection = this._register(new UnifiedEnvironmentVariableCollection());
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
 		return collection.getScopedEnvironmentVariableCollection(undefined);
@@ -936,7 +1035,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new UnifiedEnvironmentVariableCollection(entry[1]);
+			const collection = this._register(new UnifiedEnvironmentVariableCollection(entry[1]));
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}
@@ -952,20 +1051,20 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
 		this._environmentVariableCollections.set(extensionIdentifier, collection);
-		collection.onDidChangeCollection(() => {
+		this._register(collection.onDidChangeCollection(() => {
 			// When any collection value changes send this immediately, this is done to ensure
 			// following calls to createTerminal will be created with the new environment. It will
 			// result in more noise by sending multiple updates when called but collections are
 			// expected to be small.
 			this._syncEnvironmentVariableCollection(extensionIdentifier, collection);
-		});
+		}));
 	}
 }
 
 /**
  * Unified environment variable collection carrying information for all scopes, for a specific extension.
  */
-class UnifiedEnvironmentVariableCollection {
+class UnifiedEnvironmentVariableCollection extends Disposable {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
 	readonly descriptionMap: Map<string, IEnvironmentVariableCollectionDescription> = new Map();
@@ -977,12 +1076,13 @@ class UnifiedEnvironmentVariableCollection {
 		this._onDidChangeCollection.fire();
 	}
 
-	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
+	protected readonly _onDidChangeCollection: Emitter<void> = this._register(new Emitter<void>());
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(
 		serialized?: ISerializableEnvironmentVariableCollection
 	) {
+		super();
 		this.map = new Map(serialized);
 	}
 
@@ -992,7 +1092,7 @@ class UnifiedEnvironmentVariableCollection {
 		if (!scopedCollection) {
 			scopedCollection = new ScopedEnvironmentVariableCollection(this, scope);
 			this.scopedCollections.set(scopedCollectionKey, scopedCollection);
-			scopedCollection.onDidChangeCollection(() => this._onDidChangeCollection.fire());
+			this._register(scopedCollection.onDidChangeCollection(() => this._onDidChangeCollection.fire()));
 		}
 		return scopedCollection;
 	}
@@ -1154,7 +1254,7 @@ class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollect
 		return this.collection.get(variable, this.scope);
 	}
 
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => unknown, thisArg?: unknown): void {
 		this.collection.getVariableMap(this.scope).forEach((value, variable) => callback.call(thisArg, variable, value, this), this.scope);
 	}
 
@@ -1181,19 +1281,33 @@ class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollect
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+
+	private readonly _hasRemoteAuthority: boolean;
+
 	constructor(
 		@IExtHostCommands extHostCommands: IExtHostCommands,
-		@IExtHostRpcService extHostRpc: IExtHostRpcService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService
 	) {
 		super(false, extHostCommands, extHostRpc);
+		this._hasRemoteAuthority = !!initData.remote.authority;
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		throw new NotSupportedError();
+		if (!this._hasRemoteAuthority) {
+			throw new NotSupportedError();
+		}
+		return this.createTerminalFromOptions({ name, shellPath, shellArgs });
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
-		throw new NotSupportedError();
+		if (!this._hasRemoteAuthority) {
+			throw new NotSupportedError();
+		}
+		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
+		this._terminals.push(terminal);
+		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
+		return terminal.value;
 	}
 }
 
@@ -1202,7 +1316,7 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		return undefined;
 	}
 
-	if (!('id' in iconPath)) {
+	if (!hasKey(iconPath, { id: true })) {
 		return iconPath;
 	}
 
@@ -1220,6 +1334,5 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
-	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

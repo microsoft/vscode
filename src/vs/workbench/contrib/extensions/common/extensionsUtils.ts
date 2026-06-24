@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { localize } from '../../../../nls.js';
+import { Event } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { Severity, INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;

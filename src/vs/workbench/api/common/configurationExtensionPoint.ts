@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { isObject, isUndefined } from 'vs/base/common/types';
-import { ExtensionIdentifierMap, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as nls from '../../../nls.js';
+import * as objects from '../../../base/common/objects.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
+import { isObject, isUndefined } from '../../../base/common/types.js';
+import { ExtensionIdentifierMap, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
+import product from '../../../platform/product/common/product.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -115,6 +117,51 @@ const configurationEntrySchema: IJSONSchema = {
 								type: 'boolean',
 								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
 							},
+							keywords: {
+								type: 'array',
+								items: {
+									type: 'string'
+								},
+								description: nls.localize('scope.keywords', 'A list of keywords that help users find this setting in the Settings editor. These are not shown to the user.')
+							},
+							tags: {
+								type: 'array',
+								items: {
+									type: 'string',
+									enum: [
+										'accessibility',
+										'advanced',
+										'experimental',
+										'telemetry',
+										'usesOnlineServices',
+									],
+									enumDescriptions: [
+										nls.localize('accessibility', 'Accessibility settings'),
+										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
+										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
+										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
+										nls.localize('telemetry', 'Telemetry settings'),
+										nls.localize('usesOnlineServices', 'Settings that use online services')
+									],
+								},
+								additionalItems: true,
+								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+							},
+							agentsWindow: {
+								type: 'object',
+								markdownDescription: nls.localize('scope.agentsWindow', "Configuration overrides for the Agents window. Allows specifying a different default value and read-only behavior for this setting when running in the Agents window.\n\n**Note**: This is a proposed API. To use it, extensions must include `agentsWindowConfiguration` in their `enabledApiProposals`."),
+								properties: {
+									'default': {
+										description: nls.localize('scope.agentsWindow.default', 'The default value for this setting in the Agents window.'),
+									},
+									readOnly: {
+										type: 'boolean',
+										description: nls.localize('scope.agentsWindow.readOnly', 'When true, this setting cannot be changed by the user in the Agents window.'),
+										default: false,
+									}
+								},
+								additionalProperties: false
+							}
 						}
 					}
 				]
@@ -128,11 +175,12 @@ let _configDelta: IConfigurationDelta | undefined;
 
 
 // BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IStringDictionary<IStringDictionary<unknown>>>({
 	extensionPoint: 'configurationDefaults',
 	jsonSchema: {
 		$ref: configurationDefaultsSchemaId,
-	}
+	},
+	canHandleResolver: true
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 
@@ -158,13 +206,19 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const registeredProperties = configurationRegistry.getConfigurationProperties();
 		const allowedScopes = [ConfigurationScope.MACHINE_OVERRIDABLE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
 		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
-			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
+			const overrides = objects.deepClone(extension.value);
 			for (const key of Object.keys(overrides)) {
+				const registeredPropertyScheme = registeredProperties[key];
+				if (registeredPropertyScheme?.disallowConfigurationDefault) {
+					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. This setting does not allow contributing configuration defaults.", key));
+					delete overrides[key];
+					continue;
+				}
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
-					const registeredPropertyScheme = registeredProperties[key];
 					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
 						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
 						delete overrides[key];
+						continue;
 					}
 				}
 			}
@@ -189,7 +243,8 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 				items: configurationEntrySchema
 			}
 		]
-	}
+	},
+	canHandleResolver: true
 });
 
 const extensionConfigurations: ExtensionIdentifierMap<IConfigurationNode[]> = new ExtensionIdentifierMap<IConfigurationNode[]>();
@@ -210,8 +265,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	const seenProperties = new Set<string>();
 
-	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode[] {
-		const configurations: IConfigurationNode[] = [];
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<unknown>): IConfigurationNode {
 		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -224,12 +278,12 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		configuration.extensionInfo = { id: extension.description.identifier.value, displayName: extension.description.displayName };
 		configuration.restrictedProperties = extension.description.capabilities?.untrustedWorkspaces?.supported === 'limited' ? extension.description.capabilities?.untrustedWorkspaces.restrictedConfigurations : undefined;
 		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
-		configurations.push(configuration);
-		return configurations;
+		return configuration;
 	}
 
-	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
+	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<unknown>): void {
 		const properties = configuration.properties;
+		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
 			if (typeof properties !== 'object') {
 				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
@@ -237,13 +291,13 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			}
 			for (const key in properties) {
 				const propertyConfiguration = properties[key];
-				const message = validateProperty(key, propertyConfiguration);
+				const message = validateProperty(key, propertyConfiguration, extension.description.identifier.value);
 				if (message) {
 					delete properties[key];
 					extension.collector.warn(message);
 					continue;
 				}
-				if (seenProperties.has(key)) {
+				if (seenProperties.has(key) && !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extension.description.identifier.value.toLowerCase())) {
 					delete properties[key];
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
@@ -253,24 +307,20 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 					continue;
 				}
-				seenProperties.add(key);
-				if (propertyConfiguration.scope) {
-					if (propertyConfiguration.scope.toString() === 'application') {
-						propertyConfiguration.scope = ConfigurationScope.APPLICATION;
-					} else if (propertyConfiguration.scope.toString() === 'machine') {
-						propertyConfiguration.scope = ConfigurationScope.MACHINE;
-					} else if (propertyConfiguration.scope.toString() === 'resource') {
-						propertyConfiguration.scope = ConfigurationScope.RESOURCE;
-					} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
-						propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
-					} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
-						propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
-					} else {
-						propertyConfiguration.scope = ConfigurationScope.WINDOW;
-					}
-				} else {
-					propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				if (extensionConfigurationPolicy?.[key]) {
+					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
 				}
+				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+					propertyConfiguration.experiment = {
+						mode: 'startup'
+					};
+				}
+				if (propertyConfiguration.agentsWindow && !isProposedApiEnabled(extension.description, 'agentsWindowConfiguration')) {
+					extension.collector.error(nls.localize('config.property.agentsWindow.proposed', "Extension '{0}' CANNOT use 'agentsWindow' property on configuration '{1}' without enabling the 'agentsWindowConfiguration' API proposal.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agentsWindow;
+				}
+				seenProperties.add(key);
+				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
 			}
 		}
 		const subNodes = configuration.allOf;
@@ -288,9 +338,9 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			const configurations: IConfigurationNode[] = [];
 			const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
 			if (Array.isArray(value)) {
-				value.forEach(v => configurations.push(...handleConfiguration(v, extension)));
+				value.forEach(v => configurations.push(handleConfiguration(v, extension)));
 			} else {
-				configurations.push(...handleConfiguration(value, extension));
+				configurations.push(handleConfiguration(value, extension));
 			}
 			extensionConfigurations.set(extension.description.identifier, configurations);
 			addedConfigurations.push(...configurations);
@@ -370,6 +420,20 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
 			$ref: tasksSchemaId
 		},
+		'mcp': {
+			type: 'object',
+			default: {
+				inputs: [],
+				servers: {
+					'mcp-server-time': {
+						command: 'uvx',
+						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+					}
+				}
+			},
+			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+			$ref: mcpSchemaId
+		},
 		'extensions': {
 			type: 'object',
 			default: {},
@@ -400,15 +464,11 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const configuration = manifest.contributes?.configuration;
-		let properties: any = {};
-		if (Array.isArray(configuration)) {
-			configuration.forEach(config => {
-				properties = { ...properties, ...config.properties };
-			});
-		} else if (configuration) {
-			properties = configuration.properties;
-		}
+		const configuration: IConfigurationNode[] = manifest.contributes?.configuration
+			? Array.isArray(manifest.contributes.configuration) ? manifest.contributes.configuration : [manifest.contributes.configuration]
+			: [];
+
+		const properties = getAllConfigurationProperties(configuration);
 
 		const contrib = properties ? Object.keys(properties) : [];
 		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "Description"), nls.localize('default', "Default")];
@@ -438,4 +498,58 @@ Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFea
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(SettingsTableRenderer),
+});
+
+class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.configurationDefaults;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const configurationDefaults = manifest.contributes?.configurationDefaults ?? {};
+
+		const headers = [nls.localize('language', "Languages"), nls.localize('setting', "Setting"), nls.localize('default override value', "Override Value")];
+		const rows: IRowData[][] = [];
+
+		for (const key of Object.keys(configurationDefaults).sort((a, b) => a.localeCompare(b))) {
+			const value = configurationDefaults[key];
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+				const languages = overrideIdentifiersFromKey(key);
+				const languageMarkdown = new MarkdownString().appendMarkdown(`${languages.join(', ')}`);
+				for (const key of Object.keys(value).sort((a, b) => a.localeCompare(b))) {
+					const row: IRowData[] = [];
+					row.push(languageMarkdown);
+					row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+					row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value[key], null, 2)));
+					rows.push(row);
+				}
+			} else {
+				const row: IRowData[] = [];
+				row.push('');
+				row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+				row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value, null, 2)));
+				rows.push(row);
+			}
+		}
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'configurationDefaults',
+	label: nls.localize('settings default overrides', "Settings Default Overrides"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ConfigurationDefaultsTableRenderer),
 });

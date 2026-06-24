@@ -28,6 +28,7 @@
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
+		<style id="vscode-css-modules" type="text/css" media="screen"></style>
 
 	</head>
 
@@ -35,31 +36,32 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
 	<script>
 		const baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
-		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${baseUrl}/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
-		});
-		require.config({
-			baseUrl: `${baseUrl}/out`,
-			recordStats: true,
-			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`)
-				}
-			}),
-			paths: self.webPackagePaths
-		});
+		globalThis._VSCODE_FILE_ROOT = baseUrl + '/out/';
+	</script>
+	<script>
+		const sheet = document.getElementById('vscode-css-modules').sheet;
+		globalThis._VSCODE_CSS_LOAD = function (url) {
+			sheet.insertRule(`@import url(${url});`);
+		};
+
+		const importMap = { imports: {} };
+		const cssModules = JSON.parse('{{WORKBENCH_DEV_CSS_MODULES}}');
+		for (const cssModule of cssModules) {
+			const cssUrl = new URL(cssModule, globalThis._VSCODE_FILE_ROOT).href;
+			const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+			const blob = new Blob([jsSrc], { type: 'application/javascript' });
+			importMap.imports[cssUrl] = URL.createObjectURL(blob);
+		}
+		const importMapElement = document.createElement('script');
+		importMapElement.type = 'importmap';
+		importMapElement.setAttribute('nonce', '1nline-m4p')
+		importMapElement.textContent = JSON.stringify(importMap, undefined, 2);
+		document.head.appendChild(importMapElement);
 	</script>
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
-	<script>
-		require(['vs/code/browser/workbench/workbench'], function() {});
-	</script>
+	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>

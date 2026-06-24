@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./findInput';
-import * as nls from 'vs/nls';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import * as dom from '../../dom.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
+import { Widget } from '../widget.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { IAction } from '../../../common/actions.js';
+import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
+import './findInput.css';
+import * as nls from '../../../../nls.js';
+import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
+import { IHistory } from '../../../common/history.js';
+import type { IHoverLifecycleOptions } from '../hover/hover.js';
 
 
 export interface IFindInputOptions {
@@ -32,11 +35,15 @@ export interface IFindInputOptions {
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
-	readonly history?: string[];
 	readonly additionalToggles?: Toggle[];
+	readonly actions?: ReadonlyArray<IAction>;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
+	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
+	readonly hideHoverOnValueChange?: boolean;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -62,25 +69,25 @@ export class FindInput extends Widget {
 	public readonly inputBox: HistoryInputBox;
 
 	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
-	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
+	public get onDidOptionChange(): Event<boolean /* via keyboard */> { return this._onDidOptionChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	public get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _onMouseDown = this._register(new Emitter<IMouseEvent>());
-	public readonly onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
+	public get onMouseDown(): Event<IMouseEvent> { return this._onMouseDown.event; }
 
 	private readonly _onInput = this._register(new Emitter<void>());
-	public readonly onInput: Event<void> = this._onInput.event;
+	public get onInput(): Event<void> { return this._onInput.event; }
 
 	private readonly _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	public get onKeyUp(): Event<IKeyboardEvent> { return this._onKeyUp.event; }
 
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	public get onCaseSensitiveKeyDown(): Event<IKeyboardEvent> { return this._onCaseSensitiveKeyDown.event; }
 
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
+	public get onRegexKeyDown(): Event<IKeyboardEvent> { return this._onRegexKeyDown.event; }
 
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IFindInputOptions) {
 		super();
@@ -92,7 +99,6 @@ export class FindInput extends Widget {
 		const appendCaseSensitiveLabel = options.appendCaseSensitiveLabel || '';
 		const appendWholeWordsLabel = options.appendWholeWordsLabel || '';
 		const appendRegexLabel = options.appendRegexLabel || '';
-		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
@@ -106,21 +112,23 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation
 			},
-			history,
 			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
+			history: options.history,
+			actions: options.actions,
+			actionViewItemProvider: options.actionViewItemProvider,
+			hideHoverOnValueChange: options.hideHoverOnValueChange
 		}));
 
-		const hoverDelegate = this._register(createInstantHoverDelegate());
-
 		if (this.showCommonFindToggles) {
+			const hoverLifecycleOptions: IHoverLifecycleOptions = options?.hoverLifecycleOptions || { groupId: 'find-input' };
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
@@ -137,7 +145,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -151,7 +159,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
-				hoverDelegate,
+				hoverLifecycleOptions,
 				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {
@@ -166,9 +174,9 @@ export class FindInput extends Widget {
 			}));
 
 			// Arrow-Key support to navigate between options
-			const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+					const indexes = this.getToggleDomNodes();
 					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 					if (index >= 0) {
 						let newIndex: number = -1;
@@ -307,14 +315,34 @@ export class FindInput extends Widget {
 		this.updateInputBoxPadding();
 	}
 
-	private updateInputBoxPadding(controlsHidden = false) {
-		if (controlsHidden) {
-			this.inputBox.paddingRight = 0;
-		} else {
-			this.inputBox.paddingRight =
-				((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
-				+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
+	protected getToggleDomNodes(): HTMLElement[] {
+		const nodes: HTMLElement[] = [];
+		if (this.caseSensitive) {
+			nodes.push(this.caseSensitive.domNode);
 		}
+		if (this.wholeWords) {
+			nodes.push(this.wholeWords.domNode);
+		}
+		if (this.regex) {
+			nodes.push(this.regex.domNode);
+		}
+		for (const toggle of this.additionalToggles) {
+			nodes.push(toggle.domNode);
+		}
+		return nodes;
+	}
+
+	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		this.inputBox.setActions(actions, actionViewItemProvider);
+		this.updateInputBoxPadding();
+	}
+
+	private updateInputBoxPadding(controlsHidden = false) {
+		const togglesWidth = controlsHidden
+			? 0
+			: ((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
+			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
+		this.inputBox.paddingRight = togglesWidth + this.inputBox.actionsWidth;
 	}
 
 	public clear(): void {

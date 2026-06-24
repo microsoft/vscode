@@ -6,7 +6,7 @@ title VSCode Dev
 pushd %~dp0\..
 
 :: Node modules
-if not exist node_modules call .\scripts\npm.bat install
+if not exist node_modules call npm i
 
 :: Get electron
 node .\node_modules\gulp\bin\gulp.js electron

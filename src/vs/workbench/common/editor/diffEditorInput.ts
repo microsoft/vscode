@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, IResourceDiffEditorInput, IUntypedEditorInput, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { shorten } from 'vs/base/common/labels';
-import { isResolvedEditorModel } from 'vs/platform/editor/common/editor';
+import { localize } from '../../../nls.js';
+import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from './sideBySideEditorInput.js';
+import { EditorInput, IUntypedEditorOptions } from './editorInput.js';
+import { EditorModel } from './editorModel.js';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, IResourceDiffEditorInput, IUntypedEditorInput, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from '../editor.js';
+import { BaseTextEditorModel } from './textEditorModel.js';
+import { DiffEditorModel } from './diffEditorModel.js';
+import { TextDiffEditorModel } from './textDiffEditorModel.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { shorten } from '../../../base/common/labels.js';
+import { isResolvedEditorModel } from '../../../platform/editor/common/editor.js';
 
 interface IDiffEditorInputLabels {
-	name: string;
+	readonly name: string;
 
-	shortDescription: string | undefined;
-	mediumDescription: string | undefined;
-	longDescription: string | undefined;
+	readonly shortDescription: string | undefined;
+	readonly mediumDescription: string | undefined;
+	readonly longDescription: string | undefined;
 
-	forceDescription: boolean;
+	readonly forceDescription: boolean;
 
-	shortTitle: string;
-	mediumTitle: string;
-	longTitle: string;
+	readonly shortTitle: string;
+	readonly mediumTitle: string;
+	readonly longTitle: string;
 }
 
 /**
@@ -59,7 +59,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
 
-	private readonly labels = this.computeLabels();
+	private readonly labels: IDiffEditorInputLabels;
 
 	constructor(
 		preferredName: string | undefined,
@@ -70,6 +70,8 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		@IEditorService editorService: IEditorService
 	) {
 		super(preferredName, preferredDescription, original, modified, editorService);
+
+		this.labels = this.computeLabels();
 	}
 
 	private computeLabels(): IDiffEditorInputLabels {

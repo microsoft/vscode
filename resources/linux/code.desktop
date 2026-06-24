@@ -14,6 +14,7 @@ Keywords=vscode;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window
+Name[cs]=Nové prázdné okno
 Name[de]=Neues leeres Fenster
 Name[es]=Nueva ventana vacía
 Name[fr]=Nouvelle fenêtre vide

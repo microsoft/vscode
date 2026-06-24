@@ -3,36 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from 'vs/platform/remoteTunnel/common/remoteTunnel';
-import { Emitter } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogger, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
-import { dirname, join } from 'vs/base/common/path';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus, TunnelMode, INACTIVE_TUNNEL_MODE, ActiveTunnelMode } from '../common/remoteTunnel.js';
+import { Emitter } from '../../../base/common/event.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ILogger, ILoggerService, LogLevelToString } from '../../log/common/log.js';
+import { dirname, join } from '../../../base/common/path.js';
 import { ChildProcess, StdioOptions, spawn } from 'child_process';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
+import { IProductService } from '../../product/common/productService.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../base/common/async.js';
+import { ISharedProcessLifecycleService } from '../../lifecycle/node/sharedProcessLifecycleService.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { localize } from '../../../nls.js';
 import { hostname, homedir } from 'os';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isString } from 'vs/base/common/types';
-import { StreamSplitter } from 'vs/base/node/nodeStreams';
-import { joinPath } from 'vs/base/common/resources';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { isString } from '../../../base/common/types.js';
+import { StreamSplitter } from '../../../base/node/nodeStreams.js';
+import { joinPath } from '../../../base/common/resources.js';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
 	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
 	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	tunnelName?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the tunnel being enabled or disabled' };
 };
 
 type RemoteTunnelEnablementEvent = {
 	enabled: boolean;
 	service: boolean;
+	tunnelName?: string;
+};
+
+type RemoteTunnelConnectedClassification = {
+	owner: 'aeschli';
+	comment: 'Reporting when a Remote Tunnel connection is established';
+	tunnelName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the connected tunnel' };
+	isAttached: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the connection is attached to an existing tunnel process' };
+};
+
+type RemoteTunnelConnectedEvent = {
+	tunnelName: string;
+	isAttached: boolean;
 };
 
 const restartTunnelOnConfigurationChanges: readonly string[] = [
@@ -55,13 +69,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelSession | undefined>();
+	private readonly _onDidTokenFailedEmitter = this._register(new Emitter<IRemoteTunnelSession | undefined>());
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
-	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
+	private readonly _onDidChangeTunnelStatusEmitter = this._register(new Emitter<TunnelStatus>());
 	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
-	private readonly _onDidChangeModeEmitter = new Emitter<TunnelMode>();
+	private readonly _onDidChangeModeEmitter = this._register(new Emitter<TunnelMode>());
 	public readonly onDidChangeMode = this._onDidChangeModeEmitter.event;
 
 	private readonly _logger: ILogger;
@@ -95,7 +109,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
-		this._startTunnelProcessDelayer = new Delayer(100);
+		this._startTunnelProcessDelayer = this._register(new Delayer(100));
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
 
@@ -175,9 +189,17 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
 				// bin = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin
 				binParentLocation = this.environmentService.appRoot;
+			} else if (isWindows) {
+				if (this.productService.win32VersionedUpdate) {
+					// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\<version>\resources\app
+					// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
+					binParentLocation = dirname(dirname(dirname(this.environmentService.appRoot)));
+				} else {
+					// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+					// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
+					binParentLocation = dirname(dirname(this.environmentService.appRoot));
+				}
 			} else {
-				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
-				// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
 				// appRoot = /usr/share/code-insiders/resources/app
 				// bin = /usr/share/code-insiders/bin
 				binParentLocation = dirname(dirname(this.environmentService.appRoot));
@@ -233,9 +255,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	private async updateTunnelProcess(): Promise<void> {
+		const tunnelName = this._getTunnelName();
 		this.telemetryService.publicLog2<RemoteTunnelEnablementEvent, RemoteTunnelEnablementClassification>('remoteTunnel.enablement', {
 			enabled: this._mode.active,
 			service: this._mode.active && this._mode.asService,
+			tunnelName,
 		});
 
 		if (this._tunnelProcess) {
@@ -388,6 +412,10 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			const m = message.match(/Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
 				const info: ConnectionInfo = { link: m[1], domain: m[2], tunnelName: m[4], isAttached };
+				this.telemetryService.publicLog2<RemoteTunnelConnectedEvent, RemoteTunnelConnectedClassification>('remoteTunnel.connected', {
+					tunnelName: info.tunnelName,
+					isAttached: info.isAttached,
+				});
 				this.setTunnelStatus(TunnelStates.connected(info, serviceInstallFailed));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();

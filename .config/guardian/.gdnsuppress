@@ -1,0 +1,68 @@
+{
+  "hydrated": true,
+  "properties": {
+    "helpUri": "https://eng.ms/docs/microsoft-security/security/azure-security/cloudai-security-fundamentals-engineering/security-integration/guardian-wiki/microsoft-guardian/general/suppressions"
+  },
+  "version": "1.0.0",
+  "suppressionSets": {
+    "default": {
+      "name": "default",
+      "createdDate": "2025-01-28 06:29:05Z",
+      "lastUpdatedDate": "2025-08-25 17:55:20Z"
+    }
+  },
+  "results": {
+    "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b": {
+      "signature": "6216d3477ad4f56cb4ec316a9aaff02e9530a10d56469a4ef4063b8d02fe344b",
+      "alternativeSignatures": [
+        "46ad210995b2ff199f3bee5f271938a4251ed7a60058041ace1beaa53e36b51c"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:54:06Z"
+    },
+    "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b": {
+      "signature": "b8a4702fb4b855719e5e5033c3b629fbe6267d516ce8a18bd8f3be3b9962434b",
+      "alternativeSignatures": [
+        "52d986be88f1c5696fc87d7794279d02f5084c645440e2dd2c3b5a2176b6bf52"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-x64-web/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:54:06Z"
+    },
+		"4dbc45d0405de2e83d53f10227e36b2a9d15eceb2c5e6934da5c4a1bffbfad89": {
+      "signature": "4dbc45d0405de2e83d53f10227e36b2a9d15eceb2c5e6934da5c4a1bffbfad89",
+      "alternativeSignatures": [
+        "b6bab85ba5e97bc4e6ff2e8a7913cb9f4f3346f7bda435d176e0b1e3cfb883cf"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-arm64/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:45:35Z"
+    },
+    "024ff37af329b63d2d9c83784cc071badf63b7729e3dd0969ab921d2f04d8e09": {
+      "signature": "024ff37af329b63d2d9c83784cc071badf63b7729e3dd0969ab921d2f04d8e09",
+      "alternativeSignatures": [
+        "b46b7d6ed331f3e62eff23c57d3a074f76ef618f108929851065904200f5a572"
+      ],
+      "target": "file:///D:/a/_work/1/vscode-server-win32-arm64-web/node.exe",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "binskim",
+      "ruleId": "BA2008",
+      "createdDate": "2025-08-25 17:45:35Z"
+    }
+  }
+}

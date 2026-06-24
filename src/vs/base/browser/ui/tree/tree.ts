@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { Event } from 'vs/base/common/event';
+import { IDragAndDropData } from '../../dnd.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IListDragAndDrop, IListDragOverReaction, IListElementRenderDetails, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
+import { ListViewTargetSector } from '../list/listView.js';
+import { Event } from '../../../common/event.js';
 
 export const enum TreeVisibility {
 
@@ -119,6 +119,12 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeListSpliceData<T, TFilterData> {
+	start: number;
+	deleteCount: number;
+	elements: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModelSpliceEvent<T, TFilterData> {
 	insertedNodes: ITreeNode<T, TFilterData>[];
 	deletedNodes: ITreeNode<T, TFilterData>[];
@@ -127,7 +133,8 @@ export interface ITreeModelSpliceEvent<T, TFilterData> {
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
 
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceModel: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceRenderedNodes: Event<ITreeListSpliceData<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -135,8 +142,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 
 	getListIndex(location: TRef): number;
 	getListRenderCount(location: TRef): number;
-	getNode(location?: TRef): ITreeNode<T, any>;
-	getNodeLocation(node: ITreeNode<T, any>): TRef;
+	getNode(location?: TRef): ITreeNode<T, TFilterData>;
+	getNodeLocation(node: ITreeNode<T, TFilterData>): TRef;
 	getParentNodeLocation(location: TRef): TRef | undefined;
 
 	getFirstElementChild(location: TRef): T | undefined;
@@ -152,9 +159,15 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	refilter(): void;
 }
 
+export interface ITreeElementRenderDetails extends IListElementRenderDetails {
+	readonly indent: number;
+}
+
 export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
+	renderElement(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
+	disposeElement?(element: ITreeNode<T, TFilterData>, index: number, templateData: TTemplateData, details?: ITreeElementRenderDetails): void;
 	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
-	onDidChangeTwistieState?: Event<T>;
+	readonly onDidChangeTwistieState?: Event<T>;
 }
 
 export interface ITreeEvent<T> {

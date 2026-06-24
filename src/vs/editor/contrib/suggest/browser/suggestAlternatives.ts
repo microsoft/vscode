@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CompletionModel } from './completionModel';
-import { ISelectedSuggestion } from './suggestWidget';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { CompletionModel } from './completionModel.js';
+import { ISelectedSuggestion } from './suggestWidget.js';
 
 export class SuggestAlternatives {
 
@@ -17,7 +17,7 @@ export class SuggestAlternatives {
 
 	private _index: number = 0;
 	private _model: CompletionModel | undefined;
-	private _acceptNext: ((selected: ISelectedSuggestion) => any) | undefined;
+	private _acceptNext: ((selected: ISelectedSuggestion) => unknown) | undefined;
 	private _listener: IDisposable | undefined;
 	private _ignore: boolean | undefined;
 
@@ -40,7 +40,7 @@ export class SuggestAlternatives {
 		this._ignore = false;
 	}
 
-	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => any): void {
+	set({ model, index }: ISelectedSuggestion, acceptNext: (selected: ISelectedSuggestion) => unknown): void {
 
 		// no suggestions -> nothing to do
 		if (model.items.length === 0) {

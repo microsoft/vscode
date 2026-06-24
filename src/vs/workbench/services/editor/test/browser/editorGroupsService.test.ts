@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IGroupModelChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Emitter } from 'vs/base/common/event';
-import { isEqual } from 'vs/base/common/resources';
+import assert from 'assert';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from '../../../../test/browser/workbenchTestServices.js';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ConfirmResult } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { IGroupModelChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from '../../../../common/editor/editorGroupModel.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('EditorGroupsService', () => {
 
@@ -476,6 +476,11 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.partOptions.showTabs, 'single');
 		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
+
+		const enforced = part.enforcePartOptions({ allowDropIntoGroup: false });
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, false);
+		enforced.dispose();
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, true);
 	});
 
 	test('editor basics', async function () {
@@ -2195,6 +2200,37 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group1ContextKeyValue, input2.resource.toString());
 
 		disposables.dispose();
+	});
+
+	test('onDidActivateGroup carries activation reason', async function () {
+		const [part] = await createPart();
+
+		const activationEvents: IEditorGroupActivationEvent[] = [];
+		disposables.add(part.onDidActivateGroup(e => activationEvents.push(e)));
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		// Activate a group explicitly - should carry DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate the same group again - should still fire with DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate root group back
+		activationEvents.length = 0;
+		part.activateGroup(rootGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rootGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

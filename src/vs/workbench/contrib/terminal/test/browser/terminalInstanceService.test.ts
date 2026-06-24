@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalInstanceService } from '../../browser/terminal.js';
+import { TerminalInstanceService } from '../../browser/terminalInstanceService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Workbench - TerminalInstanceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

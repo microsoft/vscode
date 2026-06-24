@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { IStorage, IStorageDatabase, Storage } from 'vs/base/parts/storage/common/storage';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget, isProfileUsingDefaultStorage } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable, DisposableMap, MutableDisposable, isDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IStorage, IStorageDatabase, Storage } from '../../../base/parts/storage/common/storage.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget, isProfileUsingDefaultStorage } from '../../storage/common/storage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IRemoteService } from '../../ipc/common/services.js';
+import { ILogService } from '../../log/common/log.js';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from '../../storage/common/storageIpc.js';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from './userDataProfile.js';
 
 export interface IProfileStorageValueChanges {
 	readonly profile: IUserDataProfile;
@@ -26,6 +26,7 @@ export interface IProfileStorageChanges {
 export interface IStorageValue {
 	readonly value: string | undefined;
 	readonly target: StorageTarget;
+	readonly scope?: StorageScope;
 }
 
 export const IUserDataProfileStorageService = createDecorator<IUserDataProfileStorageService>('IUserDataProfileStorageService');
@@ -48,8 +49,9 @@ export interface IUserDataProfileStorageService {
 	 * @param profile The profile to which the data has to be written to
 	 * @param data Data that has to be updated
 	 * @param target Storage target of the data
+	 * @param scope Storage scope of the data (defaults to PROFILE)
 	 */
-	updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void>;
+	updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget, scope?: StorageScope): Promise<void>;
 
 	/**
 	 * Calls a function with a storage service scoped to given profile.
@@ -63,18 +65,24 @@ export abstract class AbstractUserDataProfileStorageService extends Disposable i
 
 	readonly abstract onDidChange: Event<IProfileStorageChanges>;
 
+	private readonly storageServicesMap: DisposableMap<string, StorageService> | undefined;
+
 	constructor(
+		persistStorages: boolean,
 		@IStorageService protected readonly storageService: IStorageService
 	) {
 		super();
+		if (persistStorages) {
+			this.storageServicesMap = this._register(new DisposableMap<string, StorageService>());
+		}
 	}
 
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
-		return this.withProfileScopedStorageService(profile, async storageService => this.getItems(storageService));
+		return this.withProfileScopedStorageService(profile, async storageService => this.getItems(storageService, profile));
 	}
 
-	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget): Promise<void> {
-		return this.withProfileScopedStorageService(profile, async storageService => this.writeItems(storageService, data, target));
+	async updateStorageData(profile: IUserDataProfile, data: Map<string, string | undefined | null>, target: StorageTarget, scope = StorageScope.PROFILE): Promise<void> {
+		return this.withProfileScopedStorageService(profile, async storageService => this.writeItems(storageService, data, target, scope));
 	}
 
 	async withProfileScopedStorageService<T>(profile: IUserDataProfile, fn: (storageService: IStorageService) => Promise<T>): Promise<T> {
@@ -82,43 +90,51 @@ export abstract class AbstractUserDataProfileStorageService extends Disposable i
 			return fn(this.storageService);
 		}
 
-		const storageDatabase = await this.createStorageDatabase(profile);
-		const storageService = new StorageService(storageDatabase);
+		let storageService = this.storageServicesMap?.get(profile.id);
+		if (!storageService) {
+			storageService = new StorageService(this.createStorageDatabase(profile));
+			this.storageServicesMap?.set(profile.id, storageService);
+
+			try {
+				await storageService.initialize();
+			} catch (error) {
+				if (this.storageServicesMap?.has(profile.id)) {
+					this.storageServicesMap.deleteAndDispose(profile.id);
+				} else {
+					storageService.dispose();
+				}
+				throw error;
+			}
+		}
 		try {
-			await storageService.initialize();
 			const result = await fn(storageService);
 			await storageService.flush();
 			return result;
 		} finally {
-			storageService.dispose();
-			await this.closeAndDispose(storageDatabase);
+			if (!this.storageServicesMap?.has(profile.id)) {
+				storageService.dispose();
+			}
 		}
 	}
 
-	private getItems(storageService: IStorageService): Map<string, IStorageValue> {
+	private getItems(storageService: IStorageService, profile: IUserDataProfile): Map<string, IStorageValue> {
 		const result = new Map<string, IStorageValue>();
-		const populate = (target: StorageTarget) => {
-			for (const key of storageService.keys(StorageScope.PROFILE, target)) {
-				result.set(key, { value: storageService.get(key, StorageScope.PROFILE), target });
+		const populate = (scope: StorageScope, target: StorageTarget) => {
+			for (const key of storageService.keys(scope, target)) {
+				result.set(key, { value: storageService.get(key, scope), target, scope });
 			}
 		};
-		populate(StorageTarget.USER);
-		populate(StorageTarget.MACHINE);
+		populate(StorageScope.PROFILE, StorageTarget.USER);
+		populate(StorageScope.PROFILE, StorageTarget.MACHINE);
+		if (profile.isDefault) {
+			populate(StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+			populate(StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		}
 		return result;
 	}
 
-	private writeItems(storageService: IStorageService, items: Map<string, string | undefined | null>, target: StorageTarget): void {
-		storageService.storeAll(Array.from(items.entries()).map(([key, value]) => ({ key, value, scope: StorageScope.PROFILE, target })), true);
-	}
-
-	protected async closeAndDispose(storageDatabase: IStorageDatabase): Promise<void> {
-		try {
-			await storageDatabase.close();
-		} finally {
-			if (isDisposable(storageDatabase)) {
-				storageDatabase.dispose();
-			}
-		}
+	private writeItems(storageService: IStorageService, items: Map<string, string | undefined | null>, target: StorageTarget, scope = StorageScope.PROFILE): void {
+		storageService.storeAll(Array.from(items.entries()).map(([key, value]) => ({ key, value, scope, target })), true);
 	}
 
 	protected abstract createStorageDatabase(profile: IUserDataProfile): Promise<IStorageDatabase>;
@@ -130,12 +146,13 @@ export class RemoteUserDataProfileStorageService extends AbstractUserDataProfile
 	readonly onDidChange: Event<IProfileStorageChanges>;
 
 	constructor(
+		persistStorages: boolean,
 		private readonly remoteService: IRemoteService,
 		userDataProfilesService: IUserDataProfilesService,
 		storageService: IStorageService,
 		logService: ILogService,
 	) {
-		super(storageService);
+		super(persistStorages, storageService);
 
 		const channel = remoteService.getChannel('profileStorageListener');
 		const disposable = this._register(new MutableDisposable());
@@ -164,14 +181,26 @@ export class RemoteUserDataProfileStorageService extends AbstractUserDataProfile
 
 class StorageService extends AbstractStorageService {
 
-	private readonly profileStorage: IStorage;
+	private profileStorage: IStorage | undefined;
 
-	constructor(profileStorageDatabase: IStorageDatabase) {
+	constructor(private readonly profileStorageDatabase: Promise<IStorageDatabase>) {
 		super({ flushInterval: 100 });
-		this.profileStorage = this._register(new Storage(profileStorageDatabase));
 	}
 
-	protected doInitialize(): Promise<void> {
+	protected async doInitialize(): Promise<void> {
+		const profileStorageDatabase = await this.profileStorageDatabase;
+		const profileStorage = new Storage(profileStorageDatabase);
+		this._register(profileStorage.onDidChangeStorage(e => {
+			this.emitDidChangeValue(StorageScope.PROFILE, e);
+		}));
+		this._register(toDisposable(() => {
+			profileStorage.close();
+			profileStorage.dispose();
+			if (isDisposable(profileStorageDatabase)) {
+				profileStorageDatabase.dispose();
+			}
+		}));
+		this.profileStorage = profileStorage;
 		return this.profileStorage.init();
 	}
 

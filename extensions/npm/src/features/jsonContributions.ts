@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
-import { BowerJSONContribution } from './bowerJSONContribution';
 import { PackageJSONContribution } from './packageJSONContribution';
 import { XHRRequest } from 'request-light';
 
@@ -30,7 +29,7 @@ export interface IJSONContribution {
 }
 
 export function addJSONProviders(xhr: XHRRequest, npmCommandPath: string | undefined): Disposable {
-	const contributions = [new PackageJSONContribution(xhr, npmCommandPath), new BowerJSONContribution(xhr)];
+	const contributions = [new PackageJSONContribution(xhr, npmCommandPath)];
 	const subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		const selector = contribution.getDocumentSelector();

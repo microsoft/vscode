@@ -5,14 +5,11 @@
 
 import * as vscode from 'vscode';
 import { DocumentSelector } from '../configuration/documentSelector';
-import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
 
 class SmartSelection implements vscode.SelectionRangeProvider {
-	public static readonly minVersion = API.v350;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -53,9 +50,5 @@ export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, SmartSelection.minVersion),
-	], () => {
-		return vscode.languages.registerSelectionRangeProvider(selector.syntax, new SmartSelection(client));
-	});
+	return vscode.languages.registerSelectionRangeProvider(selector.syntax, new SmartSelection(client));
 }

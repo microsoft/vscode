@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { IInputBoxStyles, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import 'vs/css!./media/quickInput';
+import * as dom from '../../../base/browser/dom.js';
+import { FindInput } from '../../../base/browser/ui/findinput/findInput.js';
+import { IInputBoxStyles, IRange, MessageType } from '../../../base/browser/ui/inputbox/inputBox.js';
+import { createToggleActionViewItemProvider, IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { IAction } from '../../../base/common/actions.js';
+import { IActionViewItemProvider } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import Severity from '../../../base/common/severity.js';
+import './media/quickInput.css';
 
 const $ = dom.$;
 
@@ -19,6 +19,7 @@ export class QuickInputBox extends Disposable {
 
 	private container: HTMLElement;
 	private findInput: FindInput;
+	private _listFocusMode: boolean = false;
 
 	constructor(
 		private parent: HTMLElement,
@@ -27,21 +28,27 @@ export class QuickInputBox extends Disposable {
 	) {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
-		const input = this.findInput.inputBox.inputElement;
-		input.role = 'combobox';
-		input.ariaHasPopup = 'menu';
-		input.ariaAutoComplete = 'list';
-		input.ariaExpanded = 'true';
+		this.findInput = this._register(new FindInput(
+			this.container,
+			undefined,
+			{
+				label: '',
+				inputBoxStyles,
+				toggleStyles,
+				actionViewItemProvider: createToggleActionViewItemProvider(toggleStyles),
+				hideHoverOnValueChange: true
+			}));
+		// Don't set role="textbox" - the input element already has that implicit role
+		// Don't set aria-haspopup or aria-autocomplete by default - only add them when list is active
 	}
 
-	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
-		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.KEY_DOWN, handler);
-	};
+	get onKeyDown() {
+		return this.findInput.onKeyDown;
+	}
 
-	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
-		return dom.addStandardDisposableListener(this.findInput.inputBox.inputElement, dom.EventType.MOUSE_DOWN, handler);
-	};
+	get onMouseDown() {
+		return this.findInput.onMouseDown;
+	}
 
 	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.findInput.onDidChange(handler);
@@ -103,6 +110,22 @@ export class QuickInputBox extends Disposable {
 		this.findInput.setAdditionalToggles(toggles);
 	}
 
+	set actions(actions: ReadonlyArray<IAction> | undefined) {
+		this.setActions(actions);
+	}
+
+	setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
+		this.findInput.setActions(actions, actionViewItemProvider);
+	}
+
+	get ariaLabel(): string {
+		return this.findInput.inputBox.inputElement.getAttribute('aria-label') || '';
+	}
+
+	set ariaLabel(ariaLabel: string) {
+		this.findInput.inputBox.inputElement.setAttribute('aria-label', ariaLabel);
+	}
+
 	hasFocus(): boolean {
 		return this.findInput.inputBox.hasFocus();
 	}
@@ -113,6 +136,30 @@ export class QuickInputBox extends Disposable {
 
 	removeAttribute(name: string): void {
 		this.findInput.inputBox.inputElement.removeAttribute(name);
+	}
+
+	/**
+	 * Controls the ARIA popup mode for screen readers.
+	 * When enabled (hasActiveDescendant=true), indicates a list popup is active.
+	 * When disabled, removes ARIA attributes to allow normal text input behavior.
+	 * Only updates attributes when the state actually changes to avoid
+	 * unnecessary screen reader re-announcements.
+	 */
+	setListFocusMode(hasActiveDescendant: boolean): void {
+		if (this._listFocusMode === hasActiveDescendant) {
+			return; // No change, avoid triggering screen reader re-announcements
+		}
+		this._listFocusMode = hasActiveDescendant;
+		const input = this.findInput.inputBox.inputElement;
+		if (hasActiveDescendant) {
+			// List item is focused - indicate combobox behavior
+			input.setAttribute('aria-haspopup', 'listbox');
+			input.setAttribute('aria-autocomplete', 'list');
+		} else {
+			// No list item focused - remove combobox attributes for normal text input
+			input.removeAttribute('aria-haspopup');
+			input.removeAttribute('aria-autocomplete');
+		}
 	}
 
 	showDecoration(decoration: Severity): void {

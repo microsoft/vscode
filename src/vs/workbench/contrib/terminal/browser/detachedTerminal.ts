@@ -3,33 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalProcessInfo, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as dom from '../../../../base/browser/dom.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalBackend } from '../../../../platform/terminal/common/terminal.js';
+import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from './terminal.js';
+import { TerminalExtensionsRegistry } from './terminalExtensions.js';
+import { TerminalWidgetManager } from './widgets/widgetManager.js';
+import { XtermTerminal } from './xterm/xtermTerminal.js';
+import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
+import { ITerminalProcessInfo, ProcessState } from '../common/terminal.js';
+import { Event } from '../../../../base/common/event.js';
 
 export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());
-	public readonly capabilities = new TerminalCapabilityStore();
+	public readonly capabilities: ITerminalCapabilityStore;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
+	private readonly _attachDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	public domElement?: HTMLElement;
 
 	public get xterm(): IDetachedXtermTerminal {
 		return this._xterm;
 	}
+	public readonly onData: Event<string>;
 
 	constructor(
 		private readonly _xterm: XtermTerminal,
@@ -37,6 +41,10 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.onData = this._xterm.raw.onData;
+		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
+		this._register(capabilities);
+		this.capabilities = capabilities;
 		this._register(_xterm);
 
 		// Initialize contributions
@@ -52,7 +60,11 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 
 			let contribution: ITerminalContribution;
 			try {
-				contribution = instantiationService.createInstance(desc.ctor, this, options.processInfo, this._widgets);
+				contribution = instantiationService.createInstance(desc.ctor, {
+					instance: this,
+					processManager: options.processInfo,
+					widgetManager: this._widgets
+				});
 				this._contributions.set(desc.id, contribution);
 				this._register(contribution);
 			} catch (err) {
@@ -91,6 +103,14 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		this.domElement = container;
 		const screenElement = this._xterm.attachToElement(container, options);
 		this._widgets.attachToElement(screenElement);
+
+		const attachStore = new DisposableStore();
+		const scheduleFocus = () => {
+			// Defer so scrollable containers can handle focus first; ensures textarea focus sticks
+			setTimeout(() => this.focus(true), 0);
+		};
+		attachStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, scheduleFocus));
+		this._attachDisposables.value = attachStore;
 	}
 
 	forceScrollbarVisibility(): void {
@@ -111,7 +131,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
  * properties are stubbed. Properties are mutable and can be updated by
  * the instantiator.
  */
-export class DetachedProcessInfo implements ITerminalProcessInfo {
+export class DetachedProcessInfo extends Disposable implements ITerminalProcessInfo {
 	processState = ProcessState.Running;
 	ptyProcessReady = Promise.resolve();
 	shellProcessId: number | undefined;
@@ -125,11 +145,13 @@ export class DetachedProcessInfo implements ITerminalProcessInfo {
 	hasWrittenData = false;
 	hasChildProcesses = false;
 	backend: ITerminalBackend | undefined;
-	capabilities = new TerminalCapabilityStore();
+	capabilities: ITerminalCapabilityStore;
 	shellIntegrationNonce = '';
 	extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	constructor(initialValues: Partial<ITerminalProcessInfo>) {
+		super();
 		Object.assign(this, initialValues);
+		this.capabilities = this._register(new TerminalCapabilityStore());
 	}
 }

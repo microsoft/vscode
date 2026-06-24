@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { isNumber } from 'vs/base/common/types';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { compare } from 'vs/base/common/strings';
-import { groupBy } from 'vs/base/common/arrays';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { SymbolKind, Location, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { isNumber } from '../../../../base/common/types.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { compare } from '../../../../base/common/strings.js';
+import { groupBy } from '../../../../base/common/arrays.js';
+import * as nls from '../../../../nls.js';
+import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -120,11 +122,11 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
-	quickOpen: {
-		includeSymbols: boolean;
-		includeHistory: boolean;
-		history: {
-			filterSortOrder: 'default' | 'recency';
+	quickOpen?: {
+		includeSymbols?: boolean;
+		includeHistory?: boolean;
+		history?: {
+			filterSortOrder?: 'default' | 'recency';
 		};
 	};
 }
@@ -227,3 +229,11 @@ export interface NotebookPriorityInfo {
 	isFromSettings: boolean;
 	filenamePatterns: string[];
 }
+
+export const searchConfigurationNode: IConfigurationNode = {
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {}
+};

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as platform from 'vs/platform/registry/common/platform';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import * as platform from '../../registry/common/platform.js';
+import { ColorIdentifier } from './colorRegistry.js';
+import { IconContribution, IconDefinition } from './iconRegistry.js';
+import { ColorScheme, ThemeTypeSelector } from './theme.js';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -23,12 +23,12 @@ export function themeColorFromId(id: ColorIdentifier) {
 export const FileThemeIcon = Codicon.file;
 export const FolderThemeIcon = Codicon.folder;
 
-export function getThemeTypeSelector(type: ColorScheme): string {
+export function getThemeTypeSelector(type: ColorScheme): ThemeTypeSelector {
 	switch (type) {
-		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
-		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
-		default: return 'vs';
+		case ColorScheme.DARK: return ThemeTypeSelector.VS_DARK;
+		case ColorScheme.HIGH_CONTRAST_DARK: return ThemeTypeSelector.HC_BLACK;
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+		default: return ThemeTypeSelector.VS;
 	}
 }
 
@@ -71,9 +71,20 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
+	 * List of all the fonts used with tokens.
+	 */
+	readonly tokenFontMap: IFontTokenOptions[];
+
+	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+}
+
+export class IFontTokenOptions {
+	fontFamily?: string;
+	fontSizeMultiplier?: number;
+	lineHeightMultiplier?: number;
 }
 
 export interface IFileIconTheme {
@@ -134,13 +145,14 @@ export interface IThemingRegistry {
 	readonly onThemingParticipantAdded: Event<IThemingParticipant>;
 }
 
-class ThemingRegistry implements IThemingRegistry {
+class ThemingRegistry extends Disposable implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
 	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
+		super();
 		this.themingParticipants = [];
-		this.onThemingParticipantAddedEmitter = new Emitter<IThemingParticipant>();
+		this.onThemingParticipantAddedEmitter = this._register(new Emitter<IThemingParticipant>());
 	}
 
 	public onColorThemeChange(participant: IThemingParticipant): IDisposable {
@@ -208,15 +220,19 @@ export class Themable extends Disposable {
 
 export interface IPartsSplash {
 	zoomLevel: number | undefined;
-	baseTheme: string;
+	baseTheme: ThemeTypeSelector;
 	colorInfo: {
 		background: string;
 		foreground: string | undefined;
 		editorBackground: string | undefined;
 		titleBarBackground: string | undefined;
+		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
+		activityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
+		sideBarBorder: string | undefined;
 		statusBarBackground: string | undefined;
+		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;
 	};
@@ -226,6 +242,7 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
+		auxiliaryBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;

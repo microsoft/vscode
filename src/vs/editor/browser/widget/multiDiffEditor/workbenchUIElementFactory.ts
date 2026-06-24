@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * This solves the problem that the editor layer cannot depend on the workbench layer.
@@ -14,6 +14,12 @@ import { URI } from 'vs/base/common/uri';
  */
 export interface IWorkbenchUIElementFactory {
 	createResourceLabel?(element: HTMLElement): IResourceLabel;
+
+	/**
+	 * When true, the entire header area is clickable to toggle collapse/expand
+	 * and receives keyboard activation (Enter/Space) and ARIA button semantics.
+	 */
+	readonly headerClickToCollapse?: boolean;
 }
 
 export interface IResourceLabel extends IDisposable {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import assert from 'assert';
+import * as strings from '../../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DefaultEndOfLine } from '../../../../common/model.js';
+import { createTextBufferFactory } from '../../../../common/model/textModel.js';
 
 function testTextBufferFactory(text: string, eol: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean): void {
 	const { disposable, textBuffer } = createTextBufferFactory(text).create(DefaultEndOfLine.LF);

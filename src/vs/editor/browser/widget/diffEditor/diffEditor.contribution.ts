@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, RevertHunkOrSelection, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from 'vs/editor/browser/widget/diffEditor/commands';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import './registrations.contribution';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev, CollapseAllUnchangedRegions, ExitCompareMove, RevertHunkOrSelection, ShowAllUnchangedRegions, SwitchSide, ToggleCollapseUnchangedRegions, ToggleShowMovedCodeBlocks, ToggleUseInlineViewWhenSpaceIsLimited } from './commands.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { localize } from '../../../../nls.js';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyEqualsExpr, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import './registrations.contribution.js';
 
 registerAction2(ToggleCollapseUnchangedRegions);
 registerAction2(ToggleShowMovedCodeBlocks);

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
-import { isSafari } from 'vs/base/browser/browser';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { DeferredPromise, Promises } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { BroadcastDataChannel } from '../../../../base/browser/broadcast.js';
+import { isSafari } from '../../../../base/browser/browser.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { IndexedDB } from '../../../../base/browser/indexedDB.js';
+import { DeferredPromise, Promises } from '../../../../base/common/async.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isUserDataProfile, IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -27,9 +27,12 @@ export class BrowserStorageService extends AbstractStorageService {
 	private applicationStorageDatabase: IIndexedDBStorageDatabase | undefined;
 	private readonly applicationStoragePromise = new DeferredPromise<{ indexedDb: IIndexedDBStorageDatabase; storage: IStorage }>();
 
+	private applicationSharedStorage: IStorage | undefined;
+	private applicationSharedStorageDatabase: IIndexedDBStorageDatabase | undefined;
+
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private profileStorageProfile = this.userDataProfileService.currentProfile;
+	private profileStorageProfile: IUserDataProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
@@ -38,6 +41,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	get hasPendingUpdate(): boolean {
 		return Boolean(
 			this.applicationStorageDatabase?.hasPendingUpdate ||
+			this.applicationSharedStorageDatabase?.hasPendingUpdate ||
 			this.profileStorageDatabase?.hasPendingUpdate ||
 			this.workspaceStorageDatabase?.hasPendingUpdate
 		);
@@ -49,6 +53,8 @@ export class BrowserStorageService extends AbstractStorageService {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+
+		this.profileStorageProfile = this.userDataProfileService.currentProfile;
 
 		this.registerListeners();
 	}
@@ -62,6 +68,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Init storages
 		await Promises.settled([
 			this.createApplicationStorage(),
+			this.createApplicationSharedStorage(),
 			this.createProfileStorage(this.profileStorageProfile),
 			this.createWorkspaceStorage()
 		]);
@@ -80,6 +87,19 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.updateIsNew(this.applicationStorage);
 
 		this.applicationStoragePromise.complete({ indexedDb: applicationStorageIndexedDB, storage: this.applicationStorage });
+	}
+
+	private async createApplicationSharedStorage(): Promise<void> {
+		const applicationSharedStorageIndexedDB = await IndexedDBStorageDatabase.createApplicationSharedStorage(this.logService);
+
+		this.applicationSharedStorageDatabase = this._register(applicationSharedStorageIndexedDB);
+		this.applicationSharedStorage = this._register(new Storage(this.applicationSharedStorageDatabase));
+
+		this._register(this.applicationSharedStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION_SHARED, e)));
+
+		await this.applicationSharedStorage.init();
+
+		this.updateIsNew(this.applicationSharedStorage);
 	}
 
 	private async createProfileStorage(profile: IUserDataProfile): Promise<void> {
@@ -141,6 +161,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return this.applicationSharedStorage;
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
 			case StorageScope.PROFILE:
@@ -152,6 +174,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return this.applicationSharedStorageDatabase?.name;
 			case StorageScope.APPLICATION:
 				return this.applicationStorageDatabase?.name;
 			case StorageScope.PROFILE:
@@ -166,7 +190,7 @@ export class BrowserStorageService extends AbstractStorageService {
 			return;
 		}
 
-		const oldProfileStorage = assertIsDefined(this.profileStorage);
+		const oldProfileStorage = assertReturnsDefined(this.profileStorage);
 		const oldItems = oldProfileStorage.items;
 
 		// Close old profile storage but only if this is
@@ -179,7 +203,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		await this.createProfileStorage(toProfile);
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE);
+		this.switchData(oldItems, assertReturnsDefined(this.profileStorage), StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
@@ -210,6 +234,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// we expect data to be written when the unload happens.
 		if (isSafari) {
 			this.applicationStorage?.close();
+			this.applicationSharedStorageDatabase?.close();
 			this.profileStorageDatabase?.close();
 			this.workspaceStorageDatabase?.close();
 		}
@@ -222,7 +247,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	async clear(): Promise<void> {
 
 		// Clear key/values
-		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
+		for (const scope of [StorageScope.APPLICATION, StorageScope.APPLICATION_SHARED, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
 			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
@@ -235,6 +260,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Clear databases
 		await Promises.settled([
 			this.applicationStorageDatabase?.clear() ?? Promise.resolve(),
+			this.applicationSharedStorageDatabase?.clear() ?? Promise.resolve(),
 			this.profileStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
@@ -291,6 +317,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 	static async createApplicationStorage(logService: ILogService): Promise<IIndexedDBStorageDatabase> {
 		return IndexedDBStorageDatabase.create({ id: 'global', broadcastChanges: true }, logService);
+	}
+
+	static async createApplicationSharedStorage(logService: ILogService): Promise<IIndexedDBStorageDatabase> {
+		return IndexedDBStorageDatabase.create({ id: 'global-shared', broadcastChanges: true }, logService);
 	}
 
 	static async createProfileStorage(profile: IUserDataProfile, logService: ILogService): Promise<IIndexedDBStorageDatabase> {

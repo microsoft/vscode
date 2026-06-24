@@ -8,7 +8,9 @@
 			"dark_vs": "punctuation.definition.tag: #808080",
 			"light_vs": "punctuation.definition.tag: #800000",
 			"hc_black": "punctuation.definition.tag: #808080",
+			"2026-dark": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
 			"light_modern": "punctuation.definition.tag: #800000"
 		}
@@ -22,7 +24,9 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"dark_modern": "entity.name.tag: #569CD6",
+			"2026-light": "entity.name.tag: #116329",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000"
 		}
@@ -36,7 +40,9 @@
 			"dark_vs": "punctuation.definition.tag: #808080",
 			"light_vs": "punctuation.definition.tag: #800000",
 			"hc_black": "punctuation.definition.tag: #808080",
+			"2026-dark": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
 			"light_modern": "punctuation.definition.tag: #800000"
 		}
@@ -50,7 +56,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -64,7 +72,9 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
+			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
 			"light_modern": "keyword.operator: #000000"
 		}
@@ -78,7 +88,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -92,7 +104,9 @@
 			"dark_vs": "punctuation.section.embedded.begin.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.begin.php: #800000",
 			"hc_black": "punctuation.section.embedded: #569CD6",
+			"2026-dark": "punctuation.section.embedded.begin.php: #569CD6",
 			"dark_modern": "punctuation.section.embedded.begin.php: #569CD6",
+			"2026-light": "punctuation.section.embedded.begin.php: #800000",
 			"hc_light": "punctuation.section.embedded.begin.php: #0F4A85",
 			"light_modern": "punctuation.section.embedded.begin.php: #800000"
 		}
@@ -106,7 +120,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -120,7 +136,9 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
+			"2026-dark": "keyword.control: #C586C0",
 			"dark_modern": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -134,7 +152,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -148,7 +168,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -162,7 +184,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -176,21 +200,25 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
 	},
 	{
 		"c": "AS",
-		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php keyword.operator.logical.php",
+		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php keyword.operator.as.php",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
+			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
 			"light_modern": "keyword.operator: #000000"
 		}
@@ -204,7 +232,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -218,7 +248,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -232,7 +264,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -246,7 +280,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -260,7 +296,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -274,7 +312,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -288,7 +328,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -302,7 +344,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA",
+			"2026-dark": "support.function: #DCDCAA",
 			"dark_modern": "support.function: #DCDCAA",
+			"2026-light": "support.function: #795E26",
 			"hc_light": "support.function: #5E2CBC",
 			"light_modern": "support.function: #795E26"
 		}
@@ -316,7 +360,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -330,7 +376,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -344,7 +392,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -358,7 +408,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6",
+			"2026-dark": "constant.character.escape: #D7BA7D",
 			"dark_modern": "constant.character.escape: #D7BA7D",
+			"2026-light": "constant.character.escape: #EE0000",
 			"hc_light": "constant.character.escape: #EE0000",
 			"light_modern": "constant.character.escape: #EE0000"
 		}
@@ -372,7 +424,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -386,7 +440,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -400,7 +456,9 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
+			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
 			"light_modern": "keyword.operator: #000000"
 		}
@@ -414,7 +472,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -428,7 +488,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE",
+			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
+			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
 			"light_modern": "variable: #001080"
 		}
@@ -442,7 +504,9 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
+			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
 			"light_modern": "keyword.operator: #000000"
 		}
@@ -456,7 +520,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -470,7 +536,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -484,7 +552,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6",
+			"2026-dark": "constant.character.escape: #D7BA7D",
 			"dark_modern": "constant.character.escape: #D7BA7D",
+			"2026-light": "constant.character.escape: #EE0000",
 			"hc_light": "constant.character.escape: #EE0000",
 			"light_modern": "constant.character.escape: #EE0000"
 		}
@@ -498,7 +568,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -512,7 +584,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
+			"2026-dark": "string: #A5D6FF",
 			"dark_modern": "string: #CE9178",
+			"2026-light": "string: #0A3069",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515"
 		}
@@ -526,7 +600,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -540,7 +616,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -554,7 +632,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -568,7 +648,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -582,7 +664,9 @@
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
 			"hc_black": "punctuation.section.embedded: #569CD6",
+			"2026-dark": "punctuation.section.embedded.end.php: #569CD6",
 			"dark_modern": "punctuation.section.embedded.end.php: #569CD6",
+			"2026-light": "punctuation.section.embedded.end.php: #800000",
 			"hc_light": "punctuation.section.embedded.end.php: #0F4A85",
 			"light_modern": "punctuation.section.embedded.end.php: #800000"
 		}
@@ -596,7 +680,9 @@
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
 			"hc_black": "punctuation.section.embedded: #569CD6",
+			"2026-dark": "punctuation.section.embedded.end.php: #569CD6",
 			"dark_modern": "punctuation.section.embedded.end.php: #569CD6",
+			"2026-light": "punctuation.section.embedded.end.php: #800000",
 			"hc_light": "punctuation.section.embedded.end.php: #0F4A85",
 			"light_modern": "punctuation.section.embedded.end.php: #800000"
 		}
@@ -610,7 +696,9 @@
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.embedded: #FFFFFF",
+			"2026-dark": "meta.embedded: #D4D4D4",
 			"dark_modern": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000",
 			"hc_light": "meta.embedded: #292929",
 			"light_modern": "meta.embedded: #000000"
 		}
@@ -624,7 +712,9 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
+			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
 			"light_modern": "keyword.operator: #000000"
 		}
@@ -638,7 +728,9 @@
 			"dark_vs": "punctuation.definition.tag: #808080",
 			"light_vs": "punctuation.definition.tag: #800000",
 			"hc_black": "punctuation.definition.tag: #808080",
+			"2026-dark": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
 			"light_modern": "punctuation.definition.tag: #800000"
 		}
@@ -652,7 +744,9 @@
 			"dark_vs": "punctuation.definition.tag: #808080",
 			"light_vs": "punctuation.definition.tag: #800000",
 			"hc_black": "punctuation.definition.tag: #808080",
+			"2026-dark": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
 			"light_modern": "punctuation.definition.tag: #800000"
 		}
@@ -666,7 +760,9 @@
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6",
+			"2026-dark": "entity.name.tag: #7EE787",
 			"dark_modern": "entity.name.tag: #569CD6",
+			"2026-light": "entity.name.tag: #116329",
 			"hc_light": "entity.name.tag: #0F4A85",
 			"light_modern": "entity.name.tag: #800000"
 		}
@@ -680,7 +776,9 @@
 			"dark_vs": "punctuation.definition.tag: #808080",
 			"light_vs": "punctuation.definition.tag: #800000",
 			"hc_black": "punctuation.definition.tag: #808080",
+			"2026-dark": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
 			"light_modern": "punctuation.definition.tag: #800000"
 		}

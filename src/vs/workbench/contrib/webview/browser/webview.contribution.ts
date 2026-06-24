@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement } from 'vs/base/browser/dom';
-import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWebviewService, IWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { getActiveElement } from '../../../../base/browser/dom.js';
+import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
+import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IWebviewService, IWebview } from './webview.js';
+import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { WebviewFindAccessibilityHelp } from './webviewFindAccessibilityHelp.js';
 
 
 const PRIORITY = 100;
@@ -83,3 +85,6 @@ if (PasteAction) {
 		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
 	});
 }
+
+// Register webview find accessibility help
+AccessibleViewRegistry.register(new WebviewFindAccessibilityHelp());

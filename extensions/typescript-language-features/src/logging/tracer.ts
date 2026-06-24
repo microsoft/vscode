@@ -32,7 +32,7 @@ export default class Tracer extends Disposable {
 		}
 	}
 
-	public traceRequestCompleted(serverId: string, command: string, request_seq: number, meta: RequestExecutionMetadata): any {
+	public traceRequestCompleted(serverId: string, command: string, request_seq: number, meta: RequestExecutionMetadata): void {
 		if (this.logger.logLevel === vscode.LogLevel.Trace) {
 			this.trace(serverId, `Async response received: ${command} (${request_seq}). Request took ${Date.now() - meta.queuingStartTime} ms.`);
 		}

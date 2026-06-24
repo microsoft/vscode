@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorTheme, ColorThemeKind } from './extHostTypes';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostThemingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Emitter, Event } from 'vs/base/common/event';
+import { ColorTheme, ColorThemeKind } from './extHostTypes.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ExtHostThemingShape } from './extHost.protocol.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export class ExtHostTheming implements ExtHostThemingShape {
 

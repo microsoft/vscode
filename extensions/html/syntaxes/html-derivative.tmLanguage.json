@@ -23,7 +23,7 @@
 			"include": "text.html.basic#core-minus-invalid"
 		},
 		{
-			"begin": "(</?)(\\w[^\\s>]*)(?<!/)",
+			"begin": "(</?)(\\w[^\\s<>]*)(?<!/)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.html"

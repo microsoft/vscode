@@ -1,12 +1,13 @@
-#!/bin/bash
+#!/bin/sh
+
+ROOT_PID=$1
+SIGNAL=$2
 
 terminateTree() {
-    for cpid in $(/usr/bin/pgrep -P $1); do
-        terminateTree $cpid
-    done
-    kill -9 $1 > /dev/null 2>&1
+	for cpid in $(pgrep -P $1); do
+		terminateTree $cpid
+	done
+	kill -$SIGNAL $1 > /dev/null 2>&1
 }
 
-for pid in $*; do
-    terminateTree $pid
-done
+terminateTree $ROOT_PID

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { localize } from 'vs/nls';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isActiveElement } from 'vs/base/browser/dom';
+import { IHistoryNavigationWidget } from '../../../base/browser/history.js';
+import { IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { FindInput, IFindInputOptions } from '../../../base/browser/ui/findinput/findInput.js';
+import { IReplaceInputOptions, ReplaceInput } from '../../../base/browser/ui/findinput/replaceInput.js';
+import { HistoryInputBox, IHistoryInputOptions } from '../../../base/browser/ui/inputbox/inputBox.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js';
+import { localize } from '../../../nls.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isActiveElement } from '../../../base/browser/dom.js';
 
 export const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible"));
 

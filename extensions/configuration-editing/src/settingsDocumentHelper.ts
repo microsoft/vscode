@@ -127,7 +127,7 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem(getText('separator'), range, vscode.l10n.t("a conditional separator (' - ') that only shows when surrounded by variables with values")));
 		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryName'), range, vscode.l10n.t("the name of the active repository (e.g. vscode)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryBranchName'), range, vscode.l10n.t("the name of the active branch in the active repository (e.g. main)")));
-
+		completions.push(this.newSimpleCompletionItem(getText('activeEditorState'), range, vscode.l10n.t("the state of the active editor (e.g. modified).")));
 		return completions;
 	}
 

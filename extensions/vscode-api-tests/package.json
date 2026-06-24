@@ -7,17 +7,20 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "defaultChatParticipant",
-    "chatVariableResolver",
-    "contribViewsRemote",
+    "browser",
+    "environmentPower",
+    "chatParticipantPrivate",
+    "chatPromptFiles",
+    "chatProvider",
     "contribStatusBarItems",
-    "createFileSystemWatcher",
+    "contribViewsRemote",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
     "editorInsets",
     "embeddings",
+    "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -26,33 +29,36 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
-    "mappedEditsProvider",
-    "notebookCellExecutionState",
+    "languageStatusText",
+    "mcpServerDefinitions",
+    "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "languageStatusText",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalShellIntegration",
-    "tunnels",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
+    "tunnels",
     "workspaceTrust",
-    "telemetry"
+    "inlineCompletionsAdditions",
+    "devDeviceId",
+    "languageModelProxy",
+    "agentSessionsWorkspace"
   ],
   "private": true,
   "activationEvents": [],
@@ -62,6 +68,16 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "test-lm-vendor",
+        "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "api-test.participant",
@@ -73,6 +89,11 @@
             "name": "hello",
             "description": "Hello"
           }
+        ],
+        "modes": [
+          "agent",
+          "ask",
+          "edit"
         ]
       },
       {
@@ -80,6 +101,17 @@
         "name": "participant2",
         "description": "test",
         "commands": []
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "requires_confirmation_tool",
+        "toolReferenceName": "requires_confirmation_tool",
+        "displayName": "Requires Confirmation Tool",
+        "modelDescription": "A noop tool to trigger confirmation.",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(files)",
+        "inputSchema": {}
       }
     ],
     "configuration": {
@@ -104,6 +136,13 @@
         "farboo.get": {
           "type": "string",
           "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
+          "type": "string",
+          "default": "get-prop"
         }
       }
     },
@@ -112,6 +151,11 @@
         {
           "id": "test.treeId",
           "name": "test-tree",
+          "when": "never"
+        },
+        {
+          "id": "test.treeSwitchUpdate",
+          "name": "test-tree-switch-update",
           "when": "never"
         }
       ]
@@ -237,11 +281,14 @@
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.4.0",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

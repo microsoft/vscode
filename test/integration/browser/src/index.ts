@@ -10,8 +10,8 @@ import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as minimist from 'minimist';
+import kill from 'tree-kill';
+import minimist from 'minimist';
 import { promisify } from 'util';
 import { promises } from 'fs';
 
@@ -49,7 +49,7 @@ if (args.help) {
 	--workspacePath <path>             Path to the workspace (folder or *.code-workspace file) to open in the test
 	--extensionDevelopmentPath <path>  Path to the extension to test
 	--extensionTestsPath <path>        Path to the extension tests
-	--browser <browser>                Browser in which integration tests should run
+	--browser <browser>                Browser in which integration tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
 	--debug                            Do not run browsers headless
 	--help                             Print this help message
 	`);
@@ -57,13 +57,14 @@ if (args.help) {
 	process.exit(1);
 }
 
-const width = 1200;
-const height = 800;
+const width = 1440;
+const height = 900;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug) });
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 
 	const page = await context.newPage();
@@ -105,6 +106,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Error saving web client logs (${error})`);
 		}
 
+		if (args.debug) {
+			return;
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -129,10 +134,32 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	const targetUrl = path.extname(testWorkspacePath) === '.code-workspace'
+		? `${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`
+		: `${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`;
+
+	// The server prints "Web UI available at" before its HTTP listener is fully ready to
+	// accept connections on some platforms (notably Windows + Firefox). Retry the initial
+	// navigation a few times on connection-refused errors to avoid spurious test failures.
+	await gotoWithRetry(page, targetUrl);
+}
+
+async function gotoWithRetry(page: playwright.Page, targetUrl: string): Promise<void> {
+	const maxAttempts = 5;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await page.goto(targetUrl);
+			return;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			const isConnectionRefused = /NS_ERROR_CONNECTION_REFUSED|net::ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(message);
+			if (!isConnectionRefused || attempt >= maxAttempts) {
+				throw error;
+			}
+			const delayMs = 500 * attempt;
+			console.log(`page.goto failed with connection refused (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
 	}
 }
 
@@ -150,7 +177,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -160,11 +187,11 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_BROWSER: browserType,
+		VSCODE_BROWSER: browserChannel ? `${browserType}-${browserChannel}` : browserType,
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
@@ -188,11 +215,11 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
-
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env, stdio }
+		{ env, stdio, shell }
 	);
 
 	if (args.debug) {
@@ -220,8 +247,9 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	});
 }
 
-launchServer(args.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(args.browser, endpoint, server);
+const [browserType, browserChannel] = args.browser.split('-');
+launchServer(browserType, browserChannel).then(async ({ endpoint, server }) => {
+	return runTestsInBrowser(browserType, browserChannel, endpoint, server);
 }, error => {
 	console.error(error);
 	process.exit(1);

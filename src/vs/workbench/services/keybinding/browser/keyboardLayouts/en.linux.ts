@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+import { KeyboardLayoutContribution } from './_.contribution.js';
+import { IKeymapInfo } from '../../common/keymapInfo.js';
 
 
-KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
+export const EN_US_LINUX_LAYOUT: IKeymapInfo = {
 	layout: { model: 'pc105', group: 0, layout: 'us', variant: '', options: '', rules: 'evdev', isUSStandard: true },
 	secondaryLayouts: [
 		{ model: 'pc105', group: 0, layout: 'cn', variant: '', options: '', rules: 'evdev' },
@@ -187,4 +188,6 @@ KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
 		MailSend: []
 	}
 
-});
+};
+
+KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout(EN_US_LINUX_LAYOUT);

@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Alert color mappings using theme variables */
+blockquote[data-severity="note"] {
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-note-foreground);
+}
+
+blockquote[data-severity="tip"] {
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-tip-foreground);
+}
+
+blockquote[data-severity="important"] {
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-important-foreground);
+}
+
+blockquote[data-severity="warning"] {
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-warning-foreground);
+}
+
+blockquote[data-severity="caution"] {
+	--vscode-textBlockQuote-border: var(--vscode-markdownAlert-caution-foreground);
+}
+
+/* Alert title styling */
+blockquote[data-severity] > p > :first-child {
+	display: inline-flex;
+	align-items: center;
+	color: var(--vscode-textBlockQuote-border);
+	font-weight: bolder;
+}
+
+blockquote[data-severity] > p > :first-child .codicon {
+	color: var(--vscode-textBlockQuote-border);
+	padding-right: 6px;
+}

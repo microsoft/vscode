@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { ResourceMap } from '../../../base/common/map.js';
+import { URI } from '../../../base/common/uri.js';
+import { Event } from '../../../base/common/event.js';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
+import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from '../common/log.js';
+import { LoggerService } from '../node/loggerService.js';
 
 export const ILoggerMainService = refineServiceDecorator<ILoggerService, ILoggerMainService>(ILoggerService);
 
@@ -26,7 +26,7 @@ export interface ILoggerMainService extends ILoggerService {
 
 	registerLogger(resource: ILoggerResource, windowId?: number): void;
 
-	getRegisteredLoggers(windowId?: number): ILoggerResource[];
+	getGlobalLoggers(): ILoggerResource[];
 
 	deregisterLoggers(windowId: number): void;
 
@@ -60,10 +60,10 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 		super.deregisterLogger(resource);
 	}
 
-	override getRegisteredLoggers(windowId?: number): ILoggerResource[] {
+	getGlobalLoggers(): ILoggerResource[] {
 		const resources: ILoggerResource[] = [];
 		for (const resource of super.getRegisteredLoggers()) {
-			if (windowId === this.loggerResourcesByWindow.get(resource.resource)) {
+			if (!this.loggerResourcesByWindow.has(resource.resource)) {
 				resources.push(resource);
 			}
 		}

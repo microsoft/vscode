@@ -1,0 +1,29 @@
+{
+	"compilerOptions": {
+		"target": "es2024",
+		"lib": [
+			"ES2024"
+		],
+		"rootDir": ".",
+		"module": "esnext",
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
+		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"typeRoots": [
+			"."
+		]
+	},
+	"include": [
+		"./**/*.ts",
+	],
+	"exclude": [
+		"node_modules/**",
+		"./tests/**"
+	]
+}

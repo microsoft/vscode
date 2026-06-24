@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { gt } from 'vs/base/common/semver/semver';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ILogger } from 'vs/platform/log/common/log';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename } from '../../../base/common/resources.js';
+import { gt } from '../../../base/common/semver/semver.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from './extensionManagement.js';
+import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from './extensionManagementUtil.js';
+import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from '../../extensions/common/extensions.js';
+import { ILogger } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -25,10 +26,14 @@ type InstallGalleryExtensionInfo = { id: string; version?: string; installOption
 export class ExtensionManagementCLI {
 
 	constructor(
+		private readonly extensionsForceVersionByQuality: readonly string[],
 		protected readonly logger: ILogger,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-	) { }
+		@IProductService private readonly productService: IProductService,
+	) {
+		this.extensionsForceVersionByQuality = this.extensionsForceVersionByQuality.map(e => e.toLowerCase());
+	}
 
 	protected get location(): string | undefined {
 		return undefined;
@@ -81,6 +86,9 @@ export class ExtensionManagementCLI {
 			const installVSIXInfos: InstallVSIXInfo[] = [];
 			const installExtensionInfos: InstallGalleryExtensionInfo[] = [];
 			const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
+				if (this.extensionsForceVersionByQuality?.some(e => e === id.toLowerCase())) {
+					version = this.productService.quality !== 'stable' ? 'prerelease' : undefined;
+				}
 				installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
 			};
 			for (const extension of extensions) {
@@ -146,7 +154,7 @@ export class ExtensionManagementCLI {
 				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
 					extensionsToUpdate.push({
 						extension: newVersion,
-						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.preRelease, profileLocation }
+						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.preRelease, profileLocation, isApplicationScoped: oldVersion.isApplicationScoped }
 					});
 				}
 			}
@@ -170,9 +178,15 @@ export class ExtensionManagementCLI {
 	}
 
 	private async installGalleryExtensions(installExtensionInfos: InstallGalleryExtensionInfo[], installed: ILocalExtension[], force: boolean): Promise<string[]> {
-		installExtensionInfos = installExtensionInfos.filter(({ id, version }) => {
+		installExtensionInfos = installExtensionInfos.filter(installExtensionInfo => {
+			const { id, version, installOptions } = installExtensionInfo;
 			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 			if (installedExtension) {
+				const builtinAutoUpdateMessage = this.validateBuiltinExtensionEnabledWithAutoUpdates(installedExtension);
+				if (builtinAutoUpdateMessage) {
+					this.logger.info(builtinAutoUpdateMessage);
+					return false;
+				}
 				if (!force && (!version || (version === 'prerelease' && installedExtension.preRelease))) {
 					this.logger.info(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
 					return false;
@@ -180,6 +194,9 @@ export class ExtensionManagementCLI {
 				if (version && installedExtension.manifest.version === version) {
 					this.logger.info(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
 					return false;
+				}
+				if (installedExtension.preRelease && version !== 'prerelease') {
+					installOptions.preRelease = false;
 				}
 			}
 			return true;
@@ -224,7 +241,7 @@ export class ExtensionManagementCLI {
 			}
 			extensionsToInstall.push({
 				extension: gallery,
-				options: { ...installOptions, installGivenVersion: !!version },
+				options: { ...installOptions, installGivenVersion: !!version, isApplicationScoped: installOptions.isApplicationScoped || installedExtension?.isApplicationScoped },
 			});
 		}));
 
@@ -253,7 +270,7 @@ export class ExtensionManagementCLI {
 		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation, installedExtensions);
 		if (valid) {
 			try {
-				await this.extensionManagementService.install(vsix, installOptions);
+				await this.extensionManagementService.install(vsix, { ...installOptions, installGivenVersion: true });
 				this.logger.info(localize('successVsixInstall', "Extension '{0}' was successfully installed.", basename(vsix)));
 			} catch (error) {
 				if (isCancellationError(error)) {
@@ -289,12 +306,21 @@ export class ExtensionManagementCLI {
 	}
 
 	private async validateVSIX(manifest: IExtensionManifest, force: boolean, profileLocation: URI | undefined, installedExtensions: ILocalExtension[]): Promise<boolean> {
-		if (!force) {
-			const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
-			if (newer) {
-				this.logger.info(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
+		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+		const existingExtension = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier));
+
+		if (existingExtension) {
+			const builtinAutoUpdateMessage = this.validateBuiltinExtensionEnabledWithAutoUpdates(existingExtension);
+			if (builtinAutoUpdateMessage) {
+				this.logger.info(builtinAutoUpdateMessage);
 				return false;
+			}
+
+			if (!force) {
+				if (gt(existingExtension.manifest.version, manifest.version)) {
+					this.logger.info(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", existingExtension.identifier.id, existingExtension.manifest.version, manifest.version));
+					return false;
+				}
 			}
 		}
 
@@ -357,6 +383,13 @@ export class ExtensionManagementCLI {
 
 	private notInstalled(id: string) {
 		return this.location ? localize('notInstalleddOnLocation', "Extension '{0}' is not installed on {1}.", id, this.location) : localize('notInstalled', "Extension '{0}' is not installed.", id);
+	}
+
+	private validateBuiltinExtensionEnabledWithAutoUpdates(extension: ILocalExtension): string | undefined {
+		if (extension.isBuiltin && this.productService.builtInExtensionsEnabledWithAutoUpdates.some(e => e.toLowerCase() === extension.identifier.id.toLowerCase()) && !extension.forceAutoUpdate) {
+			return localize('builtinAutoUpdate', "Extension '{0}' is a built-in extension and not allowed to be updated in the current product quality '{1}'.", extension.identifier.id, this.productService.quality);
+		}
+		return undefined;
 	}
 
 }

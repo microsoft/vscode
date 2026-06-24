@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-const { dirs } = require('../../npm/dirs') as { dirs: string[] };
+import fs from 'fs';
+import path from 'path';
+import { dirs } from '../../npm/dirs.ts';
 
-function log(...args: any[]): void {
+function log(...args: unknown[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[distro]', ...args);
 }
 

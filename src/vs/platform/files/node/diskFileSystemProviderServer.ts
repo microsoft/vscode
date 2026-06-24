@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from 'vs/platform/files/common/files';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { DiskFileSystemProvider } from './diskFileSystemProvider.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IRecursiveWatcherOptions } from '../common/watcher.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -33,36 +33,37 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		super();
 	}
 
-	call(ctx: T, command: string, arg?: any): Promise<any> {
+	call<TResult>(ctx: T, command: string, args: unknown[]): Promise<TResult> {
 		const uriTransformer = this.getUriTransformer(ctx);
 
 		switch (command) {
-			case 'stat': return this.stat(uriTransformer, arg[0]);
-			case 'readdir': return this.readdir(uriTransformer, arg[0]);
-			case 'open': return this.open(uriTransformer, arg[0], arg[1]);
-			case 'close': return this.close(arg[0]);
-			case 'read': return this.read(arg[0], arg[1], arg[2]);
-			case 'readFile': return this.readFile(uriTransformer, arg[0], arg[1]);
-			case 'write': return this.write(arg[0], arg[1], arg[2], arg[3], arg[4]);
-			case 'writeFile': return this.writeFile(uriTransformer, arg[0], arg[1], arg[2]);
-			case 'rename': return this.rename(uriTransformer, arg[0], arg[1], arg[2]);
-			case 'copy': return this.copy(uriTransformer, arg[0], arg[1], arg[2]);
-			case 'cloneFile': return this.cloneFile(uriTransformer, arg[0], arg[1]);
-			case 'mkdir': return this.mkdir(uriTransformer, arg[0]);
-			case 'delete': return this.delete(uriTransformer, arg[0], arg[1]);
-			case 'watch': return this.watch(uriTransformer, arg[0], arg[1], arg[2], arg[3]);
-			case 'unwatch': return this.unwatch(arg[0], arg[1]);
+			case 'stat': return this.stat(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'realpath': return this.realpath(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'readdir': return this.readdir(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'open': return this.open(uriTransformer, args[0] as UriComponents, args[1] as IFileOpenOptions) as Promise<TResult>;
+			case 'close': return this.close(args[0] as number) as Promise<TResult>;
+			case 'read': return this.read(args[0] as number, args[1] as number, args[2] as number) as Promise<TResult>;
+			case 'readFile': return this.readFile(uriTransformer, args[0] as UriComponents, args[1] as IFileAtomicReadOptions) as Promise<TResult>;
+			case 'write': return this.write(args[0] as number, args[1] as number, args[2] as VSBuffer, args[3] as number, args[4] as number) as Promise<TResult>;
+			case 'writeFile': return this.writeFile(uriTransformer, args[0] as UriComponents, args[1] as VSBuffer, args[2] as IFileWriteOptions) as Promise<TResult>;
+			case 'rename': return this.rename(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
+			case 'copy': return this.copy(uriTransformer, args[0] as UriComponents, args[1] as UriComponents, args[2] as IFileOverwriteOptions) as Promise<TResult>;
+			case 'cloneFile': return this.cloneFile(uriTransformer, args[0] as UriComponents, args[1] as UriComponents) as Promise<TResult>;
+			case 'mkdir': return this.mkdir(uriTransformer, args[0] as UriComponents) as Promise<TResult>;
+			case 'delete': return this.delete(uriTransformer, args[0] as UriComponents, args[1] as IFileDeleteOptions) as Promise<TResult>;
+			case 'watch': return this.watch(uriTransformer, args[0] as string, args[1] as number, args[2] as UriComponents, args[3] as IWatchOptions) as Promise<TResult>;
+			case 'unwatch': return this.unwatch(args[0] as string, args[1] as number) as Promise<TResult>;
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
 	}
 
-	listen(ctx: T, event: string, arg: any): Event<any> {
+	listen<TResult>(ctx: T, event: string, args: unknown[]): Event<TResult> {
 		const uriTransformer = this.getUriTransformer(ctx);
 
 		switch (event) {
-			case 'fileChange': return this.onFileChange(uriTransformer, arg[0]);
-			case 'readFileStream': return this.onReadFileStream(uriTransformer, arg[0], arg[1]);
+			case 'fileChange': return this.onFileChange(uriTransformer, args[0] as string) as Event<TResult>;
+			case 'readFileStream': return this.onReadFileStream(uriTransformer, args[0] as URI, args[1] as IFileReadStreamOptions) as Event<TResult>;
 		}
 
 		throw new Error(`Unknown event ${event}`);
@@ -78,6 +79,12 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
 		return this.provider.stat(resource);
+	}
+
+	private realpath(uriTransformer: IURITransformer, _resource: UriComponents): Promise<string> {
+		const resource = this.transformIncoming(uriTransformer, _resource, true);
+
+		return this.provider.realpath(resource);
 	}
 
 	private readdir(uriTransformer: IURITransformer, _resource: UriComponents): Promise<[string, FileType][]> {
@@ -272,15 +279,17 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	// This is important because we want to ensure that we only
 	// forward events from the watched paths for this session and
 	// not other clients that asked to watch other paths.
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: { recursive: this.getRecursiveWatcherOptions(this.environmentService) } }));
+	private readonly fileWatcher: DiskFileSystemProvider;
 
 	constructor(
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
-		private readonly logService: ILogService,
+		logService: ILogService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
+
+		this.fileWatcher = this._register(new DiskFileSystemProvider(logService));
 
 		this.registerListeners(sessionEmitter);
 	}

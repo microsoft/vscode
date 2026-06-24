@@ -4,27 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { equals } from 'vs/base/common/arrays';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { equals } from '../../../../../../base/common/arrays.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextMenuService } from '../../../../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IDetectedLinks, TerminalLinkManager } from '../../browser/terminalLinkManager.js';
+import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalConfiguration, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
+import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTerminal.test.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import type { ILink, Terminal } from '@xterm/xterm';
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IXtermCore } from '../../../../terminal/browser/xterm-private.js';
+import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -87,11 +92,12 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
 		linkManager = store.add(instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			get initialCwd() {
 				return '';
 			}
+			// eslint-disable-next-line local/code-no-any-casts
 		}), {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;
@@ -105,6 +111,114 @@ suite('TerminalLinkManager', () => {
 			linkManager.dispose();
 			linkManager.externalProvideLinksCb = async () => undefined;
 		});
+	});
+
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	type TestableLinkManager = { _showHover: (...args: unknown[]) => IDisposable | undefined };
+
+	function overrideXtermEvent<T>(terminal: Terminal, eventName: string, handler: (listener: (e: T) => void) => IDisposable): IDisposable {
+		const originalDescriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(terminal), eventName);
+		Object.defineProperty(terminal, eventName, { value: handler, configurable: true });
+		return {
+			dispose: () => {
+				if (originalDescriptor) {
+					Object.defineProperty(terminal, eventName, originalDescriptor);
+				} else {
+					delete (terminal as unknown as Record<string, unknown>)[eventName];
+				}
+			}
+		};
+	}
+
+	function mockXtermCoreRenderService(): IDisposable {
+		interface XtermWithCore extends Terminal { _core: IXtermCore }
+		const xtermWithCore = xterm as unknown as XtermWithCore;
+		const origRenderService = xtermWithCore._core?._renderService;
+		if (!xtermWithCore._core) { (xtermWithCore as XtermWithCore)._core = {} as IXtermCore; }
+		xtermWithCore._core._renderService = { dimensions: { css: { cell: { width: 8, height: 16 } } }, _renderer: {} };
+		return {
+			dispose: () => { xtermWithCore._core._renderService = origRenderService!; }
+		};
+	}
+
+	suite('OSC 8 hover', () => {
+		test('should cancel delayed tooltip when leave happens before hover delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 10);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover || !linkHandler.leave) {
+				throw new Error('Expected linkHandler with hover/leave callbacks');
+			}
+			let hoverShownCount = 0;
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = () => {
+				hoverShownCount++;
+				return undefined;
+			};
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const event = new MouseEvent('mousemove');
+			try {
+				linkHandler.hover(event, 'http://example.com', range);
+				linkHandler.leave(event, 'http://example.com', range);
+				await timeout(0);
+				strictEqual(hoverShownCount, 0);
+			} finally {
+				testableLinkManager._showHover = originalShowHover;
+			}
+		}));
+
+		/**
+		 * Triggers the hover callback, flushes the 0ms scheduler, then
+		 * fires the given xterm event and asserts the hover was disposed.
+		 */
+		async function assertHoverDismissedOnEvent(
+			overrideEvent: (setFireEvent: (fn: () => void) => void) => IDisposable,
+		): Promise<void> {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			let hoverDisposed = false;
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = () => ({
+				dispose: () => { hoverDisposed = true; }
+			});
+			const renderServiceRestore = mockXtermCoreRenderService();
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			let fireEvent: (() => void) | undefined;
+			const eventRestore = overrideEvent(fn => { fireEvent = fn; });
+			try {
+				linkHandler.hover(new MouseEvent('mousemove'), 'http://example.com', range);
+				await timeout(0);
+				strictEqual(hoverDisposed, false);
+				fireEvent?.();
+				strictEqual(hoverDisposed, true);
+			} finally {
+				eventRestore.dispose();
+				renderServiceRestore.dispose();
+				testableLinkManager._showHover = originalShowHover;
+			}
+		}
+
+		test('should dismiss shown tooltip on scroll', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assertHoverDismissedOnEvent(setFire => {
+				return overrideXtermEvent<number>(xterm, 'onScroll', listener => {
+					setFire(() => listener(1));
+					return { dispose: () => { } };
+				});
+			});
+		}));
+
+		test('should dismiss shown tooltip on render', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await assertHoverDismissedOnEvent(setFire => {
+				return overrideXtermEvent<{ start: number; end: number }>(xterm, 'onRender', listener => {
+					setFire(() => listener({ start: 0, end: 5 }));
+					return { dispose: () => { } };
+				});
+			});
+		}));
 	});
 
 	suite('getLinks and open recent link', () => {

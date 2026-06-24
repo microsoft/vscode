@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getAllCodicons } from 'vs/base/common/codicons';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { OperatingSystem, Platform, PlatformToString } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
+import { Codicon, getAllCodicons } from '../../../base/common/codicons.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
+import { OperatingSystem, Platform, PlatformToString } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { Registry } from '../../registry/common/platform.js';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from './terminal.js';
+import { createProfileSchemaEnums } from './terminalProfiles.js';
 
 export const terminalColorSchema: IJSONSchema = {
 	type: ['string', 'null'],
@@ -33,17 +33,13 @@ export const terminalIconSchema: IJSONSchema = {
 	markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
 };
 
-const terminalProfileBaseProperties: IJSONSchemaMap = {
+export const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
 		description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
 		type: 'array',
 		items: {
 			type: 'string'
 		}
-	},
-	overrideName: {
-		description: localize('terminalProfile.overrideName', 'Whether or not to replace the dynamic terminal title that detects what program is running with the static profile name.'),
-		type: 'boolean'
 	},
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with the terminal icon.'),
@@ -74,6 +70,10 @@ const terminalProfileSchema: IJSONSchema = {
 				type: 'string'
 			}
 		},
+		overrideName: {
+			description: localize('terminalProfile.overrideName', 'Whether or not to replace the dynamic terminal title that detects what program is running with the static profile name.'),
+			type: 'boolean'
+		},
 		...terminalProfileBaseProperties
 	}
 };
@@ -83,7 +83,7 @@ const terminalAutomationProfileSchema: IJSONSchema = {
 	required: ['path'],
 	properties: {
 		path: {
-			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			description: localize('terminalAutomationProfile.path', 'A path to a shell executable.'),
 			type: ['string'],
 			items: {
 				type: 'string'
@@ -168,6 +168,63 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				}
 			]
 		},
+		[TerminalSettingId.AgentHostProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.linux', "The terminal profile to use on Linux for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AgentHostProfileMacOs]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.osx', "The terminal profile to use on macOS for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AgentHostProfileWindows]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.agentHostProfile.windows', "The terminal profile to use on Windows for agent host terminals, including shells launched by AI agent tools. Accepts either a profile name from {0} or an inline profile object. When unset, falls back to {1}. Currently applies to the local agent host. Only the executable `path` is honored today; `args` and `env` from the profile are ignored. Remote agent hosts need remote-side shell configuration because local resolved paths may be invalid on the remote.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`'),
+			type: ['string', 'object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				{ type: 'string' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
 		[TerminalSettingId.ProfilesWindows]: {
 			restricted: true,
 			markdownDescription: createTerminalProfileMarkdownDescription(Platform.Windows),
@@ -175,7 +232,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'PowerShell': {
 					source: 'PowerShell',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id,
 				},
 				'Command Prompt': {
 					path: [
@@ -183,10 +240,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 						'${env:windir}\\System32\\cmd.exe'
 					],
 					args: [],
-					icon: 'terminal-cmd'
+					icon: Codicon.terminalCmd.id,
 				},
 				'Git Bash': {
-					source: 'Git Bash'
+					source: 'Git Bash',
+					icon: Codicon.terminalGitBash.id,
 				}
 			},
 			additionalProperties: {
@@ -234,7 +292,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				'bash': {
 					path: 'bash',
 					args: ['-l'],
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh',
@@ -246,11 +304,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {
@@ -286,7 +344,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
-					icon: 'terminal-bash'
+					icon: Codicon.terminalBash.id
 				},
 				'zsh': {
 					path: 'zsh'
@@ -296,11 +354,11 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux',
-					icon: 'terminal-tmux'
+					icon: Codicon.terminalTmux.id
 				},
 				'pwsh': {
 					path: 'pwsh',
-					icon: 'terminal-powershell'
+					icon: Codicon.terminalPowershell.id
 				}
 			},
 			additionalProperties: {

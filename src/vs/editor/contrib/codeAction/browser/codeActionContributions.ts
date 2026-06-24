@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { AutoFixAction, CodeActionCommand, FixAllAction, OrganizeImportsAction, QuickFixAction, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/browser/codeActionCommands';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { editorConfigurationBaseNode } from '../../../common/config/editorConfigurationSchema.js';
+import { AutoFixAction, CodeActionCommand, FixAllAction, OrganizeImportsAction, QuickFixAction, RefactorAction, SourceAction } from './codeActionCommands.js';
+import { CodeActionController } from './codeActionController.js';
+import { LightBulbWidget } from './lightBulbWidget.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 registerEditorContribution(CodeActionController.ID, CodeActionController, EditorContributionInstantiation.Eventually);
 registerEditorContribution(LightBulbWidget.ID, LightBulbWidget, EditorContributionInstantiation.Lazy);
-registerEditorAction(QuickFixAction);
+registerAction2(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(SourceAction);
 registerEditorAction(OrganizeImportsAction);
@@ -42,6 +43,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			description: nls.localize('includeNearbyQuickFixes', "Enable/disable showing nearest Quick Fix within a line when not currently on a diagnostic."),
 			default: true,
+		},
+	}
+});
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		'editor.codeActions.triggerOnFocusChange': {
+			type: 'boolean',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			markdownDescription: nls.localize('triggerOnFocusChange', 'Enable triggering {0} when {1} is set to {2}. Code Actions must be set to {3} to be triggered for window and focus changes.', '`#editor.codeActionsOnSave#`', '`#files.autoSave#`', '`afterDelay`', '`always`'),
+			default: false,
 		},
 	}
 });

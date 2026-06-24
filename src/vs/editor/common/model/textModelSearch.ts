@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, FindMatch, SearchData } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { EndOfLinePreference, FindMatch, SearchData } from '../model.js';
+import { TextModel } from './textModel.js';
 
 const LIMIT_FIND_COUNT = 999;
 

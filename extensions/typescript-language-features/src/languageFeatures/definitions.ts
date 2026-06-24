@@ -9,6 +9,7 @@ import { API } from '../tsServer/api';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import DefinitionProviderBase from './definitionProviderBase';
+import { readUnifiedConfig } from '../utils/configuration';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
@@ -32,7 +33,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
 		let definitions = response.body.definitions;
 
-		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false) && this.client.apiVersion.gte(API.v470)) {
+		if (readUnifiedConfig<boolean>('preferGoToSourceDefinition', false, { scope: document, fallbackSection: document.languageId }) && this.client.apiVersion.gte(API.v470)) {
 			const sourceDefinitionsResponse = await this.client.execute('findSourceDefinition', args, token);
 			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body?.length) {
 				definitions = sourceDefinitionsResponse.body;

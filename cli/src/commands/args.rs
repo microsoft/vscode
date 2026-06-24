@@ -64,7 +64,7 @@ pub struct IntegratedCli {
 	pub core: CliCore,
 }
 
-/// Common CLI shared between intergated and standalone interfaces.
+/// Common CLI shared between integrated and standalone interfaces.
 #[derive(Args, Debug, Default, Clone)]
 pub struct CliCore {
 	/// One or more files, folders, or URIs to open.
@@ -185,6 +185,10 @@ pub enum Commands {
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
 	CommandShell(CommandShellArgs),
+
+	/// Manage agent host sessions.
+	#[clap(name = "agent")]
+	Agent(AgentArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -216,22 +220,157 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
-	/// Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.
+	/// The workspace folder to open when no input is specified in the browser URL.
 	#[clap(long)]
-	pub user_data_dir: Option<String>,
-	/// Set the root path for extensions.
+	pub default_folder: Option<String>,
+	/// The workspace to open when no input is specified in the browser URL.
 	#[clap(long)]
-	pub extensions_dir: Option<String>,
+	pub default_workspace: Option<String>,
+	/// Disables telemetry.
+	#[clap(long)]
+	pub disable_telemetry: bool,
+	/// Use a specific commit SHA for the client.
+	#[clap(long)]
+	pub commit_id: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentHostArgs {
+	/// Host the agent host should bind on. Defaults to 'localhost'. Pass
+	/// `0.0.0.0` to expose the agent host on all interfaces (paired with
+	/// a connection token unless `--without-connection-token` is set).
+	#[clap(long)]
+	pub host: Option<String>,
+	/// Port the agent host should bind on. If 0 (the default) the OS
+	/// picks a free ephemeral port; the chosen port is recorded in the
+	/// agent host lockfile.
+	#[clap(long, default_value_t = 0)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Stop any agent host already running on this machine and start a
+	/// fresh one. Without this flag, the command reuses an existing live
+	/// supervisor when its configuration is compatible, and errors out
+	/// when the requested `--host` / `--port` / `--connection-token`
+	/// differ from what's already running.
+	#[clap(long)]
+	pub replace: bool,
+
+	/// Expose the agent host over a dev tunnel.
+	#[clap(long)]
+	pub tunnel: bool,
+	/// Sets the machine name for the tunnel.
+	#[clap(long)]
+	pub name: Option<String>,
+	/// Randomly name the machine for the tunnel.
+	#[clap(long)]
+	pub random_name: bool,
+
+	/// Optional details to connect to an existing tunnel.
+	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
+	pub existing_tunnel: ExistingTunnelArgs,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentArgs {
+	#[clap(subcommand)]
+	pub subcommand: Option<AgentSubcommand>,
+
+	/// Agent host arguments used when no subcommand is given.
+	#[clap(flatten)]
+	pub host_args: AgentHostArgs,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSubcommand {
+	/// Start a local agent host server.
+	Host(AgentHostArgs),
+
+	/// List active sessions on a running agent host.
+	Ps(AgentPsArgs),
+
+	/// Cancel the active turn of a session.
+	Stop(AgentStopArgs),
+
+	/// Forcefully kill the running agent host process tree.
+	Kill,
+
+	/// Stream live session events.
+	Logs(AgentLogsArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentPsArgs {
+	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+
+	/// Output results as JSON instead of a human-readable table.
+	#[clap(long)]
+	pub json: bool,
+
+	/// Show all sessions, including idle and archived ones.
+	#[clap(long, short)]
+	pub all: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentStopArgs {
+	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentLogsArgs {
+	/// Session URI to stream events for (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// WebSocket address of a running agent host.
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct CommandShellArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
 	/// Listen on a host/port instead of stdin/stdout.
-	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
-	pub on_port: Option<u16>,
+	#[clap(long, num_args = 0..=2, default_missing_value = "0")]
+	pub on_port: Vec<u16>,
 	/// Listen on a host/port instead of stdin/stdout.
 	#[clap[long]]
 	pub on_host: Option<String>,
@@ -280,15 +419,18 @@ impl ExtensionSubcommand {
 					target.push("--show-versions".to_string());
 				}
 				if let Some(category) = &args.category {
-					target.push(format!("--category={}", category));
+					target.push(format!("--category={category}"));
 				}
 			}
 			ExtensionSubcommand::Install(args) => {
 				for id in args.id_or_path.iter() {
-					target.push(format!("--install-extension={}", id));
+					target.push(format!("--install-extension={id}"));
 				}
 				if args.pre_release {
 					target.push("--pre-release".to_string());
+				}
+				if args.donot_include_pack_and_dependencies {
+					target.push("do-not-include-pack-dependencies".to_string());
 				}
 				if args.force {
 					target.push("--force".to_string());
@@ -296,7 +438,7 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Uninstall(args) => {
 				for id in args.id.iter() {
-					target.push(format!("--uninstall-extension={}", id));
+					target.push(format!("--uninstall-extension={id}"));
 				}
 			}
 			ExtensionSubcommand::Update => {
@@ -329,6 +471,10 @@ pub struct InstallExtensionArgs {
 	/// Installs the pre-release version of the extension
 	#[clap(long)]
 	pub pre_release: bool,
+
+	/// Don't include installing pack and dependencies of the extension
+	#[clap(long)]
+	pub donot_include_pack_and_dependencies: bool,
 
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]
@@ -436,11 +582,11 @@ impl EditorOptions {
 			target.push("--wait".to_string());
 		}
 		if let Some(locale) = &self.locale {
-			target.push(format!("--locale={}", locale));
+			target.push(format!("--locale={locale}"));
 		}
 		if !self.enable_proposed_api.is_empty() {
 			for id in self.enable_proposed_api.iter() {
-				target.push(format!("--enable-proposed-api={}", id));
+				target.push(format!("--enable-proposed-api={id}"));
 			}
 		}
 		self.code_options.add_code_args(target);
@@ -477,10 +623,10 @@ pub struct OutputFormatOptions {
 impl DesktopCodeOptions {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
 		if let Some(extensions_dir) = &self.extensions_dir {
-			target.push(format!("--extensions-dir={}", extensions_dir));
+			target.push(format!("--extensions-dir={extensions_dir}"));
 		}
 		if let Some(user_data_dir) = &self.user_data_dir {
-			target.push(format!("--user-data-dir={}", user_data_dir));
+			target.push(format!("--user-data-dir={user_data_dir}"));
 		}
 	}
 }
@@ -519,13 +665,13 @@ impl GlobalOptions {
 			target.push("--verbose".to_string());
 		}
 		if let Some(log) = self.log {
-			target.push(format!("--log={}", log));
+			target.push(format!("--log={log}"));
 		}
 		if self.disable_telemetry {
 			target.push("--disable-telemetry".to_string());
 		}
 		if let Some(telemetry_level) = &self.telemetry_level {
-			target.push(format!("--telemetry-level={}", telemetry_level));
+			target.push(format!("--telemetry-level={telemetry_level}"));
 		}
 	}
 }
@@ -575,16 +721,16 @@ impl EditorTroubleshooting {
 			target.push("--disable-extensions".to_string());
 		}
 		for id in self.disable_extension.iter() {
-			target.push(format!("--disable-extension={}", id));
+			target.push(format!("--disable-extension={id}"));
 		}
 		if let Some(sync) = &self.sync {
-			target.push(format!("--sync={}", sync));
+			target.push(format!("--sync={sync}"));
 		}
 		if let Some(port) = &self.inspect_extensions {
-			target.push(format!("--inspect-extensions={}", port));
+			target.push(format!("--inspect-extensions={port}"));
 		}
 		if let Some(port) = &self.inspect_brk_extensions {
-			target.push(format!("--inspect-brk-extensions={}", port));
+			target.push(format!("--inspect-brk-extensions={port}"));
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
@@ -619,7 +765,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
-	/// Old option, new code sohuld just use `--name`.
+	/// Old option, new code should just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -638,6 +784,9 @@ pub struct ExistingTunnelArgs {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct TunnelServeArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Optional details to connect to an existing tunnel
 	#[clap(flatten, next_help_heading = Some("ADVANCED OPTIONS"))]
 	pub tunnel: ExistingTunnelArgs,
@@ -661,7 +810,10 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+}
 
+#[derive(Args, Debug, Clone, Default)]
+pub struct BaseServerArgs {
 	/// Requests that extensions be preloaded and installed on connecting servers.
 	#[clap(long)]
 	pub install_extension: Vec<String>,
@@ -673,10 +825,14 @@ pub struct TunnelServeArgs {
 	/// Set the root path for extensions.
 	#[clap(long)]
 	pub extensions_dir: Option<String>,
+
+	/// Reconnection grace time in seconds. Defaults to 10800 (3 hours).
+	#[clap(long)]
+	pub reconnection_grace_time: Option<u32>,
 }
 
-impl TunnelServeArgs {
-	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+impl BaseServerArgs {
+	pub fn apply_to(&self, csa: &mut CodeServerArgs) {
 		csa.install_extensions
 			.extend_from_slice(&self.install_extension);
 
@@ -686,6 +842,10 @@ impl TunnelServeArgs {
 
 		if let Some(d) = &self.extensions_dir {
 			csa.extensions_dir = Some(d.clone());
+		}
+
+		if let Some(t) = self.reconnection_grace_time {
+			csa.reconnection_grace_time = Some(t);
 		}
 	}
 }

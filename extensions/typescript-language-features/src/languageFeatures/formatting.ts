@@ -10,12 +10,12 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import FileConfigurationManager from './fileConfigurationManager';
-import { conditionalRegistration, requireGlobalConfiguration } from './util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig } from './util/dependentRegistration';
 
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FileConfigurationManager
+		private readonly fileConfigurationManager: FileConfigurationManager
 	) { }
 
 	public async provideDocumentRangeFormattingEdits(
@@ -29,7 +29,7 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fileConfigurationManager.ensureConfigurationOptions(document, options, token);
 
 		const args = typeConverters.Range.toFormattingRequestArgs(file, range);
 		const response = await this.client.execute('format', args, token);
@@ -46,13 +46,13 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 		ch: string,
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
-	): Promise<vscode.TextEdit[]> {
+	): Promise<vscode.TextEdit[] | undefined> {
 		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
-			return [];
+			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
+		await this.fileConfigurationManager.ensureConfigurationOptions(document, options, token);
 
 		const args: Proto.FormatOnKeyRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
@@ -92,7 +92,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager
 ) {
 	return conditionalRegistration([
-		requireGlobalConfiguration(language.id, 'format.enable'),
+		requireGlobalUnifiedConfig('format.enabled', { fallbackSection: language.id, fallbackSubSectionNameOverride: 'format.enable' }),
 	], () => {
 		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
 		return vscode.Disposable.from(

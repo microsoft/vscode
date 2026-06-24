@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { EditorFontVariations, EditorOptions, EditorOption, FindComputedEditorOptionValueById, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import * as platform from '../../../base/common/platform.js';
+import { EditorOption, FindComputedEditorOptionValueById } from './editorOptions.js';
+import { EditorZoom } from './editorZoom.js';
 
 /**
  * Determined from empirical observations.
  * @internal
  */
-const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
+export const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 /**
  * @internal
  */
-const MINIMUM_LINE_HEIGHT = 8;
+export const MINIMUM_LINE_HEIGHT = 8;
 
 /**
  * @internal
@@ -31,35 +31,7 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public static createFromValidatedSettings(options: IValidatedEditorOptions, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
-		const fontFamily = options.get(EditorOption.fontFamily);
-		const fontWeight = options.get(EditorOption.fontWeight);
-		const fontSize = options.get(EditorOption.fontSize);
-		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
-		const fontVariationSettings = options.get(EditorOption.fontVariations);
-		const lineHeight = options.get(EditorOption.lineHeight);
-		const letterSpacing = options.get(EditorOption.letterSpacing);
-		return BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, pixelRatio, ignoreEditorZoom);
-	}
-
-	/**
-	 * @internal
-	 */
-	public static createFromRawSettings(opts: { fontFamily?: string; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; fontVariations?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
-		const fontFamily = EditorOptions.fontFamily.validate(opts.fontFamily);
-		const fontWeight = EditorOptions.fontWeight.validate(opts.fontWeight);
-		const fontSize = EditorOptions.fontSize.validate(opts.fontSize);
-		const fontFeatureSettings = EditorOptions.fontLigatures2.validate(opts.fontLigatures);
-		const fontVariationSettings = EditorOptions.fontVariations.validate(opts.fontVariations);
-		const lineHeight = EditorOptions.lineHeight.validate(opts.lineHeight);
-		const letterSpacing = EditorOptions.letterSpacing.validate(opts.letterSpacing);
-		return BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, pixelRatio, ignoreEditorZoom);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _create(fontFamily: string, fontWeight: string, fontSize: number, fontFeatureSettings: string, fontVariationSettings: string, lineHeight: number, letterSpacing: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
+	public static _create(fontFamily: string, fontWeight: string, fontSize: number, fontFeatureSettings: string, fontVariationSettings: string, lineHeight: number, letterSpacing: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
 		if (lineHeight === 0) {
 			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
@@ -77,9 +49,9 @@ export class BareFontInfo {
 		fontSize *= editorZoomLevelMultiplier;
 		lineHeight *= editorZoomLevelMultiplier;
 
-		if (fontVariationSettings === EditorFontVariations.TRANSLATE) {
+		if (fontVariationSettings === FONT_VARIATION_TRANSLATE) {
 			if (fontWeight === 'normal' || fontWeight === 'bold') {
-				fontVariationSettings = EditorFontVariations.OFF;
+				fontVariationSettings = FONT_VARIATION_OFF;
 			} else {
 				const fontWeightAsNumber = parseInt(fontWeight, 10);
 				fontVariationSettings = `'wght' ${fontWeightAsNumber}`;
@@ -235,3 +207,38 @@ export class FontInfo extends BareFontInfo {
 		);
 	}
 }
+/**
+ * @internal
+ */
+export const FONT_VARIATION_OFF = 'normal';
+/**
+ * @internal
+ */
+export const FONT_VARIATION_TRANSLATE = 'translate';
+
+/**
+ * @internal
+ */
+export const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+/**
+ * @internal
+ */
+export const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+/**
+ * @internal
+ */
+export const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', monospace';
+/**
+ * @internal
+ */
+export const EDITOR_FONT_DEFAULTS = {
+	fontFamily: (
+		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isWindows ? DEFAULT_WINDOWS_FONT_FAMILY : DEFAULT_LINUX_FONT_FAMILY)
+	),
+	fontWeight: 'normal',
+	fontSize: (
+		platform.isMacintosh ? 12 : 14
+	),
+	lineHeight: 0,
+	letterSpacing: 0,
+};

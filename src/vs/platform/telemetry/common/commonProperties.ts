@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
-import { env, platform as nodePlatform } from 'vs/base/common/process';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
+import { isLinuxSnap, platform, Platform, PlatformToString } from '../../../base/common/platform.js';
+import { env, platform as nodePlatform } from '../../../base/common/process.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ICommonProperties } from './telemetry.js';
 
 function getPlatformDetail(hostname: string): string | undefined {
 	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {
@@ -26,7 +26,8 @@ export function resolveCommonProperties(
 	sqmId: string | undefined,
 	devDeviceId: string | undefined,
 	isInternalTelemetry: boolean,
-	product?: string
+	releaseDate: string | undefined,
+	product?: string,
 ): ICommonProperties {
 	const result: ICommonProperties = Object.create(null);
 
@@ -42,6 +43,8 @@ export function resolveCommonProperties(
 	result['commitHash'] = commit;
 	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['version'] = version;
+	// __GDPR__COMMON__ "common.releaseDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.releaseDate'] = releaseDate;
 	// __GDPR__COMMON__ "common.platformVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platformVersion'] = (release || '').replace(/^(\d+)(\.\d+)?(\.\d+)?(.*)/, '$1$2$3');
 	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

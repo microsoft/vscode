@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ThreadStatusScheduler } from 'vs/workbench/contrib/debug/browser/debugSession';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ThreadStatusScheduler } from '../../browser/debugSession.js';
 
 
 suite('DebugSession - ThreadStatusScheduler', () => {

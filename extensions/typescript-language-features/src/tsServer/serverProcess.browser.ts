@@ -40,7 +40,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		version: TypeScriptVersion,
 		args: readonly string[],
 		kind: TsServerProcessKind,
-		_configuration: TypeScriptServiceConfiguration,
+		configuration: TypeScriptServiceConfiguration,
 		_versionManager: TypeScriptVersionManager,
 		_nodeVersionManager: NodeVersionManager,
 		tsServerLog: TsServerLog | undefined,
@@ -50,10 +50,10 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 			...args,
 			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
+			// Enable/disable web type acquisition
+			(configuration.webTypeAcquisitionEnabled && supportsReadableByteStreams() ? '--experimentalTypeAcquisition' : '--disableAutomaticTypingAcquisition'),
 		];
-		if (_configuration.webTypeAcquisitionEnabled && supportsReadableByteStreams()) {
-			launchArgs.push('--experimentalTypeAcquisition');
-		}
+
 		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);
 	}
 }

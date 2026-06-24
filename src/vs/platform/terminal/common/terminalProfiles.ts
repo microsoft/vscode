@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/platform/terminal/common/terminal';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from '../../../base/common/codicons.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from './terminal.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { isObject, isString, type SingleOrMany } from '../../../base/common/types.js';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
 	values: (string | null)[] | undefined;
@@ -40,7 +41,7 @@ export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], e
 function createProfileDescription(profile: ITerminalProfile): string {
 	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
 	if (profile.args) {
-		if (typeof profile.args === 'string') {
+		if (isString(profile.args)) {
 			description += `\n- args: "${profile.args}"`;
 		} else {
 			description += `\n- args: [${profile.args.length === 0 ? '' : `'${profile.args.join(`','`)}'`}]`;
@@ -64,10 +65,10 @@ function createExtensionProfileDescription(profile: IExtensionTerminalProfile): 
 }
 
 
-export function terminalProfileArgsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
+export function terminalProfileArgsMatch(args1: SingleOrMany<string> | undefined, args2: SingleOrMany<string> | undefined): boolean {
 	if (!args1 && !args2) {
 		return true;
-	} else if (typeof args1 === 'string' && typeof args2 === 'string') {
+	} else if (isString(args1) && isString(args2)) {
 		return args1 === args2;
 	} else if (Array.isArray(args1) && Array.isArray(args2)) {
 		if (args1.length !== args2.length) {
@@ -93,8 +94,10 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	if (ThemeIcon.isThemeIcon(a) && ThemeIcon.isThemeIcon(b)) {
 		return a.id === b.id && a.color === b.color;
 	}
-	if (typeof a === 'object' && 'light' in a && 'dark' in a
-		&& typeof b === 'object' && 'light' in b && 'dark' in b) {
+	if (
+		isObject(a) && !URI.isUri(a) && !ThemeIcon.isThemeIcon(a) &&
+		isObject(b) && !URI.isUri(b) && !ThemeIcon.isThemeIcon(b)
+	) {
 		const castedA = (a as { light: unknown; dark: unknown });
 		const castedB = (b as { light: unknown; dark: unknown });
 		if ((URI.isUri(castedA.light) || isUriComponents(castedA.light)) && (URI.isUri(castedA.dark) || isUriComponents(castedA.dark))
@@ -109,13 +112,4 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	}
 
 	return false;
-}
-
-
-export function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
-		return false;
-	}
-	return typeof (<any>thing).path === 'string' &&
-		typeof (<any>thing).scheme === 'string';
 }

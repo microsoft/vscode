@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
-import { OverviewRulerPosition, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IOverviewRuler } from '../../editorBrowser.js';
+import { OverviewRulerPosition, EditorOption } from '../../../common/config/editorOptions.js';
+import { ColorZone, OverviewRulerZone, OverviewZoneManager } from '../../../common/viewModel/overviewZoneManager.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 
+/**
+ * The overview ruler appears underneath the editor scroll bar and shows things
+ * like the cursor, various decorations, etc.
+ */
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
 	private readonly _context: ViewContext;
@@ -132,7 +136,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
 	private _renderOneLane(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], width: number): void {
 
-		let currentColorId = 0;
+		let currentColorId = 0; // will never match a real color id which is > 0
 		let currentFrom = 0;
 		let currentTo = 0;
 
@@ -143,7 +147,9 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 			const zoneTo = zone.to;
 
 			if (zoneColorId !== currentColorId) {
-				ctx.fillRect(0, currentFrom, width, currentTo - currentFrom);
+				if (currentColorId !== 0) {
+					ctx.fillRect(0, currentFrom, width, currentTo - currentFrom);
+				}
 
 				currentColorId = zoneColorId;
 				ctx.fillStyle = id2Color[currentColorId];

@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use chrono::Local;
-use opentelemetry::{
-	sdk::trace::{Tracer, TracerProvider},
-	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
-};
+use jiff::Zoned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::{
@@ -103,7 +99,6 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -149,7 +144,7 @@ impl LogSink for StdioLogSink {
 	}
 
 	fn write_result(&self, message: &str) {
-		println!("{}", message);
+		println!("{message}");
 	}
 }
 
@@ -199,26 +194,16 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
 	}
 
-	pub fn new(tracer: Tracer, level: Level) -> Self {
+	pub fn new(level: Level) -> Self {
 		Self {
-			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
-	}
-
-	pub fn span(&self, name: &str) -> SpanBuilder {
-		self.tracer.span_builder(format!("serverlauncher/{}", name))
-	}
-
-	pub fn tracer(&self) -> &Tracer {
-		&self.tracer
 	}
 
 	pub fn emit(&self, level: Level, message: &str) {
@@ -237,8 +222,8 @@ impl Logger {
 	pub fn prefixed(&self, prefix: &str) -> Logger {
 		Logger {
 			prefix: Some(match &self.prefix {
-				Some(p) => format!("{}{} ", p, prefix),
-				None => format!("{} ", prefix),
+				Some(p) => format!("{p}{prefix} "),
+				None => format!("{prefix} "),
 			}),
 			..self.clone()
 		}
@@ -282,7 +267,7 @@ pub struct DownloadLogger<'a> {
 	logger: &'a Logger,
 }
 
-impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
+impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
 		if total_bytes > 0 {
 			self.logger.emit(
@@ -305,29 +290,26 @@ impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
 }
 
 fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String {
-	let current = Local::now();
-	let timestamp = current.format("%Y-%m-%d %H:%M:%S").to_string();
+	let current = Zoned::now();
+	let timestamp = current.strftime("%Y-%m-%d %H:%M:%S").to_string();
 
 	let name = level.name().unwrap();
 
 	if use_colors {
 		if let Some(c) = level.color_code() {
-			return format!(
-				"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
-				timestamp, c, name, prefix, message
-			);
+			return format!("\x1b[2m[{timestamp}]\x1b[0m {c}{name}\x1b[0m {prefix}{message}\n");
 		}
 	}
 
-	format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
+	format!("[{timestamp}] {name} {prefix}{message}\n")
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
 	let line = format(level, prefix, message, *COLORS_ENABLED);
 	if level == Level::Trace && *COLORS_ENABLED {
-		print!("\x1b[2m{}\x1b[0m", line);
+		print!("\x1b[2m{line}\x1b[0m");
 	} else {
-		print!("{}", line);
+		print!("{line}");
 	}
 }
 
@@ -424,42 +406,3 @@ macro_rules! warning {
          $logger.emit(log::Level::Warn, &format!($($fmt),+))
      };
  }
-
-#[macro_export]
-macro_rules! span {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::TraceContextExt;
-
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let guard = cx.clone().attach();
-		let t = $func;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
-		}
-
-		std::mem::drop(guard);
-
-		t
-	}};
-}
-
-#[macro_export]
-macro_rules! spanf {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::{FutureExt, TraceContextExt};
-
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let t = $func.with_context(cx.clone()).await;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
-		}
-
-		cx.span().end();
-
-		t
-	}};
-}

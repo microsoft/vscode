@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Range } from 'vs/editor/common/core/range';
+import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from './search.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 export const getFileResults = (
 	bytes: Uint8Array,
 	pattern: RegExp,
 	options: {
-		beforeContext: number;
-		afterContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
+		surroundingContext: number;
+		previewOptions: ITextSearchPreviewOptions | undefined;
 		remainingResultQuota: number;
 	}
 ): ITextSearchResult[] => {
@@ -32,16 +30,16 @@ export const getFileResults = (
 
 	const results: ITextSearchResult[] = [];
 
-	const patternIndecies: { matchStartIndex: number; matchedText: string }[] = [];
+	const patternIndices: { matchStartIndex: number; matchedText: string }[] = [];
 
 	let patternMatch: RegExpExecArray | null = null;
 	let remainingResultQuota = options.remainingResultQuota;
 	while (remainingResultQuota >= 0 && (patternMatch = pattern.exec(text))) {
-		patternIndecies.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
+		patternIndices.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
 		remainingResultQuota--;
 	}
 
-	if (patternIndecies.length) {
+	if (patternIndices.length) {
 		const contextLinesNeeded = new Set<number>();
 		const resultLines = new Set<number>();
 
@@ -58,7 +56,7 @@ export const getFileResults = (
 		if (prevLineEnd < text.length) { lineRanges.push({ start: prevLineEnd, end: text.length }); }
 
 		let startLine = 0;
-		for (const { matchStartIndex, matchedText } of patternIndecies) {
+		for (const { matchStartIndex, matchedText } of patternIndices) {
 			if (remainingResultQuota < 0) {
 				break;
 			}
@@ -71,8 +69,8 @@ export const getFileResults = (
 				endLine++;
 			}
 
-			if (options.beforeContext) {
-				for (let contextLine = Math.max(0, startLine - options.beforeContext); contextLine < startLine; contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = Math.max(0, startLine - options.surroundingContext); contextLine < startLine; contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}
@@ -102,14 +100,18 @@ export const getFileResults = (
 				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0)
 			);
 
-			const match: ITextSearchResult = {
-				ranges: fileRange,
-				preview: { text: previewText, matches: previewRange },
+			const match: ITextSearchMatch = {
+				rangeLocations: [{
+					source: fileRange,
+					preview: previewRange,
+				}],
+				previewText: previewText
 			};
+
 			results.push(match);
 
-			if (options.afterContext) {
-				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.afterContext, lineRanges.length - 1); contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.surroundingContext, lineRanges.length - 1); contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}

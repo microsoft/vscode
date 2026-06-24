@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API } from './typings/git';
-import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util';
-import { encodeURIComponentExceptSlashes, ensurePublished, getRepositoryForFile, notebookCellRangeString, rangeString } from './links';
+import type { API } from './typings/git.d.ts';
+import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
+import { encodeURIComponentExceptSlashes, ensurePublished, getRepositoryForFile, notebookCellRangeString, rangeString } from './links.js';
 
 export class VscodeDevShareProvider implements vscode.ShareProvider, vscode.Disposable {
 	readonly id: string = 'copyVscodeDevLink';

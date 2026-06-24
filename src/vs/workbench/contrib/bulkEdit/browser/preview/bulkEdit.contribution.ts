@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { localize, localize2 } from 'vs/nls';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../common/contributions.js';
+import { IBulkEditService, ResourceEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { BulkEditPane } from './bulkEditPane.js';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../../common/views.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { FocusedViewContext } from '../../../../common/contextkeys.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
+import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
+import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { MenuId, registerAction2, Action2 } from '../../../../../platform/actions/common/actions.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../../base/common/severity.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -183,7 +183,7 @@ registerAction2(class ApplyAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<any> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
 		view?.accept();

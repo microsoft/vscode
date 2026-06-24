@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { TestProductService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
@@ -46,10 +46,12 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('declarative with unknown contribution point => workspace, web in web and => workspace in desktop', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
 	});
 
 	test('declarative extension pack with unknown contribution point', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
 	});
 
@@ -92,15 +94,65 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('extension cannot opt out from web', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ browser: 'main.browser.js', extensionKind: ['-web'] }), ['web']);
 	});
 
 	test('extension cannot opt into web', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web', 'workspace', 'ui'] }), ['workspace', 'ui']);
 	});
 
 	test('extension cannot opt into web only', () => {
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), ['workspace']);
+	});
+});
+
+suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
+
+	let disposables: DisposableStore;
+	let testConfigurationService: TestConfigurationService;
+	let testObject: ExtensionManifestPropertiesService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		testConfigurationService = new TestConfigurationService();
+	});
+
+	teardown(() => {
+		testObject.dispose();
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function getExtensionManifest(properties: Partial<IExtensionManifest> = {}): IExtensionManifest {
+		return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;
+	}
+
+	function createTestObject(): ExtensionManifestPropertiesService {
+		return disposables.add(new ExtensionManifestPropertiesService(TestProductService, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
+	}
+
+	test('defaults to declarative extensions without executable code and supported contributions', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { commands: [] } })),
+		], [true, false, false]);
+	});
+
+	test('uses configured sessions window support override', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', contributes: { themes: [] } })),
+		], [true, false]);
 	});
 });
 

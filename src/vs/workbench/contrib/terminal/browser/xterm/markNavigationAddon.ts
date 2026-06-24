@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Disposable, DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { Disposable, DisposableStore, MutableDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { IMarkTracker } from '../terminal.js';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration, IBufferRange } from '@xterm/xterm';
-import { timeout } from 'vs/base/common/async';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { getWindow } from 'vs/base/browser/dom';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-// HACK: Mark navigation currently depends on terminalContrib/stickyScroll
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
+import { timeout } from '../../../../../base/common/async.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from '../../common/terminalColorRegistry.js';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalContribSettingId } from '../../terminalContribExports.js';
 
 enum Boundary {
 	Top,
@@ -263,7 +260,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 
 	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position: ScrollPosition = ScrollPosition.Middle): void {
-		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		const marker = isFullTerminalCommand(command) ? command.marker : command.commandStartMarker;
 		if (!this._terminal || !marker) {
 			return;
 		}
@@ -285,7 +282,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			{
 				bufferRange: range,
 				// Ensure scroll shows the line when sticky scroll is enabled
-				forceScroll: !!this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled)
+				forceScroll: !!this._configurationService.getValue(TerminalContribSettingId.StickyScrollEnabled)
 			}
 		);
 	}
@@ -313,7 +310,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			const startLine = command.marker.line - (command.getPromptRowCount() - 1);
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
 			// Abort if the command is excessively long to avoid performance on hover/leave
-			if (decorationCount > 20000) {
+			if (decorationCount > 200) {
 				return;
 			}
 			for (let i = 0; i < decorationCount; i++) {
@@ -333,9 +330,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 							if (i === decorationCount - 1) {
 								element.classList.add('bottom');
 							}
-						}
-						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 						}
 					}));
 				}

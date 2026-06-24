@@ -14,5 +14,6 @@ export const enum AccessibilityCommandId {
 	NextCodeBlock = 'editor.action.accessibleViewNextCodeBlock',
 	PreviousCodeBlock = 'editor.action.accessibleViewPreviousCodeBlock',
 	AccessibilityHelpConfigureKeybindings = 'editor.action.accessibilityHelpConfigureKeybindings',
+	AccessibilityHelpConfigureAssignedKeybindings = 'editor.action.accessibilityHelpConfigureAssignedKeybindings',
 	AccessibilityHelpOpenHelpLink = 'editor.action.accessibilityHelpOpenHelpLink',
 }

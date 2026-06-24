@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindowConstructorOptions, HandlerDetails, WebContents } from 'electron';
-import { Event } from 'vs/base/common/event';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IAuxiliaryWindow } from './auxiliaryWindow.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IAuxiliaryWindowsMainService = createDecorator<IAuxiliaryWindowsMainService>('auxiliaryWindowsMainService');
 
@@ -17,6 +17,7 @@ export interface IAuxiliaryWindowsMainService {
 	readonly onDidMaximizeWindow: Event<IAuxiliaryWindow>;
 	readonly onDidUnmaximizeWindow: Event<IAuxiliaryWindow>;
 	readonly onDidChangeFullScreen: Event<{ window: IAuxiliaryWindow; fullscreen: boolean }>;
+	readonly onDidChangeAlwaysOnTop: Event<{ window: IAuxiliaryWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: IAuxiliaryWindow; readonly x: number; readonly y: number }>;
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions;

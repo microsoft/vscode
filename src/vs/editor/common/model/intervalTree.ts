@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { Range } from '../core/range.js';
+import { TrackedRangeStickiness, TrackedRangeStickiness as ActualTrackedRangeStickiness } from '../model.js';
+import { ModelDecorationOptions } from './textModel.js';
 
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
@@ -50,6 +50,10 @@ const enum Constants {
 	IsMarginMask = 0b01000000,
 	IsMarginMaskInverse = 0b10111111,
 	IsMarginOffset = 6,
+
+	AffectsFontMask = 0b10000000,
+	AffectsFontMaskInverse = 0b01111111,
+	AffectsFontOffset = 7,
 
 	/**
 	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
@@ -104,6 +108,14 @@ function getNodeIsInGlyphMargin(node: IntervalNode): boolean {
 function setNodeIsInGlyphMargin(node: IntervalNode, value: boolean): void {
 	node.metadata = (
 		(node.metadata & Constants.IsMarginMaskInverse) | ((value ? 1 : 0) << Constants.IsMarginOffset)
+	);
+}
+function getNodeAffectsFont(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.AffectsFontMask) >>> Constants.AffectsFontOffset) === 1;
+}
+function setNodeAffectsFont(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.AffectsFontMaskInverse) | ((value ? 1 : 0) << Constants.AffectsFontOffset)
 	);
 }
 function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
@@ -172,6 +184,7 @@ export class IntervalNode {
 		setNodeIsInGlyphMargin(this, false);
 		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		setCollapseOnReplaceEdit(this, false);
+		setNodeAffectsFont(this, false);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
@@ -202,6 +215,7 @@ export class IntervalNode {
 		setNodeIsInGlyphMargin(this, this.options.glyphMarginClassName !== null);
 		_setNodeStickiness(this, <number>this.options.stickiness);
 		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
+		setNodeAffectsFont(this, this.options.affectsFont ?? false);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
@@ -236,18 +250,18 @@ export class IntervalTree {
 		this.requestNormalizeDelta = false;
 	}
 
-	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+		return intervalSearch(this, start, end, filterOwnerId, filterOutValidation, filterFontDecorations, cachedVersionId, onlyMarginDecorations);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+	public search(filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 		if (this.root === SENTINEL) {
 			return [];
 		}
-		return search(this, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+		return search(this, filterOwnerId, filterOutValidation, filterFontDecorations, cachedVersionId, onlyMarginDecorations);
 	}
 
 	/**
@@ -319,7 +333,7 @@ export class IntervalTree {
 	}
 
 	public getAllInOrder(): IntervalNode[] {
-		return search(this, 0, false, 0, false);
+		return search(this, 0, false, false, 0, false);
 	}
 
 	private _normalizeDeltaIfNecessary(): void {
@@ -694,7 +708,7 @@ function collectNodesPostOrder(T: IntervalTree): IntervalNode[] {
 	return result;
 }
 
-function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 	let node = T.root;
 	let delta = 0;
 	let nodeStart = 0;
@@ -732,6 +746,9 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 		if (filterOutValidation && getNodeIsForValidation(node)) {
 			include = false;
 		}
+		if (filterFontDecorations && getNodeAffectsFont(node)) {
+			include = false;
+		}
 		if (onlyMarginDecorations && !getNodeIsInGlyphMargin(node)) {
 			include = false;
 		}
@@ -755,7 +772,7 @@ function search(T: IntervalTree, filterOwnerId: number, filterOutValidation: boo
 	return result;
 }
 
-function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: number, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
 	// https://en.wikipedia.org/wiki/Interval_tree#Augmented_tree
 	// Now, it is known that two intervals A and B overlap only when both
 	// A.low <= B.high and A.high >= B.low. When searching the trees for
@@ -819,6 +836,9 @@ function intervalSearch(T: IntervalTree, intervalStart: number, intervalEnd: num
 				include = false;
 			}
 			if (filterOutValidation && getNodeIsForValidation(node)) {
+				include = false;
+			}
+			if (filterFontDecorations && getNodeAffectsFont(node)) {
 				include = false;
 			}
 			if (onlyMarginDecorations && !getNodeIsInGlyphMargin(node)) {

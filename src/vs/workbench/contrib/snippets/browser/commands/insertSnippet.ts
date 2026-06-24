@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import * as nls from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import * as nls from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SnippetEditorAction } from './abstractSnippetsActions.js';
+import { pickSnippet } from '../snippetPicker.js';
+import { ISnippetsService } from '../snippets.js';
+import { Snippet, SnippetSource } from '../snippetsFile.js';
 
 class Args {
 
@@ -127,13 +127,13 @@ export class InsertSnippetAction extends SnippetEditorAction {
 
 			if (name) {
 				// take selected snippet
-				snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })
+				snippetService.getSnippets(languageId, undefined, { includeNoPrefixSnippets: true })
 					.then(snippets => snippets.find(snippet => snippet.name === name))
 					.then(resolve, reject);
 
 			} else {
 				// let user pick a snippet
-				resolve(instaService.invokeFunction(pickSnippet, languageId));
+				resolve(instaService.invokeFunction(pickSnippet, languageId, editor.getModel().uri));
 			}
 		});
 

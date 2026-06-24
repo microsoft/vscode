@@ -7,7 +7,7 @@ steps:
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Create .build folder
 
-  - script: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
+  - script: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
     displayName: Prepare built-in extensions cache key
 
   - task: Cache@2
@@ -17,7 +17,7 @@ steps:
       cacheHitVar: BUILTIN_EXTENSIONS_RESTORED
     displayName: Restore built-in extensions cache
 
-  - script: node build/lib/builtInExtensions.js
+  - script: node build/lib/builtInExtensions.ts
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     condition: and(succeeded(), ne(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))

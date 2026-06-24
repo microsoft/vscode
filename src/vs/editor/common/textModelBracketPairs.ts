@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CallbackIterable } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { PairAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
+import { CallbackIterable } from '../../base/common/arrays.js';
+import { Event } from '../../base/common/event.js';
+import { IPosition } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { ClosingBracketKind, OpeningBracketKind } from './languages/supports/languageBracketsConfiguration.js';
+import { PairAstNode } from './model/bracketPairsTextModelPart/bracketPairsTree/ast.js';
 
 export interface IBracketPairsTextModelPart {
 	/**
 	 * Is fired when bracket pairs change, either due to a text or a settings change.
 	*/
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 
 	/**
 	 * Gets all bracket pairs that intersect the given position.

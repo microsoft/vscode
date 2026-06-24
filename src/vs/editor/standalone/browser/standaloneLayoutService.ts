@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutOffsetInfo, ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import * as dom from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { ILayoutOffsetInfo, ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -21,7 +21,7 @@ class StandaloneLayoutService implements ILayoutService {
 	readonly onDidAddContainer = Event.None;
 
 	get mainContainer(): HTMLElement {
-		return firstOrDefault(this._codeEditorService.listCodeEditors())?.getContainerDomNode() ?? mainWindow.document.body;
+		return this._codeEditorService.listCodeEditors().at(0)?.getContainerDomNode() ?? mainWindow.document.body;
 	}
 
 	get activeContainer(): HTMLElement {

@@ -8,15 +8,16 @@
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
-const assert = require('assert');
-const Mocha = require('mocha');
-const path = require('path');
-const fs = require('fs');
-const glob = require('glob');
-const minimatch = require('minimatch');
-const coverage = require('../coverage');
-const minimist = require('minimist');
-const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+import * as assert from 'assert';
+import Mocha from 'mocha';
+import * as path from 'path';
+import * as fs from 'fs';
+import glob from 'glob';
+import minimatch from 'minimatch';
+import minimist from 'minimist';
+import * as module from 'module';
+import { fileURLToPath, pathToFileURL } from 'url';
+import semver from 'semver';
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -56,37 +57,47 @@ Options:
 const TEST_GLOB = '**/test/**/*.test.js';
 
 const excludeGlobs = [
-	'**/{browser,electron-sandbox,electron-main}/**/*.test.js',
+	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/vs/workbench/contrib/testing/test/**', // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/vs/sessions/test/web.test.js', // web-only E2E test that imports CSS — cannot run in Node
 ];
 
-const REPO_ROOT = path.join(__dirname, '../../../');
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const out = args.build ? 'out-build' : 'out';
-const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
+const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
-const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
-const currentMajorNodeVersion = process.version.substring(0, 3);
-if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
-	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);
+const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
+const currentNodeVersion = semver.parse(process.version);
+//@ts-ignore
+if (currentNodeVersion?.major < requiredNodeVersion?.major) {
+	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion?.major} (your version is: ${currentNodeVersion?.major})`);
 	process.exit(1);
 }
 
 function main() {
 
-	// VSCODE_GLOBALS: node_modules
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
-
 	// VSCODE_GLOBALS: package/product.json
-	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
-	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
+	const _require = module.createRequire(import.meta.url);
+	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
+
+	// VSCODE_GLOBALS: file root
+	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
+
+	if (args.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		globalThis._VSCODE_NLS_MESSAGES = _require(`${REPO_ROOT}/${out}/nls.messages.json`);
+	}
 
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 	Object.assign(globalThis, {
-		__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
+		// __analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 		__readFileInTests: (/** @type {string} */ path) => fs.promises.readFile(path, 'utf-8'),
 		__writeFileInTests: (/** @type {string} */ path, /** @type {BufferEncoding} */ contents) => fs.promises.writeFile(path, contents),
 		__readDirInTests: (/** @type {string} */ path) => fs.promises.readdir(path),
@@ -94,64 +105,43 @@ function main() {
 		__mkdirPInTests: (/** @type {string} */ path) => fs.promises.mkdir(path, { recursive: true }),
 	});
 
-	process.on('uncaughtException', function (e) {
+	// Configure Node.js diagnostic reports for crash investigation.
+	// Reports are written to .build/crashes so the existing CI artifact
+	// collection picks them up alongside Electron crash dumps.
+	const crashDir = path.join(REPO_ROOT, '.build', 'crashes');
+	fs.mkdirSync(crashDir, { recursive: true });
+	if (process.report) {
+		process.report.directory = crashDir;
+		process.report.reportOnFatalError = true;
+		process.report.reportOnUncaughtException = true;
+	}
+
+	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
 	});
 
+	process.on('unhandledRejection', function(reason) {
+		console.error('Unhandled promise rejection:');
+		console.error(reason && (/** @type {Error} */ (reason)).stack || reason);
+	});
+
 	/**
-	 * @param {string} path
-	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
-	 * @returns {string}
+	 * @param modules
+	 * @param onLoad
+	 * @param onError
 	 */
-	function fileUriFromPath(path, config) {
-
-		// Since we are building a URI, we normalize any backslash
-		// to slashes and we ensure that the path begins with a '/'.
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-
-		// Windows: in order to support UNC paths (which start with '//')
-		// that have their own authority, we do not use the provided authority
-		// but rather preserve it.
-		if (config.isWindows && pathName.startsWith('//')) {
-			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
-		}
-
-		// Otherwise we optionally add the provided authority if specified
-		else {
-			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
-	}
-
-	const loaderConfig = {
-		nodeRequire: require,
-		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
-		catchError: true
+	const loader = function(modules, onLoad, onError) {
+		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
+			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
+			throw err;
+		}));
+		Promise.all(loads).then(onLoad, onError);
 	};
 
-	if (args.coverage) {
-		coverage.initialize(loaderConfig);
-
-		process.on('exit', function (code) {
-			if (code !== 0) {
-				return;
-			}
-			coverage.createReport(args.run || args.runGlob, args.coveragePath, args.coverageFormats);
-		});
-	}
-
-	loader.config(loaderConfig);
 
 	let didErr = false;
 	const write = process.stderr.write;
-	process.stderr.write = function (...args) {
+	process.stderr.write = function(...args) {
 		didErr = didErr || !!args[0];
 		return write.apply(process.stderr, args);
 	};
@@ -162,7 +152,7 @@ function main() {
 	});
 
 	/**
-	 * @param {string[]} modules
+	 * @param modules
 	 */
 	async function loadModules(modules) {
 		for (const file of modules) {
@@ -178,7 +168,7 @@ function main() {
 
 	if (args.runGlob) {
 		loadFunc = (cb) => {
-			const doRun = /** @param {string[]} tests */(tests) => {
+			const doRun = /** @param tests */(tests) => {
 				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
 						test = path.relative(src, path.resolve(test));
@@ -189,11 +179,11 @@ function main() {
 				loadModules(modulesToLoad).then(() => cb(null), cb);
 			};
 
-			glob(args.runGlob, { cwd: src }, function (err, files) { doRun(files); });
+			glob(args.runGlob, { cwd: src }, function(err, files) { doRun(files); });
 		};
 	} else if (args.run) {
 		const tests = (typeof args.run === 'string') ? [args.run] : args.run;
-		const modulesToLoad = tests.map(function (test) {
+		const modulesToLoad = tests.map(function(test) {
 			test = test.replace(/^src/, 'out');
 			test = test.replace(/\.ts$/, '.js');
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
@@ -203,7 +193,7 @@ function main() {
 		};
 	} else {
 		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function (err, files) {
+			glob(TEST_GLOB, { cwd: src }, function(err, files) {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
@@ -216,7 +206,7 @@ function main() {
 		};
 	}
 
-	loadFunc(function (err) {
+	loadFunc(function(err) {
 		if (err) {
 			console.error(err);
 			return process.exit(1);
@@ -226,19 +216,19 @@ function main() {
 
 		if (!args.run && !args.runGlob) {
 			// set up last test
-			Mocha.suite('Loader', function () {
-				test('should not explode while loading', function () {
-					assert.ok(!didErr, 'should not explode while loading');
+			Mocha.suite('Loader', function() {
+				test('should not explode while loading', function() {
+					assert.ok(!didErr, `should not explode while loading: ${didErr}`);
 				});
 			});
 		}
 
 		// report failing test for every unexpected error during any of the tests
 		const unexpectedErrors = [];
-		Mocha.suite('Errors', function () {
-			test('should not have unexpected errors in tests', function () {
+		Mocha.suite('Errors', function() {
+			test('should not have unexpected errors in tests', function() {
 				if (unexpectedErrors.length) {
-					unexpectedErrors.forEach(function (stack) {
+					unexpectedErrors.forEach(function(stack) {
 						console.error('');
 						console.error(stack);
 					});
@@ -249,8 +239,8 @@ function main() {
 		});
 
 		// replace the default unexpected error handler to be useful during tests
-		loader(['vs/base/common/errors'], function (errors) {
-			errors.setUnexpectedErrorHandler(function (err) {
+		import(`${baseUrl}/vs/base/common/errors.js`).then(errors => {
+			errors.setUnexpectedErrorHandler(function(err) {
 				const stack = (err && err.stack) || (new Error().stack);
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});

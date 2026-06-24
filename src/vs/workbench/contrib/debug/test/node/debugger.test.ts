@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-
+import assert from 'assert';
+import { join, normalize } from '../../../../../base/common/path.js';
+import * as platform from '../../../../../base/common/platform.js';
+import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager, IDebuggerContribution } from '../../common/debug.js';
+import { Debugger } from '../../common/debugger.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ExecutableDebugAdapter } from '../../node/debugAdapter.js';
+import { TestTextResourcePropertiesService } from '../../../../../editor/test/common/services/testTextResourcePropertiesService.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Debug - Debugger', () => {
 	let _debugger: Debugger;
 
 	const extensionFolderPath = '/a/b/c/';
-	const debuggerContribution = {
+	const debuggerContribution: IDebuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
 		program: './out/mock/mockDebug.js',
@@ -64,7 +63,9 @@ suite('Debug - Debugger', () => {
 			'debuggers': [
 				debuggerContribution
 			]
-		}
+		},
+		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const extensionDescriptor1 = {
@@ -89,7 +90,9 @@ suite('Debug - Debugger', () => {
 					args: ['parg']
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const extensionDescriptor2 = {
@@ -122,7 +125,9 @@ suite('Debug - Debugger', () => {
 					}
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 
@@ -138,7 +143,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -151,7 +156,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program));
+		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program!));
 		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
 	});
 

@@ -3,43 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
+import './media/actions.css';
 
-import { localize, localize2 } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { clamp } from 'vs/base/common/numbers';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import product from 'vs/platform/product/common/product';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { localize, localize2 } from '../../../nls.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { DomEmitter } from '../../../base/browser/event.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from '../../../base/common/lifecycle.js';
+import { getDomNodePagePosition, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from '../../../base/browser/dom.js';
+import { createCSSRule, createStyleSheet } from '../../../base/browser/domStylesheets.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
+import { Context } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { registerAction2, Action2, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { clamp } from '../../../base/common/numbers.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { ResolutionResult, ResultKind } from '../../../platform/keybinding/common/keybindingResolver.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IOutputService } from '../../services/output/common/output.js';
+import { windowLogId } from '../../services/log/common/logConstants.js';
+import { ByteSize } from '../../../platform/files/common/files.js';
+import { IQuickInputService, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import product from '../../../platform/product/common/product.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
+import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -63,7 +70,7 @@ class InspectContextKeysAction extends Action2 {
 		const hoverFeedback = document.createElement('div');
 		const activeDocument = getActiveDocument();
 		activeDocument.body.appendChild(hoverFeedback);
-		disposables.add(toDisposable(() => activeDocument.body.removeChild(hoverFeedback)));
+		disposables.add(toDisposable(() => hoverFeedback.remove()));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';
@@ -143,10 +150,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
-		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -238,11 +252,18 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
-		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -255,11 +276,11 @@ class ToggleScreencastModeAction extends Action2 {
 		let composing: Element | undefined = undefined;
 		let imeBackSpace = false;
 
-		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+		const clearKeyboardScheduler = disposables.add(new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
 			composing = undefined;
 			length = 0;
-		}, keyboardMarkerTimeout);
+		}, keyboardMarkerTimeout));
 
 		disposables.add(onCompositionStart.event(e => {
 			imeBackSpace = true;
@@ -277,7 +298,7 @@ class ToggleScreencastModeAction extends Action2 {
 				keyboardMarker.innerText = '';
 				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		disposables.add(onCompositionEnd.event(e => {
@@ -295,7 +316,7 @@ class ToggleScreencastModeAction extends Action2 {
 				} else {
 					imeBackSpace = true;
 				}
-				clearKeyboardScheduler.schedule();
+				clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 				return;
 			}
 
@@ -361,13 +382,13 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 
 			length++;
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: unknown; isBubble: boolean } {
 		return resolutionResult.kind === ResultKind.KbFound;
 	}
 
@@ -383,7 +404,7 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
 
-		if (fromCommandsRegistry && fromCommandsRegistry.metadata?.description) {
+		if (fromCommandsRegistry?.metadata?.description) {
 			return { title: typeof fromCommandsRegistry.metadata.description === 'string' ? fromCommandsRegistry.metadata.description : fromCommandsRegistry.metadata.description.value };
 		}
 
@@ -644,12 +665,361 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+class PolicyDiagnosticsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showPolicyDiagnostics',
+			title: localize2('policyDiagnostics', 'Policy Diagnostics'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const policyService = accessor.get(IPolicyService);
+		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+		let content = '# VS Code Policy Diagnostics\n\n';
+		content += '*WARNING: This file may contain sensitive information.*\n\n';
+		content += '## System Information\n\n';
+		content += '| Property | Value |\n';
+		content += '|----------|-------|\n';
+		content += `| Generated | ${new Date().toISOString()} |\n`;
+		content += `| Product | ${productService.nameLong} ${productService.version} |\n`;
+		content += `| Commit | ${productService.commit || 'n/a'} |\n\n`;
+
+		// Account information
+		content += '## Account Information\n\n';
+		try {
+			const account = await defaultAccountService.getDefaultAccount();
+			const sensitiveKeys = ['sessionId', 'analytics_tracking_id'];
+			if (account) {
+				// Try to get username/display info from the authentication session
+				let username = 'Unknown';
+				let accountLabel = 'Unknown';
+				try {
+					const providerIds = authenticationService.getProviderIds();
+					for (const providerId of providerIds) {
+						const sessions = await authenticationService.getSessions(providerId);
+						const matchingSession = sessions.find(session => session.id === account.sessionId);
+						if (matchingSession) {
+							username = matchingSession.account.id;
+							accountLabel = matchingSession.account.label;
+							break;
+						}
+					}
+				} catch (error) {
+					// Fallback to just session info
+				}
+
+				content += '### Default Account Summary\n\n';
+				content += `**Account ID/Username**: ${username}\n\n`;
+				content += `**Account Label**: ${accountLabel}\n\n`;
+
+				content += '### Detailed Account Properties\n\n';
+				content += '| Property | Value |\n';
+				content += '|----------|-------|\n';
+
+				// Iterate through all properties of the account object
+				for (const [key, value] of Object.entries(account)) {
+					if (value !== undefined && value !== null) {
+						let displayValue: string;
+
+						// Mask sensitive information
+						if (sensitiveKeys.includes(key)) {
+							displayValue = '***';
+						} else if (typeof value === 'object') {
+							displayValue = JSON.stringify(value);
+						} else {
+							displayValue = String(value);
+						}
+
+						content += `| ${key} | ${displayValue} |\n`;
+					}
+				}
+				const policyData = defaultAccountService.policyData;
+				content += `| policyData | ${policyData ? JSON.stringify(policyData) : 'No Policy Data'} |\n`;
+				content += '\n';
+			} else {
+				content += '*No default account configured*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving account information: ${error}*\n\n`;
+		}
+
+		// Account Policy Gate (forces AI features off until an admin-approved
+		// GitHub account is signed in AND its account-side policy data has resolved).
+		content += '## Account Policy Gate\n\n';
+		try {
+			const gateInfo = accountPolicyGateService.gateInfo;
+			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			content += `| State | \`${gateInfo.state}\` |\n`;
+			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
+			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
+			content += '\n';
+			content += '**Legend**\n\n';
+			content += '- `inactive`: gate disabled (no approved orgs configured) — policies behave as account data dictates.\n';
+			content += '- `satisfied`: gate active and approved — account policy values flow normally.\n';
+			content += '- `restricted`: gate active and not satisfied — opted-in policies forced to their restricted value.\n';
+			content += '  - `noAccount`: no default account signed in.\n';
+			content += '  - `wrongProvider`: signed in with a non-GitHub provider.\n';
+			content += '  - `orgNotApproved`: signed in but account is not a member of any approved organization.\n';
+			content += '  - `policyNotResolved`: signed in to an approved org but account-side policy data has not yet been fetched.\n\n';
+		} catch (error) {
+			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
+		}
+
+		content += '## Managed Settings\n\n';
+		try {
+			const policyData = defaultAccountService.policyData;
+
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
+			const fetchStatusDisplay = fetchStatus === null ? '*not yet fetched*' : `\`${fetchStatus}\``;
+			content += `| Last fetch | ${fetchStatusDisplay} |\n`;
+			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
+			content += `| Fetched at | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
+			content += '\n';
+
+			const managedSettingsData = {
+				managedSettings: policyData?.managedSettings,
+			};
+			content += '```json\n';
+			content += JSON.stringify(managedSettingsData, null, 2);
+			content += '\n```\n\n';
+		} catch (error) {
+			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;
+		}
+
+		content += '## Policy-Controlled Settings\n\n';
+
+		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
+
+		if (policyConfigurations.size > 0 || policyReferenceConfigurations.size > 0) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const appliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const notAppliedPolicy: Array<{ name: string; key: string; property: any; inspection: any }> = [];
+
+			const collectPolicySetting = (policyName: string, settingKey: string) => {
+				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
+				if (property) {
+					const inspectValue = configurationService.inspect(settingKey);
+					const settingInfo = {
+						name: policyName,
+						key: settingKey,
+						property,
+						inspection: inspectValue
+					};
+
+					if (inspectValue.policyValue !== undefined) {
+						appliedPolicy.push(settingInfo);
+					} else {
+						notAppliedPolicy.push(settingInfo);
+					}
+				}
+			};
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				collectPolicySetting(policyName, settingKey);
+			}
+			for (const [policyName, settingKeys] of policyReferenceConfigurations) {
+				for (const settingKey of settingKeys) {
+					collectPolicySetting(policyName, settingKey);
+				}
+			}
+
+			// Try to detect where the policy came from
+			const policySourceMemo = new Map<string, string>();
+			const getPolicySource = (policyName: string): string => {
+				if (policySourceMemo.has(policyName)) {
+					return policySourceMemo.get(policyName)!;
+				}
+				try {
+					const policyServiceConstructorName = policyService.constructor.name;
+					if (policyServiceConstructorName === 'MultiplexPolicyService') {
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+						const multiplexService = policyService as any;
+						if (multiplexService.policyServices) {
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							const componentServices = multiplexService.policyServices as ReadonlyArray<any>;
+							for (const service of componentServices) {
+								if (service.getPolicyValue && service.getPolicyValue(policyName) !== undefined) {
+									policySourceMemo.set(policyName, service.constructor.name);
+									return service.constructor.name;
+								}
+							}
+						}
+					}
+					return '';
+				} catch {
+					return 'Unknown';
+				}
+			};
+
+			content += '### Applied Policy\n\n';
+			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
+			if (appliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
+
+				for (const setting of appliedPolicy) {
+					const defaultValue = JSON.stringify(setting.property.default);
+					const currentValue = JSON.stringify(setting.inspection.value);
+					const policyValue = JSON.stringify(setting.inspection.policyValue);
+					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
+
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*No settings are currently controlled by policies*\n\n';
+			}
+
+			content += '###  Non-applied Policy\n\n';
+			if (notAppliedPolicy.length > 0) {
+				content += '| Setting Key | Policy Name  \n';
+				content += '|-------------|-------------|\n';
+
+				for (const setting of notAppliedPolicy) {
+
+					content += `| ${setting.key} | ${setting.name}|\n`;
+				}
+				content += '\n';
+			} else {
+				content += '*All policy-controllable settings are currently being enforced*\n\n';
+			}
+		} else {
+			content += '*No policy-controlled settings found*\n\n';
+		}
+
+		// Authentication diagnostics
+		content += '## Authentication Information\n\n';
+		try {
+			const providerIds = authenticationService.getProviderIds();
+
+			if (providerIds.length > 0) {
+				content += '### Authentication Providers\n\n';
+				content += '| Provider ID | Sessions | Accounts |\n';
+				content += '|-------------|----------|----------|\n';
+
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+						const accounts = sessions.map(session => session.account);
+						const uniqueAccounts = Array.from(new Set(accounts.map(account => account.label)));
+
+						content += `| ${providerId} | ${sessions.length} | ${uniqueAccounts.join(', ') || 'None'} |\n`;
+					} catch (error) {
+						content += `| ${providerId} | Error | ${error} |\n`;
+					}
+				}
+				content += '\n';
+
+				// Detailed session information
+				content += '### Detailed Session Information\n\n';
+				for (const providerId of providerIds) {
+					try {
+						const sessions = await authenticationService.getSessions(providerId);
+
+						if (sessions.length > 0) {
+							content += `#### ${providerId}\n\n`;
+							content += '| Account | Scopes | Extensions with Access |\n';
+							content += '|---------|--------|------------------------|\n';
+
+							for (const session of sessions) {
+								const accountName = session.account.label;
+								const scopes = session.scopes.join(', ') || 'Default';
+
+								// Get extensions with access to this account
+								try {
+									const allowedExtensions = authenticationAccessService.readAllowedExtensions(providerId, accountName);
+									const extensionNames = allowedExtensions
+										.filter(ext => ext.allowed !== false)
+										.map(ext => `${ext.name}${ext.trusted ? ' (trusted)' : ''}`)
+										.join(', ') || 'None';
+
+									content += `| ${accountName} | ${scopes} | ${extensionNames} |\n`;
+								} catch (error) {
+									content += `| ${accountName} | ${scopes} | Error: ${error} |\n`;
+								}
+							}
+							content += '\n';
+						}
+					} catch (error) {
+						content += `#### ${providerId}\n*Error retrieving sessions: ${error}*\n\n`;
+					}
+				}
+			} else {
+				content += '*No authentication providers found*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving authentication information: ${error}*\n\n`;
+		}
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: content,
+			languageId: 'markdown',
+			options: { pinned: true, }
+		});
+	}
+}
+
+class SyncAccountPolicyAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.syncAccountPolicy',
+			title: localize2('syncAccountPolicy', 'Sync Account Policy'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			logService.info('[DefaultAccount] Manually syncing account policy');
+			await defaultAccountService.refresh({ forceRefresh: true });
+			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
+		} catch (error) {
+			logService.error('[DefaultAccount] Failed to sync account policy', error);
+			await dialogService.error(
+				localize('syncAccountPolicy.error', "Failed to sync account policy."),
+				error instanceof Error ? error.message : String(error)
+			);
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+registerAction2(PolicyDiagnosticsAction);
+registerAction2(SyncAccountPolicyAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable, Promises } from 'vs/base/common/async';
+import { isThenable, Promises } from '../../../base/common/async.js';
 
 // Shared veto handling across main and renderer
 export function handleVetos(vetos: (boolean | Promise<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {

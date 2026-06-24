@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 
 interface IBuiltInExtension {
 	readonly name: string;
@@ -23,7 +23,7 @@ interface Product {
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
 }
 
-function log(...args: any[]): void {
+function log(...args: unknown[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[distro]', ...args);
 }
 
@@ -48,9 +48,8 @@ function main() {
 			let builtInExtensions = oss.builtInExtensions;
 
 			if (Array.isArray(distro.builtInExtensions)) {
-				log('Overwriting built-in extensions:', distro.builtInExtensions.map(e => e.name));
+				throw new Error('Unexpected builtInExtensions array, expected object with include/exclude or array of extensions');
 
-				builtInExtensions = distro.builtInExtensions;
 			} else if (distro.builtInExtensions) {
 				const include = distro.builtInExtensions['include'] ?? [];
 				const exclude = distro.builtInExtensions['exclude'] ?? [];

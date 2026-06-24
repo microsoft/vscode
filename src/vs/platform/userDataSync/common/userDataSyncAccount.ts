@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncLogService, IUserDataSyncStoreService, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IUserDataSyncLogService, IUserDataSyncStoreService, UserDataSyncErrorCode } from './userDataSync.js';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -26,7 +26,7 @@ export interface IUserDataSyncAccountService {
 
 export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _account: IUserDataSyncAccount | undefined;
 	get account(): IUserDataSyncAccount | undefined { return this._account; }

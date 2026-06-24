@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { ThemeIcon } from 'vs/base/common/themables';
-import * as dom from 'vs/base/browser/dom';
+import { GlobalPointerMoveMonitor } from '../../globalPointerMoveMonitor.js';
+import { Widget } from '../widget.js';
+import { TimeoutTimer } from '../../../common/async.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import * as dom from '../../dom.js';
 
 /**
  * The arrow image size.

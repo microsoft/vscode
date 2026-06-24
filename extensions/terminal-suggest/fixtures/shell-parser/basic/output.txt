@@ -1,0 +1,448 @@
+// Case 1
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 7,
+  "text": "a b\\\\ c",
+  "innerText": "a b\\\\ c",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 7,
+      "text": "a b\\\\ c",
+      "innerText": "a b\\\\ c",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "word",
+          "endIndex": 5,
+          "text": "b\\\\",
+          "innerText": "b\\",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 6,
+          "type": "word",
+          "endIndex": 7,
+          "text": "c",
+          "innerText": "c",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 2
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 5,
+  "text": "a \"b\"",
+  "innerText": "a \"b\"",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 5,
+      "text": "a \"b\"",
+      "innerText": "a \"b\"",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "string",
+          "endIndex": 5,
+          "text": "\"b\"",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 3
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 5,
+  "text": "a 'b'",
+  "innerText": "a 'b'",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 5,
+      "text": "a 'b'",
+      "innerText": "a 'b'",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "raw_string",
+          "endIndex": 5,
+          "text": "'b'",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 4
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 6,
+  "text": "a $'b'",
+  "innerText": "a $'b'",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 6,
+      "text": "a $'b'",
+      "innerText": "a $'b'",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "ansi_c_string",
+          "endIndex": 6,
+          "text": "$'b'",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 5
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 9,
+  "text": "a $commit",
+  "innerText": "a $commit",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 9,
+      "text": "a $commit",
+      "innerText": "a $commit",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "simple_expansion",
+          "endIndex": 9,
+          "text": "$commit",
+          "innerText": "$commit",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 6
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 4,
+  "text": "a $$",
+  "innerText": "a $$",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 4,
+      "text": "a $$",
+      "innerText": "a $$",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "special_expansion",
+          "endIndex": 4,
+          "text": "$$",
+          "innerText": "$$",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 7
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 8,
+  "text": "a $((b))",
+  "innerText": "a $((b))",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 8,
+      "text": "a $((b))",
+      "innerText": "a $((b))",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "arithmetic_expansion",
+          "endIndex": 8,
+          "text": "$((b))",
+          "innerText": "$((b))",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 8
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 6,
+  "text": "a $(b)",
+  "innerText": "a $(b)",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 6,
+      "text": "a $(b)",
+      "innerText": "a $(b)",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "command_substitution",
+          "endIndex": 6,
+          "text": "$(b)",
+          "innerText": "$(b)",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "command",
+              "endIndex": 5,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "word",
+                  "endIndex": 5,
+                  "text": "b",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+// Case 9
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 7,
+  "text": "a \\`b\\`",
+  "innerText": "a \\`b\\`",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 7,
+      "text": "a \\`b\\`",
+      "innerText": "a \\`b\\`",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 3,
+          "type": "word",
+          "endIndex": 7,
+          "text": "`b\\`",
+          "innerText": "`b`",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 10
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 10,
+  "text": "a $(\\`b\\`)",
+  "innerText": "a $(\\`b\\`)",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 10,
+      "text": "a $(\\`b\\`)",
+      "innerText": "a $(\\`b\\`)",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "command_substitution",
+          "endIndex": 10,
+          "text": "$(\\`b\\`)",
+          "innerText": "$(\\`b\\`)",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "command",
+              "endIndex": 9,
+              "text": "\\`b\\`",
+              "innerText": "\\`b\\`",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 5,
+                  "type": "word",
+                  "endIndex": 9,
+                  "text": "`b\\`",
+                  "innerText": "`b`",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

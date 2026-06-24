@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { hash } from 'vs/base/common/hash';
-import { Event, Emitter } from 'vs/base/common/event';
-import { DeferredPromise } from 'vs/base/common/async';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from '../common/utilityProcessWorkerService.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { WindowUtilityProcess } from './utilityProcess.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { hash } from '../../../base/common/hash.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 
 export const IUtilityProcessWorkerMainService = createDecorator<IUtilityProcessWorkerMainService>('utilityProcessWorker');
 
@@ -26,7 +26,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly workers = new Map<number /* id */, UtilityProcessWorker>();
+	private readonly workers = this._register(new DisposableMap<number /* id */, UtilityProcessWorker>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -65,8 +65,13 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason.code}, signal: ${reason.signal}`);
 			}
 
-			this.workers.delete(workerId);
 			onDidTerminate.complete({ reason });
+
+			// Only remove from map if this worker is still the one tracked.
+			if (this.workers.get(workerId) === worker) {
+				this.workers.deleteAndLeak(workerId);
+			}
+			worker.dispose();
 		});
 
 		return onDidTerminate.p;
@@ -87,9 +92,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		}
 
 		this.logService.trace(`[UtilityProcessWorker]: disposeWorker(window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId})`);
-
 		worker.kill();
-		this.workers.delete(workerId);
 	}
 }
 
@@ -98,16 +101,18 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
+	private readonly utilityProcess: WindowUtilityProcess;
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
+
+		this.utilityProcess = this._register(new WindowUtilityProcess(logService, windowsMainService, telemetryService, lifecycleMainService));
 
 		this.registerListeners();
 	}
@@ -123,6 +128,7 @@ class UtilityProcessWorker extends Disposable {
 
 		return this.utilityProcess.start({
 			type: this.configuration.process.type,
+			name: this.configuration.process.name,
 			entryPoint: this.configuration.process.moduleId,
 			parentLifecycleBound: windowPid,
 			windowLifecycleBound: true,

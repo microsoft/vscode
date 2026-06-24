@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
+import * as fs from 'fs';
 import * as cp from 'child_process';
-import { Promises } from 'vs/base/node/pfs';
-import * as path from 'path';
+import { join } from '../../../base/common/path.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
 
@@ -18,22 +18,26 @@ export async function hasWSLFeatureInstalled(refresh = false): Promise<boolean> 
 }
 
 async function testWSLFeatureInstalled(): Promise<boolean> {
-	const windowsBuildNumber = getWindowsBuildNumber();
-	if (windowsBuildNumber === undefined) {
+	const windowsBuildNumber = await getWindowsBuildNumberAsync();
+	if (windowsBuildNumber === 0) {
 		return false;
 	}
 	if (windowsBuildNumber >= 22000) {
 		const wslExePath = getWSLExecutablePath();
 		if (wslExePath) {
 			return new Promise<boolean>(s => {
-				cp.execFile(wslExePath, ['--status'], err => s(!err));
+				try {
+					cp.execFile(wslExePath, ['--status'], err => s(!err));
+				} catch (e) {
+					s(false);
+				}
 			});
 		}
 	} else {
 		const dllPath = getLxssManagerDllPath();
 		if (dllPath) {
 			try {
-				if ((await Promises.stat(dllPath)).isFile()) {
+				if ((await fs.promises.stat(dllPath)).isFile()) {
 					return true;
 				}
 			} catch (e) {
@@ -43,19 +47,11 @@ async function testWSLFeatureInstalled(): Promise<boolean> {
 	return false;
 }
 
-function getWindowsBuildNumber(): number | undefined {
-	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-	if (osVersion) {
-		return parseInt(osVersion[3]);
-	}
-	return undefined;
-}
-
 function getSystem32Path(subPath: string): string | undefined {
 	const systemRoot = process.env['SystemRoot'];
 	if (systemRoot) {
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		return path.join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
+		return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
 	}
 	return undefined;
 }

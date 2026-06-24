@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
+import { env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
 suite('vscode API - editors', () => {
@@ -94,6 +94,37 @@ suite('vscode API - editors', () => {
 		});
 	});
 
+	/**
+	 * Given :
+	 * This is line 1
+	 *   |
+	 *
+	 * Expect :
+	 * This is line 1
+	 *   This is line 2
+	 *   This is line 3
+	 *
+	 * The 3rd line should not be auto-indented, as the edit already
+	 * contains the necessary adjustment.
+	 */
+	test('insert snippet with replacement, avoid adjusting indentation', () => {
+		const snippetString = new SnippetString()
+			.appendText('This is line 2\n  This is line 3');
+
+		return withRandomFileEditor('This is line 1\n  ', (editor, doc) => {
+			editor.selection = new Selection(
+				new Position(1, 3),
+				new Position(1, 3)
+			);
+
+			return editor.insertSnippet(snippetString, undefined, { undoStopAfter: false, undoStopBefore: false, keepWhitespace: true }).then(inserted => {
+				assert.ok(inserted);
+				assert.strictEqual(doc.getText(), 'This is line 1\n  This is line 2\n  This is line 3');
+				assert.ok(doc.isDirty);
+			});
+		});
+	});
+
 	test('insert snippet with replacement, selection as argument', () => {
 		const snippetString = new SnippetString()
 			.appendText('has been');
@@ -132,53 +163,6 @@ suite('vscode API - editors', () => {
 				assert.ok(applied);
 				assert.strictEqual(doc.getText(), 'new');
 				assert.ok(doc.isDirty);
-			});
-		});
-	});
-
-	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
-		return editor.edit((builder) => {
-			builder.replace(range, text);
-		}, { undoStopBefore: undoStopBefore, undoStopAfter: undoStopAfter });
-	}
-
-	test('TextEditor.edit can control undo/redo stack 1', () => {
-		return withRandomFileEditor('Hello world!', async (editor, doc) => {
-			const applied1 = await executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false);
-			assert.ok(applied1);
-			assert.strictEqual(doc.getText(), 'hello world!');
-			assert.ok(doc.isDirty);
-
-			const applied2 = await executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', false, false);
-			assert.ok(applied2);
-			assert.strictEqual(doc.getText(), 'hELLO world!');
-			assert.ok(doc.isDirty);
-
-			await commands.executeCommand('undo');
-			if (doc.getText() === 'hello world!') {
-				// see https://github.com/microsoft/vscode/issues/109131
-				// it looks like an undo stop was inserted in between these two edits
-				// it is unclear why this happens, but it can happen for a multitude of reasons
-				await commands.executeCommand('undo');
-			}
-			assert.strictEqual(doc.getText(), 'Hello world!');
-		});
-	});
-
-	test('TextEditor.edit can control undo/redo stack 2', () => {
-		return withRandomFileEditor('Hello world!', (editor, doc) => {
-			return executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false).then(applied => {
-				assert.ok(applied);
-				assert.strictEqual(doc.getText(), 'hello world!');
-				assert.ok(doc.isDirty);
-				return executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', true, false);
-			}).then(applied => {
-				assert.ok(applied);
-				assert.strictEqual(doc.getText(), 'hELLO world!');
-				assert.ok(doc.isDirty);
-				return commands.executeCommand('undo');
-			}).then(_ => {
-				assert.strictEqual(doc.getText(), 'hello world!');
 			});
 		});
 	});
@@ -264,4 +248,19 @@ suite('vscode API - editors', () => {
 
 		assert.strictEqual(document.getText(), Buffer.from(await workspace.fs.readFile(file)).toString());
 	}
+
+	test('extEditor.selection can be empty #18075', async function () {
+		await withRandomFileEditor('foo', async editor => {
+
+			assert.ok(editor.selections.length > 0);
+
+			editor.selections = [];
+
+			assert.strictEqual(editor.selections.length, 1);
+			assert.strictEqual(editor.selections[0].start.line, 0);
+			assert.strictEqual(editor.selections[0].start.character, 0);
+			assert.strictEqual(editor.selections[0].end.line, 0);
+			assert.strictEqual(editor.selections[0].end.character, 0);
+		});
+	});
 });

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),

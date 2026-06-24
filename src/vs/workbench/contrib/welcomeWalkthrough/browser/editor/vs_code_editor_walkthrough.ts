@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as platform from '../../../../../base/common/platform.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 export default function content(accessor: ServicesAccessor) {
 	const isServerless = platform.isWeb && !accessor.get(IWorkbenchEnvironmentService).remoteAuthority;
 	return `
 ## Interactive Editor Playground
-The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them out through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](command:workbench.action.openDocumentationUrl).
+The core editor in VS Code is packed with features.  This page highlights a number of them and lets you interactively try them out through the use of a number of embedded editors.  For full details on the editor features for VS Code and more head over to our [documentation](https://code.visualstudio.com/docs).
 
 * [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more.
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.

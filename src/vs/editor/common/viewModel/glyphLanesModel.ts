@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { GlyphMarginLane, IGlyphMarginLanesModel } from 'vs/editor/common/model';
+import { Range } from '../core/range.js';
+import { GlyphMarginLane, IGlyphMarginLanesModel } from '../model.js';
 
 
 const MAX_LANE = GlyphMarginLane.Right;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export enum WorkspaceTrustScope {
 	Local = 0,
@@ -16,6 +16,11 @@ export enum WorkspaceTrustScope {
 export interface WorkspaceTrustRequestButton {
 	readonly label: string;
 	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel';
+}
+
+export interface ResourceTrustRequestOptions {
+	readonly uri: URI;
+	readonly message?: string;
 }
 
 export interface WorkspaceTrustRequestOptions {
@@ -36,8 +41,8 @@ export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustM
 export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeTrust: Event<boolean>;
-	onDidChangeTrustedFolders: Event<void>;
+	readonly onDidChangeTrust: Event<boolean>;
+	readonly onDidChangeTrustedFolders: Event<void>;
 
 	readonly workspaceResolved: Promise<void>;
 	readonly workspaceTrustInitialized: Promise<void>;
@@ -75,9 +80,13 @@ export interface IWorkspaceTrustRequestService {
 	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 	readonly onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
+	readonly onDidInitiateResourcesTrustRequest: Event<ResourceTrustRequestOptions>;
 
 	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
 	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+
+	completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void>;
+	requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined>;
 
 	cancelWorkspaceTrustRequest(): void;
 	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;

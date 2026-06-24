@@ -20,7 +20,8 @@
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
-				"${workspaceFolder}/extensions/*/out/**/*.js"
+				"${workspaceFolder}/extensions/*/out/**/*.js",
+				"${workspaceFolder}/extensions/copilot/dist/**/*.js"
 			]
 		},
 		{
@@ -48,6 +49,17 @@
 			"request": "attach",
 			"name": "Attach to Pty Host Process",
 			"port": 5877,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Agent Host Process",
+			"port": 5878,
+			"restart": true,
+			"timeout": 0,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -203,6 +215,24 @@
 			}
 		},
 		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Tokenizer Performance Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-colorize-perf-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests/out"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
@@ -233,7 +263,103 @@
 			"timeout": 0,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
-				"VSCODE_SKIP_PRELAUNCH": "1"
+				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+			},
+			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
+			"runtimeArgs": [
+				"--inspect-brk=5875",
+				"--no-cached-data",
+				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests"
+			],
+			"userDataDir": "${userHome}/.vscode-oss-dev",
+			"webRoot": "${workspaceFolder}",
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"browserLaunchLocation": "workspace",
+			"presentation": {
+				"hidden": true,
+			},
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Code Agents Internal",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"port": 9222,
+			"timeout": 0,
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				// "VSCODE_DEV_DISABLE_DISPOSABLE_TRACKING": "1",
+			},
+			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
+			"runtimeArgs": [
+				"--inspect-brk=5875",
+				"--no-cached-data",
+				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests",
+				"--agents"
+			],
+			"userDataDir": "${userHome}/.vscode-oss-dev",
+			"webRoot": "${workspaceFolder}",
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"browserLaunchLocation": "workspace",
+			"presentation": {
+				"hidden": true,
+			},
+		},
+		{
+			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Code Internal (Hot Reload)",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"port": 9222,
+			"timeout": 0,
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG": "1",
+				"VSCODE_DEV_SERVER_URL": "http://localhost:5199/build/vite/workbench-vite-electron.html",
+				"DEV_WINDOW_SRC": "http://localhost:5199/build/vite/workbench-vite-electron.html",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				"VSCODE_DEV": "1"
 			},
 			"cleanUp": "wholeBrowser",
 			"runtimeArgs": [
@@ -257,10 +383,7 @@
 			"presentation": {
 				"hidden": true,
 			},
-			// This is read by the vscode-diagnostic-tools extension
-			"vscode-diagnostic-tools.debuggerScripts": [
-				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
-			]
+			"preLaunchTask": "Launch Monaco Editor Vite"
 		},
 		{
 			"type": "node",
@@ -270,6 +393,21 @@
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
 			},
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "0_vscode",
+				"order": 2
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "VS Code Agent Host",
+			"outputCapture": "std",
+			"program": "./scripts/code-agent-host.js",
+			"args": ["--port", "7777", "--without-connection-token"],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -440,7 +578,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -470,7 +608,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -506,7 +644,7 @@
 			"timeout": 240000,
 			"args": [
 				"-l",
-				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS"
 			],
 			"outFiles": [
 				"${cwd}/out/**/*.js"
@@ -527,11 +665,55 @@
 			]
 		},
 		{
-			"name": "Monaco Editor Playground",
+			"name": "Monaco Editor - Playground",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5001",
-			"preLaunchTask": "Launch Http Server",
+			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5199%2Fbuild%2Fvite%2Findex.ts%3Fesm#example-creating-the-editor-hello-world",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer (Edge)",
+			"type": "msedge",
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
+			"presentation": {
+				"group": "1_component_explorer",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer (Chrome)",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
+			"presentation": {
+				"group": "1_component_explorer",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Self Contained Diff Editor",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/vite/index.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Workbench",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/vite/workbench-vite.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",
 				"order": 4
@@ -544,6 +726,38 @@
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+				"Attach to Agent Host Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		},
+		{
+			"name": "VS Code Agents",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Agents Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+				"Attach to Agent Host Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		},
+		{
+			"name": "VS Code (Hot Reload)",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal (Hot Reload)",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -606,6 +820,16 @@
 			"configurations": [
 				"Launch VS Code Internal",
 				"Attach to Main Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
+		{
+			"name": "Renderer and Agent Host processes",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

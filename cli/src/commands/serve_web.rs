@@ -12,11 +12,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use const_format::concatcp;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, Server};
+use crate::util::http::{empty_body, full_body, HyperBody};
+use ::http::{Request, Response};
+use http_body_util::BodyExt;
+use hyper::body::Incoming;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::pin;
+use tokio::net::TcpListener;
+use tokio::{pin, time};
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -51,21 +56,14 @@ const SERVER_IDLE_TIMEOUT_SECS: u64 = 60 * 60;
 /// (should be large enough to basically never happen)
 const SERVER_ACTIVE_TIMEOUT_SECS: u64 = SERVER_IDLE_TIMEOUT_SECS * 24 * 30 * 12;
 /// How long to cache the "latest" version we get from the update service.
-const RELEASE_CACHE_SECS: u64 = 60 * 60;
+const RELEASE_CHECK_INTERVAL: u64 = 60 * 60;
 
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
 /// Path to mint the key combining server and client parts.
-const SECRET_KEY_MINT_PATH: &str = "/_vscode-cli/mint-key";
+const SECRET_KEY_MINT_PATH: &str = "_vscode-cli/mint-key";
 /// Cookie set to the `SECRET_KEY_MINT_PATH`
 const PATH_COOKIE_NAME: &str = "vscode-secret-key-path";
-/// Cookie set to the `SECRET_KEY_MINT_PATH`
-const PATH_COOKIE_VALUE: &str = concatcp!(
-	PATH_COOKIE_NAME,
-	"=",
-	SECRET_KEY_MINT_PATH,
-	"; SameSite=Strict; Path=/"
-);
 /// HTTP-only cookie where the client's secret half is stored.
 const SECRET_KEY_COOKIE_NAME: &str = "vscode-cli-secret-half";
 
@@ -79,41 +77,62 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
 	if !args.without_connection_token {
-		// Ensure there's a defined connection token, since if multiple server versions
-		// are excuted, they will need to have a single shared token.
-		let token_path = ctx.paths.root().join("serve-web-token");
-		let token = mint_connection_token(&token_path, args.connection_token.clone())
-			.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
-		args.connection_token = Some(token);
-		args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+		if let Some(p) = args.connection_token_file.as_deref() {
+			let token = fs::read_to_string(PathBuf::from(p))
+				.map_err(CodeError::CouldNotReadConnectionTokenFile)?;
+			args.connection_token = Some(token.trim().to_string());
+		} else {
+			// Ensure there's a defined connection token, since if multiple server versions
+			// are executed, they will need to have a single shared token.
+			let token_path = ctx.paths.root().join("serve-web-token");
+			let token = mint_connection_token(&token_path, args.connection_token.clone())
+				.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
+			args.connection_token = Some(token);
+			args.connection_token_file = Some(token_path.to_string_lossy().to_string());
+		}
 	}
 
-	let cm = ConnectionManager::new(&ctx, platform, args.clone());
+	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
+	let update_check_interval = 3600;
+	if args.commit_id.is_none() {
+		cm.clone()
+			.start_update_checker(Duration::from_secs(update_check_interval));
+	} else {
+		// If a commit was provided, invoke get_latest_release() once to ensure we're using that exact version;
+		// get_latest_release() will short-circuit to args.commit_id.
+		if let Err(e) = cm.get_latest_release().await {
+			warning!(cm.log, "error getting latest version: {}", e);
+		}
+	}
+
 	let key = get_server_key_half(&ctx.paths);
-	let make_svc = move || {
-		let ctx = HandleContext {
-			cm: cm.clone(),
-			log: cm.log.clone(),
-			server_secret_key: key.clone(),
-		};
-		let service = service_fn(move |req| handle(ctx.clone(), req));
-		async move { Ok::<_, Infallible>(service) }
-	};
 
 	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
-	let r = if let Some(s) = args.socket_path {
+	if let Some(s) = args.socket_path {
 		let s = PathBuf::from(&s);
-		let socket = listen_socket_rw_stream(&s).await?;
+		let mut socket = listen_socket_rw_stream(&s).await?;
 		ctx.log
 			.result(format!("Web UI available on {}", s.display()));
-		let r = Server::builder(socket.into_pollable())
-			.serve(make_service_fn(|_| make_svc()))
-			.with_graceful_shutdown(async {
-				let _ = shutdown.wait().await;
-			})
-			.await;
+		loop {
+			tokio::select! {
+				result = socket.accept() => {
+					let conn = match result {
+						Ok(c) => c,
+						Err(_) => continue,
+					};
+					let ctx = HandleContext { cm: cm.clone(), log: cm.log.clone(), server_secret_key: key.clone() };
+					tokio::spawn(async move {
+						let svc = service_fn(move |req| handle(ctx.clone(), req));
+						let _ = http1::Builder::new()
+							.serve_connection(TokioIo::new(conn), svc)
+							.with_upgrades()
+							.await;
+					});
+				}
+				_ = shutdown.wait() => break,
+			}
+		}
 		let _ = std::fs::remove_file(&s); // cleanup
-		r
 	} else {
 		let addr: SocketAddr = match &args.host {
 			Some(h) => {
@@ -121,9 +140,15 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			}
 			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
 		};
-		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
+		let listener = TcpListener::bind(addr)
+			.await
+			.map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{}", addr);
+		// Get the actual bound address (important when port 0 is used for random port assignment)
+		let bound_addr = listener
+			.local_addr()
+			.map_err(CodeError::CouldNotListenOnInterface)?;
+		let mut listening = format!("Web UI available at http://{bound_addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
@@ -131,19 +156,30 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			listening.push_str(&base);
 		}
 		if let Some(ct) = args.connection_token {
-			listening.push_str(&format!("?tkn={}", ct));
+			listening.push_str(&format!("?tkn={ct}"));
 		}
 		ctx.log.result(listening);
 
-		builder
-			.serve(make_service_fn(|_| make_svc()))
-			.with_graceful_shutdown(async {
-				let _ = shutdown.wait().await;
-			})
-			.await
+		loop {
+			tokio::select! {
+				result = listener.accept() => {
+					let (stream, _) = match result {
+						Ok(r) => r,
+						Err(_) => continue,
+					};
+					let ctx = HandleContext { cm: cm.clone(), log: cm.log.clone(), server_secret_key: key.clone() };
+					tokio::spawn(async move {
+						let svc = service_fn(move |req| handle(ctx.clone(), req));
+						let _ = http1::Builder::new()
+							.serve_connection(TokioIo::new(stream), svc)
+							.with_upgrades()
+							.await;
+					});
+				}
+				_ = shutdown.wait() => break,
+			}
+		}
 	};
-
-	r.map_err(CodeError::CouldNotListenOnInterface)?;
 
 	Ok(0)
 }
@@ -156,23 +192,31 @@ struct HandleContext {
 }
 
 /// Handler function for an inbound request
-async fn handle(ctx: HandleContext, req: Request<Body>) -> Result<Response<Body>, Infallible> {
+async fn handle(
+	ctx: HandleContext,
+	req: Request<Incoming>,
+) -> Result<Response<HyperBody>, Infallible> {
 	let client_key_half = get_client_key_half(&req);
-	let mut res = match req.uri().path() {
-		SECRET_KEY_MINT_PATH => handle_secret_mint(ctx, req),
-		_ => handle_proxied(ctx, req).await,
+	let path = req.uri().path();
+
+	let mut res = if path.starts_with(&ctx.cm.base_path)
+		&& path.get(ctx.cm.base_path.len()..).unwrap_or_default() == SECRET_KEY_MINT_PATH
+	{
+		handle_secret_mint(&ctx, req)
+	} else {
+		handle_proxied(&ctx, req).await
 	};
 
-	append_secret_headers(&mut res, &client_key_half);
+	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
 
 	Ok(res)
 }
 
-async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+async fn handle_proxied(ctx: &HandleContext, req: Request<Incoming>) -> Response<HyperBody> {
 	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
-		match ctx.cm.get_latest_release().await {
+		match ctx.cm.get_release_from_cache().await {
 			Ok(r) => r,
 			Err(e) => {
 				error!(ctx.log, "error getting latest version: {}", e);
@@ -183,7 +227,7 @@ async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body
 
 	match ctx.cm.get_connection(release).await {
 		Ok(rw) => {
-			if req.headers().contains_key(hyper::header::UPGRADE) {
+			if req.headers().contains_key(::http::header::UPGRADE) {
 				forward_ws_req_to_server(ctx.log.clone(), rw, req).await
 			} else {
 				forward_http_req_to_server(rw, req).await
@@ -194,7 +238,7 @@ async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body
 	}
 }
 
-fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+fn handle_secret_mint(ctx: &HandleContext, req: Request<Incoming>) -> Response<HyperBody> {
 	use sha2::{Digest, Sha256};
 
 	let mut hasher = Sha256::new();
@@ -208,14 +252,20 @@ fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> 
 /// Appends headers to response to maintain the secret storage of the workbench:
 /// sets the `PATH_COOKIE_VALUE` so workbench.ts knows about the 'mint' endpoint,
 /// and maintains the http-only cookie the client will use for cookies.
-fn append_secret_headers(res: &mut Response<Body>, client_key_half: &SecretKeyPart) {
+fn append_secret_headers(
+	base_path: &str,
+	res: &mut Response<HyperBody>,
+	client_key_half: &SecretKeyPart,
+) {
 	let headers = res.headers_mut();
 	headers.append(
-		hyper::header::SET_COOKIE,
-		PATH_COOKIE_VALUE.parse().unwrap(),
+		::http::header::SET_COOKIE,
+		format!("{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",)
+			.parse()
+			.unwrap(),
 	);
 	headers.append(
-		hyper::header::SET_COOKIE,
+		::http::header::SET_COOKIE,
 		format!(
 			"{}={}; SameSite=Strict; HttpOnly; Max-Age=2592000; Path=/",
 			SECRET_KEY_COOKIE_NAME,
@@ -239,6 +289,7 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 
 	let (quality_commit, remaining) = path.split_at(i);
 	let (quality, commit) = quality_commit.split_at(quality_commit_sep);
+	let commit = &commit[1..];
 
 	if !is_commit_hash(commit) {
 		return None;
@@ -260,20 +311,20 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 /// Proxies the standard HTTP request to the async pipe, returning the piped response
 async fn forward_http_req_to_server(
 	(rw, handle): (AsyncPipe, ConnectionHandle),
-	req: Request<Body>,
-) -> Response<Body> {
+	req: Request<Incoming>,
+) -> Response<HyperBody> {
 	let (mut request_sender, connection) =
-		match hyper::client::conn::Builder::new().handshake(rw).await {
+		match hyper::client::conn::http1::handshake(TokioIo::new(rw)).await {
 			Ok(r) => r,
 			Err(e) => return response::connection_err(e),
 		};
 
 	tokio::spawn(connection);
 
-	let res = request_sender
-		.send_request(req)
-		.await
-		.unwrap_or_else(response::connection_err);
+	let res = match request_sender.send_request(req).await {
+		Ok(res) => res.map(|b| b.boxed()),
+		Err(e) => response::connection_err(e),
+	};
 
 	// technically, we should buffer the body into memory since it may not be
 	// read at this point, but because the keepalive time is very large
@@ -288,35 +339,44 @@ async fn forward_http_req_to_server(
 async fn forward_ws_req_to_server(
 	log: log::Logger,
 	(rw, handle): (AsyncPipe, ConnectionHandle),
-	mut req: Request<Body>,
-) -> Response<Body> {
+	mut req: Request<Incoming>,
+) -> Response<HyperBody> {
 	// splicing of client and servers inspired by https://github.com/hyperium/hyper/blob/fece9f7f50431cf9533cfe7106b53a77b48db699/examples/upgrades.rs
 	let (mut request_sender, connection) =
-		match hyper::client::conn::Builder::new().handshake(rw).await {
+		match hyper::client::conn::http1::handshake(TokioIo::new(rw)).await {
 			Ok(r) => r,
 			Err(e) => return response::connection_err(e),
 		};
 
-	tokio::spawn(connection);
+	// `.with_upgrades()` is required so that `hyper::upgrade::on` can later
+	// take over the connection for websocket traffic.
+	tokio::spawn(connection.with_upgrades());
 
 	let mut proxied_req = Request::builder().uri(req.uri());
 	for (k, v) in req.headers() {
 		proxied_req = proxied_req.header(k, v);
 	}
 
-	let mut res = request_sender
-		.send_request(proxied_req.body(Body::empty()).unwrap())
+	let mut res = match request_sender
+		.send_request(
+			proxied_req
+				.body(http_body_util::Empty::<bytes::Bytes>::new())
+				.unwrap(),
+		)
 		.await
-		.unwrap_or_else(response::connection_err);
+	{
+		Ok(r) => r,
+		Err(e) => return response::connection_err(e),
+	};
 
-	let mut proxied_res = Response::new(Body::empty());
+	let mut proxied_res = Response::new(empty_body());
 	*proxied_res.status_mut() = res.status();
 	for (k, v) in res.headers() {
 		proxied_res.headers_mut().insert(k, v.clone());
 	}
 
 	// only start upgrade at this point in case the server decides to deny socket
-	if res.status() == hyper::StatusCode::SWITCHING_PROTOCOLS {
+	if res.status() == ::http::StatusCode::SWITCHING_PROTOCOLS {
 		tokio::spawn(async move {
 			let (s_req, s_res) =
 				tokio::join!(hyper::upgrade::on(&mut req), hyper::upgrade::on(&mut res));
@@ -328,8 +388,10 @@ async fn forward_ws_req_to_server(
 				),
 				(Err(e1), _) => debug!(log, "client ({}) websocket upgrade failed", e1),
 				(_, Err(e2)) => debug!(log, "server ({}) websocket upgrade failed", e2),
-				(Ok(mut s_req), Ok(mut s_res)) => {
+				(Ok(s_req), Ok(s_res)) => {
 					trace!(log, "websocket upgrade succeeded");
+					let mut s_req = TokioIo::new(s_req);
+					let mut s_res = TokioIo::new(s_res);
 					let r = tokio::io::copy_bidirectional(&mut s_req, &mut s_res).await;
 					trace!(log, "websocket closed (error: {:?})", r.err());
 				}
@@ -348,8 +410,8 @@ fn is_commit_hash(s: &str) -> bool {
 }
 
 /// Gets a cookie from the request by name.
-fn extract_cookie(req: &Request<Body>, name: &str) -> Option<String> {
-	for h in req.headers().get_all(hyper::header::COOKIE) {
+fn extract_cookie(req: &Request<Incoming>, name: &str) -> Option<String> {
+	for h in req.headers().get_all(::http::header::COOKIE) {
 		if let Ok(str) = h.to_str() {
 			for pair in str.split("; ") {
 				let i = match pair.find('=') {
@@ -408,7 +470,7 @@ fn get_server_key_half(paths: &LauncherPaths) -> SecretKeyPart {
 }
 
 /// Gets the client's half of the secret key.
-fn get_client_key_half(req: &Request<Body>) -> SecretKeyPart {
+fn get_client_key_half(req: &Request<Incoming>) -> SecretKeyPart {
 	if let Some(c) = extract_cookie(req, SECRET_KEY_COOKIE_NAME) {
 		if let Ok(sk) = SecretKeyPart::decode(&c) {
 			return sk;
@@ -426,33 +488,33 @@ mod response {
 
 	use super::*;
 
-	pub fn connection_err(err: hyper::Error) -> Response<Body> {
+	pub fn connection_err(err: hyper::Error) -> Response<HyperBody> {
 		Response::builder()
 			.status(503)
-			.body(Body::from(format!("Error connecting to server: {:?}", err)))
+			.body(full_body(format!("Error connecting to server: {err:?}")))
 			.unwrap()
 	}
 
-	pub fn code_err(err: CodeError) -> Response<Body> {
+	pub fn code_err(err: CodeError) -> Response<HyperBody> {
 		Response::builder()
 			.status(500)
-			.body(Body::from(format!("Error serving request: {}", err)))
+			.body(full_body(format!("Error serving request: {err}")))
 			.unwrap()
 	}
 
-	pub fn wait_for_download() -> Response<Body> {
+	pub fn wait_for_download() -> Response<HyperBody> {
 		Response::builder()
 			.status(202)
 			.header("Content-Type", "text/html") // todo: get latest
-			.body(Body::from(concatcp!("The latest version of the ", QUALITYLESS_SERVER_NAME, " is downloading, please wait a moment...<script>setTimeout(()=>location.reload(),1500)</script>", )))
+			.body(full_body(concatcp!("The latest version of the ", QUALITYLESS_SERVER_NAME, " is downloading, please wait a moment...<script>setTimeout(()=>location.reload(),1500)</script>", )))
 			.unwrap()
 	}
 
-	pub fn secret_key(hash: Vec<u8>) -> Response<Body> {
+	pub fn secret_key(hash: Vec<u8>) -> Response<HyperBody> {
 		Response::builder()
 			.status(200)
 			.header("Content-Type", "application/octet-stream") // todo: get latest
-			.body(Body::from(hash))
+			.body(full_body(hash))
 			.unwrap()
 	}
 }
@@ -496,6 +558,8 @@ struct ConnectionManager {
 	pub platform: Platform,
 	pub log: log::Logger,
 	args: ServeWebArgs,
+	/// Server base path, ending in `/`
+	base_path: String,
 	/// Cache where servers are stored
 	cache: DownloadCache,
 	/// Mapping of (Quality, Commit) to the state each server is in
@@ -510,20 +574,81 @@ fn key_for_release(release: &Release) -> (Quality, String) {
 	(release.quality, release.commit.clone())
 }
 
+fn normalize_base_path(p: &str) -> String {
+	let p = p.trim_matches('/');
+
+	if p.is_empty() {
+		return "/".to_string();
+	}
+
+	format!("/{}/", p.trim_matches('/'))
+}
+
 impl ConnectionManager {
 	pub fn new(ctx: &CommandContext, platform: Platform, args: ServeWebArgs) -> Arc<Self> {
+		let base_path = normalize_base_path(args.server_base_path.as_deref().unwrap_or_default());
+
+		let cache = DownloadCache::new(ctx.paths.web_server_storage());
+		let target_kind = TargetKind::Web;
+
+		let quality = VSCODE_CLI_QUALITY.map_or(Quality::Stable, |q| match Quality::try_from(q) {
+			Ok(q) => q,
+			Err(_) => Quality::Stable,
+		});
+
+		let now = Instant::now();
+		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
+			(
+				now.checked_sub(Duration::from_secs(RELEASE_CHECK_INTERVAL))
+					.unwrap_or(now), // handle 0-ish instants, #233155
+				Release {
+					name: String::from("0.0.0"), // Version information not stored on cache
+					commit: latest_commit.clone(),
+					platform,
+					target: target_kind,
+					quality,
+				},
+			)
+		}));
+
 		Arc::new(Self {
 			platform,
 			args,
+			base_path,
 			log: ctx.log.clone(),
-			cache: DownloadCache::new(ctx.paths.web_server_storage()),
+			cache,
 			update_service: UpdateService::new(
 				ctx.log.clone(),
 				Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 			),
 			state: ConnectionStateMap::default(),
-			latest_version: tokio::sync::Mutex::default(),
+			latest_version,
 		})
+	}
+
+	// spawns a task that checks for updates every n seconds duration
+	pub fn start_update_checker(self: Arc<Self>, duration: Duration) {
+		tokio::spawn(async move {
+			let mut interval = time::interval(duration);
+			loop {
+				interval.tick().await;
+
+				if let Err(e) = self.get_latest_release().await {
+					warning!(self.log, "error getting latest version: {}", e);
+				}
+			}
+		});
+	}
+
+	// Returns the latest release from the cache, if one exists.
+	pub async fn get_release_from_cache(&self) -> Result<Release, CodeError> {
+		let latest = self.latest_version.lock().await;
+		if let Some((_, release)) = &*latest {
+			return Ok(release.clone());
+		}
+
+		drop(latest);
+		self.get_latest_release().await
 	}
 
 	/// Gets a connection to a server version
@@ -544,27 +669,40 @@ impl ConnectionManager {
 	pub async fn get_latest_release(&self) -> Result<Release, CodeError> {
 		let mut latest = self.latest_version.lock().await;
 		let now = Instant::now();
-		if let Some((checked_at, release)) = &*latest {
-			if checked_at.elapsed() < Duration::from_secs(RELEASE_CACHE_SECS) {
-				return Ok(release.clone());
-			}
-		}
+		let target_kind = TargetKind::Web;
 
 		let quality = VSCODE_CLI_QUALITY
-			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
+			.ok_or(CodeError::UpdatesNotConfigured("no configured quality"))
 			.and_then(|q| {
 				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
 			})?;
 
+		if let Some(commit) = &self.args.commit_id {
+			let release = Release {
+				name: commit.to_string(),
+				commit: commit.to_string(),
+				platform: self.platform,
+				target: target_kind,
+				quality,
+			};
+			debug!(
+				self.log,
+				"using provided commit instead of latest release: {}", release
+			);
+			*latest = Some((now, release.clone()));
+			return Ok(release);
+		}
+
 		let release = self
 			.update_service
-			.get_latest_commit(self.platform, TargetKind::Web, quality)
+			.get_latest_commit(self.platform, target_kind, quality)
 			.await
 			.map_err(|e| CodeError::UpdateCheckFailed(e.to_string()));
 
 		// If the update service is unavailable and we have stale data, use that
-		if let (Err(e), Some((_, previous))) = (&release, &*latest) {
+		if let (Err(e), Some((_, previous))) = (&release, latest.clone()) {
 			warning!(self.log, "error getting latest release, using stale: {}", e);
+			*latest = Some((now, previous.clone()));
 			return Ok(previous.clone());
 		}
 
@@ -704,14 +842,6 @@ impl ConnectionManager {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
 		}
-		if let Some(a) = &args.args.user_data_dir {
-			cmd.arg("--user-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.extensions_dir {
-			cmd.arg("--extensions-dir");
-			cmd.arg(a);
-		}
 		if args.args.without_connection_token {
 			cmd.arg("--without-connection-token");
 		}
@@ -720,6 +850,17 @@ impl ConnectionManager {
 		if let Some(ct) = &args.args.connection_token_file {
 			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
+		}
+		if let Some(a) = &args.args.default_folder {
+			cmd.arg("--default-folder");
+			cmd.arg(a);
+		}
+		if let Some(a) = &args.args.default_workspace {
+			cmd.arg("--default-workspace");
+			cmd.arg(a);
+		}
+		if args.args.disable_telemetry {
+			cmd.arg("--disable-telemetry");
 		}
 
 		// removed, otherwise the workbench will not be usable when running the CLI from sources.

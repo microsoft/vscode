@@ -1,0 +1,90 @@
+jobs:
+  - job: WebNodeModules
+    displayName: Web
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    timeoutInMinutes: 60
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - template: ../distro/download-distro.yml@self
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
+
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Registry
+
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts web $(node -p process.arch) > .build/packagelockhash
+        displayName: Prepare node_modules cache key
+
+      - task: Cache@2
+        inputs:
+          key: '"node_modules" | .build/packagelockhash'
+          path: .build/node_modules_cache
+          cacheHitVar: NODE_MODULES_RESTORED
+        displayName: Restore node_modules cache
+
+      - script: |
+          set -e
+          # Set the private NPM registry to the global npmrc file
+          # so that authentication works for subfolders like build/, remote/, extensions/ etc
+          # which does not have their own .npmrc file
+          npm config set registry "$NPM_REGISTRY"
+          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Authentication
+
+      - script: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
+        displayName: Setup system services
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Install dependencies
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: node build/azure-pipelines/distro/mixin-npm.ts
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Mixin distro node modules
+
+      - script: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Create node_modules archive

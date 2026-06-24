@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./lineNumbers';
-import * as platform from 'vs/base/common/platform';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorDimmedLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
+import './lineNumbers.css';
+import * as platform from '../../../../base/common/platform.js';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { RenderLineNumbersType, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * Renders line numbers to the left of the main view lines content.
+ */
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';
@@ -29,7 +32,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
-	private _activeLineNumber: number;
+	private _activeModelLineNumber: number;
 
 	constructor(context: ViewContext) {
 		super();
@@ -39,7 +42,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 		this._lastCursorModelPosition = new Position(1, 1);
 		this._renderResult = null;
-		this._activeLineNumber = 1;
+		this._activeModelLineNumber = 1;
 		this._context.addEventHandler(this);
 	}
 
@@ -72,8 +75,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lastCursorModelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
 		let shouldRender = false;
-		if (this._activeLineNumber !== primaryViewPosition.lineNumber) {
-			this._activeLineNumber = primaryViewPosition.lineNumber;
+		if (this._activeModelLineNumber !== this._lastCursorModelPosition.lineNumber) {
+			this._activeModelLineNumber = this._lastCursorModelPosition.lineNumber;
 			shouldRender = true;
 		}
 		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
@@ -159,6 +162,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
+			const modelLineNumber: number = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber;
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 			let extraClassNames = '';
@@ -188,7 +192,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 					extraClassNames += ' dimmed-line-number';
 				}
 			}
-			if (lineNumber === this._activeLineNumber) {
+			if (modelLineNumber === this._activeModelLineNumber) {
 				extraClassNames += ' active-line-number';
 			}
 

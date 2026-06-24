@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getMimeTypes, registerPlatformLanguageAssociation, registerConfiguredLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getMimeTypes, registerPlatformLanguageAssociation, registerConfiguredLanguageAssociation } from '../../../common/services/languagesAssociations.js';
 
 suite('LanguagesAssociations', () => {
 
@@ -128,5 +128,27 @@ suite('LanguagesAssociations', () => {
 		registerPlatformLanguageAssociation({ id: 'data', extension: '.data', mime: 'text/data' });
 
 		assert.deepStrictEqual(getMimeTypes(URI.parse(`data:;label:something.data;description:data,`)), ['text/data', 'text/plain']);
+	});
+
+	test('Shebang detection for TypeScript runtimes', () => {
+		registerPlatformLanguageAssociation({ id: 'typescript', mime: 'text/typescript', firstline: /^#!.*\b(deno|bun|ts-node)\b/ });
+
+		// Deno shebangs
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env deno'), ['text/typescript', 'text/plain']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env -S deno -A'), ['text/typescript', 'text/plain']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/deno'), ['text/typescript', 'text/plain']);
+
+		// Bun shebangs
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env bun'), ['text/typescript', 'text/plain']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env -S bun run'), ['text/typescript', 'text/plain']);
+
+		// ts-node shebangs
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env ts-node'), ['text/typescript', 'text/plain']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env -S ts-node --esm'), ['text/typescript', 'text/plain']);
+
+		// Should NOT match other shebangs
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env node'), ['application/unknown']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/usr/bin/env python'), ['application/unknown']);
+		assert.deepStrictEqual(getMimeTypes(URI.file('script'), '#!/bin/bash'), ['application/unknown']);
 	});
 });

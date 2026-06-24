@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProviderClient } from 'vs/platform/files/common/diskFileSystemProviderClient';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { DiskFileSystemProviderClient } from '../../../../platform/files/common/diskFileSystemProviderClient.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from './remoteAgentService.js';
 
 export const REMOTE_FILE_SYSTEM_CHANNEL_NAME = 'remoteFilesystem';
 

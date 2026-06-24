@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { isUNC, toSlashes } from 'vs/base/common/extpath';
-import * as json from 'vs/base/common/json';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, posix } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Event } from '../../../base/common/event.js';
+import { isUNC, toSlashes } from '../../../base/common/extpath.js';
+import * as json from '../../../base/common/json.js';
+import * as jsonEdit from '../../../base/common/jsonEdit.js';
+import { FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import { normalizeDriveLetter } from '../../../base/common/labels.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isAbsolute, posix } from '../../../base/common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IExtUri, isEqualAuthority } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from '../../backup/common/backup.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -316,16 +316,22 @@ interface ISerializedRecentlyOpened {
 
 export type RecentlyOpenedStorageData = object;
 
-function isSerializedRecentWorkspace(data: any): data is ISerializedRecentWorkspace {
-	return data.workspace && typeof data.workspace === 'object' && typeof data.workspace.id === 'string' && typeof data.workspace.configPath === 'string';
+function isSerializedRecentWorkspace(data: unknown): data is ISerializedRecentWorkspace {
+	const candidate = data as ISerializedRecentWorkspace | undefined;
+
+	return typeof candidate?.workspace === 'object' && typeof candidate.workspace.id === 'string' && typeof candidate.workspace.configPath === 'string';
 }
 
-function isSerializedRecentFolder(data: any): data is ISerializedRecentFolder {
-	return typeof data.folderUri === 'string';
+function isSerializedRecentFolder(data: unknown): data is ISerializedRecentFolder {
+	const candidate = data as ISerializedRecentFolder | undefined;
+
+	return typeof candidate?.folderUri === 'string';
 }
 
-function isSerializedRecentFile(data: any): data is ISerializedRecentFile {
-	return typeof data.fileUri === 'string';
+function isSerializedRecentFile(data: unknown): data is ISerializedRecentFile {
+	const candidate = data as ISerializedRecentFile | undefined;
+
+	return typeof candidate?.fileUri === 'string';
 }
 
 export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
@@ -364,16 +370,39 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData {
 	const serialized: ISerializedRecentlyOpened = { entries: [] };
 
+	const storeLabel = (label: string | undefined, uri: URI) => {
+		// Only store the label if it is provided
+		// and only if it differs from the path
+		// This gives us a chance to render the
+		// path better, e.g. use `~` for home.
+		return label && label !== uri.fsPath && label !== uri.path;
+	};
+
 	for (const recent of recents.workspaces) {
 		if (isRecentFolder(recent)) {
-			serialized.entries.push({ folderUri: recent.folderUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
+			serialized.entries.push({
+				folderUri: recent.folderUri.toString(),
+				label: storeLabel(recent.label, recent.folderUri) ? recent.label : undefined,
+				remoteAuthority: recent.remoteAuthority
+			});
 		} else {
-			serialized.entries.push({ workspace: { id: recent.workspace.id, configPath: recent.workspace.configPath.toString() }, label: recent.label, remoteAuthority: recent.remoteAuthority });
+			serialized.entries.push({
+				workspace: {
+					id: recent.workspace.id,
+					configPath: recent.workspace.configPath.toString()
+				},
+				label: storeLabel(recent.label, recent.workspace.configPath) ? recent.label : undefined,
+				remoteAuthority: recent.remoteAuthority
+			});
 		}
 	}
 
 	for (const recent of recents.files) {
-		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
+		serialized.entries.push({
+			fileUri: recent.fileUri.toString(),
+			label: storeLabel(recent.label, recent.fileUri) ? recent.label : undefined,
+			remoteAuthority: recent.remoteAuthority
+		});
 	}
 
 	return serialized;

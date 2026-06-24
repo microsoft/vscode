@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
-import { WalkThroughPart } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughPart';
-import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroughPageDown } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughActions';
-import { WalkThroughSnippetContentProvider } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
-import { EditorWalkThroughAction, EditorWalkThroughInputSerializer } from 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/editorWalkThrough';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { localize } from '../../../../nls.js';
+import { WalkThroughInput } from './walkThroughInput.js';
+import { WalkThroughPart } from './walkThroughPart.js';
+import { WalkThroughArrowUp, WalkThroughArrowDown, WalkThroughPageUp, WalkThroughPageDown } from './walkThroughActions.js';
+import { WalkThroughSnippetContentProvider } from '../common/walkThroughContentProvider.js';
+import { EditorWalkThroughAction, EditorWalkThroughInputSerializer } from './editor/editorWalkThrough.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../browser/editor.js';
+import { KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 	.registerEditorPane(EditorPaneDescriptor.create(

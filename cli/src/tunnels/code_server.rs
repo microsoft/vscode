@@ -8,6 +8,7 @@ use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
 use crate::download_cache::DownloadCache;
+use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
@@ -23,9 +24,6 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use crate::{debug, info, log, spanf, trace, warning};
-use lazy_static::lazy_static;
-use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -33,6 +31,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -40,11 +39,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
 
-lazy_static! {
-	static ref LISTENING_PORT_RE: Regex =
-		Regex::new(r"Extension host agent listening on (.+)").unwrap();
-	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
-}
+static LISTENING_PORT_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Extension host agent listening on (.+)").unwrap());
+static WEB_UI_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"Web UI available at (.+)").unwrap());
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -67,12 +65,23 @@ pub struct CodeServerArgs {
 	pub show_versions: bool,
 	pub category: Option<String>,
 	pub pre_release: bool,
+	pub donot_include_pack_and_dependencies: bool,
 	pub force: bool,
 	pub start_server: bool,
 	// connection tokens
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
 	pub without_connection_token: bool,
+	// reconnection
+	pub reconnection_grace_time: Option<u32>,
+	// agent-host bridge: tells the spawned VS Code server where the
+	// canonical agent host is listening so it can register the
+	// `agentHostProxy` IPC channel and let renderers reach the agent
+	// host over the remote-agent connection. The server does NOT spawn
+	// an agent host of its own when these are set.
+	pub agent_host_bridge_host: Option<String>,
+	pub agent_host_bridge_port: Option<u16>,
+	pub agent_host_bridge_connection_token: Option<String>,
 }
 
 impl CodeServerArgs {
@@ -91,21 +100,21 @@ impl CodeServerArgs {
 	pub fn command_arguments(&self) -> Vec<String> {
 		let mut args = Vec::new();
 		if let Some(i) = &self.socket_path {
-			args.push(format!("--socket-path={}", i));
+			args.push(format!("--socket-path={i}"));
 		} else {
 			if let Some(i) = &self.host {
-				args.push(format!("--host={}", i));
+				args.push(format!("--host={i}"));
 			}
 			if let Some(i) = &self.port {
-				args.push(format!("--port={}", i));
+				args.push(format!("--port={i}"));
 			}
 		}
 
 		if let Some(i) = &self.connection_token {
-			args.push(format!("--connection-token={}", i));
+			args.push(format!("--connection-token={i}"));
 		}
 		if let Some(i) = &self.connection_token_file {
-			args.push(format!("--connection-token-file={}", i));
+			args.push(format!("--connection-token-file={i}"));
 		}
 		if self.without_connection_token {
 			args.push(String::from("--without-connection-token"));
@@ -114,14 +123,17 @@ impl CodeServerArgs {
 			args.push(String::from("--accept-server-license-terms"));
 		}
 		if let Some(i) = self.telemetry_level {
-			args.push(format!("--telemetry-level={}", i));
+			args.push(format!("--telemetry-level={i}"));
 		}
 		if let Some(i) = self.log {
-			args.push(format!("--log={}", i));
+			args.push(format!("--log={i}"));
+		}
+		if let Some(t) = self.reconnection_grace_time {
+			args.push(format!("--reconnection-grace-time={t}"));
 		}
 
 		for extension in &self.install_extensions {
-			args.push(format!("--install-extension={}", extension));
+			args.push(format!("--install-extension={extension}"));
 		}
 		if !&self.install_extensions.is_empty() {
 			if self.pre_release {
@@ -132,7 +144,7 @@ impl CodeServerArgs {
 			}
 		}
 		for extension in &self.uninstall_extensions {
-			args.push(format!("--uninstall-extension={}", extension));
+			args.push(format!("--uninstall-extension={extension}"));
 		}
 		if self.update_extensions {
 			args.push(String::from("--update-extensions"));
@@ -143,17 +155,26 @@ impl CodeServerArgs {
 				args.push(String::from("--show-versions"));
 			}
 			if let Some(i) = &self.category {
-				args.push(format!("--category={}", i));
+				args.push(format!("--category={i}"));
 			}
 		}
 		if let Some(d) = &self.server_data_dir {
-			args.push(format!("--server-data-dir={}", d));
+			args.push(format!("--server-data-dir={d}"));
 		}
 		if let Some(d) = &self.extensions_dir {
-			args.push(format!("--extensions-dir={}", d));
+			args.push(format!("--extensions-dir={d}"));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
+		}
+		if let Some(port) = self.agent_host_bridge_port {
+			args.push(format!("--agent-host-bridge-port={port}"));
+			if let Some(host) = &self.agent_host_bridge_host {
+				args.push(format!("--agent-host-bridge-host={host}"));
+			}
+			if let Some(token) = &self.agent_host_bridge_connection_token {
+				args.push(format!("--agent-host-bridge-connection-token={token}"));
+			}
 		}
 		args
 	}
@@ -329,6 +350,28 @@ pub struct ServerBuilder<'a> {
 	http: BoxedHttp,
 }
 
+/// Ensures the given path has execute permissions on Unix.
+/// This is a self-healing measure for cases where the binary was extracted
+/// without execute permissions or where permissions were lost (e.g. on
+/// network filesystems or after interrupted downloads).
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) -> Result<(), std::io::Error> {
+	use std::os::unix::fs::PermissionsExt;
+
+	let metadata = std::fs::metadata(path)?;
+	let mut permissions = metadata.permissions();
+	if permissions.mode() & 0o111 == 0 {
+		permissions.set_mode(permissions.mode() | 0o111);
+		std::fs::set_permissions(path, permissions)?;
+	}
+	Ok(())
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) -> Result<(), std::io::Error> {
+	Ok(())
+}
+
 impl<'a> ServerBuilder<'a> {
 	pub fn new(
 		logger: &'a log::Logger,
@@ -487,7 +530,7 @@ impl<'a> ServerBuilder<'a> {
 		let mut cmd = self.get_base_command();
 		cmd.arg("--start-server")
 			.arg("--enable-remote-auto-shutdown")
-			.arg(format!("--port={}", port));
+			.arg(format!("--port={port}"));
 
 		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
@@ -503,7 +546,7 @@ impl<'a> ServerBuilder<'a> {
 			}
 			Ok(Err(s)) => {
 				origin.kill().await;
-				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
 			Ok(Ok(p)) => p,
 		};
@@ -545,14 +588,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
-			self.logger,
-			self.logger.span("server.start").with_attributes(vec! {
-				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
-				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
-			}),
-			self._listen_on_socket(socket)
-		)?)
+		self._listen_on_socket(socket).await
 	}
 
 	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
@@ -577,7 +613,7 @@ impl<'a> ServerBuilder<'a> {
 			}
 			Ok(Err(s)) => {
 				origin.kill().await;
-				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
 			Ok(Ok(socket)) => socket,
 		};
@@ -606,17 +642,31 @@ impl<'a> ServerBuilder<'a> {
 		let cmd = cmd.creation_flags(
 			winapi::um::winbase::CREATE_NO_WINDOW
 				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
-				| get_should_use_breakaway_from_job()
-					.await
-					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
-					.unwrap_or_default(),
+				| if get_should_use_breakaway_from_job().await {
+					winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+				} else {
+					Default::default()
+				},
 		);
+
+		// Self-heal: if the server binary lost execute permissions (e.g. on a
+		// network filesystem or after a partial extraction), try to restore them
+		// before attempting to spawn. If this fails, report it clearly so that
+		// the UI does not treat it as generic "corruption" and loop re-downloading.
+		if let Err(e) = ensure_executable(&self.server_paths.executable) {
+			return Err(CodeError::ServerNotExecutable(format!(
+				"{} is not executable and permissions could not be restored: {}",
+				self.server_paths.executable.display(),
+				e
+			))
+			.into());
+		}
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())
 			.spawn()
-			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{}", e)))?;
+			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{e}")))?;
 
 		self.server_paths
 			.write_pid(child.id().expect("expected server to have pid"))?;
@@ -674,10 +724,10 @@ where
 		let write_line = |line: &str| -> std::io::Result<()> {
 			if let Some(mut f) = log_file.as_ref() {
 				f.write_all(line.as_bytes())?;
-				f.write_all(&[b'\n'])?;
+				f.write_all(b"\n")?;
 			}
 			if write_directly {
-				println!("{}", line);
+				println!("{line}");
 			} else {
 				trace!(plog, line);
 			}
@@ -732,7 +782,7 @@ where
 }
 
 fn get_extensions_flag(extension_id: &str) -> String {
-	format!("--install-extension={}", extension_id)
+	format!("--install-extension={extension_id}")
 }
 
 /// A type that can be used to scan stdout from the VS Code server. Returns
@@ -797,6 +847,9 @@ fn parse_port_from(text: &str) -> Option<u16> {
 }
 
 pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
+	use crate::commands::output;
+	use console::style;
+
 	debug!(
 		log,
 		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
@@ -829,8 +882,25 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {}\n", addr);
-	log.result(message);
+	let arrow = style("➜").green().bold();
+	let product = QUALITYLESS_PRODUCT_NAME;
+	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
+
+	println!();
+	println!(
+		"  {} {}",
+		style(format!("{product} Tunnel")).cyan().bold(),
+		style(format!("v{version}")).dim(),
+	);
+	println!();
+	output::print_banner_line("Tunnel", tunnel_name);
+	println!(
+		"  {}  {}  {}",
+		arrow,
+		style("Open:").bold(),
+		style(&addr).cyan(),
+	);
+	output::print_banner_footer();
 }
 
 pub async fn download_cli_into_cache(

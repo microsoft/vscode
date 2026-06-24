@@ -1,0 +1,283 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.models-widget {
+	padding-right: 24px;
+}
+
+/** Search and button container styling **/
+
+.models-widget .models-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.models-widget .models-search-container {
+	flex: 1;
+	position: relative;
+}
+
+.models-widget .models-search-container .models-search-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 100%;
+	margin-right: 1px;
+	display: flex;
+	align-items: center;
+}
+
+.models-widget .models-search-container .models-search-actions .monaco-toolbar {
+	height: 100%;
+}
+
+.models-widget .models-search-container .models-search-actions .action-label {
+	padding: 3px;
+	margin-left: 0;
+	box-sizing: content-box;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-search-and-button-container .section-title-actions .models-add-model-button,
+.models-widget .models-search-and-button-container .section-title-actions .models-browse-marketplace-button {
+	white-space: nowrap;
+	padding: 6px 8px 6px 4px;
+}
+
+/** Table styling **/
+
+.models-widget .models-table-container {
+	width: 100%;
+	border-spacing: 0;
+	border-collapse: separate;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+}
+
+.models-widget .models-table-container .models-table-viewport {
+	width: 100%;
+	height: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+.models-widget .models-table-container .models-table-viewport::-webkit-scrollbar {
+	display: none;
+}
+
+.models-widget .models-table-container .models-table-inner {
+	height: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr {
+	cursor: default;
+}
+
+.models-widget .models-table-container .monaco-table-td {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+	padding-left: 10px;
+}
+
+.models-widget .models-table-container .monaco-table-td[data-col-index="0"] {
+	padding-left: 8px;
+}
+
+.models-widget .models-table-container .monaco-table-th {
+	padding-left: 10px;
+	background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.models-widget .models-table-container .monaco-table-th[data-col-index="0"] {
+	padding-left: 8px;
+}
+
+
+/** Model Name column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-name-container {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-status-icon {
+	flex-shrink: 0;
+	margin-left: auto;
+	margin-right: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 0 1 auto;
+}
+
+.models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.error-status {
+	color: var(--vscode-errorForeground);
+}
+
+.models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.warning-status {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/** Actions column styling **/
+
+.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-table-column.models-actions-column .actions-container {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr .models-table-column.models-actions-column .actions-container,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr .models-table-column.models-actions-column .actions-container,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr .models-table-column.models-actions-column .actions-container {
+	display: flex;
+}
+
+.models-widget .models-table-container .monaco-table-td .models-actions-column .actions-container .monaco-action-bar {
+	margin-right: 9px;
+}
+
+/** Cost column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-cost-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 4px;
+	width: 100%;
+	overflow: hidden;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-cost-grid .model-cost-cell {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/** Token Limits column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits {
+	display: flex;
+	gap: 12px;
+	white-space: nowrap;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits .token-limit-item {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 48px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
+	font-size: 12px;
+}
+
+/** Capabilities column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-capabilities {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-capability {
+	width: fit-content;
+	padding: 0 6px;
+	border-radius: 3px;
+	font-size: 11px;
+	color: var(--vscode-radio-inactiveForeground);
+	background-color: var(--vscode-radio-inactiveBackground);
+	border-color: var(--vscode-radio-inactiveBorder, transparent);
+}
+
+.models-widget .models-table-container .monaco-table-td .model-capability.active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 0.8;
+}
+
+/** Vendor row styling **/
+
+.models-widget .models-table-container .models-vendor-row {
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	cursor: pointer;
+}
+
+.models-widget .models-table-container .monaco-table-tr:hover .models-vendor-row {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.models-widget .models-table-container .models-vendor-row .model-name {
+	font-weight: bold;
+}
+
+/** Model row styling **/
+
+/** Row alternating colors **/
+.models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
+.models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
+	background-color: var(--vscode-editor-background);
+}
+
+/** Hidden row styling **/
+
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-name,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-cost-grid,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-token-limits,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-capabilities,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .model-status-icon {
+	opacity: 0.55;
+}
+
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar {
+	width: 100%;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-vendor-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: space-between;
+}
+
+.models-widget .models-table-container .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
+/** Visibility toggle action in the gutter column.
+ * The action is only visible on row focus/hover, or when the model/group
+ * is currently hidden so the user can spot what to click to bring it
+ * back. **/
+.models-widget .models-table-container .monaco-table-td .models-gutter-column .model-visibility-toggle {
+	visibility: hidden;
+}
+
+.models-widget .models-table-container .models-gutter-column .monaco-action-bar .action-item:has(.model-visibility-toggle) {
+	margin-right: 4px;
+}
+
+.models-widget .models-table-container .monaco-list-row.focused .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row.selected .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-list-row:hover .monaco-table-td .models-gutter-column .model-visibility-toggle,
+.models-widget .models-table-container .monaco-table-tr.models-row-hidden .models-gutter-column .model-visibility-toggle {
+	visibility: visible;
+}

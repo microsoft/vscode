@@ -28,17 +28,19 @@ suite('typescript.previewer', () => {
 	test('Should parse url jsdoc @link', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				// 'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
+				[{ 'text': 'x ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'http://www.example.com/foo', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' y ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'https://api.jquery.com/bind/#bind-eventType-eventData-handler', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' z', 'kind': 'text' }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
+			'x <http://www.example.com/foo> y <https://api.jquery.com/bind/#bind-eventType-eventData-handler> z');
 	});
 
 	test('Should parse url jsdoc @link with text', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				// 'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
+				[{ 'text': 'x ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'http://www.example.com/foo abc xyz', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' y ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'http://www.example.com/bar b a z', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' z', 'kind': 'text' }],
 				[],
 				noopToResource, undefined
 			).value,
@@ -48,11 +50,12 @@ suite('typescript.previewer', () => {
 	test('Should treat @linkcode jsdocs links as monospace', () => {
 		assert.strictEqual(
 			documentationToMarkdown(
-				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				// 'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
+				[{ 'text': 'x ', 'kind': 'text' }, { 'text': '{@linkcode ', 'kind': 'link' }, { 'text': 'http://www.example.com/foo', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' y ', 'kind': 'text' }, { 'text': '{@linkplain ', 'kind': 'link' }, { 'text': 'http://www.example.com/bar', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' z', 'kind': 'text' }],
 				[],
 				noopToResource, undefined
 			).value,
-			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
+			'x [`http://www.example.com/foo`](http://www.example.com/foo) y <http://www.example.com/bar> z');
 	});
 
 	test('Should parse url jsdoc @link in param tag', () => {
@@ -60,20 +63,11 @@ suite('typescript.previewer', () => {
 			tagsToMarkdown([
 				{
 					name: 'param',
-					text: 'a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z'
+					// a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z
+					text: [{ 'text': 'a', 'kind': 'parameterName' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'x ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'http://www.example.com/foo abc xyz', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' y ', 'kind': 'text' }, { 'text': '{@link ', 'kind': 'link' }, { 'text': 'http://www.example.com/bar b a z', 'kind': 'linkText' }, { 'text': '}', 'kind': 'link' }, { 'text': ' z', 'kind': 'text' }],
 				}
 			], noopToResource),
 			'*@param* `a` — x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
-	});
-
-	test('Should ignore unclosed jsdocs @link', () => {
-		assert.strictEqual(
-			documentationToMarkdown(
-				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
-				[],
-				noopToResource, undefined
-			).value,
-			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
 	});
 
 	test('Should support non-ascii characters in parameter name (#90108)', () => {
@@ -95,7 +89,7 @@ suite('typescript.previewer', () => {
 					text: 'code();'
 				}
 			], noopToResource),
-			'*@example*  \n```\ncode();\n```'
+			'*@example*  \n```tsx\ncode();\n```'
 		);
 	});
 
@@ -119,7 +113,7 @@ suite('typescript.previewer', () => {
 					text: '<caption>Not code</caption>\ncode();'
 				}
 			], noopToResource),
-			'*@example*  \nNot code\n```\ncode();\n```'
+			'*@example*  \nNot code\n```tsx\ncode();\n```'
 		);
 	});
 
@@ -139,68 +133,68 @@ suite('typescript.previewer', () => {
 		assert.strictEqual(
 			tagsToMarkdown([
 				{
-					"name": "example",
-					"text": [
+					'name': 'example',
+					'text': [
 						{
-							"text": "1 + 1 ",
-							"kind": "text"
+							'text': '1 + 1 ',
+							'kind': 'text'
 						},
 						{
-							"text": "{@link ",
-							"kind": "link"
+							'text': '{@link ',
+							'kind': 'link'
 						},
 						{
-							"text": "foo",
-							"kind": "linkName"
+							'text': 'foo',
+							'kind': 'linkName'
 						},
 						{
-							"text": "}",
-							"kind": "link"
+							'text': '}',
+							'kind': 'link'
 						}
 					]
 				}
 			], noopToResource),
-			'*@example*  \n```\n1 + 1 {@link foo}\n```');
+			'*@example*  \n```tsx\n1 + 1 {@link foo}\n```');
 	});
 
 	test('Should render @linkcode symbol name as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
-				{ "text": "a ", "kind": "text" },
-				{ "text": "{@linkcode ", "kind": "link" },
+				{ 'text': 'a ', 'kind': 'text' },
+				{ 'text': '{@linkcode ', 'kind': 'link' },
 				{
-					"text": "dog",
-					"kind": "linkName",
-					"target": {
-						"file": "/path/file.ts",
-						"start": { "line": 7, "offset": 5 },
-						"end": { "line": 7, "offset": 13 }
+					'text': 'dog',
+					'kind': 'linkName',
+					'target': {
+						'file': '/path/file.ts',
+						'start': { 'line': 7, 'offset': 5 },
+						'end': { 'line': 7, 'offset': 13 }
 					}
 				} as SymbolDisplayPart,
-				{ "text": "}", "kind": "link" },
-				{ "text": " b", "kind": "text" }
+				{ 'text': '}', 'kind': 'link' },
+				{ 'text': ' b', 'kind': 'text' }
 			], noopToResource),
-			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D) b');
+			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D "Open symbol link") b');
 	});
 
 	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
-				{ "text": "a ", "kind": "text" },
-				{ "text": "{@linkcode ", "kind": "link" },
+				{ 'text': 'a ', 'kind': 'text' },
+				{ 'text': '{@linkcode ', 'kind': 'link' },
 				{
-					"text": "dog",
-					"kind": "linkName",
-					"target": {
-						"file": "/path/file.ts",
-						"start": { "line": 7, "offset": 5 },
-						"end": { "line": 7, "offset": 13 }
+					'text': 'dog',
+					'kind': 'linkName',
+					'target': {
+						'file': '/path/file.ts',
+						'start': { 'line': 7, 'offset': 5 },
+						'end': { 'line': 7, 'offset': 13 }
 					}
 				} as SymbolDisplayPart,
-				{ "text": "husky", "kind": "linkText" },
-				{ "text": "}", "kind": "link" },
-				{ "text": " b", "kind": "text" }
+				{ 'text': 'husky', 'kind': 'linkText' },
+				{ 'text': '}', 'kind': 'link' },
+				{ 'text': ' b', 'kind': 'text' }
 			], noopToResource),
-			'a [`husky`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D) b');
+			'a [`husky`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D "Open symbol link") b');
 	});
 });

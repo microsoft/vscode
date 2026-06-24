@@ -48,7 +48,7 @@ suite('vscode API - workspace-watcher', () => {
 		assertNoRpc();
 	});
 
-	test('createFileSystemWatcher (old style)', async function () {
+	test('createFileSystemWatcher', async function () {
 
 		// Non-recursive
 		let watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });
@@ -67,30 +67,5 @@ suite('vscode API - workspace-watcher', () => {
 
 		assert.strictEqual(request.uri.toString(), watchUri.toString());
 		assert.strictEqual(request.options.recursive, true);
-	});
-
-	test('createFileSystemWatcher (new style)', async function () {
-
-		// Non-recursive
-		let watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchUri, '*.txt'), { excludes: ['testing'], ignoreChangeEvents: true });
-		let request = await onDidWatchPromise();
-
-		assert.strictEqual(request.uri.toString(), watchUri.toString());
-		assert.strictEqual(request.options.recursive, false);
-		assert.strictEqual(request.options.excludes.length, 1);
-		assert.strictEqual(request.options.excludes[0], 'testing');
-
-		watcher.dispose();
-
-		// Recursive
-		watchUri = vscode.Uri.from({ scheme: 'watcherTest', path: '/somePath/folder' });
-		vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(watchUri, '**/*.txt'), { excludes: ['testing'], ignoreCreateEvents: true });
-		request = await onDidWatchPromise();
-
-		assert.strictEqual(request.uri.toString(), watchUri.toString());
-		assert.strictEqual(request.options.recursive, true);
-		assert.strictEqual(request.options.excludes.length, 1);
-		assert.strictEqual(request.options.excludes[0], 'testing');
 	});
 });

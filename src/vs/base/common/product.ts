@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PlatformName } from 'vs/base/common/platform';
+import { IStringDictionary } from './collections.js';
+import { PlatformName } from './platform.js';
+import { IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
-	readonly metadata: any;
+	readonly metadata: unknown;
 }
 
 export interface IProductWalkthrough {
@@ -36,6 +37,15 @@ export interface IFeaturedExtension {
 	readonly imagePath: string;
 }
 
+export interface IChatSessionRecommendation {
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly name: string;
+	readonly description: string;
+	readonly postInstallCommand?: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -54,6 +64,25 @@ export type ExtensionVirtualWorkspaceSupport = {
 	readonly override?: boolean;
 };
 
+/**
+ * Per-SDK configuration for downloading an agent SDK on demand. The
+ * runtime substitutes `{sdkTarget}` in `urlTemplate` against the host's
+ * `(platform, arch, libc)` triple via `resolveSdkTarget()` in the agent
+ * SDK downloader.
+ *
+ * `urlTemplate` uses `format2()`-style named placeholders. Today only
+ * `{sdkTarget}` is recognised; the build emits e.g.
+ * `https://main.vscode-cdn.net/agent-sdk/claude/0.3.168/{sdkTarget}.tgz`
+ * and the runtime substitutes `darwin-arm64`, `linux-x64-musl`, etc.
+ *
+ * See `src/vs/platform/agentHost/node/claude/roadmap.md` Phase 15 for
+ * the rationale (macOS Universal compatibility, trust model).
+ */
+export interface IAgentSdkProductConfig {
+	readonly version: string;
+	readonly urlTemplate: string;
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -65,12 +94,18 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32SetupMutexName?: string;
 	readonly win32RegValueName?: string;
+	readonly win32NameVersion?: string;
+	readonly win32VersionedUpdate?: boolean;
+	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
+	readonly agentsTelemetryAppName?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -82,6 +117,7 @@ export interface IProductConfiguration {
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
+	readonly nlsCoreBaseUrl?: string;
 
 	readonly settingsSearchBuildId?: number;
 	readonly settingsSearchUrl?: string;
@@ -94,14 +130,27 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly servicePPEUrl?: string;
-		readonly searchUrl?: string;
-		readonly itemUrl: string;
-		readonly publisherUrl: string;
-		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
+		readonly extensionUrlTemplate: string;
+		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
+		readonly accessSKUs?: string[];
 	};
+
+	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
+
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
+		readonly itemWebUrl: string;
+		readonly publisherUrl: string;
+		readonly supportUrl: string;
+		readonly privacyPolicyUrl: string;
+		readonly termsOfServiceUrl: string;
+		readonly reportUrl: string;
+	};
+
+	readonly extensionPublisherOrgs?: readonly string[];
+	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -114,6 +163,8 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly trustedMcpAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly inheritAuthAccountPreference?: IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -159,7 +210,6 @@ export interface IProductConfiguration {
 	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
 
 	readonly npsSurveyUrl?: string;
-	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
 
 	readonly checksums?: { [path: string]: string };
@@ -176,21 +226,66 @@ export interface IProductConfiguration {
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
+	readonly builtInExtensionsEnabledWithAutoUpdates: readonly string[];
+	readonly sessionsWindowAllowedExtensions?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
+	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly darwinBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly gitHubEntitlement?: IGitHubEntitlement;
-	readonly chatWelcomeView?: IChatWelcomeView;
+
+	readonly defaultChatAgent: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
+	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
+	readonly emergencyAlertUrl?: string;
+	readonly voiceWsUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
+
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+
+	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
+	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
+
+	/**
+	 * When running as an embedded app, the parent VS Code's policy
+	 * identity (win32RegValueName / darwinBundleIdentifier) so that
+	 * enterprise policies deployed to the parent also apply here.
+	 */
+	parentPolicyConfig?: {
+		win32RegValueName?: string;
+		darwinBundleIdentifier?: string;
+		urlProtocol?: string;
+	};
+}
+
+export interface IProductOnboardingKeymap {
+	readonly id: string;
+	readonly label: string;
+	readonly extensionId?: string;
+	readonly description: string;
+}
+
+export interface IProductOnboardingTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly themeId: string;
+	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
 }
 
 export interface ITunnelApplicationConfig {
@@ -206,6 +301,7 @@ export interface IExtensionRecommendations {
 
 export interface ISettingsEditorOpenCondition {
 	readonly prerelease?: boolean | string;
+	readonly descriptionOverride?: string;
 }
 
 export interface IExtensionRecommendationCondition {
@@ -295,18 +391,49 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IGitHubEntitlement {
-	providerId: string;
-	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	entitlementUrl: string;
-	extensionId: string;
-	enablementKey: string;
-	confirmationMessage: string;
-	confirmationAction: string;
-}
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
 
-export interface IChatWelcomeView {
-	welcomeViewId: string;
-	welcomeViewTitle: string;
-	welcomeViewContent: string;
+	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
+
+	readonly documentationUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
+	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
+
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+	};
+
+	readonly providerExtensionId: string;
+	readonly providerUriSetting: string;
+	readonly providerScopes: string[][];
+
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
+	readonly managedSettingsUrl: string;
+
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
+
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

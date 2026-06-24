@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { coalesce, remove } from 'vs/base/common/arrays';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from 'vs/base/browser/dom';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IResourceEditorInput, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { GoFilter, GoScope, IHistoryService } from '../common/history.js';
+import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorGroup, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from '../../search/common/search.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorServiceImpl } from '../../../browser/parts/editor/editor.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { coalesce, remove } from '../../../../base/common/arrays.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from '../../../../base/browser/dom.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ISerializedEditorHistoryEntry {
 	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
@@ -60,7 +60,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
 
-	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
+	private readonly editorHelper: EditorHelper;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -76,6 +76,21 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.editorHelper = this.instantiationService.createInstance(EditorHelper);
+
+		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
+
+		this.canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+
+		this.canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
+		this.canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+
+		this.canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 		this.registerListeners();
 
@@ -302,18 +317,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region History Context Keys
 
-	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardContextKey: IContextKey<boolean>;
 
-	private readonly canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackInNavigationsContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardInNavigationsContextKey: IContextKey<boolean>;
+	private readonly canNavigateToLastNavigationLocationContextKey: IContextKey<boolean>;
 
-	private readonly canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+	private readonly canNavigateBackInEditsContextKey: IContextKey<boolean>;
+	private readonly canNavigateForwardInEditsContextKey: IContextKey<boolean>;
+	private readonly canNavigateToLastEditLocationContextKey: IContextKey<boolean>;
 
-	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
+	private readonly canReopenClosedEditorContextKey: IContextKey<boolean>;
 
 	updateContextKeys(): void {
 		this.contextKeyService.bufferChangeEvents(() => {
@@ -654,6 +669,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced or moved
 		}
 
+		if (!editor.canReopen()) {
+			return; // only editors that can be reopened
+		}
+
 		const untypedEditor = editor.toUntyped();
 		if (!untypedEditor) {
 			return; // we need a untyped editor to restore from going forward
@@ -785,7 +804,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
 
-	private readonly editorHistoryListeners = new Map<EditorInput, DisposableStore>();
+	private readonly editorHistoryListeners = this._register(new DisposableMap<EditorInput, DisposableStore>());
 
 	private readonly resourceExcludeMatcher = this._register(new WindowIdleValue(mainWindow, () => {
 		const matcher = this._register(this.instantiationService.createInstance(
@@ -965,10 +984,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	clearRecentlyOpened(): void {
 		this.history = [];
 
-		for (const [, disposable] of this.editorHistoryListeners) {
-			dispose(disposable);
-		}
-		this.editorHistoryListeners.clear();
+		this.editorHistoryListeners.clearAndDisposeAll();
 	}
 
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] {
@@ -1028,23 +1044,30 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue;
 			}
 
+			// Make sure to skip duplicates from the editors LRU
+			if (editor.resource) {
+				const historyEntryId = `${editor.resource.toString()}/${editor.editorId}`;
+				if (handledEditors.has(historyEntryId)) {
+					continue; // already added
+				}
+
+				handledEditors.add(historyEntryId);
+			}
+
 			// Add into history
 			this.addToHistory(editor);
-
-			// Remember as added
-			if (editor.resource) {
-				handledEditors.add(`${editor.resource.toString()}/${editor.editorId}`);
-			}
 		}
 
 		// Add remaining from storage if not there already
 		// We check on resource and `editorId` (from `override`)
 		// to figure out if the editor has been already added.
 		for (const editor of storedEditorHistory) {
+			const historyEntryId = `${editor.resource.toString()}/${editor.options?.override}`;
 			if (
-				!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`) &&
+				!handledEditors.has(historyEntryId) &&
 				this.includeInHistory(editor)
 			) {
+				handledEditors.add(historyEntryId);
 				this.addToHistory(editor, false /* at the end */);
 			}
 		}
@@ -1250,27 +1273,35 @@ interface IEditorNavigationStacks extends IDisposable {
 
 class EditorNavigationStacks extends Disposable implements IEditorNavigationStacks {
 
-	private readonly selectionsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE, this.scope));
-	private readonly editsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.EDITS, this.scope));
-	private readonly navigationsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NAVIGATION, this.scope));
+	private readonly selectionsStack: EditorNavigationStack;
+	private readonly editsStack: EditorNavigationStack;
+	private readonly navigationsStack: EditorNavigationStack;
 
-	private readonly stacks: EditorNavigationStack[] = [
-		this.selectionsStack,
-		this.editsStack,
-		this.navigationsStack
-	];
+	private readonly stacks: EditorNavigationStack[];
 
-	readonly onDidChange = Event.any(
-		this.selectionsStack.onDidChange,
-		this.editsStack.onDidChange,
-		this.navigationsStack.onDidChange
-	);
+	readonly onDidChange: Event<void>;
 
 	constructor(
 		private readonly scope: GoScope,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		this.selectionsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE, this.scope));
+		this.editsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.EDITS, this.scope));
+		this.navigationsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NAVIGATION, this.scope));
+
+		this.stacks = [
+			this.selectionsStack,
+			this.editsStack,
+			this.navigationsStack
+		];
+
+		this.onDidChange = Event.any(
+			this.selectionsStack.onDidChange,
+			this.editsStack.onDidChange,
+			this.navigationsStack.onDidChange
+		);
 	}
 
 	canGoForward(filter?: GoFilter): boolean {
@@ -1404,17 +1435,17 @@ export class EditorNavigationStack extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly mapEditorToDisposable = new Map<EditorInput, DisposableStore>();
-	private readonly mapGroupToDisposable = new Map<GroupIdentifier, IDisposable>();
+	private readonly mapEditorToDisposable = this._register(new DisposableMap<EditorInput, DisposableStore>());
+	private readonly mapGroupToDisposable = this._register(new DisposableMap<GroupIdentifier, IDisposable>);
 
-	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
+	private readonly editorHelper: EditorHelper;
 
 	private stack: IEditorNavigationStackEntry[] = [];
 
 	private index = -1;
 	private previousIndex = -1;
 
-	private navigating: boolean = false;
+	private navigating = false;
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 
@@ -1431,12 +1462,14 @@ export class EditorNavigationStack extends Disposable {
 	constructor(
 		private readonly filter: GoFilter,
 		private readonly scope: GoScope,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.editorHelper = instantiationService.createInstance(EditorHelper);
 
 		this.registerListeners();
 	}
@@ -1444,6 +1477,9 @@ export class EditorNavigationStack extends Disposable {
 	private registerListeners(): void {
 		this._register(this.onDidChange(() => this.traceStack()));
 		this._register(this.logService.onDidChangeLogLevel(() => this.traceStack()));
+		this._register(this.editorGroupService.onDidRemoveGroup(group => {
+			this.mapGroupToDisposable.deleteAndDispose(group.id);
+		}));
 	}
 
 	private traceStack(): void {
@@ -1775,8 +1811,7 @@ ${entryLabels.join('\n')}
 
 		// Clear group listener
 		if (typeof arg1 === 'number') {
-			this.mapGroupToDisposable.get(arg1)?.dispose();
-			this.mapGroupToDisposable.delete(arg1);
+			this.mapGroupToDisposable.deleteAndDispose(arg1);
 		}
 
 		// Event
@@ -1804,21 +1839,14 @@ ${entryLabels.join('\n')}
 		this.previousIndex = -1;
 		this.stack.splice(0);
 
-		for (const [, disposable] of this.mapEditorToDisposable) {
-			dispose(disposable);
-		}
-		this.mapEditorToDisposable.clear();
-
-		for (const [, disposable] of this.mapGroupToDisposable) {
-			dispose(disposable);
-		}
-		this.mapGroupToDisposable.clear();
+		this.mapEditorToDisposable.clearAndDisposeAll();
+		this.mapGroupToDisposable.clearAndDisposeAll();
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		this.clear();
+
+		super.dispose();
 	}
 
 	//#endregion
@@ -2100,7 +2128,7 @@ class EditorHelper {
 		return editorPane.input ? identifier.editor.matches(editorPane.input) : false;
 	}
 
-	onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
+	onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: DisposableMap<EditorInput, DisposableStore>): void {
 		const toDispose = Event.once(editor.onWillDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
@@ -2112,15 +2140,11 @@ class EditorHelper {
 		disposables.add(toDispose);
 	}
 
-	clearOnEditorDispose(editor: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
+	clearOnEditorDispose(editor: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, mapEditorToDispose: DisposableMap<EditorInput, DisposableStore>): void {
 		if (!isEditorInput(editor)) {
 			return; // only supported when passing in an actual editor input
 		}
 
-		const disposables = mapEditorToDispose.get(editor);
-		if (disposables) {
-			dispose(disposables);
-			mapEditorToDispose.delete(editor);
-		}
+		mapEditorToDispose.deleteAndDispose(editor);
 	}
 }

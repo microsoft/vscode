@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands';
-import { WebviewEditor } from './webviewEditor';
-import { WebviewInput } from './webviewEditorInput';
-import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer';
-import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands.js';
+import { WebviewEditor } from './webviewEditor.js';
+import { WebviewInput } from './webviewEditorInput.js';
+import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer.js';
+import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 (Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)).registerEditorPane(EditorPaneDescriptor.create(
 	WebviewEditor,

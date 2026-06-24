@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEncryptionService, KnownStorageProvider } from 'vs/platform/encryption/common/encryptionService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEncryptionService, KnownStorageProvider } from '../../../encryption/common/encryptionService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { BaseSecretStorageService, CROSS_APP_SHARED_SECRET_KEYS } from '../../common/secrets.js';
+import { InMemoryStorageService } from '../../../storage/common/storage.js';
 
 class TestEncryptionService implements IEncryptionService {
 	_serviceBrand: undefined;
@@ -215,6 +215,66 @@ suite('secrets', () => {
 			// Additionally ensure the encryptionservice was not used
 			assert.strictEqual(spyNoEncryptionService.encrypt.callCount, 0);
 			assert.strictEqual(spyNoEncryptionService.decrypt.callCount, 0);
+		});
+	});
+
+	suite('BaseSecretStorageService cross-app shared secrets', () => {
+
+		class TestSharedSecretStorageService extends BaseSecretStorageService {
+			protected override useSharedStorage(key: string): boolean {
+				return CROSS_APP_SHARED_SECRET_KEYS.includes(key);
+			}
+		}
+
+		let service: BaseSecretStorageService;
+		let storageService: InMemoryStorageService;
+		let sandbox: sinon.SinonSandbox;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			storageService = store.add(new InMemoryStorageService());
+			service = store.add(new TestSharedSecretStorageService(
+				false,
+				storageService,
+				sandbox.spy(new TestEncryptionService()),
+				store.add(new NullLogService()))
+			);
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('shared keys are stored and read from APPLICATION_SHARED', async () => {
+			const sharedKey = CROSS_APP_SHARED_SECRET_KEYS[0];
+			const value = 'shared-secret-value';
+			await service.set(sharedKey, value);
+			const result = await service.get(sharedKey);
+			assert.strictEqual(result, value);
+
+			// Non-shared key should still work via APPLICATION scope
+			const regularKey = 'regular-secret';
+			await service.set(regularKey, 'regular-value');
+			assert.strictEqual(await service.get(regularKey), 'regular-value');
+		});
+
+		test('onDidChangeSecret fires for APPLICATION_SHARED changes', async () => {
+			const sharedKey = CROSS_APP_SHARED_SECRET_KEYS[0];
+			let eventFired = false;
+			store.add(service.onDidChangeSecret(changedKey => {
+				assert.strictEqual(changedKey, sharedKey);
+				eventFired = true;
+			}));
+			await service.set(sharedKey, 'value');
+			assert.strictEqual(eventFired, true);
+		});
+
+		test('deleting a shared key removes it', async () => {
+			const sharedKey = CROSS_APP_SHARED_SECRET_KEYS[0];
+			await service.set(sharedKey, 'value');
+			assert.strictEqual(await service.get(sharedKey), 'value');
+			await service.delete(sharedKey);
+			assert.strictEqual(await service.get(sharedKey), undefined);
 		});
 	});
 });

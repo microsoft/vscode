@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { FoldingLimitReporter, RangeProvider } from './folding';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ITextModel } from '../../../common/model.js';
+import { computeIndentLevel } from '../../../common/model/utils.js';
+import { FoldingMarkers } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
+import { FoldingLimitReporter, RangeProvider } from './folding.js';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT = 5000;
 
@@ -128,8 +128,15 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	const result = new RangesCollector(foldingRangesLimit);
 
 	let pattern: RegExp | undefined = undefined;
+	let startPattern: RegExp | undefined = undefined;
+	let endPattern: RegExp | undefined = undefined;
 	if (markers) {
-		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
+		if (markers.start.flags === markers.end.flags) {
+			pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`, markers.start.flags);
+		} else {
+			startPattern = markers.start;
+			endPattern = markers.end;
+		}
 	}
 
 	const previousRegions: PreviousRegion[] = [];
@@ -149,10 +156,28 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			}
 			continue; // only whitespace
 		}
+		let isStartMatch = false;
+		let isEndMatch = false;
 		let m;
-		if (pattern && (m = lineContent.match(pattern))) {
+		if (pattern) {
+			pattern.lastIndex = 0;
+			if ((m = pattern.exec(lineContent))) {
+				isStartMatch = !!m[1];
+				isEndMatch = !isStartMatch;
+			}
+		} else {
+			if (startPattern) {
+				startPattern.lastIndex = 0;
+				isStartMatch = startPattern.test(lineContent);
+			}
+			if (!isStartMatch && endPattern) {
+				endPattern.lastIndex = 0;
+				isEndMatch = endPattern.test(lineContent);
+			}
+		}
+		if (isStartMatch || isEndMatch) {
 			// folding pattern match
-			if (m[1]) { // start pattern match
+			if (isStartMatch) { // start pattern match
 				// discard all regions until the folding pattern
 				let i = previousRegions.length - 1;
 				while (i > 0 && previousRegions[i].indent !== -2) {

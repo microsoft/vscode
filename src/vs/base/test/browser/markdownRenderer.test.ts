@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { marked } from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
+import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import * as marked from '../../common/marked/marked.js';
+import { parse } from '../../common/marshalling.js';
+import { isWeb } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 function strToNode(str: string): HTMLElement {
 	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;
@@ -32,6 +32,25 @@ suite('MarkdownRenderer', () => {
 			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
+		});
+
+		test('Strips links with disallowed schemes (default config)', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
+			// No <a> element should remain because the scheme isn't allowed.
+			assert.strictEqual(result.querySelector('a'), null);
+		});
+
+		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
+				},
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
 	});
 
@@ -166,7 +185,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -186,7 +205,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -217,6 +236,36 @@ suite('MarkdownRenderer', () => {
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+		});
+	});
+
+	suite('Alerts', () => {
+		test('Should render alert with data-severity attribute and icon', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote[data-severity="note"]');
+			assert.ok(blockquote, 'Should have blockquote with data-severity="note"');
+			assert.ok(result.innerHTML.includes('This is a note alert'), 'Should contain alert text');
+			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
+		});
+
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.ok(blockquote, 'Should have blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+			assert.ok(result.innerHTML.includes('[!NOTE]'), 'Should contain literal [!NOTE] text');
+		});
+
+		test('Should not transform blockquotes without alert syntax', () => {
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
 		});
 	});
 
@@ -253,23 +302,96 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+	});
+
+	test('Should remove relative links if there is no base url', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p>text bar</p>`);
+	});
+
+	test('Should support relative links if baseurl is set', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a> <img src="cat.gif">`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+		md.baseUri = URI.parse('https://example.com/path/');
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
+	});
+
+	test('Should use decoded file path as title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, fileUri.fsPath);
+	});
+
+	test('Should include fragment in title for file:// links with line numbers', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()}#L42)`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, `${fileUri.fsPath}#L42`);
+	});
+
+	test('Should not override explicit title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()} "Go to definition")`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, 'Go to definition');
 	});
 
 	suite('PlaintextMarkdownRender', () => {
 
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
-			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
-			const expected = 'code\nquote\nheading\nlist\ntable table2 one two \nbold\nitalic\ndel\nsome text\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
+			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
 		test('test html, hr, image, link are rendered plaintext', () => {
 			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
-			const expected = '\ntext\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const expected = 'text';
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
+		});
+
+		test(`Should not remove html inside of code blocks`, () => {
+			const markdown = {
+				value: [
+					'```html',
+					'<form>html</form>',
+					'```',
+				].join('\n')
+			};
+			const expected = [
+				'```',
+				'<form>html</form>',
+				'```',
+			].join('\n');
+			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
+			assert.strictEqual(result, expected);
+		});
+
+		test('does not double-escape entities inside code spans', () => {
+			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
+			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
 		});
 	});
 
@@ -329,6 +451,17 @@ suite('MarkdownRenderer', () => {
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
 		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
+		});
 	});
 
 	suite('fillInIncompleteTokens', () => {
@@ -342,15 +475,15 @@ suite('MarkdownRenderer', () => {
 
 		suite('table', () => {
 			test('complete table', () => {
-				const tokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(completeTable);
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.equal(newTokens, tokens);
 			});
 
 			test('full header only', () => {
 				const incompleteTable = '| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -358,8 +491,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header only with trailing space', () => {
 				const incompleteTable = '| a | b | ';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				if (newTokens) {
@@ -370,8 +503,8 @@ suite('MarkdownRenderer', () => {
 
 			test('incomplete header', () => {
 				const incompleteTable = '| a | b';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -383,8 +516,8 @@ suite('MarkdownRenderer', () => {
 
 			test('incomplete header one column', () => {
 				const incompleteTable = '| a ';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '|\n| --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '|\n| --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -396,8 +529,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with extras', () => {
 				const incompleteTable = '| a **bold** | b _italics_ |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -406,8 +539,8 @@ suite('MarkdownRenderer', () => {
 			test('full header with leading text', () => {
 				// Parsing this gives one token and one 'text' subtoken
 				const incompleteTable = 'here is a table\n| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -416,8 +549,8 @@ suite('MarkdownRenderer', () => {
 			test('full header with leading other stuff', () => {
 				// Parsing this gives one token and one 'text' subtoken
 				const incompleteTable = '```js\nconst xyz = 123;\n```\n| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -425,8 +558,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator', () => {
 				const incompleteTable = '| a | b |\n| ---';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -434,8 +567,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator 2', () => {
 				const incompleteTable = '| a | b |\n| --- |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -443,8 +576,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator 3', () => {
 				const incompleteTable = '| a | b |\n|';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -452,7 +585,7 @@ suite('MarkdownRenderer', () => {
 
 			test('not a table', () => {
 				const incompleteTable = '| a | b |\nsome text';
-				const tokens = marked.lexer(incompleteTable);
+				const tokens = marked.marked.lexer(incompleteTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, tokens);
@@ -460,104 +593,26 @@ suite('MarkdownRenderer', () => {
 
 			test('not a table 2', () => {
 				const incompleteTable = '| a | b |\n| --- |\nsome text';
-				const tokens = marked.lexer(incompleteTable);
+				const tokens = marked.marked.lexer(incompleteTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 		});
 
-		suite('codeblock', () => {
-			test('complete code block', () => {
-				const completeCodeblock = '```js\nconst xyz = 123;\n```';
-				const tokens = marked.lexer(completeCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-				assert.equal(newTokens, tokens);
-			});
-
-			test('code block header only', () => {
-				const incompleteCodeblock = '```js';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header no lang', () => {
-				const incompleteCodeblock = '```';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header and some code', () => {
-				const incompleteCodeblock = '```js\nconst';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header with leading text', () => {
-				const incompleteCodeblock = 'some text\n```js';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header with leading text and some code', () => {
-				const incompleteCodeblock = 'some text\n```js\nconst';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header with more backticks', () => {
-				const incompleteCodeblock = 'some text\n`````js\nconst';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header containing codeblock', () => {
-				const incompleteCodeblock = `some text
-\`\`\`\`\`js
-const x = 1;
-\`\`\`
-const y = 2;
-\`\`\`
-// foo`;
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n`````');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-		});
-
 		function simpleMarkdownTestSuite(name: string, delimiter: string): void {
 			test(`incomplete ${name}`, () => {
 				const incomplete = `${delimiter}code`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + delimiter);
+				const completeTokens = marked.marked.lexer(incomplete + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`complete ${name}`, () => {
 				const text = `leading text ${delimiter}code${delimiter} trailing text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -565,16 +620,25 @@ const y = 2;
 
 			test(`${name} with leading text`, () => {
 				const incomplete = `some text and ${delimiter}some code`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + delimiter);
+				const completeTokens = marked.marked.lexer(incomplete + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`${name} with trailing space`, () => {
+				const incomplete = `some text and ${delimiter}some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`single loose "${delimiter}"`, () => {
 				const text = `some text and ${delimiter}by itself\nmore text here`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -582,37 +646,46 @@ const y = 2;
 
 			test(`incomplete ${name} after newline`, () => {
 				const text = `some text\nmore text here and ${delimiter}text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`incomplete after complete ${name}`, () => {
 				const text = `leading text ${delimiter}code${delimiter} trailing text and ${delimiter}another`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`incomplete ${name} in list`, () => {
 				const text = `- list item one\n- list item two and ${delimiter}text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in asterisk list`, () => {
+				const text = `* list item one\n* list item two and ${delimiter}text`;
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`incomplete ${name} in numbered list`, () => {
 				const text = `1. list item one\n2. list item two and ${delimiter}text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		}
@@ -625,7 +698,7 @@ const y = 2;
 	\`\`\`
 - list item two
 `;
-				const tokens = marked.lexer(list);
+				const tokens = marked.marked.lexer(list);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -636,10 +709,10 @@ const y = 2;
 
 	\`\`\`js
 	let x = 1;`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '\n	```');
+				const completeTokens = marked.marked.lexer(incomplete + '\n	```');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -649,7 +722,7 @@ const y = 2;
 - text
 	newline for some reason
 `;
-				const tokens = marked.lexer(list);
+				const tokens = marked.marked.lexer(list);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -661,7 +734,7 @@ const y = 2;
 2. text
 	newline for some reason
 `;
-				const tokens = marked.lexer(list);
+				const tokens = marked.marked.lexer(list);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -669,7 +742,7 @@ const y = 2;
 
 			test('list with stuff', () => {
 				const list = `- list item one \`codespan\` **bold** [link](http://microsoft.com) more text`;
-				const tokens = marked.lexer(list);
+				const tokens = marked.marked.lexer(list);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -678,70 +751,109 @@ const y = 2;
 			test('list with incomplete link text', () => {
 				const incomplete = `- list item one
 - item two [link`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('list with incomplete link target', () => {
 				const incomplete = `- list item one
 - item two [link](`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('ordered list with incomplete link target', () => {
 				const incomplete = `1. list item one
 2. item two [link](`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('ordered list with extra whitespace', () => {
 				const incomplete = `1. list item one
 2. item two [link](`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('list with extra whitespace', () => {
 				const incomplete = `- list item one
 - item two [link](`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('list with incomplete link with other stuff', () => {
 				const incomplete = `- list item one
 - item two [\`link`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '\`](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('ordered list with incomplete link with other stuff', () => {
 				const incomplete = `1. list item one
 1. item two [\`link`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '\`](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete subitem', () => {
+				const incomplete = `1. list item one
+	- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete nested subitem', () => {
+				const incomplete = `1. list item one
+	- item 2
+		- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('text with start of list is not a heading', () => {
+				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('even more text with start of list is not a heading', () => {
+				const incomplete = `# hello\n\ntext\n-`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -751,19 +863,33 @@ const y = 2;
 
 			test(`backtick between letters`, () => {
 				const text = 'a`b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeCodespanTokens = marked.lexer(text + '`');
+				const completeCodespanTokens = marked.marked.lexer(text + '`');
 				assert.deepStrictEqual(newTokens, completeCodespanTokens);
 			});
 
 			test(`nested pattern`, () => {
 				const text = 'sldkfjsd `abc __def__ ghi';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '`');
+				const completeTokens = marked.marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('codespan inside <body> wrapped markdown', () => {
+				// The chat content renderer wraps `supportHtml` markdown in
+				// `<body>...</body>` so dompurify keeps leading comments. That
+				// makes `</body>` the literal last token — the paragraph with
+				// the bare backtick is no longer at the end. The fixup must
+				// still close the codespan while preserving the trailing html.
+				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('<body>\n\nCreated isolated worktree for branch `xyz`\n\n</body>');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -773,19 +899,19 @@ const y = 2;
 
 			test(`star between letters`, () => {
 				const text = 'sldkfjsd a*b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '*');
+				const completeTokens = marked.marked.lexer(text + '*');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`nested pattern`, () => {
 				const text = 'sldkfjsd *abc __def__ ghi';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '*');
+				const completeTokens = marked.marked.lexer(text + '*');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -795,10 +921,20 @@ const y = 2;
 
 			test(`double star between letters`, () => {
 				const text = 'a**b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '**');
+				const completeTokens = marked.marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			// TODO trim these patterns from end
+			test.skip(`ending in doublestar`, () => {
+				const incomplete = `some text and **`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -808,7 +944,7 @@ const y = 2;
 
 			test(`underscore between letters`, () => {
 				const text = `this_not_italics`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -820,7 +956,7 @@ const y = 2;
 
 			test(`double underscore between letters`, () => {
 				const text = `this__not__bold`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -830,115 +966,115 @@ const y = 2;
 		suite('link', () => {
 			test('incomplete link text', () => {
 				const incomplete = 'abc [text';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target', () => {
 				const incomplete = 'foo [text](http://microsoft';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target 2', () => {
 				const incomplete = 'foo [text](http://microsoft.com';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target with extra stuff', () => {
 				const incomplete = '[before `text` after](http://microsoft.com';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target with extra stuff and incomplete arg', () => {
 				const incomplete = '[before `text` after](http://microsoft.com "more text ';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '")');
+				const completeTokens = marked.marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target with incomplete arg', () => {
 				const incomplete = 'foo [text](http://microsoft.com "more text here ';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '")');
+				const completeTokens = marked.marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target with incomplete arg 2', () => {
-				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
-				const tokens = marked.lexer(incomplete);
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '")');
+				const completeTokens = marked.marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target with complete arg', () => {
 				const incomplete = 'foo [text](http://microsoft.com "more text here"';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('link text with incomplete codespan', () => {
 				const incomplete = `text [\`codespan`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '`](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('link text with incomplete stuff', () => {
 				const incomplete = `text [more text \`codespan\` text **bold`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '**](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '**](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('Looks like incomplete link target but isn\'t', () => {
 				const complete = '**bold** `codespan` text](';
-				const tokens = marked.lexer(complete);
+				const tokens = marked.marked.lexer(complete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(complete);
+				const completeTokens = marked.marked.lexer(complete);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test.skip('incomplete link in list', () => {
 				const incomplete = '- [text';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](https://microsoft.com)');
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('square brace between letters', () => {
 				const incomplete = 'a[b';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -946,7 +1082,15 @@ const y = 2;
 
 			test('square brace on previous line', () => {
 				const incomplete = 'text[\nmore text';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('square braces in text', () => {
+				const incomplete = 'hello [what] is going on';
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -954,7 +1098,7 @@ const y = 2;
 
 			test('complete link', () => {
 				const incomplete = 'text [link](http://microsoft.com)';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);

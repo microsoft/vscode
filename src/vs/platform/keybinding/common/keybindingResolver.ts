@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, implies } from '../../contextkey/common/contextkey.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
 
@@ -103,7 +103,14 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
+
+			// Use implication instead of strict equality so that a removal still matches
+			// when the default keybinding's when clause becomes more specific across
+			// updates (e.g. "inChatInput" → "inChatInput && !withinEditSessionDiff").
+			// See https://github.com/microsoft/vscode/issues/293802
+			const defaultWhen = defaultKb.when.substituteConstants();
+			const removalWhen = when.substituteConstants();
+			if (!KeybindingResolver.whenIsEntirelyIncluded(defaultWhen, removalWhen)) {
 				return false;
 			}
 		}
@@ -281,12 +288,12 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService, enforceContextCheck = false): ResolvedKeybindingItem | null {
 		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
 		}
-		if (items.length === 1) {
+		if (items.length === 1 && !enforceContextCheck) {
 			return items[0];
 		}
 
@@ -295,6 +302,10 @@ export class KeybindingResolver {
 			if (context.contextMatchesRules(item.when)) {
 				return item;
 			}
+		}
+
+		if (enforceContextCheck) {
+			return null;
 		}
 
 		return items[items.length - 1];

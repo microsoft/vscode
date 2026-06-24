@@ -299,10 +299,35 @@ pub enum PortPrivacy {
 	Private,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PortProtocol {
+	#[default]
+	Auto,
+	Http,
+	Https,
+}
+
+impl std::fmt::Display for PortProtocol {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.to_contract_str())
+	}
+}
+
+impl PortProtocol {
+	pub fn to_contract_str(&self) -> &'static str {
+		match *self {
+			Self::Auto => tunnels::contracts::TUNNEL_PROTOCOL_AUTO,
+			Self::Http => tunnels::contracts::TUNNEL_PROTOCOL_HTTP,
+			Self::Https => tunnels::contracts::TUNNEL_PROTOCOL_HTTPS,
+		}
+	}
+}
+
 pub mod forward_singleton {
 	use serde::{Deserialize, Serialize};
 
-	use super::PortPrivacy;
+	use super::{PortPrivacy, PortProtocol};
 
 	pub const METHOD_SET_PORTS: &str = "set_ports";
 
@@ -310,6 +335,7 @@ pub mod forward_singleton {
 	pub struct PortRec {
 		pub number: u16,
 		pub privacy: PortPrivacy,
+		pub protocol: PortProtocol,
 	}
 
 	pub type PortList = Vec<PortRec>;
@@ -327,7 +353,7 @@ pub mod forward_singleton {
 
 pub mod singleton {
 	use crate::log;
-	use chrono::{DateTime, Utc};
+	use jiff::Timestamp;
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -359,17 +385,17 @@ pub mod singleton {
 
 	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
-		pub started_at: DateTime<Utc>,
+		pub started_at: Timestamp,
 		pub tunnel: TunnelState,
-		pub last_connected_at: Option<DateTime<Utc>>,
-		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_connected_at: Option<Timestamp>,
+		pub last_disconnected_at: Option<Timestamp>,
 		pub last_fail_reason: Option<String>,
 	}
 
 	impl Default for Status {
 		fn default() -> Self {
 			Self {
-				started_at: Utc::now(),
+				started_at: Timestamp::now(),
 				tunnel: TunnelState::Disconnected,
 				last_connected_at: None,
 				last_disconnected_at: None,

@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { $, addDisposableListener, append, clearNode, createStyleSheet, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
+import { isFirefox } from '../../browser.js';
+import { EventType as TouchEventType, Gesture } from '../../touch.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
+import { RunOnceScheduler } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { getCodiconFontCharacters } from '../../../common/codiconsUtil.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Event } from '../../../common/event.js';
+import { stripIcons } from '../../../common/iconLabels.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { DisposableStore } from '../../../common/lifecycle.js';
+import { isLinux, isMacintosh } from '../../../common/platform.js';
+import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import * as strings from '../../../common/strings.js';
+import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -139,9 +140,9 @@ export class Menu extends ActionBar {
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
-				if (this.mnemonics.has(key)) {
+				const actions = this.mnemonics.get(key);
+				if (actions !== undefined) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].container) {
@@ -320,14 +321,12 @@ export class Menu extends ActionBar {
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
-		const borderRadius = '5px';
-		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
+		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
 		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
-		scrollElement.style.boxShadow = shadow;
 	}
 
 	override getContainer(): HTMLElement {
@@ -397,44 +396,35 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
 			return menuActionViewItem;
 		} else {
-			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics, useEventAsContext: options.useEventAsContext };
-			if (options.getKeyBinding) {
-				const keybinding = options.getKeyBinding(action);
-				if (keybinding) {
-					const keybindingLabel = keybinding.getLabel();
-
-					if (keybindingLabel) {
-						menuItemOptions.keybinding = keybindingLabel;
-					}
-				}
-			}
+			const keybindingLabel = options.getKeyBinding?.(action)?.getLabel();
+			const menuItemOptions: IMenuItemOptions = {
+				enableMnemonics: options.enableMnemonics,
+				useEventAsContext: options.useEventAsContext,
+				keybinding: keybindingLabel,
+			};
 
 			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions, this.menuStyles);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
@@ -444,7 +434,7 @@ export class Menu extends ActionBar {
 }
 
 interface IMenuItemOptions extends IActionViewItemOptions {
-	enableMnemonics?: boolean;
+	readonly enableMnemonics?: boolean;
 }
 
 class BaseMenuActionViewItem extends BaseActionViewItem {
@@ -461,12 +451,15 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	private cssClass: string;
 
 	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions, protected readonly menuStyle: IMenuStyles) {
-		options.isMenu = true;
+		options = {
+			...options,
+			isMenu: true,
+			icon: options.icon !== undefined ? options.icon : false,
+			label: options.label !== undefined ? options.label : true,
+		};
 		super(action, action, options);
 
 		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
 		this.cssClass = '';
 
 		// Set mnemonic
@@ -631,12 +624,12 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 								escMatch[3]),
 							strings.rtrim(replaceDoubleEscapes(label.substr(escMatch.index + escMatch[0].length)), ' '));
 					} else {
-						this.label.innerText = replaceDoubleEscapes(label).trim();
+						this.label.textContent = replaceDoubleEscapes(label).trim();
 					}
 
 					this.item?.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
 				} else {
-					this.label.innerText = label.replace(/&&/g, '&').trim();
+					this.label.textContent = label.replace(/&&/g, '&').trim();
 				}
 			}
 		}
@@ -864,7 +857,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width }).position;
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -877,7 +870,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		// Now that we have a horizontal position, try layout vertically
-		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
+		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 }).position;
 
 		// We didn't have enough room below, but we did above, so we shift down to align the menu
 		if (ret.top + submenu.height === entry.top && ret.top + entry.height + submenu.height <= windowDimensions.height) {
@@ -901,11 +894,11 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			// This allows the menu constructor to calculate the proper max height
 			const computedStyles = getWindow(this.parentData.parent.domNode).getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
-			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
-			this.submenuContainer.style.zIndex = '1';
 			this.submenuContainer.style.position = 'fixed';
 			this.submenuContainer.style.top = '0';
 			this.submenuContainer.style.left = '0';
+			// Fix to #263546, for submenu of treeView view/item/context z-index issue - ensure submenu appears above other elements
+			this.submenuContainer.style.zIndex = '1';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions, this.menuStyle);
 
@@ -1023,11 +1016,13 @@ export function formatRule(c: ThemeIcon) {
 	return `.codicon-${c.id}:before { content: '\\${fontCharacter.toString(16)}'; }`;
 }
 
-function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-large);
+	border: 1px solid ${borderColor};
 	min-width: 160px;
 }
 
@@ -1142,11 +1137,11 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	flex: 1 1 auto;
 	display: flex;
-	height: 2em;
+	height: 24px;
 	align-items: center;
 	position: relative;
 	margin: 0 4px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1171,6 +1166,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	text-align: right;
 	font-size: 12px;
 	line-height: 1;
+	opacity: 0.7;
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
@@ -1245,6 +1241,9 @@ ${formatRule(Codicon.menuSubmenu)}
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
+	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
 }
 
 .context-view.monaco-menu-container :focus,
@@ -1267,6 +1266,21 @@ ${formatRule(Codicon.menuSubmenu)}
 	background: none;
 }
 
+/* Show the menu item selection border only for keyboard navigation. Pointer-driven focus typically does not set :focus-visible, so suppress the border in that case. */
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus:not(:focus-visible) {
+	outline: none !important;
+	outline-offset: 0 !important;
+}
+
+/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
@@ -1274,7 +1288,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 2em;
+	height: 24px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
@@ -1369,6 +1383,10 @@ ${formatRule(Codicon.menuSubmenu)}
 				left: 0;
 				height: 3px;
 				width: 3px;
+			}
+			/* Fix for https://github.com/microsoft/vscode/issues/103170 */
+			.monaco-menu .action-item .monaco-submenu {
+				z-index: 1;
 			}
 		`;
 

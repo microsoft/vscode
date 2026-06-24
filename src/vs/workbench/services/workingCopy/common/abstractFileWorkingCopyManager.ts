@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Promises } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Promises } from '../../../../base/common/async.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkingCopyBackupService } from './workingCopyBackup.js';
+import { IFileWorkingCopy, IFileWorkingCopyModel } from './fileWorkingCopy.js';
 
 export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable {
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId } from '../../browser/settingsTreeModels.js';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
@@ -327,6 +327,23 @@ suite('SettingsTree', () => {
 				idFilters: [],
 				languageFilter: 'cpp'
 			});
+	});
+
+	test('sanitizeId replaces all dots and slashes', () => {
+		assert.deepStrictEqual(
+			[
+				sanitizeId('root.editor.font.size'),
+				sanitizeId('group/subgroup/setting.key'),
+				sanitizeId('no-special-chars'),
+				sanitizeId('single.dot'),
+			],
+			[
+				'root_editor_font_size',
+				'group_subgroup_setting_key',
+				'no-special-chars',
+				'single_dot',
+			]
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

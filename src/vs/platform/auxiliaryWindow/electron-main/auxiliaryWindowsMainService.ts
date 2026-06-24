@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState, WindowMode, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
-import { WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { AuxiliaryWindow, IAuxiliaryWindow } from './auxiliaryWindow.js';
+import { IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
+import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from '../../windows/electron-main/windows.js';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
@@ -28,10 +28,15 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: IAuxiliaryWindow; fullscreen: boolean }>());
 	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<{ window: IAuxiliaryWindow; alwaysOnTop: boolean }>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
+
+	private readonly pendingWindowOptionsQueue: BrowserWindowConstructorOptions[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -88,15 +93,19 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
-		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, this.validateWindowState(details), {
-			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
+		const { state, overrides } = this.computeWindowStateAndOverrides(details);
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
+			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
+		this.pendingWindowOptionsQueue.push(options);
+		return options;
 	}
 
-	private validateWindowState(details: HandlerDetails): IWindowState {
+	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides } {
 		const windowState: IWindowState = {};
+		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 
-		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
 			const [key, value] = feature.split('=');
 			switch (key) {
@@ -118,6 +127,29 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-fullscreen':
 					windowState.mode = WindowMode.Fullscreen;
 					break;
+				case 'window-disable-fullscreen':
+					overrides.disableFullscreen = true;
+					break;
+				case 'window-native-titlebar':
+					overrides.forceNativeTitlebar = true;
+					break;
+				case 'window-always-on-top':
+					overrides.alwaysOnTop = true;
+					break;
+				case 'window-frameless':
+					overrides.frameless = true;
+					break;
+				case 'window-transparent':
+					overrides.transparent = true;
+					break;
+				case 'window-not-resizable':
+					overrides.notResizable = true;
+					break;
+				case 'window-background-color':
+					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
+						overrides.backgroundColor = value;
+					}
+					break;
 			}
 		}
 
@@ -125,13 +157,15 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		this.logService.trace('[aux window] using window state', state);
 
-		return state;
+		return { state, overrides };
 	}
 
 	registerWindow(webContents: WebContents): void {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
+		const windowOptions = this.pendingWindowOptionsQueue.shift();
+
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, windowOptions);
 
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));
@@ -140,6 +174,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		disposables.add(auxiliaryWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(auxiliaryWindow)));
 		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: true })));
 		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: false })));
+		disposables.add(auxiliaryWindow.onDidChangeAlwaysOnTop(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire({ window: auxiliaryWindow, alwaysOnTop })));
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
 
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());

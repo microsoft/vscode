@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverWidget, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import type { IHoverWidget, IManagedHoverContentOrFactory, IManagedHoverOptions } from './hover.js';
+import { HoverPosition } from './hoverWidget.js';
+import { IMarkdownString } from '../../../common/htmlContent.js';
+import { IDisposable } from '../../../common/lifecycle.js';
 
 export interface IHoverDelegateTarget extends IDisposable {
 	readonly targetElements: readonly HTMLElement[];
 	x?: number;
 }
 
-export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
+export interface IHoverDelegateOptions extends IManagedHoverOptions {
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.
@@ -50,6 +50,13 @@ export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
 		 */
 		showPointer?: boolean;
 		/**
+		 * When {@link hideOnHover} is explicitly true or undefined and its auto value is detected to
+		 * hide, show a hint at the bottom of the hover explaining how to mouse over the widget. This
+		 * should be used in the cases where despite the hover having no interactive content, it's
+		 * likely the user may want to interact with it somehow.
+		 */
+		showHoverHint?: boolean;
+		/**
 		 * Whether to skip the fade in animation, this should be used when hovering from one hover to
 		 * another in the same group so it looks like the hover is moving from one element to the other.
 		 */
@@ -60,7 +67,7 @@ export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
-	delay: number;
+	delay: number | ((content?: IManagedHoverContentOrFactory) => number);
 	placement?: 'mouse' | 'element';
 	showNativeHover?: boolean; // TODO@benibenj remove this, only temp fix for contextviews
 }

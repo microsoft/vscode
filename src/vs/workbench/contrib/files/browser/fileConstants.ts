@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
@@ -35,6 +35,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
 export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
+export const OpenEditorsSelectedFileOrUntitledContext = new RawContextKey<boolean>('openEditorsSelectedFileOrUntitled', true);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';

@@ -3,35 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotebookCellExecution } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { ICellExecutionParticipant, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { localize, localize2 } from '../../../../../../nls.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { EditorAction, registerEditorAction } from '../../../../../../editor/browser/editorExtensions.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../../editor/browser/services/bulkEditService.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from '../../../../../../editor/contrib/format/browser/format.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Progress } from '../../../../../../platform/progress/common/progress.js';
+import { NOTEBOOK_ACTIONS_CATEGORY } from '../../controller/coreActions.js';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { INotebookCellExecution } from '../../../common/notebookExecutionStateService.js';
+import { ICellExecutionParticipant, INotebookExecutionService } from '../../../common/notebookExecutionService.js';
+import { NotebookSetting } from '../../../common/notebookCommon.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { CodeActionParticipantUtils } from '../saveParticipants/saveParticipants.js';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -63,6 +64,7 @@ registerAction2(class extends Action2 {
 		const editorWorkerService = accessor.get(IEditorWorkerService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const bulkEditService = accessor.get(IBulkEditService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -70,37 +72,41 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
+
+		const formatApplied: boolean = await instantiationService.invokeFunction(CodeActionParticipantUtils.checkAndRunFormatCodeAction, notebook, Progress.None, CancellationToken.None);
+
 		const disposable = new DisposableStore();
 		try {
-			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
-				const ref = await textModelService.createModelReference(cell.uri);
-				disposable.add(ref);
+			if (!formatApplied) {
+				const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
+					const ref = await textModelService.createModelReference(cell.uri);
+					disposable.add(ref);
 
-				const model = ref.object.textEditorModel;
+					const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
-					editorWorkerService,
-					languageFeaturesService,
-					model,
-					FormattingMode.Explicit,
-					CancellationToken.None
-				);
+					const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
+						editorWorkerService,
+						languageFeaturesService,
+						model,
+						FormattingMode.Explicit,
+						CancellationToken.None
+					);
 
-				const edits: ResourceTextEdit[] = [];
+					const edits: ResourceTextEdit[] = [];
 
-				if (formatEdits) {
-					for (const edit of formatEdits) {
-						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+					if (formatEdits) {
+						for (const edit of formatEdits) {
+							edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+						}
+
+						return edits;
 					}
 
-					return edits;
-				}
+					return [];
+				}));
 
-				return [];
-			}));
-
-			await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
-
+				await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
+			}
 		} finally {
 			disposable.dispose();
 		}
@@ -112,8 +118,7 @@ registerEditorAction(class FormatCellAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'notebook.formatCell',
-			label: localize('formatCell.label', "Format Cell"),
-			alias: 'Format Cell',
+			label: localize2('formatCell.label', "Format Cell"),
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, EditorContextKeys.inCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),

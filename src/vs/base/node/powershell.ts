@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
+import * as path from '../common/path.js';
+import * as pfs from './pfs.js';
 
 // This is required, since parseInt("7-preview") will return 7.
 const IntRegex: RegExp = /^\d+$/;
@@ -226,6 +226,13 @@ function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
 	return new PossiblePowerShellExe(dotnetGlobalToolExePath, '.NET Core PowerShell Global Tool');
 }
 
+function findPSCoreScoopInstallation(): IPossiblePowerShellExe {
+	const scoopAppsDir = path.join(os.homedir(), 'scoop', 'apps');
+	const scoopPwsh = path.join(scoopAppsDir, 'pwsh', 'current', 'pwsh.exe');
+
+	return new PossiblePowerShellExe(scoopPwsh, 'PowerShell (Scoop)');
+}
+
 function findWinPS(): IPossiblePowerShellExe | null {
 	const winPSPath = path.join(
 		process.env.windir!,
@@ -281,6 +288,11 @@ async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossib
 
 	// Look for pwsh-preview with the opposite bitness
 	pwshExe = await findPSCoreWindowsInstallation({ useAlternateBitness: true, findPreview: true });
+	if (pwshExe) {
+		yield pwshExe;
+	}
+
+	pwshExe = await findPSCoreScoopInstallation();
 	if (pwshExe) {
 		yield pwshExe;
 	}

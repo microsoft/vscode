@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
-import { Branch, RefType, Status } from './api/git';
+import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
+import type { Branch } from './api/git';
+import { RefType, Status } from './api/git.constants';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';
@@ -25,7 +26,8 @@ function isActionButtonStateEqual(state1: ActionButtonState, state2: ActionButto
 		state1.isMergeInProgress === state2.isMergeInProgress &&
 		state1.isRebaseInProgress === state2.isRebaseInProgress &&
 		state1.isSyncInProgress === state2.isSyncInProgress &&
-		state1.repositoryHasChangesToCommit === state2.repositoryHasChangesToCommit;
+		state1.repositoryHasChangesToCommit === state2.repositoryHasChangesToCommit &&
+		state1.repositoryHasUnresolvedConflicts === state2.repositoryHasUnresolvedConflicts;
 }
 
 interface ActionButtonState {
@@ -36,6 +38,7 @@ interface ActionButtonState {
 	readonly isRebaseInProgress: boolean;
 	readonly isSyncInProgress: boolean;
 	readonly repositoryHasChangesToCommit: boolean;
+	readonly repositoryHasUnresolvedConflicts: boolean;
 }
 
 export class ActionButton {
@@ -49,6 +52,8 @@ export class ActionButton {
 			return;
 		}
 
+		this.logger.trace(`[ActionButton][setState] ${JSON.stringify(state)}`);
+
 		this._state = state;
 		this._onDidChange.fire();
 	}
@@ -56,8 +61,9 @@ export class ActionButton {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		readonly repository: Repository,
-		readonly postCommitCommandCenter: CommitCommandsCenter) {
+		private readonly repository: Repository,
+		private readonly postCommitCommandCenter: CommitCommandsCenter,
+		private readonly logger: LogOutputChannel) {
 		this._state = {
 			HEAD: undefined,
 			isCheckoutInProgress: false,
@@ -65,7 +71,8 @@ export class ActionButton {
 			isMergeInProgress: false,
 			isRebaseInProgress: false,
 			isSyncInProgress: false,
-			repositoryHasChangesToCommit: false
+			repositoryHasChangesToCommit: false,
+			repositoryHasUnresolvedConflicts: false
 		};
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
@@ -102,7 +109,15 @@ export class ActionButton {
 		}
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
-		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+		actionButton = actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+
+		this.logger.trace(`[ActionButton][getButton] ${JSON.stringify({
+			command: actionButton?.command.command,
+			title: actionButton?.command.title,
+			enabled: actionButton?.enabled
+		})}`);
+
+		return actionButton;
 	}
 
 	private getCommitActionButton(): SourceControlActionButton | undefined {
@@ -117,7 +132,11 @@ export class ActionButton {
 		return {
 			command: primaryCommand,
 			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
-			enabled: (this.state.repositoryHasChangesToCommit || this.state.isRebaseInProgress) && !this.state.isCommitInProgress && !this.state.isMergeInProgress
+			enabled: (
+				this.state.repositoryHasChangesToCommit ||
+				(this.state.isRebaseInProgress && !this.state.repositoryHasUnresolvedConflicts) ||
+				(this.state.isMergeInProgress && !this.state.repositoryHasUnresolvedConflicts)) &&
+				!this.state.isCommitInProgress
 		};
 	}
 
@@ -128,6 +147,16 @@ export class ActionButton {
 				command: 'git.commit',
 				title: l10n.t('{0} Continue', '$(check)'),
 				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Rebase...') : l10n.t('Continue Rebase'),
+				arguments: [this.repository.sourceControl, null]
+			};
+		}
+
+		// Merge Continue
+		if (this.state.isMergeInProgress) {
+			return {
+				command: 'git.commit',
+				title: l10n.t('{0} Continue', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Merge...') : l10n.t('Continue Merge'),
 				arguments: [this.repository.sourceControl, null]
 			};
 		}
@@ -149,6 +178,11 @@ export class ActionButton {
 	private getCommitActionButtonSecondaryCommands(): Command[][] {
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
+			return [];
+		}
+
+		// Merge Continue
+		if (this.state.isMergeInProgress) {
 			return [];
 		}
 
@@ -211,12 +245,12 @@ export class ActionButton {
 			command: {
 				command: 'git.sync',
 				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
+				shortTitle: `${icon}${behind}${ahead}`,
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: `${icon}${behind}${ahead}`,
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
@@ -250,9 +284,10 @@ export class ActionButton {
 		this.state = {
 			...this.state,
 			HEAD: this.repository.HEAD,
-			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
+			isMergeInProgress: this.repository.mergeInProgress,
 			isRebaseInProgress: !!this.repository.rebaseCommit,
-			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
+			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit(),
+			repositoryHasUnresolvedConflicts: this.repository.mergeGroup.resourceStates.length > 0
 		};
 	}
 

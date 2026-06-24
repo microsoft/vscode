@@ -8,7 +8,7 @@
 
 For the moment, we require OpenSSL on Windows, where it is not usually installed by default. To install it:
 
-1. Install (clone) vcpkg [using their instructions](https://github.com/Microsoft/vcpkg#quick-start-windows)
+1. Follow steps 1 and 2 of [Set up vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started-msbuild?pivots=shell-powershell#1---set-up-vcpkg) to obtain the executable.
 1. Add the location of the `vcpkg` directory to your system or user PATH.
 1. Run`vcpkg install openssl:x64-windows-static-md` (after restarting your terminal for PATH changes to apply)
 1. You should be able to then `cargo build` successfully

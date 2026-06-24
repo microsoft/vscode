@@ -3,124 +3,149 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
-import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
+import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { Event } from 'vs/base/common/event';
-import { stripComments } from 'vs/base/common/json';
-import { getPathLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
-import { isAbsolute, join, posix } from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
-import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
-import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderServer';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService } from 'vs/platform/issue/common/issue';
-import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
-import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateService } from 'vs/platform/state/node/state';
-import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
-import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
-import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
-import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
-import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { RequestChannel } from 'vs/platform/request/common/requestIpc';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
-import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
-import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
-import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
-import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
-import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
-import { Lazy } from 'vs/base/common/lazy';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
-import { normalizeNFC } from 'vs/base/common/normalization';
+import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { Event } from '../../base/common/event.js';
+import { parse } from '../../base/common/jsonc.js';
+import { getPathLabel } from '../../base/common/labels.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
+import { join, posix } from '../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { assertType } from '../../base/common/types.js';
+import { URI } from '../../base/common/uri.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { registerContextMenuListener } from '../../base/parts/contextmenu/electron-main/contextmenu.js';
+import { getDelayedChannel, ProxyChannel, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
+import { Server as ElectronIPCServer } from '../../base/parts/ipc/electron-main/ipc.electron.js';
+import { Client as MessagePortClient } from '../../base/parts/ipc/electron-main/ipc.mp.js';
+import { Server as NodeIPCServer } from '../../base/parts/ipc/node/ipc.net.js';
+import { IProxyAuthService, ProxyAuthService } from '../../platform/native/electron-main/auth.js';
+import { localize } from '../../nls.js';
+import { IBackupMainService } from '../../platform/backup/electron-main/backup.js';
+import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
+import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
+import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
+import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
+import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
+import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
+import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
+import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
+import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
+import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
+import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../../platform/extensions/common/extensionHostStarter.js';
+import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
+import { IExternalTerminalMainService } from '../../platform/externalTerminal/electron-main/externalTerminal.js';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../platform/externalTerminal/node/externalTerminalService.js';
+import { ISandboxHelperMainService } from '../../platform/sandbox/electron-main/sandboxHelperService.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from '../../platform/files/common/diskFileSystemProviderClient.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { DiskFileSystemProviderChannel } from '../../platform/files/electron-main/diskFileSystemProviderServer.js';
+import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { ProcessMainService } from '../../platform/process/electron-main/processMainService.js';
+import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
+import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
+import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
+import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
+import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
+import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
+import { MeteredConnectionMainService } from '../../platform/meteredConnection/electron-main/meteredConnectionMainService.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
+import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
+import { ISignService } from '../../platform/sign/common/sign.js';
+import { IStateService } from '../../platform/state/node/state.js';
+import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
+import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from '../../platform/storage/electron-main/storageMainService.js';
+import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
+import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
+import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { IUpdateService } from '../../platform/update/common/update.js';
+import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
+import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
+import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
+import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
+import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
+import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
+import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
+import { NativeURLService } from '../../platform/url/common/urlService.js';
+import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
+import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
+import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
+import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
+import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { ICodeWindow } from '../../platform/window/electron-main/window.js';
+import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
+import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
+import { hasWorkspaceFileExtension } from '../../platform/workspace/common/workspace.js';
+import { IWorkspacesService } from '../../platform/workspaces/common/workspaces.js';
+import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../../platform/workspaces/electron-main/workspacesHistoryMainService.js';
+import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
+import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { ICopilotManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { CopilotManagedSettingsChannel } from '../../platform/policy/common/copilotManagedSettingsIpc.js';
+import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
+import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
+import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
+import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
+import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
+import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
+import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
+import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
+import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
+import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
+import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
+import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
+import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
+import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
+import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
+import { RemoteFileSystemProxyMainHandler } from '../../platform/files/electron-main/remoteFileSystemProxyMainHandler.js';
+import { REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME } from '../../platform/files/common/remoteFileSystemProxy.js';
+import { Lazy } from '../../base/common/lazy.js';
+import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
+import { normalizeNFC } from '../../base/common/normalization.js';
+import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
+import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
+import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
+import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
+import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
+import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
+import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
+import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -164,18 +189,36 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
+		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
+
 		const allowedPermissionsInWebview = new Set([
+			...alwaysAllowedPermissions,
 			'clipboard-read',
 			'clipboard-sanitized-write',
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			'deprecated-sync-clipboard-read',
+		]);
+
+		const allowedPermissionsInCore = new Set([
+			...alwaysAllowedPermissions,
+			'media',
+			'local-fonts',
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			'deprecated-sync-clipboard-read',
 		]);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return callback(allowedPermissionsInCore.has(permission));
+			}
 			return callback(false);
 		});
 
@@ -183,8 +226,66 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return allowedPermissionsInCore.has(permission);
+			}
 			return false;
+		});
+
+		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
+		const invalidateScreenSourceCache = () => {
+			cachedScreenSources = undefined;
+		};
+		electronScreen.on('display-added', invalidateScreenSourceCache);
+		electronScreen.on('display-removed', invalidateScreenSourceCache);
+		electronScreen.on('display-metrics-changed', invalidateScreenSourceCache);
+		this._register(toDisposable(() => {
+			electronScreen.off('display-added', invalidateScreenSourceCache);
+			electronScreen.off('display-removed', invalidateScreenSourceCache);
+			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
+		}));
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+			try {
+				const frame = request.frame;
+				const win = frame ? BrowserWindow.getAllWindows().find(w => w.webContents.mainFrame === frame) : undefined;
+
+				const displays = electronScreen.getAllDisplays();
+				let targetDisplay = displays[0];
+				if (win) {
+					const winBounds = win.getBounds();
+					targetDisplay = electronScreen.getDisplayNearestPoint({
+						x: winBounds.x + winBounds.width / 2,
+						y: winBounds.y + winBounds.height / 2,
+					});
+				}
+
+				if (!cachedScreenSources) {
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+				}
+
+				let match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				if (!match) {
+					// Cache may be stale even without a topology event
+					cachedScreenSources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 0, height: 0 },
+					});
+					match = cachedScreenSources.find(s => s.display_id === String(targetDisplay.id));
+				}
+
+				const chosen = match ?? cachedScreenSources[0];
+				if (!chosen) {
+					// No screen sources available (permission denied or transient failure).
+					callback({});
+					return;
+				}
+				callback({ video: chosen });
+			} catch {
+				callback({});
+			}
 		});
 
 		//#endregion
@@ -195,7 +296,7 @@ export class CodeApplication extends Disposable {
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if they are made from inside an webview
-		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
+		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
@@ -215,7 +316,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Check to see if the request comes from one of the main windows (or shared process) and not from embedded content
-			const windows = BrowserWindow.getAllWindows();
+			const windows = getAllWindowsExcludingOffscreen();
 			for (const window of windows) {
 				if (frame.processId === window.webContents.mainFrame.processId) {
 					return true;
@@ -356,17 +457,8 @@ export class CodeApplication extends Disposable {
 
 	private registerListeners(): void {
 
-		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => {
-			if (!isSigPipeError(error)) {
-				onUnexpectedError(error);
-			}
-		});
-		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
-
 		// Dispose on shutdown
-		this.lifecycleMainService.onWillShutdown(() => this.dispose());
+		Event.once(this.lifecycleMainService.onWillShutdown)(() => this.dispose());
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -399,11 +491,15 @@ export class CodeApplication extends Disposable {
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
-			// Block any in-page navigation
+			// Handle any in-page navigation
 			contents.on('will-navigate', event => {
+				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
+					return; // Allow navigation in integrated browser views
+				}
+
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
-				event.preventDefault();
+				event.preventDefault(); // Prevent any in-page navigation
 			});
 
 			// All Windows: only allow about:blank auxiliary windows to open
@@ -434,7 +530,7 @@ export class CodeApplication extends Disposable {
 		//#endregion
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
-		let runningTimeout: NodeJS.Timeout | undefined = undefined;
+		let runningTimeout: Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
 			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
 
@@ -496,24 +592,6 @@ export class CodeApplication extends Disposable {
 			return this.resolveShellEnvironment(args, env, false);
 		});
 
-		validatedIpcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
-			const uri = this.validateNlsPath([path]);
-			if (!uri || typeof data !== 'string') {
-				throw new Error('Invalid operation (vscode:writeNlsFile)');
-			}
-
-			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
-		});
-
-		validatedIpcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
-			const uri = this.validateNlsPath(paths);
-			if (!uri) {
-				throw new Error('Invalid operation (vscode:readNlsFile)');
-			}
-
-			return (await this.fileService.readFile(uri)).value.toString();
-		});
-
 		validatedIpcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
 		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
@@ -527,45 +605,6 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#endregion
-	}
-
-	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
-		let path: string | undefined = undefined;
-
-		for (const pathSegment of pathSegments) {
-			if (typeof pathSegment === 'string') {
-				if (typeof path !== 'string') {
-					path = pathSegment;
-				} else {
-					path = join(path, pathSegment);
-				}
-			}
-		}
-
-		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux)) {
-			return undefined;
-		}
-
-		return URI.file(path);
-	}
-
-	private onUnexpectedError(error: Error): void {
-		if (error) {
-
-			// take only the message and stack property
-			const friendlyError = {
-				message: `[uncaught exception in main]: ${error.message}`,
-				stack: error.stack
-			};
-
-			// handle on client side
-			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-		}
-
-		this.logService.error(`[uncaught exception in main]: ${error}`);
-		if (error.stack) {
-			this.logService.error(error.stack);
-		}
 	}
 
 	async startup(): Promise<void> {
@@ -590,7 +629,7 @@ export class CodeApplication extends Disposable {
 		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (isMacintosh && this.configurationService.getValue('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
-				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true);
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -598,7 +637,7 @@ export class CodeApplication extends Disposable {
 
 		// Main process server (electron IPC based)
 		const mainProcessElectronServer = new ElectronIPCServer();
-		this.lifecycleMainService.onWillShutdown(e => {
+		Event.once(this.lifecycleMainService.onWillShutdown)(e => {
 			if (e.reason === ShutdownReason.KILL) {
 				// When we go down abnormally, make sure to free up
 				// any IPC we accept from other windows to reduce
@@ -610,13 +649,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
 		const [machineId, sqmId, devDeviceId] = await Promise.all([
 			resolveMachineId(this.stateService, this.logService),
 			resolveSqmId(this.stateService, this.logService),
-			resolvedevDeviceId(this.stateService, this.logService)
+			resolveDevDeviceId(this.stateService, this.logService)
 		]);
-		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
 		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId, devDeviceId);
@@ -624,8 +661,16 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
 
+		// Error telemetry
+		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
+
+		// Metered connection telemetry
+		appInstantiationService.invokeFunction(accessor => {
+			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+		});
+
 		// Auth Handler
-		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
 
 		// Transient profiles handler
 		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
@@ -636,7 +681,7 @@ export class CodeApplication extends Disposable {
 		// Setup Protocol URL Handlers
 		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
-		// Setup vscode-remote-resource protocol handler.
+		// Setup vscode-remote-resource protocol handler
 		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
 
 		// Signal phase: ready - before opening first window
@@ -649,11 +694,18 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		this.afterWindowOpen(appInstantiationService);
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-			this._register(runWhenGlobalIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+			this._register(runWhenGlobalIdle(() => {
+
+				// Signal phase: eventually
+				this.lifecycleMainService.phase = LifecycleMainPhase.Eventually;
+
+				// Eventually Post Open Window Tasks
+				this.eventuallyAfterWindowOpen();
+			}, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
 	}
@@ -727,7 +779,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// macOS: open-url events that were received before the app is ready
-		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		const protocolUrlsFromEvent = ((global as { getOpenUrls?: () => string[] }).getOpenUrls?.() || []);
 		if (protocolUrlsFromEvent.length > 0) {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
@@ -751,6 +803,7 @@ export class CodeApplication extends Disposable {
 
 		const openables: IWindowOpenable[] = [];
 		const urls: IProtocolUrl[] = [];
+
 		for (const protocolUrl of protocolUrls) {
 			if (!protocolUrl) {
 				continue; // invalid
@@ -865,34 +918,38 @@ export class CodeApplication extends Disposable {
 			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
 
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			let authority: string;
+			let path: string;
 			if (secondSlash !== -1) {
-				const authority = uri.path.substring(1, secondSlash);
-				const path = uri.path.substring(secondSlash);
-
-				let query = uri.query;
-				const params = new URLSearchParams(uri.query);
-				if (params.get('windowId') === '_blank') {
-					// Make sure to unset any `windowId=_blank` here
-					// https://github.com/microsoft/vscode/issues/191902
-					params.delete('windowId');
-					query = params.toString();
-				}
-
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
-
-				if (hasWorkspaceFileExtension(path)) {
-					return { workspaceUri: remoteUri };
-				}
-
-				if (/:[\d]+$/.test(path)) {
-					// path with :line:column syntax
-					return { fileUri: remoteUri };
-				}
-
-				return { folderUri: remoteUri };
+				authority = uri.path.substring(1, secondSlash);
+				path = uri.path.substring(secondSlash);
+			} else {
+				authority = uri.path.substring(1);
+				path = '/';
 			}
-		}
 
+			let query = uri.query;
+			const params = new URLSearchParams(uri.query);
+			if (params.get('windowId') === '_blank') {
+				// Make sure to unset any `windowId=_blank` here
+				// https://github.com/microsoft/vscode/issues/191902
+				params.delete('windowId');
+				query = params.toString();
+			}
+
+			const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
+
+			if (hasWorkspaceFileExtension(path)) {
+				return { workspaceUri: remoteUri };
+			}
+
+			if (/:[\d]+$/.test(path)) {
+				// path with :line:column syntax
+				return { fileUri: remoteUri };
+			}
+
+			return { folderUri: remoteUri };
+		}
 		return undefined;
 	}
 
@@ -902,7 +959,7 @@ export class CodeApplication extends Disposable {
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
 			uri = uri.with({
-				authority: 'file',
+				authority: Schemas.file,
 				path: URI.parse(uri.query).path,
 				query: ''
 			});
@@ -939,6 +996,15 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
+		// Extract session parameter to open a specific chat session in the target window
+		const session = params.get('session');
+		if (session !== null) {
+			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+
+			params.delete('session');
+			uri = uri.with({ query: params.toString() });
+		}
+
 		// Check if the protocol URL is a window openable to open...
 		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
 		if (windowOpenableFromProtocolUrl) {
@@ -949,16 +1015,21 @@ export class CodeApplication extends Disposable {
 			} else {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-				const window = firstOrDefault(await windowsMainService.open({
-					context: OpenContext.API,
+				const window = (await windowsMainService.open({
+					context: OpenContext.LINK,
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
 					gotoLineMode: true
 					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-				}));
+				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+				// Open chat session in the target window if requested
+				if (window && session) {
+					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
+				}
 
 				return true;
 			}
@@ -968,14 +1039,14 @@ export class CodeApplication extends Disposable {
 		if (shouldOpenInNewWindow) {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
-			const window = firstOrDefault(await windowsMainService.open({
-				context: OpenContext.API,
+			const window = (await windowsMainService.open({
+				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
 				remoteAuthority: getRemoteAuthority(uri)
-			}));
+			})).at(0);
 
 			await window?.ready();
 
@@ -1048,17 +1119,27 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
-		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
-
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
+
+		// Browser View
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
+		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
+
+		// Metered Connection
+		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		services.set(IMeteredConnectionService, meteredConnectionService);
+
+		// Web Contents Extractor
+		services.set(ITerminalSandboxService, new SyncDescriptor(NullTerminalSandboxService));
+		services.set(IAgentNetworkFilterService, new SyncDescriptor(AgentNetworkFilterService, undefined, true));
+		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
@@ -1087,6 +1168,12 @@ export class CodeApplication extends Disposable {
 		);
 		services.set(ILocalPtyService, ptyHostService);
 
+		// Agent Host
+		if (isAgentHostEnabled(this.configurationService)) {
+			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
+		}
+
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1095,6 +1182,7 @@ export class CodeApplication extends Disposable {
 		} else if (isLinux) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
 		}
+		services.set(ISandboxHelperMainService, new SyncDescriptor(SandboxHelperService));
 
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
@@ -1114,7 +1202,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1129,6 +1217,16 @@ export class CodeApplication extends Disposable {
 
 		// Utility Process Worker
 		services.set(IUtilityProcessWorkerMainService, new SyncDescriptor(UtilityProcessWorkerMainService, undefined, true));
+
+		// Proxy Auth
+		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
+
+		// MCP
+		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
+
+		// Dev Only: CSS service (for ESM)
+		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 		// Init services that require it
 		await Promises.settled([
@@ -1159,6 +1257,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
+		const copilotManagedSettingsChannel = disposables.add(new CopilotManagedSettingsChannel(accessor.get(ICopilotManagedSettingsService)));
+		mainProcessElectronServer.registerChannel('copilotManagedSettings', copilotManagedSettingsChannel);
+
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
@@ -1171,21 +1272,41 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		// Request
-		const requestService = new RequestChannel(accessor.get(IRequestService));
-		sharedProcessClient.then(client => client.registerChannel('request', requestService));
-
 		// Update
-		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
+		const updateService = accessor.get(IUpdateService);
+		const updateChannel = new UpdateChannel(updateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
-		// Issues
-		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
-		mainProcessElectronServer.registerChannel('issue', issueChannel);
+		// Show a native "no updates available" dialog from the focused app's main
+		// process to avoid double dialogs across apps and ensure a native dialog.
+		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService)));
+
+		// Metered Connection
+		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);
+		mainProcessElectronServer.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel);
+		sharedProcessClient.then(client => client.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel));
+
+		// Process
+		const processChannel = ProxyChannel.fromService(new ProcessMainService(this.logService, accessor.get(IDiagnosticsService), accessor.get(IDiagnosticsMainService)), disposables);
+		mainProcessElectronServer.registerChannel('process', processChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Browser View
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
+		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewChannelName, browserViewChannel));
+
+		// Browser View Group
+		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
+		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
+
+		// Remote File System Proxy
+		const remoteFileSystemProxyHandler = disposables.add(new RemoteFileSystemProxyMainHandler(accessor.get(IWindowsMainService), mainProcessElectronServer));
+		mainProcessElectronServer.registerChannel(REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME, remoteFileSystemProxyHandler);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);
@@ -1200,6 +1321,10 @@ export class CodeApplication extends Disposable {
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
+
+		// Web Content Extractor
+		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
+		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
 
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService), disposables);
@@ -1234,8 +1359,18 @@ export class CodeApplication extends Disposable {
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
+		// Sandbox Helper
+		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperMainService), disposables);
+		mainProcessElectronServer.registerChannel('sandboxHelper', sandboxHelperChannel);
+
+		// MCP
+		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
+		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
+		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService), accessor.get(ILoggerMainService)));
+		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
+
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
@@ -1259,7 +1394,16 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// First check for windows from protocol links to open
+		// Handle agents window first based on context
+		if (args['agents']) {
+			return windowsMainService.openAgentsWindow({
+				context,
+				cli: args,
+				initialStartup: true
+			});
+		}
+
+		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
 
 			// Openables can open as windows directly
@@ -1308,7 +1452,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		const macOpenFiles: string[] = (<any>global).macOpenFiles;
+		const macOpenFiles: string[] = (global as { macOpenFiles?: string[] }).macOpenFiles ?? [];
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -1372,7 +1516,12 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private afterWindowOpen(): void {
+	private afterWindowOpen(instantiationService: IInstantiationService): void {
+
+		// Accurate Windows version info
+		if (isWindows) {
+			initWindowsVersionInfo();
+		}
 
 		// Windows: mutex
 		this.installMutex();
@@ -1394,8 +1543,152 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
+		// macOS: rosetta translation warning
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		}
+
+		// Power telemetry
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+
+			type PowerEvent = {
+				readonly idleState: string;
+				readonly idleTime: number;
+				readonly thermalState: string;
+				readonly onBattery: boolean;
+			};
+			type PowerEventClassification = {
+				idleState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system idle state (active, idle, locked, unknown).' };
+				idleTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The system idle time in seconds.' };
+				thermalState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system thermal state (unknown, nominal, fair, serious, critical).' };
+				onBattery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system is running on battery power.' };
+				owner: 'chrmarti';
+				comment: 'Tracks OS power suspend and resume events for reliability insights.';
+			};
+
+			const getPowerEventData = (): PowerEvent => ({
+				idleState: powerMonitor.getSystemIdleState(60),
+				idleTime: powerMonitor.getSystemIdleTime(),
+				thermalState: powerMonitor.getCurrentThermalState(),
+				onBattery: powerMonitor.isOnBatteryPower()
+			});
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.suspend', getPowerEventData());
+			}));
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
+			}));
+		});
+
+		// GPU crash telemetry for skia graphite out of order recording failures
+		// Refs https://github.com/microsoft/vscode/issues/284162
+		if (isMacintosh) {
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
+					skia_graphite: string;
+				};
+				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
+				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
+				if (skiaGraphiteEnabled === 'enabled') {
+					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
+					const pendingGpuInfoListener = this._register(new MutableDisposable());
+					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
+						if (details.type === 'GPU' && details.reason === 'crashed') {
+							// Wait for gpu-info-update which fires after the GPU process
+							// restarts and the feature status is refreshed. At the time
+							// child-process-gone fires, getGPUFeatureStatus() still
+							// returns the pre-crash status.
+							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
+								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+								if (currentRasterizationStatus !== 'enabled') {
+									// Get last 10 GPU log messages (only the message field)
+									let gpuLogMessages: string[] = [];
+									type AppWithGPULogMethod = typeof app & {
+										getGPULogMessages(): IGPULogMessage[];
+									};
+									const customApp = app as AppWithGPULogMethod;
+									if (typeof customApp.getGPULogMessages === 'function') {
+										gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+									}
+
+									type GpuCrashEvent = {
+										readonly gpuFeatureStatus: string;
+										readonly gpuLogMessages: string;
+									};
+									type GpuCrashClassification = {
+										gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
+										gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages collected after the crash and GPU process restart.' };
+										owner: 'deepak1556';
+										comment: 'Tracks GPU process crashes that would result in fallback mode.';
+									};
+
+									telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
+										gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
+										gpuLogMessages: JSON.stringify(gpuLogMessages)
+									});
+								}
+							});
+						}
+					}));
+				}
+			});
+		}
+
+		{
+			interface NetworkProcessLaunchedDetails {
+				readonly pid: number;
+			}
+			interface NetworkProcessGoneDetails {
+				readonly pid: number;
+				readonly exitCode: number;
+				readonly crashed: boolean;
+				readonly crashedPreIPC: boolean;
+			}
+
+			type AppWithNetworkProcessEvents = typeof app & {
+				on(event: 'network-process-launched', listener: (event: Electron.Event, details: NetworkProcessLaunchedDetails) => void): typeof app;
+				on(event: 'network-process-gone', listener: (event: Electron.Event, details: NetworkProcessGoneDetails) => void): typeof app;
+			};
+
+			const customApp = app as AppWithNetworkProcessEvents;
+
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+
+				type NetworkProcessLaunchedClassification = {
+					owner: 'deepak1556';
+					comment: 'Tracks network process launch events.';
+				};
+
+				type NetworkProcessGoneClassification = {
+					exitCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the network process.' };
+					crashed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed.' };
+					crashedPreIPC: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the network process crashed before IPC was established.' };
+					owner: 'deepak1556';
+					comment: 'Tracks network process gone events for reliability insights.';
+				};
+
+				this._register(Event.fromNodeEventEmitter<NetworkProcessLaunchedDetails>(customApp, 'network-process-launched', (_event, details) => details)(details => {
+					this.logService.info(`[network process] launched with pid ${details.pid}`);
+
+					telemetryService.publicLog2<{}, NetworkProcessLaunchedClassification>('networkProcess.launched', {});
+				}));
+
+				this._register(Event.fromNodeEventEmitter<NetworkProcessGoneDetails>(customApp, 'network-process-gone', (_event, details) => details)(details => {
+					this.logService.info(`[network process] gone - pid: ${details.pid}, exitCode: ${details.exitCode}, crashed: ${details.crashed}, crashedPreIPC: ${details.crashedPreIPC}`);
+
+					telemetryService.publicLog2<{ exitCode: number; crashed: boolean; crashedPreIPC: boolean }, NetworkProcessGoneClassification>('networkProcess.gone', {
+						exitCode: details.exitCode,
+						crashed: details.crashed,
+						crashedPreIPC: details.crashedPreIPC
+					});
+				}));
+			});
 		}
 
 	}
@@ -1437,7 +1730,7 @@ export class CodeApplication extends Disposable {
 		try {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
-			const argvJSON = JSON.parse(stripComments(argvString));
+			const argvJSON = parse<{ 'enable-crash-reporter'?: boolean }>(argvString);
 			const telemetryLevel = getTelemetryLevel(this.configurationService);
 			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 
@@ -1468,6 +1761,16 @@ export class CodeApplication extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+
+			// Inform the user via notification
+			this.windowsMainService?.sendToFocused('vscode:showArgvParseWarning');
 		}
+	}
+
+	private eventuallyAfterWindowOpen(): void {
+
+		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
+		// Refs: https://github.com/microsoft/vscode/issues/234064
+		validateDevDeviceId(this.stateService, this.logService);
 	}
 }

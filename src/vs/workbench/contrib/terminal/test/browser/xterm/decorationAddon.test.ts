@@ -5,14 +5,15 @@
 
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { notEqual, strictEqual, throws } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('DecorationAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,11 +51,12 @@ suite('DecorationAddon', () => {
 		xterm = store.add(new TestTerminal({
 			allowProposedApi: true,
 			cols: 80,
-			rows: 30
+			rows: 30,
+			logger: TestXtermLogger
 		}));
 		const capabilities = store.add(new TerminalCapabilityStore());
 		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
-		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, capabilities));
+		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities));
 		xterm.loadAddon(decorationAddon);
 	});
 

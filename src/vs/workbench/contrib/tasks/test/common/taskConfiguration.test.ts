@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import * as assert from 'assert';
-import Severity from 'vs/base/common/severity';
-import * as UUID from 'vs/base/common/uuid';
+import { URI } from '../../../../../base/common/uri.js';
+import assert from 'assert';
+import Severity from '../../../../../base/common/severity.js';
+import * as UUID from '../../../../../base/common/uuid.js';
 
-import * as Types from 'vs/base/common/types';
-import * as Platform from 'vs/base/common/platform';
-import { ValidationStatus } from 'vs/base/common/parsers';
-import { ProblemMatcher, FileLocationKind, IProblemPattern, ApplyToKind, INamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { WorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import * as Types from '../../../../../base/common/types.js';
+import * as Platform from '../../../../../base/common/platform.js';
+import { ValidationStatus } from '../../../../../base/common/parsers.js';
+import { ProblemMatcher, FileLocationKind, IProblemPattern, ApplyToKind, INamedProblemMatcher } from '../../common/problemMatcher.js';
+import { WorkspaceFolder, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 
-import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { parse, IParseResult, IProblemReporter, IExternalTaskRunnerConfiguration, ICustomTask, TaskConfigSource, IParseContext, ProblemMatcherConverter, IGlobals, ITaskParseResult, UUIDMap, TaskParser } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContext } from 'vs/platform/contextkey/common/contextkey';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import * as Tasks from '../../common/tasks.js';
+import { parse, IParseResult, IProblemReporter, IExternalTaskRunnerConfiguration, ICustomTask, TaskConfigSource, IParseContext, ProblemMatcherConverter, IGlobals, ITaskParseResult, UUIDMap, TaskParser } from '../../common/taskConfiguration.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITaskDefinitionRegistry } from '../../common/taskDefinitionRegistry.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -566,7 +567,7 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 	}
 }
 
-function assertProblemPatterns(actual: IProblemPattern | IProblemPattern[], expected: IProblemPattern | IProblemPattern[]) {
+function assertProblemPatterns(actual: Types.SingleOrMany<IProblemPattern>, expected: Types.SingleOrMany<IProblemPattern>) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (Array.isArray(actual)) {
 		const actuals = <IProblemPattern[]>actual;
@@ -598,6 +599,8 @@ function assertProblemPattern(actual: IProblemPattern, expected: IProblemPattern
 }
 
 suite('Tasks version 0.1.0', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('tasks: all default', () => {
 		const builder = new ConfigurationBuilder();
 		builder.task('tsc', 'tsc').
@@ -1497,6 +1500,8 @@ suite('Tasks version 0.1.0', () => {
 });
 
 suite('Tasks version 2.0.0', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test.skip('Build workspace task', () => {
 		const external: IExternalTaskRunnerConfiguration = {
 			version: '2.0.0',
@@ -1677,6 +1682,8 @@ suite('Tasks version 2.0.0', () => {
 });
 
 suite('Bugs / regression tests', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	(Platform.isLinux ? test.skip : test)('Bug 19548', () => {
 		const external: IExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -1784,6 +1791,8 @@ class TestTaskDefinitionRegistry implements Partial<ITaskDefinitionRegistry> {
 }
 
 suite('Task configuration conversions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const globals = {} as IGlobals;
 	const taskConfigSource = {} as TaskConfigSource;
 	const TaskDefinitionRegistry = new TestTaskDefinitionRegistry();
@@ -1814,13 +1823,13 @@ suite('Task configuration conversions', () => {
 		test('returns config for a known problem matcher', () => {
 			const result = (ProblemMatcherConverter.from('$real', parseContext));
 			assert.strictEqual(result.errors?.length, 0);
-			assert.deepEqual(result.value, [{ "label": "real label" }]);
+			assert.deepEqual(result.value, [{ 'label': 'real label' }]);
 		});
 		test('returns config for a known problem matcher including applyTo', () => {
 			namedProblemMatcher.applyTo = ApplyToKind.closedDocuments;
 			const result = (ProblemMatcherConverter.from('$real', parseContext));
 			assert.strictEqual(result.errors?.length, 0);
-			assert.deepEqual(result.value, [{ "label": "real label", "applyTo": ApplyToKind.closedDocuments }]);
+			assert.deepEqual(result.value, [{ 'label': 'real label', 'applyTo': ApplyToKind.closedDocuments }]);
 		});
 	});
 	suite('TaskParser.from', () => {
@@ -1832,7 +1841,7 @@ suite('Task configuration conversions', () => {
 				});
 				test('command', () => {
 					const result = TaskParser.from([{ taskName: 'task' } as ICustomTask], globals, parseContext, taskConfigSource);
-					assertTaskParseResult(result, undefined, problemReporter, "Error: the task 'task' doesn't define a command");
+					assertTaskParseResult(result, undefined, problemReporter, `Error: the task 'task' doesn't define a command`);
 				});
 			});
 			test('returns expected result', () => {

@@ -2,11 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IExtensionManifest } from '../../common/extensions.js';
+import { INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from '../../common/extensionValidator.js';
 
 suite('Extension Version Validator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const productVersion = '2021-05-11T21:54:30.577Z';
 
 	test('isValidVersionStr', () => {
@@ -52,6 +56,10 @@ suite('Extension Version Validator', () => {
 
 		assertParseVersion('>=0.0.1', false, true, 0, true, 0, true, 1, true, null);
 		assertParseVersion('>=2.4.3', false, true, 2, true, 4, true, 3, true, null);
+
+		// Parse versions with HHMM date format
+		assertParseVersion('1.10.0-202105111430', false, false, 1, true, 10, true, 0, true, '-202105111430');
+		assertParseVersion('^1.10.0-202105112359', true, false, 1, true, 10, true, 0, true, '-202105112359');
 	});
 
 	test('normalizeVersion', () => {
@@ -64,6 +72,11 @@ suite('Extension Version Validator', () => {
 		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false, 0);
 		assertNormalizeVersion('0.10.0-222222222', 0, true, 10, true, 0, true, false, 0);
 		assertNormalizeVersion('0.10.0-20210511', 0, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
+
+		// Normalize versions with HHMM date format
+		assertNormalizeVersion('1.10.0-202105111430', 1, true, 10, true, 0, true, false, new Date('2021-05-11T14:30:00Z').getTime());
+		assertNormalizeVersion('1.10.0-202105112359', 1, true, 10, true, 0, true, false, new Date('2021-05-11T23:59:00Z').getTime());
+		assertNormalizeVersion('1.10.0-202105110000', 1, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
 
 		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true, false);
 		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true, false);
@@ -405,6 +418,11 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.10.0', '^1.10.0-20210512', false); // future date
 		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
 		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
+
+		// Test with HHMM date format
+		testIsValidVersion('1.10.0', '^1.10.0-202105111400', true); // product at beginning of day, required time at 14:00
+		testIsValidVersion('1.10.0', '^1.10.0-202105112359', false); // product at beginning of day, required time at 23:59
+		testIsValidVersion('1.10.0', '^1.10.0-202105110000', true); // product at beginning of day, required time at 00:00
 	});
 
 	test('isValidExtensionVersion checks browser only extensions', () => {
@@ -419,4 +437,5 @@ suite('Extension Version Validator', () => {
 		};
 		assert.strictEqual(isValidExtensionVersion('1.44.0', undefined, manifest, false, []), false);
 	});
+
 });

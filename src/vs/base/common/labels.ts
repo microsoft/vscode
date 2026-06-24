@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
-import { posix, sep, win32 } from 'vs/base/common/path';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { hasDriveLetter, toSlashes } from './extpath.js';
+import { posix, sep, win32 } from './path.js';
+import { isMacintosh, isWindows, OperatingSystem, OS } from './platform.js';
+import { extUri, extUriIgnorePathCase } from './resources.js';
+import { rtrim, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
 
 export interface IPathLabelFormatting {
 
@@ -99,7 +98,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
 
 	const workspace = relativePathProvider.getWorkspace();
-	const firstFolder = firstOrDefault(workspace.folders);
+	const firstFolder = workspace.folders.at(0);
 	if (!firstFolder) {
 		return undefined;
 	}
@@ -210,13 +209,15 @@ export function untildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const urlSchemaRegexp = /^[^:/\\?#]+?:\/\//;
 const home = '~';
-export function shorten(paths: string[], pathSeparator: string = sep): string[] {
+export function shorten(paths: string[], defaultPathSeparator: string = sep): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
+		let pathSeparator = defaultPathSeparator;
 		const originalPath = paths[pathIndex];
 
 		if (originalPath === '') {
@@ -234,7 +235,11 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		let trimmedPath = originalPath;
-		if (trimmedPath.indexOf(unc) === 0) {
+		if (urlSchemaRegexp.test(trimmedPath)) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf('//') + 2);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf('//') + 2);
+			pathSeparator = '/';
+		} else if (trimmedPath.indexOf(unc) === 0) {
 			prefix = trimmedPath.substr(0, trimmedPath.indexOf(unc) + unc.length);
 			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(unc) + unc.length);
 		} else if (trimmedPath.indexOf(pathSeparator) === 0) {
@@ -297,7 +302,12 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 					// add ellipsis at the end if needed
 					if (start + subpathLength < segments.length) {
-						result = result + pathSeparator + ellipsis;
+						// If the last segment is empty, preserve the trailing slash.
+						if (start + subpathLength === segments.length - 1 && segments[segments.length - 1] === '') {
+							result = result + pathSeparator;
+						} else {
+							result = result + pathSeparator + ellipsis;
+						}
 					}
 
 					shortenedPaths[pathIndex] = result;
@@ -418,17 +428,27 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * - Windows: Supported via & character (replace && with & and & with && for escaping)
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
+ * When forceDisableMnemonics is set, returns just the label without mnemonics.
  */
-export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
-	if (isMacintosh || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, '');
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics: true): string;
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: false): { readonly withMnemonic: string; readonly withoutMnemonic: string };
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): { readonly withMnemonic: string; readonly withoutMnemonic: string } | string {
+	const withoutMnemonic = label.replace(/\(&&\w\)|&&/g, '');
+
+	if (forceDisableMnemonics) {
+		return withoutMnemonic;
+	}
+	if (isMacintosh) {
+		return { withMnemonic: withoutMnemonic, withoutMnemonic };
 	}
 
+	let withMnemonic: string;
 	if (isWindows) {
-		return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+		withMnemonic = label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+	} else {
+		withMnemonic = label.replace(/&&/g, '_');
 	}
-
-	return label.replace(/&&/g, '_');
+	return { withMnemonic, withoutMnemonic };
 }
 
 export function unmnemonicLabel(label: string): string {

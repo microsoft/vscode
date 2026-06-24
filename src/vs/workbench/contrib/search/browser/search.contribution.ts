@@ -3,51 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
-import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
-import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
-import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearch/notebookSearchContributions';
-import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
-import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
-import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { searchViewIcon } from './searchIcons.js';
+import { SearchView } from './searchView.js';
+import { registerContributions as searchWidgetContributions } from './searchWidget.js';
+import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
+import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { assertType } from '../../../../base/common/types.js';
+import { getWorkspaceSymbols, IWorkspaceSymbol, searchConfigurationNode } from '../common/search.js';
+import * as Constants from '../common/constants.js';
+import { SearchChatContextContribution } from './searchChatContext.js';
 
-import 'vs/workbench/contrib/search/browser/searchActionsCopy';
-import 'vs/workbench/contrib/search/browser/searchActionsFind';
-import 'vs/workbench/contrib/search/browser/searchActionsNav';
-import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
-import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
-import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
-import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
-import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import './searchActionsCopy.js';
+import './searchActionsFind.js';
+import './searchActionsNav.js';
+import './searchActionsRemoveReplace.js';
+import './searchActionsTopBar.js';
+import './searchActionsTextQuickAccess.js';
+import './searchQuickAccess.contribution.js';
+import './search.common.contribution.js';
+import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SearchAccessibilityHelp } from './searchAccessibilityHelp.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
-registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
-replaceContributions();
-notebookSearchContributions();
 searchWidgetContributions();
+
+registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
+
+AccessibleViewRegistry.register(new SearchAccessibilityHelp());
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -86,26 +85,6 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDes
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
 
 quickAccessRegistry.registerQuickAccessProvider({
-	ctor: AnythingQuickAccessProvider,
-	prefix: AnythingQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
-	contextKey: defaultQuickAccessContextKeyValue,
-	helpEntries: [{
-		description: nls.localize('anythingQuickAccess', "Go to File"),
-		commandId: 'workbench.action.quickOpen',
-		commandCenterOrder: 10
-	}]
-});
-
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: SymbolsQuickAccessProvider,
-	prefix: SymbolsQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('symbolsQuickAccessPlaceholder', "Type the name of a symbol to open."),
-	contextKey: 'inWorkspaceSymbolsPicker',
-	helpEntries: [{ description: nls.localize('symbolsQuickAccess', "Go to Symbol in Workspace"), commandId: Constants.SearchCommandIds.ShowAllSymbolsActionId }]
-});
-
-quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,
 	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
 	contextKey: 'inTextSearchPicker',
@@ -122,10 +101,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
-	id: 'search',
-	order: 13,
-	title: nls.localize('searchConfigurationTitle', "Search"),
-	type: 'object',
+	...searchConfigurationNode,
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
@@ -156,9 +132,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor."),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the Search view, or in a search editor."),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
+				nls.localize('search.mode.view', "Search in the Search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
@@ -183,13 +159,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
 		'search.useParentIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -198,10 +174,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
 		},
+		'search.ripgrep.maxThreads': {
+			type: 'number',
+			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
+			default: 0
+		},
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
-			default: true
+			default: true,
+			agentsWindow: { default: false },
 		},
 		'search.quickOpen.history.filterSortOrder': {
 			type: 'string',
@@ -226,7 +208,7 @@ configurationRegistry.registerConfiguration({
 		'search.globalFindClipboard': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.globalFindClipboard', "Controls whether the search view should read or modify the shared find clipboard on macOS."),
+			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
 		'search.location': {
@@ -238,7 +220,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maxResults': {
 			type: ['number', 'null'],
-			default: 20000,
+			default: DEFAULT_MAX_SEARCH_RESULTS,
 			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
@@ -272,16 +254,11 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'right'],
 			enumDescriptions: [
-				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
+				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the Search view is narrow, and immediately after the content when the Search view is wide."),
 				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
 			],
 			default: 'right',
-			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
-		},
-		'search.searchOnType': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('search.searchOnType', "Search all files as you type.")
+			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the Search view.")
 		},
 		'search.seedWithNearestWord': {
 			type: 'boolean',
@@ -291,43 +268,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
-		},
-		'search.searchOnTypeDebouncePeriod': {
-			type: 'number',
-			default: 300,
-			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When {0} is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when {0} is disabled.", '`#search.searchOnType#`')
-		},
-		'search.searchEditor.doubleClickBehaviour': {
-			type: 'string',
-			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
-			default: 'goToLocation',
-			enumDescriptions: [
-				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double-clicking selects the word under the cursor."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double-clicking opens the result in the active editor group."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double-clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
-			],
-			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
-		},
-		'search.searchEditor.singleClickBehaviour': {
-			type: 'string',
-			enum: ['default', 'peekDefinition',],
-			default: 'default',
-			enumDescriptions: [
-				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
-				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
-			],
-			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
-		},
-		'search.searchEditor.reusePriorSearchConfiguration': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor.")
-		},
-		'search.searchEditor.defaultNumberOfContextLines': {
-			type: ['number', 'null'],
-			default: 1,
-			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
+			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the Search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.sortOrder': {
 			type: 'string',
@@ -373,7 +314,30 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-
+		'search.experimental.useIgnoreFilesInFindFiles': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.experimental.useIgnoreFilesInFindFiles', "When enabled, the legacy `findFiles` extension API honors the user's `#search.useIgnoreFiles#` setting instead of always ignoring `.gitignore`. Extensions that explicitly pass `null` as the `exclude` argument still get unfiltered results. Telemetry is emitted regardless of this setting to help decide future defaults."),
+			tags: ['experimental'],
+		},
+		'search.searchView.semanticSearchBehavior': {
+			type: 'string',
+			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),
+			enum: [SemanticSearchBehavior.Manual, SemanticSearchBehavior.RunOnEmpty, SemanticSearchBehavior.Auto],
+			default: SemanticSearchBehavior.Manual,
+			enumDescriptions: [
+				nls.localize('search.searchView.semanticSearchBehavior.manual', "Only request semantic search results manually."),
+				nls.localize('search.searchView.semanticSearchBehavior.runOnEmpty', "Request semantic results automatically only when text search results are empty."),
+				nls.localize('search.searchView.semanticSearchBehavior.auto', "Request semantic results automatically with every search.")
+			],
+			tags: ['preview'],
+		},
+		'search.searchView.keywordSuggestions': {
+			type: 'boolean',
+			description: nls.localize('search.searchView.keywordSuggestions', "Enable keyword suggestions in the Search view."),
+			default: false,
+			tags: ['preview'],
+		},
 	}
 });
 

@@ -51,7 +51,8 @@ export async function activate(ctx: RendererContext<void>) {
 		return md.use(katex, {
 			globalGroup: true,
 			enableBareBlocks: true,
-			macros
+			enableFencedBlocks: true,
+			macros,
 		});
 	});
 }

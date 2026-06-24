@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iPadShowKeyboard';
-import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isIOS } from 'vs/base/common/platform';
+import './iPadShowKeyboard.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { isIOS } from '../../../../base/common/platform.js';
 
 export class IPadShowKeyboard extends Disposable implements IEditorContribution {
 

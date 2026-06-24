@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { FormattingConflicts } from 'vs/editor/contrib/format/browser/format';
+import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from './common/config/editorOptions.js';
+import { createMonacoBaseAPI } from './common/services/editorBaseApi.js';
+import { createMonacoEditorAPI } from './standalone/browser/standaloneEditor.js';
+import { createMonacoLanguagesAPI } from './standalone/browser/standaloneLanguages.js';
+import { FormattingConflicts } from './contrib/format/browser/format.js';
+import { getMonacoEnvironment } from '../base/browser/browser.js';
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
@@ -37,16 +38,24 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-interface IMonacoEnvironment {
-	globalAPI?: boolean;
-}
-const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
-if (monacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
-	globalThis.monaco = api;
+interface IFunctionWithAMD extends Function {
+	amd?: boolean;
 }
 
-if (typeof globalThis.require !== 'undefined' && typeof globalThis.require.config === 'function') {
-	globalThis.require.config({
+interface GlobalWithAMD {
+	define?: IFunctionWithAMD;
+	require?: { config?: (options: { ignoreDuplicateModules: string[] }) => void };
+	monaco?: typeof api;
+}
+
+const monacoEnvironment = getMonacoEnvironment();
+const globalWithAMD = globalThis as GlobalWithAMD;
+if (monacoEnvironment?.globalAPI || (typeof globalWithAMD.define === 'function' && globalWithAMD.define.amd)) {
+	globalWithAMD.monaco = api;
+}
+
+if (typeof globalWithAMD.require !== 'undefined' && typeof globalWithAMD.require.config === 'function') {
+	globalWithAMD.require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/window/common/window';
-import { IExtUri } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { localize } from '../../nls.js';
+import { Event } from '../../base/common/event.js';
+import { DeepRequiredNonNullable, assertReturnsDefined } from '../../base/common/types.js';
+import { URI } from '../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon.js';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from '../../platform/editor/common/editor.js';
+import type { EditorInput } from './editor/editorInput.js';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IEncodingSupport, ILanguageSupport } from '../services/textfile/common/textfiles.js';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
+import { ICompositeControl, IComposite } from './composite.js';
+import { FileType, IFileReadLimits, IFileService } from '../../platform/files/common/files.js';
+import { IPathData } from '../../platform/window/common/window.js';
+import { IExtUri } from '../../base/common/resources.js';
+import { Schemas } from '../../base/common/network.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from '../../base/common/errorMessage.js';
+import { IAction, toAction } from '../../base/common/actions.js';
+import Severity from '../../base/common/severity.js';
+import { IPreferencesService } from '../services/preferences/common/preferences.js';
+import { IReadonlyEditorGroupModel } from './editor/editorGroupModel.js';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -410,7 +410,7 @@ export interface IFileEditorFactory {
 	typeId: string;
 
 	/**
-	 * Creates new new editor capable of showing files.
+	 * Creates new editor capable of showing files.
 	 */
 	createFileEditor(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredLanguageId: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
@@ -504,12 +504,12 @@ export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput 
 	/**
 	 * The right hand side editor to open inside a side-by-side editor.
 	 */
-	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly primary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The left hand side editor to open inside a side-by-side editor.
 	 */
-	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly secondary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -524,12 +524,25 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
+}
+
+export interface ITextResourceDiffEditorInput extends IBaseTextResourceEditorInput {
+
+	/**
+	 * The left hand side text editor to open inside a diff editor.
+	 */
+	readonly original: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
+
+	/**
+	 * The right hand side text editor to open inside a diff editor.
+	 */
+	readonly modified: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -547,7 +560,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * The list of resources to compare.
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
-	readonly resources?: IResourceDiffEditorInput[];
+	readonly resources?: IMultiDiffEditorResource[];
 
 	/**
 	 * Whether the editor should be serialized and stored for subsequent sessions.
@@ -555,7 +568,10 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly isTransient?: boolean;
 }
 
-export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
+	readonly goToFileResource?: URI;
+}
+export type IResourceMergeEditorInputSide = (Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>) & { detail?: string };
 
 /**
  * A resource merge editor input compares multiple editors
@@ -579,12 +595,12 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The base common ancestor of the file to merge.
 	 */
-	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+	readonly base: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 
 	/**
 	 * The resulting output of the merge.
 	 */
-	readonly result: IResourceEditorInput | ITextResourceEditorInput;
+	readonly result: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 }
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
@@ -833,7 +849,20 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9
+	Scratchpad = 1 << 9,
+
+	/**
+	 * Signals that the editor should be revealed when being
+	 * opened if it is already opened in any editor group.
+	 */
+	ForceReveal = 1 << 10,
+
+	/**
+	 * Signals that the editor must be opened in a modal editor
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
+	 */
+	RequiresModal = 1 << 11
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1138,6 +1167,15 @@ export interface IActiveEditorChangeEvent {
 	 * The new active editor or `undefined` if the group is empty.
 	 */
 	editor: EditorInput | undefined;
+
+	/**
+	 * Indicates whether the editor change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should treat the change as explicit.
+	 */
+	isExplicit?: boolean;
 }
 
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
@@ -1216,6 +1254,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	showTabIndex?: boolean;
 	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
@@ -1225,6 +1264,7 @@ interface IEditorPartConfiguration {
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
+	titleScrollbarVisibility?: 'auto' | 'visible' | 'hidden';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
@@ -1236,12 +1276,14 @@ interface IEditorPartConfiguration {
 	closeEmptyGroups?: boolean;
 	autoLockGroups?: Set<string>;
 	revealIfOpen?: boolean;
+	swipeToNavigate?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	allowDropIntoGroup?: boolean;
 	dragToOpenWindow?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
@@ -1274,6 +1316,11 @@ export interface IFindEditorOptions {
 	 * as matching, even if the editor is opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY;
+
+	/**
+	 * The order in which to consider editors for finding.
+	 */
+	order?: EditorsOrder;
 }
 
 export interface IMatchEditorOptions {
@@ -1364,7 +1411,7 @@ class EditorResourceAccessorImpl {
 
 		// Original URI is the `preferredResource` of an editor if any
 		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
-		if (!originalResource || !options || !options.filterByScheme) {
+		if (!originalResource || !options?.filterByScheme) {
 			return originalResource;
 		}
 
@@ -1433,7 +1480,7 @@ class EditorResourceAccessorImpl {
 
 		// Canonical URI is the `resource` of an editor
 		const canonicalResource = editor.resource;
-		if (!canonicalResource || !options || !options.filterByScheme) {
+		if (!canonicalResource || !options?.filterByScheme) {
 			return canonicalResource;
 		}
 
@@ -1537,7 +1584,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 	}
 
 	getFileEditorFactory(): IFileEditorFactory {
-		return assertIsDefined(this.fileEditorFactory);
+		return assertReturnsDefined(this.fileEditorFactory);
 	}
 
 	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature<IEditorSerializer>): IDisposable {
@@ -1567,7 +1614,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
-	if (!paths || !paths.length) {
+	if (!paths?.length) {
 		return [];
 	}
 

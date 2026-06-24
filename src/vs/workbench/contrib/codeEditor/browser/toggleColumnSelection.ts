@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { CoreNavigationCommands } from '../../../../editor/browser/coreCommands.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class ToggleColumnSelectionAction extends Action2 {
 

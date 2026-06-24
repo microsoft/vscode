@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from './accessibilitySignalService.js';
 
 const PROGRESS_SIGNAL_LOOP_DELAY = 5000;
 
@@ -17,9 +17,9 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 	private _signalLoop: IDisposable | undefined;
 	constructor(msDelayTime: number, msLoopTime: number | undefined, @IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
-		this._scheduler = new RunOnceScheduler(() => {
+		this._scheduler = this._register(new RunOnceScheduler(() => {
 			this._signalLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.progress, msLoopTime ?? PROGRESS_SIGNAL_LOOP_DELAY);
-		}, msDelayTime);
+		}, msDelayTime));
 		this._scheduler.schedule();
 	}
 	override dispose(): void {
@@ -28,4 +28,3 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 		this._scheduler.dispose();
 	}
 }
-
