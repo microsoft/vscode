@@ -129,6 +129,11 @@ const defaultMarkedRenderers = Object.freeze({
 			title = getLinkTitle(href);
 		}
 
+		// For command: URIs without an explicit title, avoid exposing the raw
+		// command string as a title/tooltip — screen readers announce it as
+		// redundant technical information (see #321416).
+		const isCommandUri = href.startsWith(`${Schemas.command}:`);
+
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
@@ -136,7 +141,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
 
-		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
+		const effectiveTitle = title || (isCommandUri ? '' : href);
+		return `<a href="${href}" title="${effectiveTitle}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -756,7 +762,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';

@@ -15,22 +15,18 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
-
-interface IPendingTurnState {
-	readonly hadChangesBeforeSend: boolean;
-	readonly submittedAt: number;
-}
 
 /**
  * Per-session view state: auxiliary bar visibility and active view container.
@@ -38,6 +34,15 @@ interface IPendingTurnState {
 interface ISessionViewState {
 	readonly auxiliaryBarVisible: boolean;
 	readonly auxiliaryBarActiveViewContainerId: string | undefined;
+}
+
+/**
+ * Shared layout state for the new-session (untitled) view. Untitled sessions
+ * each have a distinct resource, so a single value carries the user's choices
+ * across new sessions.
+ */
+interface INewSessionViewState {
+	readonly auxiliaryBarVisible: boolean;
 }
 
 /**
@@ -53,22 +58,30 @@ interface ISessionLayoutEntry {
 const SESSION_LAYOUT_STATE_KEY = 'sessions.layoutState';
 /** Legacy key — read on startup for migration only. */
 const WORKING_SETS_STORAGE_KEY = 'sessions.workingSets';
+/** Shared layout state for the new-session (untitled) view. */
+const NEW_SESSION_VIEW_STATE_KEY = 'sessions.newSessionViewState';
 
 export class LayoutController extends Disposable {
 
 	static readonly ID = 'workbench.contrib.sessionsLayoutController';
 
-	private readonly _pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
 	private readonly _panelVisibilityBySession = new ResourceMap<boolean>();
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
 	private readonly _workingSetSequencer = new Sequencer();
-	private readonly _useModalConfigObs;
 
+	/**
+	 * Shared layout state for the new-session view, persisted across reloads.
+	 * `undefined` means no explicit choice yet (aux bar defaults to visible).
+	 */
+	private _newSessionViewState: INewSessionViewState | undefined;
+
+	private readonly _useModalConfigObs;
 	constructor(
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+
+		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
-		@IChatService private readonly _chatService: IChatService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IPaneCompositePartService private readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -88,12 +101,12 @@ export class LayoutController extends Disposable {
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({
 			equalsFn: isEqual
 		}, reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			return activeSession?.resource;
 		});
 
 		const activeSessionHasChangesObs = derived<boolean>(reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
@@ -102,19 +115,19 @@ export class LayoutController extends Disposable {
 		});
 
 		const activeSessionIsUntitledObs = derived<boolean>(reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			const activeSessionStatus = activeSession?.status.read(reader);
 
 			return activeSessionStatus === SessionStatus.Untitled;
 		});
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
 		const multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionManagementService.visibleSessions.read(reader).length > 1;
+			return this._sessionsService.visibleSessions.read(reader).length > 1;
 		});
 
 		// When multiple sessions are visible, drop per-session view/panel state
@@ -122,7 +135,7 @@ export class LayoutController extends Disposable {
 		// This will ensure the default visibility logic will be used again after
 		// closing all visible session and opening an existing one
 		this._register(autorun(reader => {
-			const visibleSessions = this._sessionManagementService.visibleSessions.read(reader);
+			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
 			if (visibleSessions.length <= 1) {
 				return;
 			}
@@ -132,7 +145,6 @@ export class LayoutController extends Disposable {
 				}
 				this._viewStateBySession.delete(session.resource);
 				this._panelVisibilityBySession.delete(session.resource);
-				this._pendingTurnStateByResource.delete(session.resource);
 			}
 		}));
 
@@ -172,53 +184,6 @@ export class LayoutController extends Disposable {
 			this._syncPanelVisibility(activeSessionResource);
 		}));
 
-		// When a turn is completed, check if there were changes before the turn and
-		// if there are changes after the turn. If there were no changes before the
-		// turn and there are changes after the turn, show the auxiliary bar.
-		// Skip on mobile to avoid disruptive auto-expand on narrow viewports.
-		if (!(isWeb && isMobile)) {
-			this._register(autorun((reader) => {
-				const activeSession = this._sessionManagementService.activeSession.read(reader);
-				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
-				if (!activeSession) {
-					return;
-				}
-
-				const pendingTurnState = this._pendingTurnStateByResource.get(activeSession.resource);
-				if (!pendingTurnState) {
-					return;
-				}
-
-				if (multipleSessionsVisibleObs.read(reader)) {
-					return;
-				}
-
-				const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
-				const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
-				if (!turnCompleted) {
-					return;
-				}
-
-				if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-					// Clear saved view state so the aux bar stays visible on next switch
-					this._viewStateBySession.delete(activeSession.resource);
-				}
-
-				this._pendingTurnStateByResource.delete(activeSession.resource);
-			}));
-
-			this._register(this._chatService.onDidSubmitRequest(({ chatSessionResource }) => {
-				if (multipleSessionsVisibleObs.get()) {
-					return;
-				}
-				this._pendingTurnStateByResource.set(chatSessionResource, {
-					hadChangesBeforeSend: activeSessionHasChangesObs.get(),
-					submittedAt: Date.now(),
-				});
-			}));
-		}
-
 		// Track panel visibility changes by the user
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
 			if (e.partId !== Parts.PANEL_PART) {
@@ -227,19 +192,36 @@ export class LayoutController extends Disposable {
 			if (multipleSessionsVisibleObs.get()) {
 				return;
 			}
-			const activeSession = this._sessionManagementService.activeSession.get();
+			const activeSession = this._sessionsService.activeSession.get();
 			if (activeSession) {
 				this._panelVisibilityBySession.set(activeSession.resource, e.visible);
 			}
 		}));
 
-		// Invariant: the editor part must never be visible without the auxiliary bar.
-		this._enforceAuxiliaryBarWhenEditorVisible();
-		this._register(this._layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.EDITOR_PART && e.visible) {
-				this._enforceAuxiliaryBarWhenEditorVisible();
-			}
-		}));
+		// Track auxiliary bar visibility changes by the user so that hiding the
+		// secondary side bar (Side Panel) for a session is remembered immediately,
+		// not only on the next session switch. Without this the sync autorun
+		// (which re-runs when e.g. the session's changes state updates) would fall
+		// back to the default visibility logic and re-reveal the aux bar.
+		if (!(isWeb && isMobile)) {
+			this._register(this._layoutService.onDidChangePartVisibility(e => {
+				if (e.partId !== Parts.AUXILIARYBAR_PART) {
+					return;
+				}
+				if (multipleSessionsVisibleObs.get()) {
+					return;
+				}
+				const activeSession = this._sessionsService.activeSession.get();
+				if (!activeSession) {
+					return;
+				}
+				if (activeSession.status.get() === SessionStatus.Untitled) {
+					this._setNewSessionViewState({ auxiliaryBarVisible: e.visible });
+				} else {
+					this._captureViewState(activeSession.resource);
+				}
+			}));
+		}
 
 		// --- Editor working sets ---
 
@@ -252,7 +234,7 @@ export class LayoutController extends Disposable {
 
 		const activeSessionForWorkingSet = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsService.activeSession.read(reader);
 			const activeSessionWorkspaceUri = activeSession?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
 			// The active session is updated before the workspace folders are updated. We
@@ -289,7 +271,7 @@ export class LayoutController extends Disposable {
 				// On initial load (no previous session), only apply if we have a saved working set —
 				// skip applying 'empty' to avoid closing editors that are being restored.
 				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					void this._applyWorkingSet(session?.resource);
+					void this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession });
 				}
 			}));
 
@@ -298,6 +280,7 @@ export class LayoutController extends Disposable {
 				const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
 				for (const session of [...e.removed, ...archivedSessions]) {
 					this._deleteWorkingSet(session.resource);
+					this._viewStateBySession.delete(session.resource);
 				}
 			}));
 		}));
@@ -305,13 +288,13 @@ export class LayoutController extends Disposable {
 
 	// --- Auxiliary bar ---
 
-	private _enforceAuxiliaryBarWhenEditorVisible(): void {
-		if (
-			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
-			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
-		) {
-			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-		}
+	/**
+	 * Reveals the editor part. Editor working sets are restored into the shared
+	 * editor area on session switch, which requires the editor part to be
+	 * visible.
+	 */
+	private _revealEditorPartForWorkingSet(): void {
+		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 	}
 
 	private _captureViewState(sessionResource: URI): void {
@@ -323,37 +306,74 @@ export class LayoutController extends Disposable {
 		});
 	}
 
+	private _setNewSessionViewState(state: INewSessionViewState): void {
+		this._newSessionViewState = state;
+		this._storageService.store(NEW_SESSION_VIEW_STATE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
 		if (!sessionResource || !hasWorkspace) {
 			return;
 		}
 
+		// New-session view: all untitled sessions share one state.
 		if (isUntitled) {
-			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+			if (this._newSessionViewState && !this._newSessionViewState.auxiliaryBarVisible) {
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			} else {
+				this._openDefaultAuxiliaryBarContainer(hasChanges);
+			}
 			return;
 		}
 
-		// On session switch or initial load, restore the saved view state
 		const savedState = this._viewStateBySession.get(sessionResource);
-		if (savedState) {
-			if (!savedState.auxiliaryBarVisible) {
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-				return;
-			}
-			if (savedState.auxiliaryBarActiveViewContainerId) {
-				this._viewsService.openViewContainer(savedState.auxiliaryBarActiveViewContainerId, false);
-				return;
-			}
+
+		// Existing sessions are never auto-opened: hide unless explicitly left visible.
+		if (!savedState || !savedState.auxiliaryBarVisible) {
+			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			return;
 		}
 
-		if (hasChanges) {
+		// Restore the user's last explicit choice, but only if that pane is still pinned.
+		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
+		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
+			this._viewsService.openViewContainer(savedContainerId, false);
+			return;
+		}
+
+		this._openDefaultAuxiliaryBarContainer(hasChanges);
+	}
+
+	/** Prefer Changes when the session has changes, otherwise Files (falling back to Changes if Files is hidden). */
+	private _openDefaultAuxiliaryBarContainer(hasChanges: boolean): void {
+		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 		}
 	}
 
+	private _isAuxiliaryBarContainerPinned(containerId: string): boolean {
+		return this._paneCompositePartService
+			.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar)
+			.includes(containerId);
+	}
+
 	private _loadState(): void {
+		const newSessionRaw = this._storageService.get(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+		if (newSessionRaw) {
+			try {
+				const parsed = JSON.parse(newSessionRaw);
+				if (parsed && typeof parsed.auxiliaryBarVisible === 'boolean') {
+					this._newSessionViewState = { auxiliaryBarVisible: parsed.auxiliaryBarVisible };
+				} else {
+					this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+				}
+			} catch {
+				this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+			}
+		}
+
 		// Load from new key first
 		const raw = this._storageService.get(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
 		if (raw) {
@@ -400,11 +420,11 @@ export class LayoutController extends Disposable {
 	}
 
 	private _saveState(): void {
-		const activeSession = this._sessionManagementService.activeSession.get();
-		const multipleVisible = this._sessionManagementService.visibleSessions.get().length > 1;
+		const activeSession = this._sessionsService.activeSession.get();
+		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
 
-		// Capture current state for the active session (skip when multiple sessions are visible)
-		if (activeSession && !multipleVisible) {
+		// Capture current state for the active session (skip multiple-visible and untitled).
+		if (activeSession && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
 			this._captureViewState(activeSession.resource);
 		}
 
@@ -449,13 +469,29 @@ export class LayoutController extends Disposable {
 
 	// --- Editor working sets ---
 
-	private async _applyWorkingSet(sessionResource: URI | undefined): Promise<void> {
+	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
 		const preserveFocus = this._layoutService.hasFocus(Parts.PANEL_PART);
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';
 
 		return this._workingSetSequencer.queue(async () => {
+			// When multiple sessions are visible, applying a working set must never
+			// change the visibility of the editor part: the editor area is shared
+			// across the visible sessions and its visibility is controlled by the
+			// user (and by direct editor open/close events outside this path).
+			// Suppress the auto show/hide so restoring editors into the shared
+			// editor part does not toggle it.
+			if (this._sessionsService.visibleSessions.get().length > 1) {
+				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+				try {
+					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				} finally {
+					suppression.dispose();
+				}
+				return;
+			}
+
 			// Switching the active session must never reveal the main editor area
 			// (or restore editors into it) while modal-only mode is in effect — the
 			// outer autorun already guards against this, but `useModal` may have
@@ -467,13 +503,29 @@ export class LayoutController extends Disposable {
 				return;
 			}
 
+			// On the initial restore after a reload, preserve the editor part
+			// visibility that the workbench already restored. The user may have
+			// hidden the editor part while keeping its editors open (e.g. closing
+			// the Side Panel hides both the auxiliary bar and the editor part). The
+			// working set still exists, so restore its editors without auto-showing
+			// the part — otherwise the editor area would re-appear on every reload.
+			if (options?.isInitialRestore) {
+				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+				try {
+					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				} finally {
+					suppression.dispose();
+				}
+				return;
+			}
+
 			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 		});
 	}
@@ -496,6 +548,5 @@ export class LayoutController extends Disposable {
 
 		this._editorGroupsService.deleteWorkingSet(existingWorkingSet);
 		this._workingSets.delete(sessionResource);
-		this._viewStateBySession.delete(sessionResource);
 	}
 }

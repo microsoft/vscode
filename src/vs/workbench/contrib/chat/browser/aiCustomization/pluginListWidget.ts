@@ -503,7 +503,7 @@ export class PluginListWidget extends Disposable {
 		sectionTitleDescription.appendChild(document.createTextNode(' '));
 		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
 		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/agent-customization/agent-plugins?referrer=in-product';
 		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
 			e.preventDefault();
 			const href = this.sectionLink.href;
@@ -589,8 +589,6 @@ export class PluginListWidget extends Disposable {
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
-		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
-		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 

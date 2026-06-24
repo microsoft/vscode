@@ -64,7 +64,7 @@
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 	/* Match the VS Code window command center font size. */
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
@@ -120,7 +120,7 @@
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Secondary sidebar toggle uses icon variants for toggle state — no background needed */
@@ -168,6 +168,11 @@
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
+}
+
+/* Spacing between the left toolbar's actions. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Remove the titlebar shadow in agent sessions */

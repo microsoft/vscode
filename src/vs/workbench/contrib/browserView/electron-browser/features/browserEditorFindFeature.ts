@@ -23,6 +23,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, IBrowserEditorWidget } from '../browserEditor.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 const CONTEXT_BROWSER_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('browserFindWidgetVisible', false, localize('browser.findWidgetVisible', "Whether the browser find widget is visible"));
 const CONTEXT_BROWSER_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('browserFindWidgetFocused', false, localize('browser.findWidgetFocused', "Whether the browser find widget is focused"));
@@ -292,12 +293,14 @@ class ShowBrowserFindAction extends Action2 {
 			id: ShowBrowserFindAction.ID,
 			title: localize2('browser.showFindAction', 'Find in Page'),
 			category: BrowserActionCategory,
+			icon: Codicon.search,
 			f1: true,
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
-				order: 1,
+				order: 0,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,

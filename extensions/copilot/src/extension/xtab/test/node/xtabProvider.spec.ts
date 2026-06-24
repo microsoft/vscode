@@ -12,8 +12,9 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -21,8 +22,10 @@ import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { Result } from '../../../../util/common/result';
+import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -454,8 +457,22 @@ describe('getPredictionContents', () => {
 	const editWindowLines = ['const x = 1;', 'const y = 2;'];
 	const doc = makeActiveDocument(['line0', ...editWindowLines, 'line3']);
 
+	// Defaults for response formats that ignore the cursor/patch args.
+	const call = (
+		lines: readonly string[],
+		format: ResponseFormat,
+		opts?: { cursorLineOffset?: number; cursorLineInEditWindowOffset?: number; patchModelPredictionKind?: PatchModelPrediction; doc?: StatelessNextEditDocument },
+	) => getPredictionContents(
+		opts?.doc ?? doc,
+		opts?.cursorLineOffset ?? 0,
+		lines,
+		opts?.cursorLineInEditWindowOffset ?? 0,
+		format,
+		opts?.patchModelPredictionKind ?? PatchModelPrediction.FilePath,
+	);
+
 	it('returns correct content for UnifiedWithXml', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
 			"<EDIT>
 			const x = 1;
 			const y = 2;
@@ -464,14 +481,14 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowOnly', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
 			"const x = 1;
 			const y = 2;"
 		`);
 	});
 
 	it('returns correct content for EditWindowWithEditIntent', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
 			"<|edit_intent|>high<|/edit_intent|>
 			const x = 1;
 			const y = 2;"
@@ -479,7 +496,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowWithEditIntentShort', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
 			"H
 			const x = 1;
 			const y = 2;"
@@ -487,7 +504,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for CodeBlock', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
 			"\`\`\`
 			const x = 1;
 			const y = 2;
@@ -500,21 +517,66 @@ describe('getPredictionContents', () => {
 			['line0', 'line1'],
 			{ workspaceRoot: URI.file('/workspace/project') },
 		);
-		const result = getPredictionContents(docWithRoot, ['line0'], ResponseFormat.CustomDiffPatch);
+		const result = call(['line0'], ResponseFormat.CustomDiffPatch, { doc: docWithRoot });
 		expect(result.endsWith(':')).toBe(true);
 	});
 
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
-		const result = getPredictionContents(doc, editWindowLines, ResponseFormat.CustomDiffPatch);
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch);
 		expect(result.endsWith(':')).toBe(true);
 	});
 
+	it('CustomDiffPatch / CurrentLine emits path:line and a `-` deletion', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineReplaced emits a deletion plus an empty `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineReplaced,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineCompleted echoes the line as a `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch falls back to path-only when the cursor is past the edit window', () => {
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 99,
+			cursorLineInEditWindowOffset: 99,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		});
+		expect(result.endsWith(':')).toBe(true);
+		expect(result.includes('undefined')).toBe(false);
+	});
+
 	it('handles empty editWindowLines', () => {
-		expect(getPredictionContents(doc, [], ResponseFormat.EditWindowOnly)).toBe('');
+		expect(call([], ResponseFormat.EditWindowOnly)).toBe('');
 	});
 
 	it('handles single-line editWindowLines', () => {
-		expect(getPredictionContents(doc, ['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
+		expect(call(['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
 	});
 });
 
@@ -1106,6 +1168,36 @@ describe('XtabProvider integration', () => {
 			expect(edits.length).toBe(0);
 		});
 
+		it('allows import-only changes when model config allows them', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({ allowImportChanges: ImportChanges.All });
+
+			const lines = [
+				'import { foo } from "bar";',
+				'',
+				'function main() {',
+				'  foo();',
+				'}',
+			];
+			// Place cursor at the import line
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 5,
+				insertedText: 'x',
+				languageId: 'typescript',
+			});
+
+			// Respond with a modified import line
+			const responseLines = [...lines];
+			responseLines[0] = 'import { foo, baz } from "bar";';
+			streamingFetcher.setStreamingLines(responseLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits } = await collectEdits(gen);
+
+			// With import changes allowed, the import-only edit should pass through
+			expect(edits.length).toBeGreaterThan(0);
+		});
+
 		it('passes through substantive code edits', async () => {
 			const provider = createProvider();
 
@@ -1680,6 +1772,59 @@ describe('XtabProvider integration', () => {
 			expect(streamingFetcher.callCount).toBe(3);
 		});
 
+		it('cross-file cursor jump with out-of-bounds predicted line → NoSuggestions without throwing', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, { insertionOffset: cursorOffset });
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump path
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): predict a jump into another file at line 50 (0-based),
+			// which is out of bounds for the 5-line target document opened below.
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '/test/other.ts:50',
+				resolvedModel: 'test-model',
+			});
+
+			// The cross-file jump target only has 5 lines, so the predicted line 50 is out of bounds.
+			const targetDoc = createTextDocumentData(
+				URI.file('/test/other.ts'),
+				Array.from({ length: 5 }, (_, i) => `other ${i}`).join('\n'),
+				'typescript',
+			).document;
+			const workspaceService = instaService.invokeFunction(accessor => accessor.get(IWorkspaceService));
+			const openSpy = vi.spyOn(workspaceService, 'openTextDocument').mockResolvedValue(targetDoc);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// The out-of-bounds prediction must be rejected before any retry fetch happens, rather
+			// than constructing a CurrentDocument with an out-of-bounds cursor (which would throw).
+			expect(streamingFetcher.callCount).toBe(2);
+			expect(openSpy).toHaveBeenCalledOnce();
+
+			openSpy.mockRestore();
+		});
+
 		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
 			const provider = createProvider();
 
@@ -2231,7 +2376,7 @@ describe('XtabProvider integration', () => {
 			//  Doc at request time: "const a = 1;\nfunction fi\n}"
 			//  Offsets: "const a = 1;" = 0..11, \n = 12, "function fi" = 13..23, \n = 24, "}" = 25
 			//  Cursor on line 1 (0-based), insertionOffset 23 = last 'i' of "function fi"
-			//  Edit window: all 3 lines, cursorOriginalLinesOffset = 1
+			//  Edit window: all 3 lines, cursorLineInEditWindowOffset = 1
 			//
 			//  User typed "x" at offset 24 (end of "function fi") → "function fix"
 			//  Model responds with "function fibonacci(n): number"
@@ -2395,7 +2540,7 @@ describe('XtabProvider integration', () => {
 			const provider = createProvider();
 
 			//  Doc: "const a = 1;\nfunction fi\n}"
-			//  Cursor on line 1 (0-indexed), cursorOriginalLinesOffset = 1
+			//  Cursor on line 1 (0-indexed), cursorLineInEditWindowOffset = 1
 			//  Lines before cursor (line 0) should be yielded normally.
 			//  Cursor line should trigger divergence cancellation.
 			const request = createDivergenceRequest(

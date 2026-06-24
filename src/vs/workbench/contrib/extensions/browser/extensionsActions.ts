@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -1087,7 +1087,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'on' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -2861,9 +2861,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
 			}
 			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const delay = fromNow(Date.now() - this.extensionsWorkbenchService.getAutoUpdateDelay(), false, true);
 				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
 				// Do not override the higher-priority warning class with the info class.
-				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated 2 hours after they are published. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated {0} after they are published. It will be auto updated {1}.", delay, updateAt)) }, !hasConsentWarning);
 			}
 		}
 
@@ -3441,10 +3442,10 @@ registerColor('extensionButton.hoverBackground', {
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
 registerColor('extensionButton.border', {
-	dark: buttonBorder,
-	light: buttonBorder,
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));

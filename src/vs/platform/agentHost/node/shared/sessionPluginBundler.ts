@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
@@ -31,6 +32,7 @@ function pluginDirForType(type: DiscoveredType): string | undefined {
 		case DiscoveredType.Agent: return 'agents';
 		case DiscoveredType.Skill: return 'skills';
 		case DiscoveredType.Instruction: return 'rules';
+		case DiscoveredType.Hook: return 'hooks';
 		case DiscoveredType.AgentInstruction: return undefined;
 	}
 }
@@ -82,23 +84,16 @@ export class SessionPluginBundler extends Disposable {
 	 *
 	 * Overwrites any previous bundle for this working directory. Returns a
 	 * {@link ClientPluginCustomization} pointing at the on-disk plugin root
-	 * with a content-based nonce, or `undefined` when there are no files.
+	 * with a content-based nonce, or `undefined` when there are no files or
+	 * cancellation was requested.
 	 */
-	async bundle(directories: readonly IDiscoveredDirectory[]): Promise<IBundleResult | undefined> {
-		if (directories.length === 0) {
+	async bundle(directories: readonly IDiscoveredDirectory[], token: CancellationToken = CancellationToken.None): Promise<IBundleResult | undefined> {
+		if (directories.length === 0 || token.isCancellationRequested) {
 			return undefined;
 		}
 
-		try {
-			await this._fileService.del(this._rootUri, { recursive: true });
-		} catch {
-			// Directory may not exist on first bundle.
-		}
-
-		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
-
 		const hashParts: string[] = [];
+		const files: { readonly destUri: URI; readonly content: VSBuffer }[] = [];
 
 		for (const discoveredDirectory of directories) {
 			const dir = pluginDirForType(discoveredDirectory.type);
@@ -106,14 +101,15 @@ export class SessionPluginBundler extends Disposable {
 				continue; // do not bundle agent instructions
 			}
 			for (const file of discoveredDirectory.files) {
-				const fileName = basename(file);
+				const fileUri = file.uri;
+				const fileName = basename(fileUri);
 
 				let destUri: URI;
 				let hashKey: string;
 				if (discoveredDirectory.type === DiscoveredType.Skill) {
 					// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
 					// containing directory name so multiple skills don't collide.
-					const skillDirName = basename(dirname(file));
+					const skillDirName = basename(dirname(fileUri));
 					destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
 					hashKey = `${dir}/${skillDirName}/${fileName}`;
 				} else {
@@ -121,18 +117,23 @@ export class SessionPluginBundler extends Disposable {
 					hashKey = `${dir}/${fileName}`;
 				}
 
-				const content = await this._fileService.readFile(file);
-				await this._fileService.writeFile(destUri, content.value);
+				const content = await this._fileService.readFile(fileUri);
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				files.push({ destUri, content: content.value });
 				hashParts.push(`${hashKey}:${content.value.toString()}`);
 			}
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
 		hashParts.sort();
 		const nonce = String(hash(hashParts.join('\n')));
-		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
-		return {
+		const result = {
 			ref: {
 				type: CustomizationType.Plugin,
 				id: customizationId(rootUriString),
@@ -141,6 +142,43 @@ export class SessionPluginBundler extends Disposable {
 				enabled: true,
 				nonce,
 			},
-		};
+		} satisfies IBundleResult;
+
+		if (this._lastNonce === nonce) {
+			return result;
+		}
+
+		try {
+			await this._fileService.del(this._rootUri, { recursive: true });
+		} catch {
+			// Directory may not exist on first bundle.
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
+		await this._fileService.createFolder(dirname(manifestUri));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		for (const file of files) {
+			await this._fileService.createFolder(dirname(file.destUri));
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			await this._fileService.writeFile(file.destUri, file.content);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+		}
+
+		this._lastNonce = nonce;
+		return result;
 	}
 }

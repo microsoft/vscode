@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import * as l10n from '@vscode/l10n';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
+import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { ICopilotModelSpecificTool, ToolRegistry } from '../common/toolsRegistry';
 import { IToolsService } from '../common/toolsService';
@@ -23,6 +24,7 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 	constructor(
 		@IToolEmbeddingsComputer private readonly _toolEmbeddingsComputer: IToolEmbeddingsComputer,
 		@IToolsService private readonly _toolsService: IToolsService,
+		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -35,7 +37,9 @@ export class ToolSearchTool implements ICopilotModelSpecificTool<IToolSearchPara
 			]);
 		}
 
-		const availableTools = this._toolsService.tools;
+		const availableTools = this._toolsService.tools.filter(
+			tool => !this._toolDeferralService.isNonDeferredTool(tool.name),
+		);
 		const matchedToolNames = await this._toolEmbeddingsComputer.searchToolsByQuery(
 			query,
 			availableTools,
@@ -74,6 +78,7 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
+		fullReferenceName: `vscode/toolSearch`,
 		models: [
 			{ family: 'gpt-5.4' },
 			{ family: 'gpt-5.5' },
@@ -81,12 +86,9 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-sonnet-4.6' },
 			{ family: 'claude-opus-4.5' },
 			{ family: 'claude-opus-4.6' },
-			{ family: 'claude-opus-4.6-1m' },
 			{ family: 'claude-opus-4.7' },
-			{ family: 'claude-opus-4.7-1m' },
-			{ family: 'claude-opus-4.7-1m-internal' },
-			{ family: 'claude-opus-4.7-high' },
-			{ family: 'claude-opus-4.7-xhigh' },
+			{ family: 'claude-opus-4.8' },
+			{ family: 'claude-fable-5' },
 		],
 	},
 	ToolSearchTool,

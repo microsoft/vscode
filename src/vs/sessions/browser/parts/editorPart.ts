@@ -18,7 +18,11 @@ export class MainEditorPart extends MainEditorPartBase {
 		return Math.max(300, super.minimumWidth);
 	}
 
-	override priority = LayoutPriority.High;
+	// The editor part keeps a stable, user-set width: the Sessions Part is the
+	// flexible view (LayoutPriority.High) that absorbs visibility/resize deltas.
+	// Making the editor the flex view caused its width to drift to the minimum
+	// when toggling the auxiliary bar across session switches.
+	override priority = LayoutPriority.Normal;
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {

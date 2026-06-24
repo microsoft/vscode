@@ -25,7 +25,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -190,7 +190,7 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
@@ -395,7 +395,7 @@ export interface IPreparedToolInvocation {
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
 	icon?: ThemeIcon;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
 }
 
 export interface IToolImpl {
@@ -415,7 +415,45 @@ export interface IToolSet {
 	getTools(r?: IReader): Iterable<IToolData>;
 }
 
-export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | IToolSet, boolean>;
+
+
+/**
+* Maps tools and tool sets to their enablement state. Use a class to control creation of the map and ensure
+* that it is not mutated after creation.
+*/
+export class ToolAndToolSetEnablementMap implements Iterable<[IToolData | IToolSet, boolean]> {
+
+	static fromEntries(entries: Iterable<[IToolData | IToolSet, boolean]>): ToolAndToolSetEnablementMap {
+		return new ToolAndToolSetEnablementMap(new Map(entries));
+	}
+
+	static fromMap(map: Map<IToolData | IToolSet, boolean>): ToolAndToolSetEnablementMap {
+		return new ToolAndToolSetEnablementMap(new Map(map));
+	}
+
+	private constructor(private readonly _map: Map<IToolData | IToolSet, boolean>) {
+	}
+
+	[Symbol.iterator](): IterableIterator<[IToolData | IToolSet, boolean]> {
+		return this._map[Symbol.iterator]();
+	}
+
+	public get(toolOrToolSet: IToolData | IToolSet): boolean | undefined {
+		return this._map.get(toolOrToolSet);
+	}
+
+	public has(toolOrToolSet: IToolData | IToolSet): boolean {
+		return this._map.has(toolOrToolSet);
+	}
+
+	public get size(): number {
+		return this._map.size;
+	}
+
+	public entries(): IterableIterator<[IToolData | IToolSet, boolean]> {
+		return this._map.entries();
+	}
+}
 
 export function isToolSet(obj: IToolData | IToolSet | undefined): obj is IToolSet {
 	return !!obj && (obj as IToolSet).getTools !== undefined;
@@ -612,7 +650,8 @@ export interface ILanguageModelToolsService {
 
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
-	getFullReferenceName(tool: IToolData, toolSet?: IToolSet): string;
+	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string;
+	getFullReferenceNameMap(): Map<IToolData | IToolSet, string>;
 	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
@@ -622,9 +661,9 @@ export interface ILanguageModelToolsService {
 	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): ToolAndToolSetEnablementMap;
 
-	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
+	toFullReferenceNames(map: ToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 

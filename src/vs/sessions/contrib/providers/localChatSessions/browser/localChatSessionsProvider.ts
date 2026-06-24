@@ -16,7 +16,7 @@ import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } 
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
@@ -27,7 +27,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -43,7 +43,7 @@ export const LocalSessionType: ISessionType = {
 /** Setting key controlling whether Local VS Code chat sessions are available in the Agents app. */
 export const LOCAL_SESSION_ENABLED_SETTING = 'sessions.chat.localAgent.enabled';
 
-const LOCAL_PROVIDER_ID = 'local-chat';
+export const LOCAL_PROVIDER_ID = 'local-chat';
 const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 const STORAGE_KEY_MIGRATED = 'sessions.localChat.migrated';
 
@@ -395,7 +395,7 @@ class LocalSession extends Disposable {
 export class LocalChatSessionsProvider extends Disposable implements ISessionsProvider {
 
 	readonly id = LOCAL_PROVIDER_ID;
-	readonly label = localize('localChatSessionsProvider', "Local Chat");
+	readonly label = localize('localChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.vm;
 	readonly order = 0;
 	readonly browseActions: readonly [] = [];
@@ -723,6 +723,34 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
+	get onDidChangeModels(): Event<void> {
+		return Event.signal(this.languageModelsService.onDidChangeLanguageModels);
+	}
+
+	getModels(_sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		// Local (in-process VS Code chat) sessions use general-purpose models
+		// (those without a `targetChatSessionType`) that are user-selectable —
+		// no extension registers models specifically targeting the 'local'
+		// session type.
+		return this.languageModelsService.getLanguageModelIds()
+			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
+				const metadata = this.languageModelsService.lookupLanguageModel(id);
+				return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable ? { identifier: id, metadata } : undefined;
+			})
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+	}
+
+	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+		// Local (in-process VS Code chat) sessions offer the "Manage Models"
+		// action so users can configure the general-purpose model set.
+		return {
+			useGroupedModelPicker: true,
+			showFeatured: true,
+			showUnavailableFeatured: false,
+			showManageModelsAction: true,
+		};
+	}
+
 	setModel(sessionId: string, modelId: string): void {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
@@ -777,6 +805,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
 
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
@@ -824,6 +858,13 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			session.setTitle(title);
 			this._updateStoredSession(session);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(session)] });
+		}
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.resource, title);
 		}
 	}
 
@@ -983,7 +1024,6 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Resolve mode
 		const modeKind = session.chatMode?.kind ?? ChatModeKind.Agent;
 		const modeIsBuiltin = session.chatMode ? isBuiltinChatMode(session.chatMode) : true;
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
 
 		const rawModeInstructions = session.chatMode?.modeInstructions?.get();
 		const modeInstructions = rawModeInstructions ? {
@@ -1002,7 +1042,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
 				modeInstructions,
-				modeId,
+				telemetryModeId: modeIsBuiltin ? modeKind : 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel,
 			},
@@ -1168,6 +1208,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			mainChat: primary.mainChat,
 			capabilities: {
 				supportsMultipleChats: true,
+				supportsRename: true,
+				supportsDelete: true,
 			},
 		};
 	}

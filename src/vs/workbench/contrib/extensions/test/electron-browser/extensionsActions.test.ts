@@ -58,6 +58,7 @@ import { arch } from '../../../../../base/common/process.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Mutable } from '../../../../../base/common/types.js';
@@ -93,6 +94,12 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+	instantiationService.stub(IExtensionGalleryManifestService, {
+		onDidChangeExtensionGalleryManifest: Event.None,
+		onDidChangeExtensionGalleryManifestStatus: Event.None,
+		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+		async getExtensionGalleryManifest() { return null; }
+	});
 	instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
 	instantiationService.stub(IWorkbenchExtensionManagementService, {

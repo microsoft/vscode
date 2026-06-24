@@ -23,7 +23,7 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './checksActions.js';
+import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks, getPullRequestUrl } from './checksActions.js';
 import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
@@ -149,8 +149,8 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 34; // total header height in px
-	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
+	static readonly HEADER_HEIGHT = 32; // total header height in px (5px section margin + 6px header margin + 28px header)
+	static readonly MIN_BODY_HEIGHT = 3 * CICheckListDelegate.ITEM_HEIGHT + 2; // at least 3 checks (3 * 28) + 2px
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
@@ -327,25 +327,25 @@ export class CIStatusWidget extends Disposable {
 
 		if (counts.running > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-running'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.running}`;
 		}
 
 		if (counts.failed > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-failure'));
-			badge.appendChild(renderIcon(Codicon.error));
+			badge.appendChild(renderIcon(Codicon.errorCompact));
 			dom.append(badge, $('span')).textContent = `${counts.failed}`;
 		}
 
 		if (counts.pending > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-pending'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.pending}`;
 		}
 
 		if (counts.successful > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-success'));
-			badge.appendChild(renderIcon(Codicon.passFilled));
+			badge.appendChild(renderIcon(Codicon.passFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.successful}`;
 		}
 	}
@@ -395,9 +395,38 @@ export class CIStatusWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
+	/**
+	 * Expand the body if it is currently collapsed, notifying listeners so the
+	 * parent pane restores its size. No-op when already expanded.
+	 */
+	expand(): void {
+		if (!this._collapsed) {
+			return;
+		}
+		this._setCollapsed(false);
+		this._onDidToggleCollapsed.fire(false);
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Move keyboard focus into the checks list. Falls back to the header when
+	 * the body is collapsed or there is nothing to focus.
+	 */
+	focus(): void {
+		if (this._collapsed || this._checkCount === 0) {
+			this._headerNode.focus();
+			return;
+		}
+		this._list.domFocus();
+		if (this._list.length > 0 && this._list.getFocus().length === 0) {
+			this._list.setFocus([0]);
+		}
+	}
+
 	private _setCollapsed(collapsed: boolean): void {
 		this._collapsed = collapsed;
 		this._updateChevron();
+		this._headerNode.classList.toggle('collapsed', collapsed);
 		this._headerNode.setAttribute('aria-expanded', String(!collapsed));
 	}
 
@@ -429,13 +458,13 @@ export class CIStatusWidget extends Disposable {
 			};
 		}));
 
-		const prompt = buildFixChecksPrompt(failedCheckDetails);
+		const prompt = buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(model));
 		const chatWidget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt, { noCommandDetection: true });
+		await chatWidget.acceptInput(prompt);
 	}
 }
 
@@ -483,26 +512,26 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.sync;
+			return Codicon.syncCompact;
 		case GitHubCheckStatus.Queued:
-			return Codicon.circleFilled;
+			return Codicon.circleFilledCompact;
 		case GitHubCheckStatus.Completed:
 			switch (check.conclusion) {
 				case GitHubCheckConclusion.Success:
-					return Codicon.passFilled;
+					return Codicon.passFilledCompact;
 				case GitHubCheckConclusion.Failure:
 				case GitHubCheckConclusion.TimedOut:
 				case GitHubCheckConclusion.ActionRequired:
-					return Codicon.error;
+					return Codicon.errorCompact;
 				case GitHubCheckConclusion.Cancelled:
-					return Codicon.circleSlash;
+					return Codicon.circleSlashCompact;
 				case GitHubCheckConclusion.Skipped:
 					return Codicon.debugStepOver;
 				default:
-					return Codicon.circleFilled;
+					return Codicon.circleFilledCompact;
 			}
 		default:
-			return Codicon.circleFilled;
+			return Codicon.circleFilledCompact;
 	}
 }
 

@@ -205,6 +205,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-click-link', ({ uri }) => {
+			if (!this.isActiveElement()) {
+				return;
+			}
 			this._onDidClickLink.fire(uri);
 		}));
 
@@ -714,8 +717,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
 	}
 
+	private isActiveElement(): boolean {
+		return !!this.element && this.window?.document.activeElement === this.element;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
-		if (!this.shouldForwardKeyEvent(event)) {
+		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
 			return;
 		}
 
@@ -869,7 +876,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						});
 						listenStream(result.stream, {
 							onData: (chunk) => {
-								const data = new Uint8Array(chunk.buffer.buffer, chunk.buffer.byteOffset, chunk.buffer.byteLength);
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = chunk.buffer.slice();
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

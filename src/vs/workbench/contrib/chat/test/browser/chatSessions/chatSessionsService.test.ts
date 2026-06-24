@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite.skip('ChatSessionsService', () => {
@@ -104,6 +110,90 @@ suite.skip('ChatSessionsService', () => {
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
 		});
+	});
+});
+
+suite('ChatSessionsService - getChatSessionItems availability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const GATED_TYPE = 'gated-type';
+	const UNGATED_TYPE = 'ungated-type';
+	const gatedKey = new RawContextKey<boolean>('test.gatedTypeEnabled', false);
+
+	let service: ChatSessionsService;
+	let contextKeyService: ContextKeyService;
+	let gatedEnabled: IContextKey<boolean>;
+
+	/**
+	 * A minimal item controller that immediately exposes a single session item.
+	 * This stands in for an extension-host-registered controller, which is
+	 * registered independently of the contribution's `when` clause.
+	 */
+	class FakeItemController implements IChatSessionItemController {
+		private readonly _onDidChange = store.add(new Emitter<IChatSessionItemsDelta>());
+		readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta> = this._onDidChange.event;
+
+		constructor(private readonly _type: string) { }
+
+		get items(): readonly IChatSessionItem[] {
+			return [{
+				resource: URI.from({ scheme: this._type, path: `/session-1` }),
+				label: `${this._type} session`,
+				timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+			}];
+		}
+
+		async refresh(): Promise<void> { }
+	}
+
+	function registerType(type: string, when: string | undefined): void {
+		const contribution: IChatSessionsExtensionPoint = { type, name: type, displayName: type, description: '', when };
+		store.add(service.registerChatSessionContribution(contribution));
+		store.add(service.registerChatSessionItemController(type, new FakeItemController(type)));
+	}
+
+	async function resolvedTypes(): Promise<string[]> {
+		const types: string[] = [];
+		for await (const { chatSessionType, items } of service.getChatSessionItems(undefined, CancellationToken.None)) {
+			if (items.length > 0) {
+				types.push(chatSessionType);
+			}
+		}
+		return types.sort();
+	}
+
+	setup(() => {
+		const configurationService = new TestConfigurationService();
+		contextKeyService = store.add(new ContextKeyService(configurationService));
+		gatedEnabled = gatedKey.bindTo(contextKeyService);
+
+		const instantiationService = store.add(workbenchInstantiationService({
+			contextKeyService: () => contextKeyService,
+			configurationService: () => configurationService,
+		}, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+
+		registerType(GATED_TYPE, `${gatedKey.key}`);
+		registerType(UNGATED_TYPE, undefined);
+	});
+
+	test('excludes a type whose contribution `when` is false', async () => {
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+
+	test('includes a type whose contribution `when` is true', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+	});
+
+	test('reflects a runtime `when` flip without re-registration', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
 	});
 });
 

@@ -405,6 +405,32 @@ suite('CustomizationHarnessService', () => {
 			]);
 		});
 
+		test('uses plugin label for plugin-scoped commands when provider plugin URI is a pinned SHA path', async () => {
+			const testSessionType = 'test-session-type';
+			const testSessionResource = URI.parse('test-session-type://session');
+			const pluginUri = URI.parse('file:///cache/agentPlugins/github/datadog/sha_b003fcad48c3a935ffe04b6218f5cf58fe2b6760');
+
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const service = createService({
+				id: testSessionType,
+				label: 'Test Extension',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.plugin] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [
+						{ uri: URI.joinPath(pluginUri, 'skills', 'ddsetup', 'SKILL.md'), type: PromptsType.skill, source: 'plugin', name: 'ddsetup', description: 'Set up Datadog', extensionId: undefined, pluginUri, pluginLabel: 'datadog', userInvocable: undefined },
+					],
+				},
+			});
+
+			const commands = await service.getSlashCommands(testSessionResource, CancellationToken.None);
+			assert.deepStrictEqual(commands.map(command => ({ name: command.name, description: command.description, type: command.type })), [
+				{ name: 'datadog:ddsetup', description: 'Set up Datadog', type: PromptsType.skill },
+			]);
+		});
+
 		test('falls back to promptsService when the active harness has no provider', async () => {
 
 			const testSessionType = 'test-session-type';
@@ -438,16 +464,20 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getCustomAgents', () => {
-		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => ({
-			uri: URI.parse(path),
-			name,
-			target: Target.GitHubCopilot,
-			visibility: { userInvocable: true, agentInvocable: true },
-			agentInstructions: { content: '', toolReferences: [] },
-			source: { storage: PromptsStorage.local },
-			sessionTypes,
-			enabled,
-		});
+		const createAgent = (name: string, path: string, sessionTypes: readonly string[] | undefined, enabled: boolean): ICustomAgent => {
+			const uri = URI.parse(path);
+			return {
+				id: uri.toString(),
+				uri,
+				name,
+				target: Target.GitHubCopilot,
+				visibility: { userInvocable: true, agentInvocable: true },
+				agentInstructions: { content: '', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				sessionTypes,
+				enabled,
+			};
+		};
 
 		test('falls back to promptsService and filters by session type', async () => {
 			const promptsService = new MockPromptsService();

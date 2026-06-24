@@ -84,7 +84,7 @@
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	padding: 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 }
 

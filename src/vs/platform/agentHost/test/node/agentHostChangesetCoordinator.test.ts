@@ -9,17 +9,21 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { AgentSession } from '../../common/agentService.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { ChangesetSessionCoordinator, IChangesetSessionMetadata } from '../../node/agentHostChangesetCoordinator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../node/agentHostChangesetService.js';
+import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
-import { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { ChangesSummary } from '../../common/state/protocol/state.js';
+import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
+import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 
 suite('ChangesetSessionCoordinator', () => {
 
@@ -35,25 +39,34 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(session),
 		}, { emitNotification });
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalogue(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
 	function createEnvironment(root: URI = URI.file('/repo')): {
 		stateManager: AgentHostStateManager;
 		changesets: TestChangesetService;
+		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
-		coordinator: ChangesetSessionCoordinator;
+		coordinator: AgentHostChangesetCoordinator;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
-		const changesets = new TestChangesetService();
+		const subscriptions = new AgentHostChangesetSubscriptionService();
+		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
-		const coordinator = disposables.add(new ChangesetSessionCoordinator(stateManager, changesets, configurationService, monitor, gitService, new NullLogService()));
-		return { stateManager, changesets, monitor, gitService, coordinator };
+		const operationContributionService: IAgentHostChangesetOperationService = {
+			_serviceBrand: undefined,
+			registerContribution: () => Disposable.None,
+			updateOperations: () => { },
+			invokeChangesetOperation: async () => ({}),
+			dispose: () => { },
+		};
+		const coordinator = disposables.add(new AgentHostChangesetCoordinator(stateManager, operationContributionService, changesets, subscriptions, configurationService, monitor, gitService, new NullLogService()));
+		return { stateManager, changesets, subscriptions, monitor, gitService, coordinator };
 	}
 
 	test('shares root watchers across sessions and fans out root changes to static refreshes', async () => {
@@ -76,12 +89,14 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual({
 			acquisitions: environment.monitor.acquisitions,
+			branchRefreshes: environment.changesets.branchRefreshes,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 			sessionRefreshes: environment.changesets.sessionRefreshes,
 		}, {
 			acquisitions: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
-			sessionRefreshes: [firstSession, secondSession],
+			branchRefreshes: [firstSession],
+			uncommittedRefreshes: [secondSession],
+			sessionRefreshes: [firstSession],
 		});
 	});
 
@@ -127,7 +142,7 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
-	test('defers session changeset refresh until the working directory is known', async () => {
+	test('forwards session changeset refresh to the changeset service and drains pending work on materialization', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		createSession(environment.stateManager, session, undefined, false);
@@ -140,23 +155,41 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
 
-		assert.deepStrictEqual(environment.changesets.sessionRefreshes, [session]);
+		assert.deepStrictEqual({
+			sessionRefreshes: environment.changesets.sessionRefreshes,
+			workingDirectoryAvailable: environment.changesets.workingDirectoryAvailable,
+		}, {
+			sessionRefreshes: [session],
+			workingDirectoryAvailable: [session],
+		});
 	});
 
-	test('drops pending session changeset refresh when the last subscriber leaves', async () => {
+	test('exposes subscriptions and drops them when the last subscriber leaves', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
 		const changeset = buildSessionChangesetUri(session);
 		createSession(environment.stateManager, session, undefined, false);
 
 		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
-		environment.coordinator.onLastSubscriber(URI.parse(changeset));
-		const summary = environment.stateManager.getSessionState(session)!.summary;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
-		environment.coordinator.onSessionMaterialized(session);
-		await tick();
+		const subscribed = [...environment.subscriptions.getSessionSubscriptions(session)];
 
-		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+		const afterUnsubscribe = [...environment.subscriptions.getSessionSubscriptions(session)];
+
+		assert.deepStrictEqual({ subscribed, afterUnsubscribe }, {
+			subscribed: [changeset],
+			afterUnsubscribe: [],
+		});
+	});
+
+	test('routes git-state changes through the service subscription-driven recompute', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+
+		environment.coordinator.onSessionGitStateChanged(session, { baseBranchName: 'main' });
+
+		assert.deepStrictEqual(environment.changesets.recomputed, [session]);
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
@@ -173,7 +206,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo'],
-			refreshes: [session],
+			refreshes: [],
 		});
 	});
 
@@ -200,7 +233,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [session],
+			refreshes: [],
 		});
 	});
 
@@ -232,7 +265,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, uncommittedRefreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
+			uncommittedRefreshes: [],
 		});
 	});
 
@@ -261,7 +294,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [parentSession],
+			refreshes: [],
 		});
 	});
 
@@ -374,35 +407,78 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly branchRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
+	readonly workingDirectoryAvailable: string[] = [];
+	readonly recomputed: string[] = [];
+	readonly disposed: string[] = [];
+
+	constructor(private readonly _subscriptions: IAgentHostChangesetSubscriptionService) { }
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
 	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
+	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
-	refreshUncommittedChangeset(session: string): void {
-		this.uncommittedRefreshes.push(session);
+	refreshBranchChangeset(session: string): void {
+		this.branchRefreshes.push(session);
 	}
 	refreshSessionChangeset(session: string): void {
 		this.sessionRefreshes.push(session);
+	}
+	onWorkingDirectoryAvailable(session: string): void {
+		this.workingDirectoryAvailable.push(session);
+	}
+	recomputeSubscribedChangesets(session: string): void {
+		this.recomputed.push(session);
+		for (const changeset of this._subscriptions.getSessionSubscriptions(session)) {
+			const parsed = parseChangesetUri(changeset);
+			switch (parsed?.kind) {
+				case ChangesetKind.Branch:
+					this.refreshBranchChangeset(session);
+					break;
+				case ChangesetKind.Session:
+					this.refreshSessionChangeset(session);
+					break;
+				case ChangesetKind.Uncommitted:
+					void this.computeUncommittedChangeset(session);
+					break;
+				default:
+					if (changeset === session) {
+						this.refreshBranchChangeset(session);
+						this.refreshSessionChangeset(session);
+					}
+					break;
+			}
+		}
+	}
+	onSessionDisposed(session: string): void {
+		this.disposed.push(session);
+	}
+	async computeUncommittedChangeset(session: string): Promise<string> {
+		if (this._subscriptions.getSessionSubscriptions(session).has(URI.parse(buildUncommittedChangesetUri(session)).toString())) {
+			this.uncommittedRefreshes.push(session);
+		}
+		return `${session}/changeset/uncommitted`;
 	}
 	async computeTurnChangeset(session: string, turnId: string): Promise<string> { return `${session}/changeset/turn/${turnId}`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> { return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
 
 	clearRefreshes(): void {
+		this.branchRefreshes.length = 0;
 		this.uncommittedRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
+		this.recomputed.length = 0;
 	}
 
 	getListMetadataKeys(_sessionStr: string): Record<string, true> | undefined { return undefined; }
-	decorateListEntry(entry: IAgentSessionMetadata, _metadata: IChangesetSessionMetadata): IAgentSessionMetadata { return entry; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 }
 
 function tick(): Promise<void> {
