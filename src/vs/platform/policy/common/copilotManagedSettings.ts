@@ -34,6 +34,9 @@ export const COPILOT_EXTRA_MARKETPLACES_KEY = 'extraKnownMarketplaces';
 /** Managed-settings key for the strict-marketplace allowlist (carried as a JSON-encoded array of source entries; absent = no restrictions, `[]` = lockdown). */
 export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 
+/** Managed-settings key for the default chat model (carried as a plain string: `auto`, a model family name, or a full model id). */
+export const COPILOT_MODEL_KEY = 'model';
+
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
 /**

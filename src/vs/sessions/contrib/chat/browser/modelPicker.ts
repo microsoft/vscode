@@ -8,12 +8,15 @@ import { autorun, IObservable, observableValue } from '../../../../base/common/o
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { resolveConfiguredModel } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -96,7 +99,7 @@ export class ModelPicker extends Disposable {
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
 	private _lastSessionKey: string | undefined;
-	private _lastPushedSessionId: string | undefined;
+	private _lastPushedChatKey: string | undefined;
 	private _settingModelInternally = false;
 
 	constructor(
@@ -106,6 +109,7 @@ export class ModelPicker extends Disposable {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
@@ -156,9 +160,11 @@ export class ModelPicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			// Re-run when the provider restores model state for an existing
-			// session, or when an untitled session becomes established after send.
+			// session, when an untitled session becomes established after send, or
+			// when a new chat starts within the (reused) untitled session.
 			session?.modelId.read(reader);
 			session?.status.read(reader);
+			session?.activeChat.read(reader);
 
 			// Keep the model list fresh while this session is active.
 			const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
@@ -206,6 +212,11 @@ export class ModelPicker extends Disposable {
 		}
 
 		const current = this._currentModel.get();
+		// Key the "already seeded this chat" check on the active chat resource, not
+		// the sessionId: the untitled session is reused across "new chat" actions
+		// (back button, new session) with a stable sessionId, while each new chat
+		// gets a fresh resource.
+		const chatKey = session?.activeChat.get().resource.toString();
 		const sessionModelId = session?.modelId.get();
 		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId) : undefined;
 		const isNewSession = session?.status.get() === SessionStatus.Untitled;
@@ -218,26 +229,35 @@ export class ModelPicker extends Disposable {
 				// resolved and confirmed the model is gone.
 				if (!sessionModelId || sessionModel || !this._hasResolvedSessionModelVendor(sessionModelId)) {
 					this._currentModel.set(sessionModel, undefined);
-					this._lastPushedSessionId = session.sessionId;
+					this._lastPushedChatKey = chatKey;
 					return;
 				}
 
 				this._delegate.setModel(this._getFallbackModel(session, models));
-				this._lastPushedSessionId = session.sessionId;
+				this._lastPushedChatKey = chatKey;
 				return;
 			}
 
-			if (!current) {
+			const configured = resolveConfiguredModel(this._getConfiguredDefaultModel(), [...models]);
+			if (configured && session && chatKey !== this._lastPushedChatKey) {
+				// The configured default (`chat.defaultModel`, possibly set by policy)
+				// starts every new chat, overriding the remembered and carried-over
+				// selection. A manual pick afterwards sticks for that chat.
+				this._delegate.setModel(configured);
+				this._lastPushedChatKey = chatKey;
+			} else if (!current) {
+				// No configured default: seed from the session's restored model or
+				// the remembered last-used model.
 				this._delegate.setModel(sessionModel ?? this._getFallbackModel(session, models));
-				this._lastPushedSessionId = session?.sessionId;
-			} else if (session && isNewSession && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
-				// Active session changed (e.g. user switched repository) but the
+				this._lastPushedChatKey = chatKey;
+			} else if (session && isNewSession && chatKey !== this._lastPushedChatKey && models.some(m => m.identifier === current.identifier)) {
+				// Active chat changed (e.g. user switched repository) but the
 				// previously selected model is still available. Re-push it so the
-				// new session's provider receives setModel — otherwise the request
+				// new chat's provider receives setModel — otherwise the request
 				// would be sent with the default model even though the picker UI
 				// still shows the user's selection. See #313385.
 				this._delegate.setModel(current);
-				this._lastPushedSessionId = session.sessionId;
+				this._lastPushedChatKey = chatKey;
 			}
 		} finally {
 			this._settingModelInternally = false;
@@ -253,6 +273,10 @@ export class ModelPicker extends Disposable {
 		const rememberedModelId = session ? this._storageService.get(modelPickerStorageKey(session.providerId, session.sessionType), StorageScope.PROFILE) : undefined;
 		const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
 		return remembered ?? models[0];
+	}
+
+	private _getConfiguredDefaultModel(): string | undefined {
+		return this._configurationService.getValue<string>(ChatConfiguration.DefaultModel);
 	}
 
 	render(container: HTMLElement): void {
