@@ -116,6 +116,7 @@ const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
+const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -492,7 +493,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		const newWidth = width - 40; // padding
+		const newWidth = width - (this.rendererOptions.contentHorizontalPadding ?? DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING);
 		if (newWidth !== this._currentLayoutWidth.get()) {
 			this._currentLayoutWidth.set(newWidth, undefined);
 			for (const editor of this._editorPool.inUse()) {
