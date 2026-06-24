@@ -14,6 +14,7 @@ import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
@@ -71,10 +72,10 @@ import { CurrentDocument } from '../common/xtabCurrentDocument';
 import { getCurrentLine, isModelLineCompatible } from './cursorLineDivergence';
 import { EditIntentParseMode } from './editIntent';
 import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
-import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
 import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
+import { XtabPatchResponseHandler } from './xtabPatchResponseHandler';
 
 /**
  * Returns true if the user has made document edits since the request was created.
@@ -688,7 +689,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		while (!r.done) {
 			const edit = r.value.edit;
-			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit]);
+			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit], editStreamCtx.modelServiceConfig.allowImportChanges ?? ImportChanges.None);
 			const isFilteredOut = filteredEdits.length === 0;
 			if (isFilteredOut) {
 				tracer.trace(`Filtered out an edit: ${edit.toString()} using ${filterNames.join(', ')} filter(s)`);
@@ -942,8 +943,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
+					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
+					const splitPatchOnDiff = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
-						XtabCustomDiffPatchResponseHandler.handleResponse(
+						XtabPatchResponseHandler.handleResponse(
 							linesStream,
 							currentDocument,
 							activeDoc.id,
@@ -951,6 +954,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							pseudoEditWindow,
 							tracer,
 							duplicateAdditionsMode,
+							fastYieldLineWithCursor,
+							splitPatchOnDiff,
 						),
 					);
 					break;
@@ -1279,11 +1284,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 
 				const targetContent = new StringText(targetTextDoc.getText());
+				const targetContentLines = targetContent.getLines();
+
+				if (prediction.lineNumber >= targetContentLines.length) { // >= because the line index is zero-based
+					tracer.trace(`Predicted cross-file cursor jump error: exceedsDocumentLines`);
+					telemetry.setNextCursorLineError('crossFile:exceedsDocumentLines');
+					return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
+				}
+
 				const syntheticDoc = new StatelessNextEditDocument(
 					targetDocumentId,
 					promptPieces.activeDoc.workspaceRoot,
 					LanguageId.create(targetTextDoc.languageId),
-					targetContent.getLines(),
+					targetContentLines,
 					LineEdit.empty,
 					targetContent,
 					new Edits(StringEdit, []),
@@ -1531,10 +1544,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	}
 
 
-	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[]): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
+	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[], allowImportChanges: ImportChanges): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
 		type EditFilter = (edits: readonly LineReplacement[]) => { filterName: string; filteredEdits: readonly LineReplacement[] };
 
-		const allowImportChanges = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAllowImportChanges, this.expService);
 		const filters: EditFilter[] = [
 			(edits) => ({ filterName: 'IgnoreImportChangesAspect', filteredEdits: IgnoreImportChangesAspect.filterEdit(activeDoc, edits, allowImportChanges) }),
 			(edits) => ({ filterName: 'IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges', filteredEdits: IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges.filterEdit(activeDoc, edits) }),

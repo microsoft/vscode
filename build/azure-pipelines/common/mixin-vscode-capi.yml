@@ -1,0 +1,32 @@
+steps:
+  # Check out the private microsoft/vscode-capi repository using the agent's
+  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
+  # repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: capi
+    path: s/.build/vscode-capi
+    fetchDepth: 1
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-capi
+
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+
+      function Invoke-CheckedCommand([scriptblock] $Command) {
+        & $Command
+        if ($LASTEXITCODE -ne 0) {
+          $commandText = $Command.ToString().Trim()
+          throw "Command failed with exit code ${LASTEXITCODE}: ${commandText}"
+        }
+      }
+
+      $CapiPath = Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi'
+      Push-Location $CapiPath
+
+      try {
+        Invoke-CheckedCommand { npm ci }
+        $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
+        Invoke-CheckedCommand { npm run mixin_vscode }
+      } finally {
+        Pop-Location
+      }
+    displayName: Mixin vscode-capi

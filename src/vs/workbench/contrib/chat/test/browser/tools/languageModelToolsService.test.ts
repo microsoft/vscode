@@ -27,7 +27,7 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, Too
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -814,7 +814,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with some enabled tool
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['tool1RefName', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -822,7 +822,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with user data
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['tool1RefName', 'internalToolSetRefName/internalToolSetTool1RefName'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -830,7 +830,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with unknown tool and tool set
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['internalToolSetRefName'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -1078,6 +1078,41 @@ suite('LanguageModelToolsService', () => {
 
 		const fullReferenceNames = service.toFullReferenceNames(result);
 		assert.deepStrictEqual(fullReferenceNames.sort(), enabledNames.sort(), 'toFullReferenceNames should return the original enabled names');
+	});
+
+	test('toFullReferenceNames does not emit a tool set when a member tool is unchecked', () => {
+		const toolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'testToolSet',
+			'refToolSet',
+			{ description: 'Test Tool Set' }
+		));
+
+		const toolSetTool1: IToolData = {
+			id: 'toolSetTool1',
+			toolReferenceName: 'toolSetTool1Ref',
+			modelDescription: 'Tool Set Tool 1',
+			displayName: 'Tool Set Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolSetTool2: IToolData = {
+			id: 'toolSetTool2',
+			toolReferenceName: 'toolSetTool2Ref',
+			modelDescription: 'Tool Set Tool 2',
+			displayName: 'Tool Set Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolSetTool1));
+		store.add(service.registerToolData(toolSetTool2));
+		store.add(toolSet.addTool(toolSetTool1));
+		store.add(toolSet.addTool(toolSetTool2));
+
+		const selection = service.toToolAndToolSetEnablementMap(['refToolSet', 'toolSetTool1Ref'], undefined);
+
+		const fullReferenceNames = service.toFullReferenceNames(selection);
+		assert.deepStrictEqual(fullReferenceNames, [service.getFullReferenceName(toolSet)]);
 	});
 
 	test('toToolAndToolSetEnablementMap with non-existent tool names', () => {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,7 +16,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -25,10 +24,10 @@ import { IPaneCompositePartService } from '../../../../../workbench/services/pan
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
-import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -106,18 +105,21 @@ suite('LayoutController', () => {
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
-	let onDidSubmitRequest: Emitter<{ chatSessionResource: URI }>;
 	let storageService: TestStorageService;
 	let partVisibility: Map<Parts, boolean>;
 	let openedViewContainers: string[];
 	let openedViews: string[];
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
+	let pinnedAuxiliaryBarContainerIds: string[];
+	let visibleEditorsList: readonly unknown[];
 
 	interface ICreateOptions {
 		readonly useModal?: 'off' | 'some' | 'all';
 		readonly workspaceFolders?: readonly { readonly uri: URI }[];
 		readonly layoutState?: readonly object[];
+		readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
+		readonly newSessionViewStateRaw?: string;
 	}
 
 	function createLayoutController(options: ICreateOptions = {}): LayoutController {
@@ -126,6 +128,12 @@ suite('LayoutController', () => {
 		storageService = store.add(new TestStorageService());
 		if (options.layoutState) {
 			storageService.store('sessions.layoutState', JSON.stringify(options.layoutState), StorageScope.WORKSPACE, 0);
+		}
+		if (options.newSessionViewState) {
+			storageService.store('sessions.newSessionViewState', JSON.stringify(options.newSessionViewState), StorageScope.WORKSPACE, 0);
+		}
+		if (options.newSessionViewStateRaw !== undefined) {
+			storageService.store('sessions.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
 		}
 		instaService.stub(IStorageService, storageService);
 
@@ -137,17 +145,12 @@ suite('LayoutController', () => {
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSessionObs;
 			override readonly visibleSessions = constObservable([]);
-		});
-
-		onDidSubmitRequest = store.add(new Emitter<{ chatSessionResource: URI }>());
-		instaService.stub(IChatService, new class extends mock<IChatService>() {
-			override readonly onDidSubmitRequest = onDidSubmitRequest.event;
 		});
 
 		partVisibility = new Map<Parts, boolean>([
@@ -172,6 +175,7 @@ suite('LayoutController', () => {
 				}
 			}
 			override hasFocus(_part: Parts): boolean { return false; }
+			suppressEditorPartAutoVisibility(): IDisposable { return Disposable.None; }
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 		} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
 
@@ -190,6 +194,7 @@ suite('LayoutController', () => {
 		});
 
 		activePaneCompositeId = undefined;
+		pinnedAuxiliaryBarContainerIds = [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID];
 		instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
 			override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
 				if (activePaneCompositeId) {
@@ -197,10 +202,17 @@ suite('LayoutController', () => {
 				}
 				return undefined;
 			}
+			override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {
+				// Mirrors production: pinned ids only. The active composite is not
+				// necessarily pinned (that distinction lives in getVisiblePaneCompositeIds),
+				// so tests must add a container to pinnedAuxiliaryBarContainerIds to model it as pinned.
+				return [...pinnedAuxiliaryBarContainerIds];
+			}
 		});
 
+		visibleEditorsList = [];
 		instaService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override get visibleEditors() { return []; }
+			override get visibleEditors() { return visibleEditorsList as IEditorService['visibleEditors']; }
 		});
 
 		instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -222,22 +234,30 @@ suite('LayoutController', () => {
 
 	// --- Auxiliary bar view state ---
 
-	test('shows files view for session with workspace and no changes', () => {
+	test('hides side pane for existing session without saved state', () => {
 		createLayoutController();
 		const session = makeSession(URI.parse('session:1'));
 		activeSessionObs.set(session, undefined);
 
-		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'side pane should be hidden'
+		);
+		assert.ok(!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID), 'should not auto-open the Files view');
 	});
 
-	test('shows changes view for session with changes', () => {
+	test('does not auto-open side pane for existing session with changes', () => {
 		createLayoutController();
 		const session = makeSession(URI.parse('session:1'), {
 			changes: [makeChange('/file.ts')],
 		});
 		activeSessionObs.set(session, undefined);
 
-		assert.ok(openedViews.includes(CHANGES_VIEW_ID));
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'side pane should be hidden'
+		);
+		assert.ok(!openedViews.includes(CHANGES_VIEW_ID), 'should not auto-open the Changes view');
 	});
 
 	test('shows files view for untitled session', () => {
@@ -246,6 +266,110 @@ suite('LayoutController', () => {
 		activeSessionObs.set(session, undefined);
 
 		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+	});
+
+	test('closes the side pane when an untitled session converts to an existing session', () => {
+		createLayoutController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+
+		setPartHiddenCalls = [];
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'side pane should be closed after the session converts to an existing session'
+		);
+	});
+
+	test('remembers hidden aux bar across new (untitled) sessions', () => {
+		createLayoutController();
+		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
+		const existing = makeSession(URI.parse('session:existing'));
+		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
+
+		// Open a new (untitled) session — aux bar shows the Files view.
+		activeSessionObs.set(untitled1, undefined);
+		assert.ok(openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
+
+		// User hides the aux bar on the new-session view.
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		// Switch to an existing session and back to a brand new (untitled) session.
+		activeSessionObs.set(existing, undefined);
+
+		setPartHiddenCalls = [];
+		openedViewContainers = [];
+		activeSessionObs.set(untitled2, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should stay hidden on the next new session'
+		);
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not re-open the Files view on the next new session'
+		);
+	});
+
+	test('persists hidden new-session aux bar to storage and restores it after reload', () => {
+		// First lifetime: user hides the aux bar on the new-session view.
+		createLayoutController();
+		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
+		activeSessionObs.set(untitled1, undefined);
+
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		assert.deepStrictEqual(
+			JSON.parse(storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE) ?? ''),
+			{ auxiliaryBarVisible: false },
+			'state should be persisted to storage'
+		);
+
+		store.clear();
+
+		// Second lifetime (reload): a fresh controller with the persisted state.
+		createLayoutController({ newSessionViewState: { auxiliaryBarVisible: false } });
+		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
+
+		setPartHiddenCalls = [];
+		openedViewContainers = [];
+		activeSessionObs.set(untitled2, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should stay hidden after reload'
+		);
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not re-open the Files view after reload'
+		);
+	});
+
+	test('ignores malformed persisted new-session state and does not force-hide the aux bar', () => {
+		// Persisted object is missing the `auxiliaryBarVisible` boolean.
+		createLayoutController({ newSessionViewStateRaw: JSON.stringify({ foo: 'bar' }) });
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
+
+		activeSessionObs.set(untitled, undefined);
+
+		assert.ok(
+			!setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'malformed state must not force-hide the aux bar'
+		);
+		assert.ok(
+			openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should fall back to the default Files view'
+		);
+		assert.strictEqual(
+			storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE),
+			undefined,
+			'malformed state should be removed from storage'
+		);
 	});
 
 	test('does not open views when session has no workspace', () => {
@@ -285,6 +409,9 @@ suite('LayoutController', () => {
 
 		activeSessionObs.set(session1, undefined);
 		activePaneCompositeId = 'some.custom.view';
+		pinnedAuxiliaryBarContainerIds = [...pinnedAuxiliaryBarContainerIds, 'some.custom.view'];
+		partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 
 		activeSessionObs.set(session2, undefined);
 
@@ -297,25 +424,88 @@ suite('LayoutController', () => {
 		);
 	});
 
-	// --- Editor / auxiliary bar invariant ---
-
-	test('reveals auxiliary bar when the editor part becomes visible', () => {
+	test('restores an explicit Files choice on session switch even when the session has changes', () => {
 		createLayoutController();
-		partVisibility.set(Parts.EDITOR_PART, true);
-		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		setPartHiddenCalls = [];
+		const session1 = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
+		const session2 = makeSession(URI.parse('session:2'));
 
-		// Simulate the editor part becoming visible (e.g. opening a file from chat)
-		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		// The user explicitly opens the (pinned) Files pane for session 1.
+		activeSessionObs.set(session1, undefined);
+		activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+		partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		activeSessionObs.set(session2, undefined);
+
+		openedViewContainers = [];
+		openedViews = [];
+		activeSessionObs.set(session1, undefined);
 
 		assert.ok(
-			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'auxiliary bar should be revealed when the editor becomes visible'
+			openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should restore the user\'s explicit Files choice'
+		);
+		assert.ok(
+			!openedViews.includes(CHANGES_VIEW_ID),
+			'should not override the explicit Files choice with Changes'
 		);
 	});
 
-	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
+	test('shows changes for untitled session with changes', () => {
+		createLayoutController();
+		const session = makeSession(URI.parse('session:1'), {
+			status: SessionStatus.Untitled,
+			changes: [makeChange('/file.ts')],
+		});
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(openedViews.includes(CHANGES_VIEW_ID));
+	});
+
+	test('does not force-open Files when the Files pane is hidden', () => {
+		createLayoutController();
+		// User has hidden / unpinned the Files pane.
+		pinnedAuxiliaryBarContainerIds = [CHANGES_VIEW_CONTAINER_ID];
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+
+		activeSessionObs.set(session, undefined);
+
+		assert.ok(
+			!openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'should not open the hidden Files pane'
+		);
+		assert.ok(
+			openedViews.includes(CHANGES_VIEW_ID),
+			'should fall back to Changes when Files is hidden'
+		);
+	});
+
+	test('does not re-reveal aux bar after user hides it when session changes state updates', () => {
+		createLayoutController();
 		const session = makeSession(URI.parse('session:1'));
+		activeSessionObs.set(session, undefined);
+
+		// User hides the aux bar (Side Panel) without switching sessions.
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		openedViews = [];
+		openedViewContainers = [];
+		setPartHiddenCalls = [];
+
+		// Changes appear, which re-triggers the aux bar sync autorun.
+		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+
+		assert.ok(
+			!openedViews.includes(CHANGES_VIEW_ID) && !openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'aux bar must stay hidden after the user hid it, even when changes appear'
+		);
+	});
+
+	// --- Editor / auxiliary bar invariant ---
+
+	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
 		createLayoutController({
 			useModal: 'some',
 			workspaceFolders: [{ uri: URI.file('/repo') }],
@@ -325,11 +515,16 @@ suite('LayoutController', () => {
 				viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
 			}],
 		});
+
+		// Start on a different session, then switch to the one with a saved working set.
+		activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
 		partVisibility.set(Parts.EDITOR_PART, false);
 		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		setPartHiddenCalls = [];
 
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(session1, undefined);
 		// Flush the working-set sequencer (queued microtasks)
 		await timeout(0);
 
@@ -376,55 +571,6 @@ suite('LayoutController', () => {
 		assert.strictEqual(panelCall!.hidden, false, 'panel should be visible for session 1');
 	});
 
-	// --- Turn completion ---
-
-	test('shows aux bar when turn completes with new changes', () => {
-		createLayoutController();
-		const session = makeSession(URI.parse('session:1'));
-		activeSessionObs.set(session, undefined);
-
-		onDidSubmitRequest.fire({ chatSessionResource: session.resource });
-
-		(session.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
-		(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(), undefined);
-
-		assert.ok(
-			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'aux bar should be shown after turn with new changes'
-		);
-	});
-
-	test('clears saved state when turn produces new changes', () => {
-		createLayoutController();
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-
-		activeSessionObs.set(session1, undefined);
-		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-
-		activeSessionObs.set(session2, undefined);
-		activeSessionObs.set(session1, undefined);
-
-		onDidSubmitRequest.fire({ chatSessionResource: session1.resource });
-		(session1.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/new.ts')], undefined);
-		(session1.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(), undefined);
-
-		activeSessionObs.set(session2, undefined);
-
-		setPartHiddenCalls = [];
-		openedViews = [];
-		activeSessionObs.set(session1, undefined);
-
-		assert.ok(
-			openedViews.includes(CHANGES_VIEW_ID),
-			'should show changes view since saved state was cleared after turn with new changes'
-		);
-		assert.ok(
-			!setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should not be hidden since saved state was cleared'
-		);
-	});
-
 	// --- Storage persistence ---
 
 	test('persists state to sessions.layoutState key', () => {
@@ -445,9 +591,75 @@ suite('LayoutController', () => {
 		const session1Entry = parsed.find((e: any) => e.sessionResource === 'session:1');
 		assert.ok(session1Entry, 'session 1 entry should exist');
 		assert.deepStrictEqual(session1Entry.viewState, {
-			auxiliaryBarVisible: true,
+			auxiliaryBarVisible: false,
 			auxiliaryBarActiveViewContainerId: 'custom.view',
 		});
+	});
+
+	test('keeps aux bar hidden after reload when a session with editors closes both editor and aux bar', () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createLayoutController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Session 1 active with an editor open so a working set is saved on switch-away.
+		visibleEditorsList = [{}];
+		activeSessionObs.set(session1, undefined);
+		activeSessionObs.set(session2, undefined);
+
+		// Back to session 1 and hide the aux bar (captured immediately as hidden view state).
+		activeSessionObs.set(session1, undefined);
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		// Close all editors, then switch away so the now-empty working set is saved.
+		// This deletes the working set; the captured aux view state must survive.
+		visibleEditorsList = [];
+		activeSessionObs.set(session2, undefined);
+
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const stored = storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
+		assert.ok(stored, 'state should be persisted');
+
+		// Reload: a fresh controller restores from the persisted state.
+		createLayoutController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!) });
+		const reloadedSession1 = makeSession(URI.parse('session:1'));
+		setPartHiddenCalls = [];
+		openedViews = [];
+		openedViewContainers = [];
+		activeSessionObs.set(reloadedSession1, undefined);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux bar should remain hidden after reload'
+		);
+	});
+
+	test('does not reveal the editor part on reload when its working set is restored but the part was hidden', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+
+		// Reload: a session has a saved working set (editors were kept open) but the
+		// editor part was hidden by the user (e.g. closing the Side Panel). The
+		// workbench restores the editor part hidden; the controller must not reveal it.
+		const layoutState = [{
+			sessionResource: 'session:1',
+			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+			viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
+		}];
+		createLayoutController({ useModal: 'some', workspaceFolders, layoutState });
+
+		partVisibility.set(Parts.EDITOR_PART, false);
+		const session1 = makeSession(URI.parse('session:1'));
+		setPartHiddenCalls = [];
+		activeSessionObs.set(session1, undefined);
+		// Flush the working-set sequencer (queued microtasks)
+		await timeout(0);
+
+		assert.ok(
+			!setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should not be revealed on initial restore'
+		);
 	});
 
 	test('migrates legacy sessions.workingSets key', () => {
@@ -466,15 +678,12 @@ suite('LayoutController', () => {
 
 		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = activeSession;
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
 		});
-		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+		instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
 			override readonly visibleSessions = constObservable([]);
-		});
-		instaService.stub(IChatService, new class extends mock<IChatService>() {
-			override readonly onDidSubmitRequest = Event.None;
 		});
 		instaService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 			override isVisible() { return true; }

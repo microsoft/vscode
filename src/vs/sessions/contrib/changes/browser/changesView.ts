@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -20,7 +20,8 @@ import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { MenuWorkbenchButtonBar, WorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
@@ -55,10 +56,11 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
-import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -66,6 +68,7 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -86,7 +89,7 @@ const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- ButtonBar widget
 
-class ChangesButtonBarWidget extends Disposable {
+class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		viewModel: ChangesViewModel,
@@ -220,6 +223,125 @@ class ChangesButtonBarWidget extends Disposable {
 	}
 }
 
+// --- ButtonBar widget (Agent Host)
+
+class ChangesWorkbenchButtonBarWidget extends Disposable {
+	constructor(
+		container: HTMLElement,
+		viewModel: ChangesViewModel,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
+
+		const buttonBar = this._register(instantiationService.createInstance(
+			WorkbenchButtonBar,
+			container,
+			{
+				telemetrySource: 'changesView',
+				buttonConfigProvider: (_action, index) => {
+					return { showIcon: true, showLabel: index === 0 };
+				}
+			}
+		));
+
+		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
+			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		});
+
+		const operationActionGroupsObs = derived<IAction[][]>(reader => {
+			const changeset = viewModel.activeSessionChangesetObs.read(reader);
+			if (!changeset) {
+				return [];
+			}
+
+			const operations = viewModel.activeSessionChangesetOperationsObs.read(reader);
+			const changesetOperations = operations
+				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset));
+
+			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
+				id: op.id,
+				label: op.icon
+					? op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: `$(${op.icon.id}) ${op.label}`
+					: op.status === SessionChangesetOperationStatus.Running
+						? `$(loading) ${op.label}`
+						: op.label,
+				tooltip: op.description,
+				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
+				run: () => changeset.invokeOperation(op.id),
+			});
+
+			// Group the remaining changeset-scoped operations by their
+			// group identifier, preserving the order in which groups
+			// are first encountered.
+			const groups = new Map<string | undefined, IAction[]>();
+			for (const op of changesetOperations) {
+				// Skip the running operations as they will be handled separately
+				if (op.status === SessionChangesetOperationStatus.Running) {
+					continue;
+				}
+
+				const action = toOperationAction(op);
+				const groupActions = groups.get(op.group);
+				if (groupActions) {
+					groupActions.push(action);
+				} else {
+					groups.set(op.group, [action]);
+				}
+			}
+
+			// Running operations are extracted into a dedicated group that appears first
+			// so that the running operation acts as the primary action of the dropdown.
+			const runningActions = changesetOperations
+				.filter(op => op.status === SessionChangesetOperationStatus.Running)
+				.map(toOperationAction);
+
+			return [
+				...(runningActions.length > 0
+					? [runningActions]
+					: []),
+				...groups.values(),
+			];
+		});
+
+		this._register(autorun(reader => {
+			const operationActionGroups = operationActionGroupsObs.read(reader);
+			const menuActions = menuActionsObs.read(reader);
+
+			const primaryActions: IAction[] = [];
+			const operationActions = operationActionGroups.flat();
+
+			if (operationActions.length > 1) {
+				// The action groups are build so that the
+				// running action(s) appear in the first group
+				const primaryAction = operationActions[0];
+
+				// Join the groups with separators to
+				// visually separate related operations.
+				const dropdownActions: IAction[] = [];
+				for (const group of operationActionGroups) {
+					if (dropdownActions.length > 0) {
+						dropdownActions.push(new Separator());
+					}
+					dropdownActions.push(...group);
+				}
+
+				primaryActions.push(new SubmenuAction('changesView.operations.primary.dropdown', primaryAction.label, dropdownActions));
+			} else {
+				primaryActions.push(...operationActions);
+			}
+
+			primaryActions.push(...menuActions.primary);
+			buttonBar.update(primaryActions, menuActions.secondary);
+		}));
+	}
+}
+
 // --- View Pane
 
 export class ChangesViewPane extends ViewPane {
@@ -275,7 +397,7 @@ export class ChangesViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -284,10 +406,6 @@ export class ChangesViewPane extends ViewPane {
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
-
-		// Multi-diff editor source resolver
-		const changesMultiDiffSourceResolver = this.instantiationService.createInstance(ChangesMultiDiffSourceResolver, this.viewModel);
-		this._register(changesMultiDiffSourceResolver);
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
@@ -566,17 +684,28 @@ export class ChangesViewPane extends ViewPane {
 
 		// Setup context keys and actions toolbar
 		if (this.actionsContainer) {
-			dom.clearNode(this.actionsContainer);
-
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
-				ChangesButtonBarWidget, this.actionsContainer, this.viewModel, this.hasGitOperationInProgressObs));
+			const isAgentHostSessionObs = derived(reader => {
+				const activeSession = this.sessionsService.activeSession.read(reader);
+				return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
+			});
+
+			this.renderDisposables.add(autorun(reader => {
+				dom.clearNode(this.actionsContainer!);
+
+				const isAgentHostSession = isAgentHostSessionObs.read(reader);
+
+				const widget = isAgentHostSession
+					? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, this.viewModel)
+					: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.viewModel, this.hasGitOperationInProgressObs);
+				reader.store.add(widget);
+			}));
 		}
 
 		const activeSessionStatusObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.status.read(reader);
 		});
 
@@ -695,7 +824,7 @@ export class ChangesViewPane extends ViewPane {
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
-			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
+			const activeSessionStatus = this.sessionsService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
@@ -774,7 +903,7 @@ export class ChangesViewPane extends ViewPane {
 		// Get the repository details for the session
 		// - uri: location of the repository
 		// - workingDirectory: location of the worktree
-		const activeSession = this.sessionManagementService.activeSession.get();
+		const activeSession = this.sessionsService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
 		const workspaceFolderUri = folder?.workingDirectory;
 		if (!folder?.root || !workspaceFolderUri) {
@@ -830,6 +959,7 @@ export class ChangesViewPane extends ViewPane {
 	private renderSidebarList(
 		container: HTMLElement,
 		onDidLayout: Event<{ readonly height: number; readonly width: number }>,
+		contextKeyService: IContextKeyService,
 		items: IChangesFileItem[],
 		openFileItem: (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => void,
 	): IDisposable {
@@ -847,7 +977,7 @@ export class ChangesViewPane extends ViewPane {
 		const countBadge = disposables.add(new CountBadge(headerNode, { count: items.length }, defaultCountBadgeStyles));
 		countBadge.setCount(items.length);
 
-		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
+		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)), contextKeyService);
 
 		if (viewMode === ChangesViewMode.Tree) {
 			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items)));
@@ -904,14 +1034,24 @@ export class ChangesViewPane extends ViewPane {
 		onDidChangeVisibility: Event<boolean>,
 		disposables: DisposableStore,
 		getSelection?: () => IChangesFileItem[],
+		contextKeyService?: IContextKeyService,
 	): WorkbenchCompressibleObjectTree<ChangesTreeElement> {
+		// When a scoped context key service is provided (e.g. when rendering into
+		// the modal editor sidebar), create the tree with an instantiation service
+		// that uses it so the tree's context descends from the modal. This keeps
+		// modal-level context keys (e.g. `editorPartModal`) active while the tree
+		// has focus.
+		const treeInstantiationService = contextKeyService
+			? disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])))
+			: this.instantiationService;
+
 		const resourceLabels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility }));
 		const actionRunner = disposables.add(new ChangesViewActionRunner(
 			() => this.viewModel.activeSessionResourceObs.get(),
 			() => this.getSessionDiscardRef(),
 			getSelection ?? (() => this.getTreeSelection()),
 		));
-		return disposables.add(this.instantiationService.createInstance(
+		return disposables.add(treeInstantiationService.createInstance(
 			WorkbenchCompressibleObjectTree<ChangesTreeElement>,
 			'ChangesViewTree',
 			container,
@@ -919,7 +1059,7 @@ export class ChangesViewPane extends ViewPane {
 			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, actionRunner,
 				() => {
 					// Pass in the tree root to be used to compute the label description
-					const activeSession = this.sessionManagementService.activeSession.get();
+					const activeSession = this.sessionsService.activeSession.get();
 					const folder = activeSession?.workspace.get()?.folders[0];
 					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
@@ -986,13 +1126,25 @@ export class ChangesViewPane extends ViewPane {
 		await this._openMultiFileDiffEditor(resource);
 	}
 
+	/**
+	 * Reveal the CI checks section: expand it if collapsed and move keyboard
+	 * focus into it. No-op when there are no checks to show.
+	 */
+	revealChecks(): void {
+		if (!this.ciStatusWidget || !this.ciStatusWidget.visible) {
+			return;
+		}
+		this.ciStatusWidget.expand();
+		this.ciStatusWidget.focus();
+	}
+
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
 		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
 		const currentIndex = items.indexOf(item);
 
 		const sidebar = includeSidebar ? {
-			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
-				return this.renderSidebarList(container as HTMLElement, onDidLayout, items, this._openFileItem.bind(this));
+			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => {
+				return this.renderSidebarList(container as HTMLElement, onDidLayout, contextKeyService, items, this._openFileItem.bind(this));
 			}
 		} : undefined;
 
@@ -1357,6 +1509,30 @@ class ChangesDiffStatsAction extends Action2 {
 	}
 }
 registerAction2(ChangesDiffStatsAction);
+
+/**
+ * Opens the Changes view and reveals (expands + focuses) the CI checks section.
+ * Used by the CI failures banner above the chat input.
+ */
+class RevealCIChecksAction extends Action2 {
+	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;
+
+	constructor() {
+		super({
+			id: RevealCIChecksAction.ID,
+			title: localize2('revealChecks', 'Reveal Checks'),
+			category: CHAT_CATEGORY,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView<ChangesViewPane>(CHANGES_VIEW_ID, true);
+		view?.revealChecks();
+	}
+}
+registerAction2(RevealCIChecksAction);
 
 class ChangesDiffStatsActionItem extends ActionViewItem {
 	private readonly diffStatsObs: IObservable<{ files: number; insertions: number; deletions: number } | undefined>;

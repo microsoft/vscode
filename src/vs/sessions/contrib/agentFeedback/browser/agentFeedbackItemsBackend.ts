@@ -12,7 +12,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -146,15 +146,12 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 // --- Annotations-backed backend -----------------------------------------------
 
 /**
- * Feedback semantics carried in an annotation's {@link Annotation._meta}.
- * Everything not expressible by the annotation's own fields lives here.
- *
- * Mirrors the shared `IFeedbackAnnotationMeta` from `agentFeedbackAnnotations.ts`
- * but types the client-only fields concretely (e.g. {@link suggestion}). The
- * namespaced {@link FEEDBACK_ANNOTATION_META_KEY} is shared so the two sides
- * cannot drift.
+ * Client-side typed view of a feedback annotation's `_meta`, resolved from the
+ * shared wire shape: {@link kind}/{@link state} as the client enums and
+ * {@link suggestion} as the concrete {@link ICodeReviewSuggestion} (the shared
+ * reader validates it only as opaque data, since its shape lives in this layer).
  */
-interface IFeedbackAnnotationMeta {
+interface IFeedbackMetaView {
 	readonly kind: AgentFeedbackKind;
 	readonly state: AgentFeedbackState;
 	readonly sessionResource: string;
@@ -162,6 +159,53 @@ interface IFeedbackAnnotationMeta {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 	readonly sourcePRReviewCommentId?: string;
+	readonly pendingAgentReveal?: boolean;
+}
+
+const KIND_FROM_VALUE: Record<AgentFeedbackKindValue, AgentFeedbackKind> = {
+	user: AgentFeedbackKind.UserReview,
+	codeReview: AgentFeedbackKind.AgentReview,
+	prReview: AgentFeedbackKind.PRReview,
+};
+
+const STATE_FROM_VALUE: Record<AgentFeedbackStateValue, AgentFeedbackState> = {
+	created: AgentFeedbackState.Created,
+	accepted: AgentFeedbackState.Accepted,
+	submitted: AgentFeedbackState.Submitted,
+	resolved: AgentFeedbackState.Resolved,
+};
+
+function asCodeReviewSuggestion(suggestion: unknown): ICodeReviewSuggestion | undefined {
+	// `suggestion` is opaque client-only data this backend itself serialized from
+	// an `ICodeReviewSuggestion`; validate the shape we depend on (an `edits`
+	// array) and trust the round-tripped contents.
+	if (suggestion && typeof suggestion === 'object' && Array.isArray((suggestion as { edits?: unknown }).edits)) {
+		return suggestion as ICodeReviewSuggestion;
+	}
+	return undefined;
+}
+
+/**
+ * Resolves the shared feedback `_meta` (validated by
+ * {@link readFeedbackAnnotationMeta}) into the client-typed
+ * {@link IFeedbackMetaView}, returning `undefined` for annotations that aren't
+ * feedback items.
+ */
+function readFeedbackMeta(annotation: Annotation): IFeedbackMetaView | undefined {
+	const base = readFeedbackAnnotationMeta(annotation);
+	if (!base) {
+		return undefined;
+	}
+	return {
+		kind: KIND_FROM_VALUE[base.kind],
+		state: STATE_FROM_VALUE[base.state],
+		sessionResource: base.sessionResource,
+		suggestion: asCodeReviewSuggestion(base.suggestion),
+		codeSelection: base.codeSelection,
+		diffHunks: base.diffHunks,
+		sourcePRReviewCommentId: base.sourcePRReviewCommentId,
+		pendingAgentReveal: base.pendingAgentReveal,
+	};
 }
 
 function toTextRange(range: IRange): TextRange {
@@ -200,6 +244,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 		codeSelection: feedback.codeSelection,
 		diffHunks: feedback.diffHunks,
 		sourcePRReviewCommentId: feedback.sourcePRReviewCommentId,
+		pendingAgentReveal: feedback.pendingAgentReveal,
 	};
 	return {
 		id: feedback.id,
@@ -214,7 +259,7 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 
 function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
-	const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	const meta = readFeedbackMeta(annotation);
 	// The annotations channel is generic and may carry annotations produced by
 	// other features. Only annotations that carry feedback metadata are feedback
 	// items; everything else is ignored so feedback never surfaces or mutates
@@ -236,6 +281,7 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAg
 		sourcePRReviewCommentId: meta?.sourcePRReviewCommentId,
 		replies: replies.length ? replies : undefined,
 		state: annotation.resolved ? AgentFeedbackState.Resolved : (meta?.state ?? AgentFeedbackState.Accepted),
+		pendingAgentReveal: meta?.pendingAgentReveal,
 	};
 }
 
@@ -268,6 +314,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	private readonly _sessionResourceByKey = new Map<string, URI>();
 	/** Local cache so reads work before the first snapshot arrives. */
 	private readonly _cacheBySession = new Map<string, IAgentFeedback[]>();
+	/**
+	 * Signature of the feedback set we last fired {@link onDidChangeItems} for,
+	 * per session. The annotations channel is shared and may carry non-feedback
+	 * annotations; comparing signatures means churn from those does not fire a
+	 * spurious feedback-items change (which would bump recency / navigation).
+	 */
+	private readonly _signatureBySession = new Map<string, string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -347,6 +400,16 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return result;
 	}
 
+	/**
+	 * Returns the annotations channel URI backing the given session's feedback,
+	 * or `undefined` when the session is not an agent-host session (or no channel
+	 * could be resolved). Each feedback item id is an annotation id on this
+	 * channel, so callers can reference specific comments by id.
+	 */
+	getAnnotationsChannelResource(sessionResource: URI): URI | undefined {
+		return this._ensureChannel(sessionResource)?.annotationsUri;
+	}
+
 	private _hasSnapshot(subscription: IAgentSubscription<AnnotationsState>): boolean {
 		const value = subscription.value;
 		return value !== undefined && !(value instanceof Error);
@@ -365,6 +428,52 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			}
 		}
 		return items;
+	}
+
+	/**
+	 * Fire {@link onDidChangeItems} only when the session's feedback set actually
+	 * changed. The annotations channel is generic and may carry annotations from
+	 * other features; without this guard their churn would bump feedback recency
+	 * ordering and navigation even though no feedback changed.
+	 */
+	private _onAnnotationsChange(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		const channel = this._channelBySession.get(key);
+		if (!channel) {
+			return;
+		}
+		const signature = this._feedbackSignature(channel.subscription);
+		if (this._signatureBySession.get(key) === signature) {
+			return;
+		}
+		this._signatureBySession.set(key, signature);
+		this._onDidChangeItems.fire(sessionResource);
+	}
+
+	/**
+	 * A stable signature of the feedback-bearing annotations in the
+	 * subscription's current snapshot (sorted by id). Excludes annotations
+	 * without feedback metadata so unrelated annotation activity on the shared
+	 * channel is ignored.
+	 */
+	private _feedbackSignature(subscription: IAgentSubscription<AnnotationsState>): string {
+		const value = subscription.value;
+		if (!value || value instanceof Error) {
+			return '';
+		}
+		const feedback = value.annotations
+			.map(annotation => ({ annotation, meta: readFeedbackMeta(annotation) }))
+			.filter(({ annotation, meta }) => meta !== undefined && (annotation.entries?.length ?? 0) > 0)
+			.map(({ annotation, meta }) => ({
+				id: annotation.id,
+				resource: annotation.resource,
+				range: annotation.range,
+				resolved: annotation.resolved,
+				entries: annotation.entries,
+				meta,
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id));
+		return JSON.stringify(feedback);
 	}
 
 	private _cacheUpsert(feedback: IAgentFeedback): void {
@@ -400,6 +509,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._channelBySession.delete(key);
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
+		this._signatureBySession.delete(key);
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
@@ -429,7 +539,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			annotationsUri: resolved.annotationsUri,
 			subscription: ref.object,
 		};
-		store.add(ref.object.onDidChange(() => this._onDidChangeItems.fire(sessionResource)));
+		this._signatureBySession.set(key, this._feedbackSignature(ref.object));
+		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);

@@ -15,14 +15,15 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -36,7 +37,8 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -188,12 +190,17 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(INotificationService, { error: () => { } });
+	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: overrides?.workspaceTrusted ?? true }; }
+	});
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -216,7 +223,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
-	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable<IActiveSession | undefined>(undefined);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -382,6 +389,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(ws.label, 'project');
 		assert.strictEqual(ws.folders.length, 1);
 		assert.strictEqual(ws.folders[0].root.toString(), uri.toString());
+	});
+
+	test('createNewSession eagerly creates the backend session in a trusted folder', async () => {
+		const provider = createProvider(disposables, connection);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/trusted-project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false); // eager create only runs once auth settles
+		await timeout(0); // let the eager createSession promise resolve
+
+		const rawId = session.resource.path.substring(1);
+		const expectedBackendUri = AgentSession.uri(provider.sessionTypes[0].id, rawId);
+		assert.deepStrictEqual(
+			connection.createdSessionUris.map(u => u.toString()),
+			[expectedBackendUri.toString()],
+			'eager createSession should be invoked with the client-allocated URI',
+		);
+	});
+
+	test('createNewSession does not eagerly create the backend session in an untrusted folder', async () => {
+		const provider = createProvider(disposables, connection, { workspaceTrusted: false });
+		provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/untrusted-project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false); // settle auth so only trust can gate the eager create
+		await timeout(0); // let the (suppressed) eager createSession path settle
+
+		assert.deepStrictEqual(
+			connection.createdSessionUris.map(u => u.toString()),
+			[],
+			'no eager createSession should be invoked for an untrusted folder',
+		);
 	});
 
 	// ---- Browse actions -------
@@ -656,7 +691,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Old Title');
 		assert.ok(target, 'Session should exist');
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'New Title');
+		await provider.renameSession(target!.sessionId, 'New Title');
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		const dispatched = connection.dispatchedActions[0];
@@ -677,14 +712,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Before');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'After');
+		await provider.renameSession(target!.sessionId, 'After');
 
 		assert.strictEqual(target!.title.get(), 'After');
 	});
 
 	test('renameSession is no-op for unknown chatId', async () => {
 		const provider = createProvider(disposables, connection);
-		await provider.renameChat('nonexistent-id', URI.parse('test://nonexistent'), 'Ignored');
+		await provider.renameSession('nonexistent-id', 'Ignored');
 
 		assert.strictEqual(connection.dispatchedActions.length, 0);
 	});
@@ -699,8 +734,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Seq Test');
 		assert.ok(target);
 
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 1');
-		await provider.renameChat(target!.sessionId, target!.resource, 'Title 2');
+		await provider.renameSession(target!.sessionId, 'Title 1');
+		await provider.renameSession(target!.sessionId, 'Title 2');
 
 		assert.strictEqual(connection.dispatchedActions.length, 2);
 		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);
@@ -777,9 +812,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'persist-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -897,7 +932,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
-			/not found or not a new session/,
+			/not found/,
 		);
 	});
 
@@ -939,6 +974,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
 		assert.strictEqual(workspace!.label, 'myrepo');
+		assert.strictEqual(workspace!.requiresWorkspaceTrust, true, 'remote session folders require workspace trust');
 	}));
 
 	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -983,9 +1019,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -1023,7 +1059,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
-			turns: [],
+			chats: [],
 			config,
 		};
 		connection.setSessionState('seed-1', 'copilotcli', fakeState);

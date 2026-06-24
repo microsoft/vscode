@@ -31,6 +31,42 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 }
 
 /**
+ * Returns the localized description shown in the picker hover for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to the raw level for unknown values.
+ */
+export function getReasoningEffortDescription(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('No reasoning applied');
+		case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
+		case 'low': return l10n.t('Faster responses with less reasoning');
+		case 'medium': return l10n.t('Balanced reasoning and speed');
+		case 'high': return l10n.t('Greater reasoning depth but slower');
+		case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
+		case 'max': return l10n.t('Absolute maximum capability with no constraints');
+		default: return level;
+	}
+}
+
+/**
+ * Returns the localized, title-cased picker label for a given
+ * reasoning-effort `level`. Centralised here so every provider surfaces the
+ * same wording. Falls back to capitalizing an unknown value.
+ */
+export function getReasoningEffortLabel(level: string): string {
+	switch (level) {
+		case 'none': return l10n.t('None');
+		case 'minimal': return l10n.t('Minimal');
+		case 'low': return l10n.t('Low');
+		case 'medium': return l10n.t('Medium');
+		case 'high': return l10n.t('High');
+		case 'xhigh': return l10n.t('Extra High');
+		case 'max': return l10n.t('Max');
+		default: return level.charAt(0).toUpperCase() + level.slice(1);
+	}
+}
+
+/**
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
@@ -41,19 +77,8 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
-		enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-		enumDescriptions: effortLevels.map(level => {
-			switch (level) {
-				case 'none': return l10n.t('No reasoning applied');
-				case 'minimal': return l10n.t('Minimal reasoning for fastest responses');
-				case 'low': return l10n.t('Faster responses with less reasoning');
-				case 'medium': return l10n.t('Balanced reasoning and speed');
-				case 'high': return l10n.t('Greater reasoning depth but slower');
-				case 'xhigh': return l10n.t('Highest reasoning depth but slowest');
-				case 'max': return l10n.t('Absolute maximum capability with no constraints');
-				default: return level;
-			}
-		}),
+		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
+		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 		default: pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
@@ -164,21 +189,23 @@ const NANO_AIU_DIVISOR = 1_000_000_000;
 /**
  * Raw token prices from the CAPI billing response. Supports both the tiered
  * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
- * (pre-2026-06-01, prices in nano-AIUs).
+ * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
+ * such as the cloud agents (`/agents/swe/models`) model picker.
  */
 export interface IRawTokenPrices {
 	batch_size?: number;
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; output_price?: number; context_max?: number };
+	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 }
 
 export interface INormalizedPriceTier {
 	readonly inputPrice: number;
 	readonly outputPrice: number;
 	readonly cachePrice: number | undefined;
+	readonly cacheWritePrice: number | undefined;
 	readonly contextMax?: number;
 }
 
@@ -208,6 +235,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
 			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
 			contextMax: defaultTier.context_max,
 		};
 		let longContext: INormalizedPriceTier | undefined;
@@ -217,12 +245,14 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
 				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
 				contextMax: lc.context_max,
 			};
 			// Only include long-context tier when prices differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice
 				|| lcNormalized.outputPrice !== normalized.outputPrice
-				|| lcNormalized.cachePrice !== normalized.cachePrice) {
+				|| lcNormalized.cachePrice !== normalized.cachePrice
+				|| lcNormalized.cacheWritePrice !== normalized.cacheWritePrice) {
 				longContext = lcNormalized;
 			}
 		}
@@ -238,6 +268,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			inputPrice: (tokenPrices.input_price / NANO_AIU_DIVISOR) * scale,
 			outputPrice: (tokenPrices.output_price / NANO_AIU_DIVISOR) * scale,
 			cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / NANO_AIU_DIVISOR) * scale : undefined,
+			cacheWritePrice: undefined,
 		},
 	};
 }
