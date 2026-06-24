@@ -49,6 +49,24 @@ Both halves of the fix are now implemented:
 The remainder of this document describes the original analysis and the alternatives that
 were considered.
 
+## Instant icon on startup (persistent cache)
+
+Even with polling, the icon for an agent‑host session is still **blank until the first live
+PR fetch completes** (a couple of seconds after startup), because the icon is derived purely
+from the live model. To avoid that empty gap, the agent‑host adapter
+([baseAgentHostSessionsProvider.ts](../providers/agentHost/browser/baseAgentHostSessionsProvider.ts))
+backs the icon with a small persistent cache —
+[`IPullRequestIconCache`](browser/pullRequestIconCache.ts):
+
+- **Read:** while `livePR` is still `undefined`, `gitHubInfo` falls back to the last‑known
+  icon from the cache, so the row shows an icon immediately on startup.
+- **Write:** once the live model resolves, the freshly computed icon is stored back into the
+  cache (a no‑op when unchanged), so the next startup can show it instantly.
+
+The cache key is the **PR link** (`gitHubInfo.pullRequest.uri`), the value is the
+`ThemeIcon`, and it is persisted via `IStorageService`. Only the 50 most recently updated
+entries are retained so the backing storage cannot grow without bound.
+
 ## Where the icon is shown
 
 The same `gitHubInfo.pullRequest.icon` value feeds two surfaces:

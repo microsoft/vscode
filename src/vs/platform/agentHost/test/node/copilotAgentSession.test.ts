@@ -28,7 +28,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import { ActiveClientState } from '../../node/activeClientState.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
@@ -228,7 +228,7 @@ function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
-	activeClientState?: ActiveClientState;
+	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
@@ -285,7 +285,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
-		activeClientState: new ActiveClientState(),
+		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
@@ -358,7 +358,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
-			activeClientState: options?.activeClientState,
+			activeClientToolSet: options?.activeClientToolSet,
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
@@ -1831,8 +1831,8 @@ suite('CopilotAgentSession', () => {
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
 			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('test-client', tools);
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
@@ -1840,7 +1840,7 @@ suite('CopilotAgentSession', () => {
 					plugins: [],
 					mcpServers: {},
 				},
-				activeClientState,
+				activeClientToolSet,
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -3065,11 +3065,11 @@ suite('CopilotAgentSession', () => {
 			mcpServers: {},
 		};
 
-		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */
-		const activeClientStateWith = (clientId: string): ActiveClientState => {
-			const state = new ActiveClientState();
-			state.update(clientId, snapshot.tools);
-			return state;
+		/** Builds a live ActiveClientToolSet seeded with the given owning clientId and the snapshot's tools. */
+		const activeClientToolSetWith = (clientId: string): ActiveClientToolSet => {
+			const toolSet = new ActiveClientToolSet();
+			toolSet.set(clientId, snapshot.tools);
+			return toolSet;
 		};
 
 		test('client tool started with no connected client fails immediately', async () => {
@@ -3104,7 +3104,7 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
 
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -3142,9 +3142,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-perm', snapshot.tools);
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -3201,7 +3201,7 @@ suite('CopilotAgentSession', () => {
 			// ChatToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
 			// ChatToolCallStart).
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',
@@ -3449,10 +3449,10 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-A', snapshot.tools);
-			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+		test('client tool start stamps the owning clientId from the shared ActiveClientToolSet', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-A', snapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-1',
@@ -3460,8 +3460,10 @@ suite('CopilotAgentSession', () => {
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
-			// A window reload re-pushes the same tools under a new clientId.
-			activeClientState.update('client-B', snapshot.tools);
+			// A window reload removes the old client and re-pushes the same
+			// tools under a new clientId.
+			activeClientToolSet.delete('client-A');
+			activeClientToolSet.set('client-B', snapshot.tools);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-2',
 				toolName: 'my_tool',

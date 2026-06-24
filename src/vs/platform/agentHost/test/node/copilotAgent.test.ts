@@ -50,7 +50,7 @@ import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { ActiveClientState } from '../../node/activeClientState.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
@@ -477,7 +477,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 			},
 			resumeSession: async () => new MockCopilotSession() as unknown as CopilotSession,
 		},
-		activeClientState: new ActiveClientState(),
+		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
@@ -1325,7 +1325,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
-				await agent.setClientCustomizations(session, 'client-1', [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }]);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }];
 
 				// Wait for the deferred resolution chain in PluginController.sync.
 				await new Promise(r => setTimeout(r, 50));
@@ -2105,7 +2105,7 @@ suite('CopilotAgent', () => {
 	suite('client tool refresh on reload (#319516)', () => {
 		/** Minimal structural view of the agent's private per-session ActiveClient. */
 		type TestActiveClient = {
-			readonly state: { readonly clientId: string | undefined };
+			readonly toolSet: { ownerOf(toolName: string): string | undefined };
 			snapshot(): Promise<IActiveClientSnapshot>;
 			requiresRestart(snap: IActiveClientSnapshot): Promise<boolean>;
 		};
@@ -2113,33 +2113,34 @@ suite('CopilotAgent', () => {
 		function getActiveClient(agent: CopilotAgent, session: URI): TestActiveClient {
 			const activeClients = (agent as unknown as { _activeClients: { get(s: URI): TestActiveClient | undefined } })._activeClients;
 			const activeClient = activeClients.get(session);
-			assert.ok(activeClient, 'expected an ActiveClient to exist after setClientTools');
+			assert.ok(activeClient, 'expected an ActiveClient to exist after registering client tools');
 			return activeClient;
 		}
 
 		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
 
-		test('clientId-only change (reload) does NOT require a restart and updates the live clientId', async () => {
+		test('clientId-only change (reload) does NOT require a restart and updates the live owner', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'reload-session');
 
 				// Window A registers its tools; this is the snapshot the SDK
 				// session would be created with.
-				agent.setClientTools(session, 'client-A', tools);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
-				assert.strictEqual(activeClient.state.clientId, 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('my_tool'), 'client-A');
 
 				// Window A reloads: window B reconnects with a new clientId but
-				// the identical tool list.
-				agent.setClientTools(session, 'client-B', [...tools]);
+				// the identical tool list. The reload removes A then adds B.
+				agent.removeActiveClient(session, 'client-A');
+				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }).tools = [...tools];
 
 				// Root-cause assertions: the cached SDK session must be reused
-				// (no restart) AND the live clientId must now be window B's, so
+				// (no restart) AND the live owner must now be window B's, so
 				// the next client tool call is stamped with a live owner.
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), false);
-				assert.strictEqual(activeClient.state.clientId, 'client-B');
+				assert.strictEqual(activeClient.toolSet.ownerOf('my_tool'), 'client-B');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -2150,15 +2151,52 @@ suite('CopilotAgent', () => {
 			try {
 				const session = AgentSession.uri('copilotcli', 'tools-change-session');
 
-				agent.setClientTools(session, 'client-A', tools);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
 
 				// A genuinely different tool set (added tool) must restart so the
 				// SDK session is rebuilt with the new tools.
-				agent.setClientTools(session, 'client-A', [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }]);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
 
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('multiple active clients merge their tools and removal isolates per client', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'multi-client-session');
+
+				// Two clients each contribute their own tool plus a shared one.
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [
+					{ name: 'shared', description: 'from A', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'a_tool', description: 'A only', inputSchema: { type: 'object', properties: {} } },
+				];
+				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }).tools = [
+					{ name: 'shared', description: 'from B', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'b_tool', description: 'B only', inputSchema: { type: 'object', properties: {} } },
+				];
+				const activeClient = getActiveClient(agent, session);
+
+				// The SDK snapshot merges both clients, deduping the shared name
+				// in favor of the first-inserted client (A), and ownership maps
+				// each tool to its contributing client.
+				const merged = await activeClient.snapshot();
+				assert.deepStrictEqual(merged.tools.map(t => t.name), ['shared', 'a_tool', 'b_tool']);
+				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('a_tool'), 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('b_tool'), 'client-B');
+
+				// Removing client A keeps B's contribution and hands the shared
+				// tool to B (now the sole provider).
+				agent.removeActiveClient(session, 'client-A');
+				const afterRemoval = await activeClient.snapshot();
+				assert.deepStrictEqual(afterRemoval.tools.map(t => t.name), ['shared', 'b_tool']);
+				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-B');
+				assert.strictEqual(activeClient.toolSet.ownerOf('a_tool'), undefined);
 			} finally {
 				await disposeAgent(agent);
 			}

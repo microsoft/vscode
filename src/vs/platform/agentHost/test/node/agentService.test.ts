@@ -1586,11 +1586,11 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
 			assert.deepStrictEqual({
-				activeClient: service.stateManager.getSessionState(session.toString())?.activeClient,
-				dispatchedActiveClientChanged: envelopes.some(e => e.action.type === ActionType.SessionActiveClientChanged),
+				activeClients: service.stateManager.getSessionState(session.toString())?.activeClients,
+				dispatchedActiveClientSet: envelopes.some(e => e.action.type === ActionType.SessionActiveClientSet),
 			}, {
-				activeClient,
-				dispatchedActiveClientChanged: false,
+				activeClients: [activeClient],
+				dispatchedActiveClientSet: false,
 			});
 		});
 
@@ -1599,7 +1599,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = await service.createSession({ provider: 'copilot' });
 
-			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.activeClient, undefined);
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.activeClients, []);
 		});
 	});
 
