@@ -890,7 +890,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'mcp.enterpriseManagedAuth.idp.policy',
-						value: nls.localize('mcp.enterpriseManagedAuth.idp.policy', "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."),
+						value: nls.localize('mcp.enterpriseManagedAuth.idp.policy', "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."),
 					}
 				}
 			},
