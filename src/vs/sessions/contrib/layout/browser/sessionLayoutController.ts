@@ -15,7 +15,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -28,11 +27,6 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
-
-interface IPendingTurnState {
-	readonly hadChangesBeforeSend: boolean;
-	readonly submittedAt: number;
-}
 
 /**
  * Per-session view state: auxiliary bar visibility and active view container.
@@ -71,7 +65,6 @@ export class LayoutController extends Disposable {
 
 	static readonly ID = 'workbench.contrib.sessionsLayoutController';
 
-	private readonly _pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
 	private readonly _panelVisibilityBySession = new ResourceMap<boolean>();
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
@@ -89,7 +82,6 @@ export class LayoutController extends Disposable {
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IChatService private readonly _chatService: IChatService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IPaneCompositePartService private readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -153,7 +145,6 @@ export class LayoutController extends Disposable {
 				}
 				this._viewStateBySession.delete(session.resource);
 				this._panelVisibilityBySession.delete(session.resource);
-				this._pendingTurnStateByResource.delete(session.resource);
 			}
 		}));
 
@@ -192,53 +183,6 @@ export class LayoutController extends Disposable {
 			}
 			this._syncPanelVisibility(activeSessionResource);
 		}));
-
-		// When a turn is completed, check if there were changes before the turn and
-		// if there are changes after the turn. If there were no changes before the
-		// turn and there are changes after the turn, show the auxiliary bar.
-		// Skip on mobile to avoid disruptive auto-expand on narrow viewports.
-		if (!(isWeb && isMobile)) {
-			this._register(autorun((reader) => {
-				const activeSession = this._sessionsService.activeSession.read(reader);
-				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
-				if (!activeSession) {
-					return;
-				}
-
-				const pendingTurnState = this._pendingTurnStateByResource.get(activeSession.resource);
-				if (!pendingTurnState) {
-					return;
-				}
-
-				if (multipleSessionsVisibleObs.read(reader)) {
-					return;
-				}
-
-				const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
-				const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
-				if (!turnCompleted) {
-					return;
-				}
-
-				if (!pendingTurnState.hadChangesBeforeSend && activeSessionHasChanges) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-					// Clear saved view state so the aux bar stays visible on next switch
-					this._viewStateBySession.delete(activeSession.resource);
-				}
-
-				this._pendingTurnStateByResource.delete(activeSession.resource);
-			}));
-
-			this._register(this._chatService.onDidSubmitRequest(({ chatSessionResource }) => {
-				if (multipleSessionsVisibleObs.get()) {
-					return;
-				}
-				this._pendingTurnStateByResource.set(chatSessionResource, {
-					hadChangesBeforeSend: activeSessionHasChangesObs.get(),
-					submittedAt: Date.now(),
-				});
-			}));
-		}
 
 		// Track panel visibility changes by the user
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
@@ -384,23 +328,19 @@ export class LayoutController extends Disposable {
 
 		const savedState = this._viewStateBySession.get(sessionResource);
 
-		// Honor an explicitly hidden auxiliary bar for this session.
-		if (savedState && !savedState.auxiliaryBarVisible) {
+		// Existing sessions are never auto-opened: hide unless explicitly left visible.
+		if (!savedState || !savedState.auxiliaryBarVisible) {
 			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			return;
 		}
 
-		// Restore the user's last explicit auxiliary bar choice (Files, Changes or
-		// any other pane), but only if that pane is still pinned. If it was hidden /
-		// unpinned (e.g. the user hid the Files tab) we skip it and fall through to
-		// the default below rather than force-opening a hidden pane.
-		const savedContainerId = savedState?.auxiliaryBarActiveViewContainerId;
+		// Restore the user's last explicit choice, but only if that pane is still pinned.
+		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
 		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
 			this._viewsService.openViewContainer(savedContainerId, false);
 			return;
 		}
 
-		// Default for a session without a saved choice.
 		this._openDefaultAuxiliaryBarContainer(hasChanges);
 	}
 
@@ -423,7 +363,12 @@ export class LayoutController extends Disposable {
 		const newSessionRaw = this._storageService.get(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
 		if (newSessionRaw) {
 			try {
-				this._newSessionViewState = JSON.parse(newSessionRaw) as INewSessionViewState;
+				const parsed = JSON.parse(newSessionRaw);
+				if (parsed && typeof parsed.auxiliaryBarVisible === 'boolean') {
+					this._newSessionViewState = { auxiliaryBarVisible: parsed.auxiliaryBarVisible };
+				} else {
+					this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
+				}
 			} catch {
 				this._storageService.remove(NEW_SESSION_VIEW_STATE_KEY, StorageScope.WORKSPACE);
 			}

@@ -321,7 +321,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
-			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent } });
+			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
 			// Stale-write guard: if `authenticate()` rotated the token
 			// while we were awaiting the model list, a newer refresh has
 			// already published the right value — don't overwrite it.
