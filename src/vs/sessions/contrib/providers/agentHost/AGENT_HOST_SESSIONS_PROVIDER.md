@@ -134,7 +134,7 @@ sidebar list.
 
 ## CRUD & Stubbed Operations
 
-- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `ChatSessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
+- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
 - `renameChat` — updates the session title.
 - `deleteChat` — no-op (agent host sessions don't model individually deletable chats).
 

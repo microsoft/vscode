@@ -805,7 +805,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				channel: sessionUri,
 				clientSeq: 1,
 				action: {
-					type: ActionType.SessionActiveClientChanged,
+					type: ActionType.SessionActiveClientSet,
 					activeClient: {
 						clientId: `real-sdk-worktree-${config.provider}`,
 						displayName: 'Test Client',

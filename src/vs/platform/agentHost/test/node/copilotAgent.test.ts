@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ModelInfo, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ModelInfo, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -50,7 +50,7 @@ import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { ActiveClientState } from '../../node/activeClientState.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
@@ -300,7 +300,9 @@ interface IFakeAgentSession {
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 
-	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void {
+	on(_handler: SessionEventHandler): () => void;
+	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void;
+	on<K extends SessionEventType>(_eventTypeOrHandler: K | SessionEventHandler, _handler?: TypedSessionEventHandler<K>): () => void {
 		return () => { };
 	}
 
@@ -446,7 +448,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
-			userHome: URI.file('/mock-home'),
+			userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -477,7 +479,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 			},
 			resumeSession: async () => new MockCopilotSession() as unknown as CopilotSession,
 		},
-		activeClientState: new ActiveClientState(),
+		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
@@ -1003,7 +1005,6 @@ suite('CopilotAgent', () => {
 				multiplierNumeric: 1,
 				inputCost: 3,
 				cacheCost: 1,
-				cacheWriteCost: 1,
 				outputCost: 15,
 				longContextInputCost: 6,
 				longContextOutputCost: 22.5,
@@ -1325,7 +1326,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
-				await agent.setClientCustomizations(session, 'client-1', [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }]);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }];
 
 				// Wait for the deferred resolution chain in PluginController.sync.
 				await new Promise(r => setTimeout(r, 50));
@@ -1396,12 +1397,27 @@ suite('CopilotAgent', () => {
 				const customizations = await agent.getSessionCustomizations(session);
 				const discoveredDirectories = customizations.filter(customization => customization.type === CustomizationType.Directory);
 
-				assert.strictEqual(discoveredDirectories.length, 3);
-				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), [
+				// All discovery roots are returned, even if empty or non-existing
+				// Workspace root is included because AGENTS.md was created
+				assert.strictEqual(discoveredDirectories.length, 13);
+				const expectedUris = [
+					// workspace roots
 					workspace.toString(),
 					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.agents', 'agents').toString(),
+					URI.joinPath(workspace, '.claude', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'skills').toString(),
+					URI.joinPath(workspace, '.agents', 'skills').toString(),
+					URI.joinPath(workspace, '.claude', 'skills').toString(),
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
-				].sort());
+					URI.joinPath(workspace, '.github', 'hooks').toString(),
+					// user home roots
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
+				];
+				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), expectedUris.sort());
 
 				const agentDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'agents').toString());
 				assert.ok(agentDirectory);
@@ -1465,16 +1481,24 @@ suite('CopilotAgent', () => {
 				});
 
 				const before = await agent.getSessionCustomizations(session);
-				assert.deepStrictEqual(before.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+				const beforeDirs = before.filter(customization => customization.type === CustomizationType.Directory);
+				const agentsDirBefore = beforeDirs.find(d => d.uri === agentsRoot.toString());
+				assert.ok(agentsDirBefore);
+				assert.strictEqual(agentsDirBefore!.children!.length, 1); // has the helper agent file
 
 				await fileService.del(agentsRoot, { recursive: true });
 
 				let after = await agent.getSessionCustomizations(session);
-				for (let i = 0; i < 20 && after.filter(customization => customization.type === CustomizationType.Directory).length > 0; i++) {
+				let afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
+				for (let i = 0; i < 20 && afterDirs.some(d => d.uri === agentsRoot.toString() && (d.children?.length ?? 0) > 0); i++) {
 					await new Promise(resolve => setTimeout(resolve, 50));
 					after = await agent.getSessionCustomizations(session);
+					afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
 				}
-				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
+				// agentsRoot still appears in discovery (as an empty directory) since it's a discovery root
+				const agentsDirAfter = afterDirs.find(d => d.uri === agentsRoot.toString());
+				assert.ok(agentsDirAfter);
+				assert.strictEqual(agentsDirAfter.children?.length ?? 0, 0); // files are cleared
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -1534,7 +1558,24 @@ suite('CopilotAgent', () => {
 				}
 
 				const after = await agent.getSessionCustomizations(session);
-				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+				const afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
+				// All discovery roots are discovered (workspace root only if it has AGENTS.md)
+				const expectedUris = [
+					URI.joinPath(workspace, '.github', 'agents').toString(),
+					URI.joinPath(workspace, '.agents', 'agents').toString(),
+					URI.joinPath(workspace, '.claude', 'agents').toString(),
+					URI.joinPath(workspace, '.github', 'skills').toString(),
+					URI.joinPath(workspace, '.agents', 'skills').toString(),
+					URI.joinPath(workspace, '.claude', 'skills').toString(),
+					URI.joinPath(workspace, '.github', 'instructions').toString(),
+					URI.joinPath(workspace, '.github', 'hooks').toString(),
+					// user home roots
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
+				];
+				assert.deepStrictEqual(afterDirs.map(customization => customization.uri).sort(), expectedUris.sort());
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -2105,7 +2146,7 @@ suite('CopilotAgent', () => {
 	suite('client tool refresh on reload (#319516)', () => {
 		/** Minimal structural view of the agent's private per-session ActiveClient. */
 		type TestActiveClient = {
-			readonly state: { readonly clientId: string | undefined };
+			readonly toolSet: { ownerOf(toolName: string): string | undefined };
 			snapshot(): Promise<IActiveClientSnapshot>;
 			requiresRestart(snap: IActiveClientSnapshot): Promise<boolean>;
 		};
@@ -2113,33 +2154,34 @@ suite('CopilotAgent', () => {
 		function getActiveClient(agent: CopilotAgent, session: URI): TestActiveClient {
 			const activeClients = (agent as unknown as { _activeClients: { get(s: URI): TestActiveClient | undefined } })._activeClients;
 			const activeClient = activeClients.get(session);
-			assert.ok(activeClient, 'expected an ActiveClient to exist after setClientTools');
+			assert.ok(activeClient, 'expected an ActiveClient to exist after registering client tools');
 			return activeClient;
 		}
 
 		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
 
-		test('clientId-only change (reload) does NOT require a restart and updates the live clientId', async () => {
+		test('clientId-only change (reload) does NOT require a restart and updates the live owner', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'reload-session');
 
 				// Window A registers its tools; this is the snapshot the SDK
 				// session would be created with.
-				agent.setClientTools(session, 'client-A', tools);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
-				assert.strictEqual(activeClient.state.clientId, 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('my_tool'), 'client-A');
 
 				// Window A reloads: window B reconnects with a new clientId but
-				// the identical tool list.
-				agent.setClientTools(session, 'client-B', [...tools]);
+				// the identical tool list. The reload removes A then adds B.
+				agent.removeActiveClient(session, 'client-A');
+				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }).tools = [...tools];
 
 				// Root-cause assertions: the cached SDK session must be reused
-				// (no restart) AND the live clientId must now be window B's, so
+				// (no restart) AND the live owner must now be window B's, so
 				// the next client tool call is stamped with a live owner.
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), false);
-				assert.strictEqual(activeClient.state.clientId, 'client-B');
+				assert.strictEqual(activeClient.toolSet.ownerOf('my_tool'), 'client-B');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -2150,15 +2192,52 @@ suite('CopilotAgent', () => {
 			try {
 				const session = AgentSession.uri('copilotcli', 'tools-change-session');
 
-				agent.setClientTools(session, 'client-A', tools);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
 
 				// A genuinely different tool set (added tool) must restart so the
 				// SDK session is rebuilt with the new tools.
-				agent.setClientTools(session, 'client-A', [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }]);
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
 
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('multiple active clients merge their tools and removal isolates per client', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'multi-client-session');
+
+				// Two clients each contribute their own tool plus a shared one.
+				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }).tools = [
+					{ name: 'shared', description: 'from A', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'a_tool', description: 'A only', inputSchema: { type: 'object', properties: {} } },
+				];
+				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }).tools = [
+					{ name: 'shared', description: 'from B', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'b_tool', description: 'B only', inputSchema: { type: 'object', properties: {} } },
+				];
+				const activeClient = getActiveClient(agent, session);
+
+				// The SDK snapshot merges both clients, deduping the shared name
+				// in favor of the first-inserted client (A), and ownership maps
+				// each tool to its contributing client.
+				const merged = await activeClient.snapshot();
+				assert.deepStrictEqual(merged.tools.map(t => t.name), ['shared', 'a_tool', 'b_tool']);
+				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('a_tool'), 'client-A');
+				assert.strictEqual(activeClient.toolSet.ownerOf('b_tool'), 'client-B');
+
+				// Removing client A keeps B's contribution and hands the shared
+				// tool to B (now the sole provider).
+				agent.removeActiveClient(session, 'client-A');
+				const afterRemoval = await activeClient.snapshot();
+				assert.deepStrictEqual(afterRemoval.tools.map(t => t.name), ['shared', 'b_tool']);
+				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-B');
+				assert.strictEqual(activeClient.toolSet.ownerOf('a_tool'), undefined);
 			} finally {
 				await disposeAgent(agent);
 			}

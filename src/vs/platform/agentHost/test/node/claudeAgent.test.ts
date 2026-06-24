@@ -792,6 +792,38 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('authenticate populates full pricing metadata from billing tokenPrices', async () => {
+		const modelWithPricing = makeModel({
+			id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', vendor: 'Anthropic',
+			billing: {
+				is_premium: false, multiplier: 2, restricted_to: [],
+				// Runtime CAPI fields not yet declared on the SDK type:
+				tokenPrices: { inputPrice: 3, cachePrice: 0.3, cacheWritePrice: 3.75, outputPrice: 15, longContext: { inputPrice: 6, cachePrice: 0.6, cacheWritePrice: 7.5, outputPrice: 30 } },
+				priceCategory: 'medium',
+			} as CCAModel['billing'],
+		});
+
+		const { agent, api } = createTestContext(disposables);
+		api.models = async () => [modelWithPricing];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		const models = agent.models.get();
+		assert.strictEqual(models.length, 1);
+		assert.deepStrictEqual(models[0]._meta, {
+			multiplierNumeric: 2,
+			inputCost: 3,
+			cacheCost: 0.3,
+			cacheWriteCost: 3.75,
+			outputCost: 15,
+			longContextInputCost: 6,
+			longContextCacheCost: 0.6,
+			longContextCacheWriteCost: 7.5,
+			longContextOutputCost: 30,
+			priceCategory: 'medium',
+		});
+	});
+
 	test('authenticate surfaces the CAPI chat-default model first; ties preserve insertion order', async () => {
 		// `IAgentModelInfo` carries no explicit `isDefault` bit; the
 		// picker uses `models[0]` as the de facto default at
@@ -3398,7 +3430,7 @@ suite('ClaudeAgent', () => {
 		const sessionId = AgentSession.id(created.session);
 
 		const tools: ToolDefinition[] = [{ name: 'echo', description: 'Echo back', inputSchema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } }];
-		agent.setClientTools(created.session, 'client-1', tools);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'client-1' }).tools = tools;
 
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
@@ -3432,7 +3464,7 @@ suite('ClaudeAgent', () => {
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
 
-		agent.setClientTools(created.session, 'client-1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'client-1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.queryAdvance = undefined;
 		advance.complete();
 		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
@@ -3463,11 +3495,11 @@ suite('ClaudeAgent', () => {
 		];
 
 		const tools: ToolDefinition[] = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
-		agent.setClientTools(created.session, 'c1', tools);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = tools;
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
 
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
 		advance.complete();
 		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
 
@@ -3477,7 +3509,7 @@ suite('ClaudeAgent', () => {
 	test('setClientTools on an unknown session id is silently dropped', () => {
 		const { agent } = createTestContext(disposables);
 		assert.doesNotThrow(() => {
-			agent.setClientTools(URI.parse('claude:/never-existed'), 'c1', [{ name: 't', inputSchema: { type: 'object' } }]);
+			agent.getOrCreateActiveClient(URI.parse('claude:/never-existed'), { clientId: 'c1' }).tools = [{ name: 't', inputSchema: { type: 'object' } }];
 		});
 	});
 
@@ -3486,7 +3518,7 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
 
@@ -3521,7 +3553,7 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'go', undefined, 'turn-1');
 		await assert.doesNotReject(agent.disposeSession(created.session));
@@ -3532,11 +3564,11 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 		// Change tools to force a rebind path (must use yield-restart, NOT Query.setMcpServers).
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo2', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo2', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
 		// If `Query.setMcpServers` had been called, `FakeQuery.setMcpServers` would have thrown.
@@ -3550,7 +3582,7 @@ suite('ClaudeAgent', () => {
 		const sessionId = AgentSession.id(created.session);
 
 		// Initial snapshot before materialize starts.
-		agent.setClientTools(created.session, 'c1', [{ name: 'first', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'first', inputSchema: { type: 'object' } }];
 
 		// Pause startup #1 so we can inject an update during the gap.
 		const startupReached = new DeferredPromise<void>();
@@ -3567,7 +3599,7 @@ suite('ClaudeAgent', () => {
 		// Wait until the materializer has snapshotted ['first'] into the diff
 		// and is paused inside `sdk.startup`. THEN inject the update.
 		await startupReached.p;
-		agent.setClientTools(created.session, 'c1', [{ name: 'second', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'second', inputSchema: { type: 'object' } }];
 		startupGate.complete();
 		await send;
 
@@ -3616,7 +3648,7 @@ suite('ClaudeAgent', () => {
 		// update. Pre-fix the call hit the silent-drop branch because no
 		// provisional was registered for the resume.
 		await startupReached.p;
-		agent.setClientTools(sessionUri, 'c1', [{ name: 'resumed', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(sessionUri, { clientId: 'c1' }).tools = [{ name: 'resumed', inputSchema: { type: 'object' } }];
 		startupGate.complete();
 		await send;
 
@@ -3648,7 +3680,7 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(sdk.startupCallCount, 1);
 
 		// Stage a rebind whose startup will reject.
-		agent.setClientTools(created.session, 'c1', [{ name: 'echo', inputSchema: { type: 'object' } }]);
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.startupRejection = new Error('simulated rebind startup failure');
 		sdk.queryAdvance = undefined;
 		advance.complete();
@@ -5000,7 +5032,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			}
 		}));
 
-		const synced = await agent.setClientCustomizations(created.session, 'client-1', [
+		const synced = await agent.syncClientCustomizations(created.session, 'client-1', [
 			makeClientCustomization('https://a', 'A'),
 			makeClientCustomization('https://b', 'B'),
 		]);
@@ -5019,8 +5051,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const s2 = await agent.createSession({ session: AgentSession.uri('claude', 'b'), workingDirectory: URI.file('/work') });
 
 		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared')];
-		await agent.setClientCustomizations(s1.session, 'c', [makeClientCustomization('https://shared', 'S')]);
-		await agent.setClientCustomizations(s2.session, 'c', [makeClientCustomization('https://shared', 'S')]);
+		await agent.syncClientCustomizations(s1.session, 'c', [makeClientCustomization('https://shared', 'S')]);
+		await agent.syncClientCustomizations(s2.session, 'c', [makeClientCustomization('https://shared', 'S')]);
 
 		// One fire per per-session diff change confirms fan-out.
 		let changes = 0;
@@ -5039,9 +5071,9 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const s2 = await agent.createSession({ session: AgentSession.uri('claude', 'two'), workingDirectory: URI.file('/work') });
 
 		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared'), makeSyncedRef('https://a', '/p/a')];
-		await agent.setClientCustomizations(s1.session, 'c', []);
+		await agent.syncClientCustomizations(s1.session, 'c', []);
 		pm.syncResult = [makeSyncedRef('https://shared', '/p/shared'), makeSyncedRef('https://b', '/p/b')];
-		await agent.setClientCustomizations(s2.session, 'c', []);
+		await agent.syncClientCustomizations(s2.session, 'c', []);
 
 		// `IAgent.getCustomizations()` is the provider-level catalogue
 		// (host-configured), NOT an aggregator across sessions. Claude has
@@ -5058,7 +5090,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		assert.strictEqual(created.provisional, true);
 
-		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		await agent.syncClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
 		// The client-pushed customization, plus the curated read-only built-ins
@@ -5075,7 +5107,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 
-		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		await agent.syncClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		// Disable the client-pushed entry; the projection must reflect it.
 		agent.setCustomizationEnabled(customizationId('https://a'), false);
 		// Disabling a DISCOVERED entry's id must be a no-op — the enablement
@@ -5110,7 +5142,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// pre-flight rebinds so `Options.plugins` on the new Query
 		// includes the new path.
 		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
-		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		await agent.syncClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		const firstQuery = sdk.warmQueries[0].produced!;
 
 		const p2 = agent.sendMessage(created.session, 'second', undefined, 'turn-2');
@@ -5140,7 +5172,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
 		];
 		pm.syncResult = [makeSyncedRef('https://x', '/p/x')];
-		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://x', 'X')]);
+		await agent.syncClientCustomizations(created.session, 'c', [makeClientCustomization('https://x', 'X')]);
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 		const session = agent.getSessionForTesting(created.session)!;
 		// First-turn materialize consumed the dirty bit from the sync
@@ -5182,7 +5214,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const sessionId = AgentSession.id(created.session);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		await agent.syncClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
@@ -5226,6 +5258,39 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(
 			{ count: container.children?.length, name: child.name, description: child.description },
 			{ count: 1, name: 'sdkcmd', description: 'Provided by the runtime.' }
+		);
+	});
+
+	test('getSessionCustomizations surfaces a native plugin captured from the live SDK init.plugins (path filter)', async () => {
+		// Native plugins are auto-loaded by the runtime; the host only surfaces
+		// them. Post-materialize, a plugin survives only when the captured
+		// `system/init.plugins` reports its resolved root path — proving the
+		// pipeline captures `message.plugins` and the discovery filter consumes it.
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Seed an enabled native plugin under the mock user home cache.
+		const root = '/mock-home/.claude/plugins/cache/m/tg/1.0.0';
+		await fileService.writeFile(URI.file('/mock-home/.claude/settings.json'), VSBuffer.fromString(JSON.stringify({ enabledPlugins: { 'tg@m': true } })));
+		await fileService.writeFile(URI.file(`${root}/.claude-plugin/plugin.json`), VSBuffer.fromString(JSON.stringify({ name: 'tg' })));
+
+		sdk.supportedCommandsResult = [];
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		// The live session reports the plugin loaded at its resolved root.
+		const init = makeSystemInitMessage(sessionId);
+		init.plugins = [{ name: 'tg', path: root }];
+		sdk.nextQueryMessages = [init, makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		const customizations = await agent.getSessionCustomizations!(created.session);
+		assert.deepStrictEqual(
+			customizations.filter(c => c.type === CustomizationType.Plugin).map(c => c.name),
+			['tg@m'],
+			'native plugin survives post-materialize because the captured init.plugins reports its root',
 		);
 	});
 
