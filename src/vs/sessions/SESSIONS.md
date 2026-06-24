@@ -376,7 +376,7 @@ Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
 Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
 on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
 and the sessions-list "Rename..." action (gated on the
-`chatSessionSupportsRename` context-menu-overlay key, set from
+`sessionSupportsRename` context-menu-overlay key, set from
 `element.capabilities.supportsRename` in `sessionsList`) both read this flag.
 Providers declare it truthfully: agent-host and `localChatSessions` sessions are
 always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude

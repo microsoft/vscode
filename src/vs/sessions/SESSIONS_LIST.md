@@ -160,7 +160,7 @@ registerAction2(class MySessionAction extends Action2 {
             menu: {
                 id: SessionItemContextMenuId,
                 group: '1_edit',
-                when: ContextKeyExpr.equals('chatSessionType', 'my-session-type'),
+                when: ContextKeyExpr.equals('sessionType', 'my-session-type'),
             },
         });
     }
@@ -184,8 +184,8 @@ Context keys available for `when` clauses when contributing to session list menu
 | `sessionIsArchived` | boolean | Whether the session is archived |
 | `sessionIsRead` | boolean | Whether the session has been read |
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
-| `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `chatSessionProviderId` | string | Provider ID |
+| `sessionType` | string | Session type ID (use to scope actions to specific providers) |
+| `sessionProviderId` | string | Provider ID |
 
 ### Per-Section
 
