@@ -319,7 +319,7 @@
 .ai-customization-list-widget .list-empty-state .empty-state-text,
 .ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 

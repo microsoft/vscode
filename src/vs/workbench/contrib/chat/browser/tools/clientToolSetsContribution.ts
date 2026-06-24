@@ -84,7 +84,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				id: 'vscode-notebooks',
 				referenceName: 'vscodeNotebooks',
 				icon: Codicon.notebook,
-				description: localize('clientToolSet.notebooks.description', "Jupyter notebooks"),
+				description: localize('clientToolSet.notebooks.description', "Jupyter Notebooks"),
 				detail: localize('clientToolSet.notebooks.detail', "Create and edit Jupyter notebooks and run their cells."),
 				members: [
 					'createJupyterNotebook',
