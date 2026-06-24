@@ -19,6 +19,10 @@ import '../media/spotlight.css';
 
 /** Default padding (px) added around the target when cutting the highlight hole. */
 const DEFAULT_HOLE_PADDING = 6;
+const POINTER_SIZE = 10;
+const POINTER_GAP = POINTER_SIZE;
+const POINTER_EDGE_MARGIN = 16;
+type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 
 /** Content rendered inside the spotlight callout for a single step. */
 export interface ISpotlightContent {
@@ -56,8 +60,9 @@ export interface ISpotlightShowOptions {
 export class SpotlightOverlay extends Disposable {
 
 	private readonly _root: HTMLElement;
-	private readonly _blocker: HTMLElement;
+	private readonly _blockers: readonly HTMLElement[];
 	private readonly _hole: HTMLElement;
+	private readonly _pointer: HTMLElement;
 	private readonly _callout: HTMLElement;
 
 	private readonly _title: HTMLElement;
@@ -95,8 +100,16 @@ export class SpotlightOverlay extends Disposable {
 		this._root = append(this._container, $('.spotlight-overlay'));
 		this._root.style.display = 'none';
 
-		this._blocker = append(this._root, $('.spotlight-blocker'));
+		this._blockers = [
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+		];
 		this._hole = append(this._root, $('.spotlight-hole'));
+		this._hole.setAttribute('aria-hidden', 'true');
+		this._pointer = append(this._root, $('.spotlight-callout-pointer'));
+		this._pointer.setAttribute('aria-hidden', 'true');
 
 		this._callout = append(this._root, $('.spotlight-callout'));
 		this._callout.setAttribute('role', 'dialog');
@@ -151,13 +164,13 @@ export class SpotlightOverlay extends Disposable {
 		this._stepListeners.clear();
 		const targetWindow = getWindow(this._container);
 
-		const observer = new this._resizeObserverCtor(() => this._scheduleLayout());
+		const observer = new this._resizeObserverCtor(() => this.scheduleLayout());
 		observer.observe(target);
 		observer.observe(this._container);
 		this._stepListeners.add({ dispose: () => observer.disconnect() });
 
-		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this._scheduleLayout()));
-		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this._scheduleLayout(), true));
+		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
+		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
 
 		// Cancel any pending scheduled frame when the step changes. Registered
 		// once here (not per schedule) so high-frequency scroll/resize events
@@ -210,17 +223,33 @@ export class SpotlightOverlay extends Disposable {
 		this._hole.style.height = `${holeHeight}px`;
 
 		// When the target is interactive (explicitly, or because the step advances
-		// on a target click), cut the hole out of the click blocker so events
+		// on a target click), arrange the click blockers around the hole so events
 		// inside it reach the underlying element.
 		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
 			const right = holeLeft + holeWidth;
 			const bottom = holeTop + holeHeight;
-			this._blocker.style.clipPath = `path(evenodd, 'M0 0 H${viewportWidth} V${viewportHeight} H0 Z M${holeLeft} ${holeTop} H${right} V${bottom} H${holeLeft} Z')`;
+			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, holeTop);
+			this._layoutBlocker(this._blockers[1], right, holeTop, viewportWidth - right, holeHeight);
+			this._layoutBlocker(this._blockers[2], 0, bottom, viewportWidth, viewportHeight - bottom);
+			this._layoutBlocker(this._blockers[3], 0, holeTop, holeLeft, holeHeight);
 		} else {
-			this._blocker.style.clipPath = '';
+			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, viewportHeight);
+			for (let i = 1; i < this._blockers.length; i++) {
+				this._blockers[i].style.display = 'none';
+			}
 		}
 
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
+	}
+
+	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {
+		blocker.style.display = '';
+		blocker.style.left = `${left}px`;
+		blocker.style.top = `${top}px`;
+		blocker.style.right = 'auto';
+		blocker.style.bottom = 'auto';
+		blocker.style.width = `${Math.max(0, width)}px`;
+		blocker.style.height = `${Math.max(0, height)}px`;
 	}
 
 	private _layoutCallout(anchor: IRect, viewportWidth: number, viewportHeight: number): void {
@@ -230,8 +259,66 @@ export class SpotlightOverlay extends Disposable {
 		const { anchorAxisAlignment, anchorPosition, anchorAlignment } = this._resolvePlacement(this._options.placement ?? 'auto');
 		const result = layout2d(viewport, view, anchor, { anchorAxisAlignment, anchorPosition, anchorAlignment });
 
-		this._callout.style.top = `${result.top}px`;
-		this._callout.style.left = `${result.left}px`;
+		const left = anchorAxisAlignment === AnchorAxisAlignment.VERTICAL ? this._centerCallout(anchor, view.width, viewportWidth) : result.left;
+		const callout = { top: result.top, left, width: view.width, height: view.height };
+		const pointerSide = this._getPointerSide(anchor, callout, anchorAxisAlignment);
+		const offsetCallout = this._offsetCalloutForPointer(callout, pointerSide, viewportWidth, viewportHeight);
+
+		this._callout.style.top = `${offsetCallout.top}px`;
+		this._callout.style.left = `${offsetCallout.left}px`;
+		this._layoutPointer(anchor, offsetCallout, pointerSide);
+	}
+
+	private _centerCallout(anchor: IRect, calloutWidth: number, viewportWidth: number): number {
+		const centered = anchor.left + (anchor.width / 2) - (calloutWidth / 2);
+		return Math.max(0, Math.min(centered, viewportWidth - calloutWidth));
+	}
+
+	private _getPointerSide(anchor: IRect, callout: IRect, anchorAxisAlignment: AnchorAxisAlignment): PointerSide {
+		const targetCenterX = anchor.left + (anchor.width / 2);
+		const targetCenterY = anchor.top + (anchor.height / 2);
+		const calloutCenterX = callout.left + (callout.width / 2);
+		const calloutCenterY = callout.top + (callout.height / 2);
+		return anchorAxisAlignment === AnchorAxisAlignment.VERTICAL
+			? calloutCenterY < targetCenterY ? 'bottom' : 'top'
+			: calloutCenterX < targetCenterX ? 'right' : 'left';
+	}
+
+	private _offsetCalloutForPointer(callout: IRect, side: PointerSide, viewportWidth: number, viewportHeight: number): IRect {
+		switch (side) {
+			case 'bottom':
+				return { ...callout, top: Math.max(0, callout.top - POINTER_GAP) };
+			case 'top':
+				return { ...callout, top: Math.min(viewportHeight - callout.height, callout.top + POINTER_GAP) };
+			case 'right':
+				return { ...callout, left: Math.max(0, callout.left - POINTER_GAP) };
+			case 'left':
+				return { ...callout, left: Math.min(viewportWidth - callout.width, callout.left + POINTER_GAP) };
+		}
+	}
+
+	private _layoutPointer(anchor: IRect, callout: IRect, side: PointerSide): void {
+		const targetCenterX = anchor.left + (anchor.width / 2);
+		const targetCenterY = anchor.top + (anchor.height / 2);
+		const pointerOffset = POINTER_SIZE / 2;
+
+		this._pointer.classList.remove('top', 'right', 'bottom', 'left');
+		this._pointer.classList.add(side);
+
+		if (side === 'top' || side === 'bottom') {
+			const pointerCenterX = this._clamp(targetCenterX, callout.left + POINTER_EDGE_MARGIN, callout.left + callout.width - POINTER_EDGE_MARGIN);
+			this._pointer.style.left = `${pointerCenterX - pointerOffset}px`;
+			this._pointer.style.top = `${side === 'bottom' ? callout.top + callout.height - pointerOffset : callout.top - pointerOffset}px`;
+			return;
+		}
+
+		const pointerCenterY = this._clamp(targetCenterY, callout.top + POINTER_EDGE_MARGIN, callout.top + callout.height - POINTER_EDGE_MARGIN);
+		this._pointer.style.left = `${side === 'right' ? callout.left + callout.width - pointerOffset : callout.left - pointerOffset}px`;
+		this._pointer.style.top = `${pointerCenterY - pointerOffset}px`;
+	}
+
+	private _clamp(value: number, min: number, max: number): number {
+		return Math.max(min, Math.min(value, max));
 	}
 
 	private _resolvePlacement(placement: SpotlightPlacement): { anchorAxisAlignment: AnchorAxisAlignment; anchorPosition: AnchorPosition; anchorAlignment: AnchorAlignment } {
@@ -328,7 +415,7 @@ export class SpotlightOverlay extends Disposable {
 		return [...target, ...descriptionFocusables, ...buttons];
 	}
 
-	private _scheduleLayout(): void {
+	scheduleLayout(): void {
 		if (this._scheduledLayout) {
 			return;
 		}

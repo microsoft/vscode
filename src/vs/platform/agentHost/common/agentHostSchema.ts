@@ -391,6 +391,20 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
 /**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
+ * agent-host shell permission checks may apply terminal auto-approve rules.
+ */
+export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for terminal auto approve enablement. Defined here so
+ * renderer-side agent-host clients can forward it without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
+
+/**
  * Root config key holding agent-host-level MCP server definitions.
  *
  * The value is a map of server name → {@link IMcpServerConfiguration}
@@ -520,6 +534,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
 		default: false,
+	}),
+	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalAutoApproveEnabled.title', "Terminal Auto Approve"),
+		description: localize('agentHost.config.terminalAutoApproveEnabled.description', "Whether terminal auto-approve rules are allowed to apply to agent-host shell permission requests."),
+		default: true,
 	}),
 	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
 		type: 'object',

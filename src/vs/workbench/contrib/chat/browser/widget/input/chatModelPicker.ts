@@ -1564,7 +1564,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	// --- Cost info (UBB only) ---
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
+		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
 			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
 			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
@@ -1584,13 +1584,14 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			// Each row paints a single continuous dotted line behind its cells (see CSS); the
 			// right-aligned number has an opaque background that masks the line so the dots read
 			// as one continuous leader from the label to the number.
-			const appendValueCell = (row: HTMLElement, cost: number | undefined): void => {
+			const appendValueCell = (row: HTMLElement, cost: number | null | undefined): void => {
 				if (cost === undefined) {
 					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
 					return;
 				}
 				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
-					dom.$('span.chat-model-hover-cost-number', undefined, String(cost)),
+					dom.$('span.chat-model-hover-cost-number', undefined,
+						typeof cost === 'number' ? String(cost) : localize('models.cost.unknown', "Unknown")),
 				));
 			};
 

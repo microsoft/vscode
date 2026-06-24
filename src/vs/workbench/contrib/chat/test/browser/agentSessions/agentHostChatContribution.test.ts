@@ -18,6 +18,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -70,6 +71,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
@@ -439,6 +441,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 	declare readonly _serviceBrand: undefined;
 
 	readonly clearQuestionCarouselCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
+	readonly clearPlanReviewCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
 	private readonly _widgets = new Map<string, ReturnType<IChatWidgetService['getWidgetBySessionResource']>>();
 
 	setWidgetForSession(sessionResource: URI): void {
@@ -447,6 +450,9 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 			input: {
 				clearQuestionCarousel: (responseId?: string, resolveId?: string) => {
 					this.clearQuestionCarouselCalls.push({ sessionResource, responseId, resolveId });
+				},
+				clearPlanReview: (responseId?: string, resolveId?: string) => {
+					this.clearPlanReviewCalls.push({ sessionResource, responseId, resolveId });
 				},
 			},
 		} as any);
@@ -2181,6 +2187,213 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
+		}));
+
+		test('plan-review input request renders a plan review instead of a question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: '## Plan summary',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					planUri: URI.file('/sessions/abc/plan.md').toString(),
+					actions: [
+						{ id: 'interactive', label: 'Implement Plan', default: true },
+						{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },
+					],
+				},
+				questions: [{
+					kind: ChatInputQuestionKind.SingleSelect,
+					id: 'action',
+					message: 'How would you like to proceed?',
+					options: [{ id: 'interactive', label: 'Implement Plan' }],
+				}],
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+
+			const parts = collected.flat();
+			const review = parts.find(part => part.kind === 'planReview') as ChatPlanReviewData | undefined;
+			assert.ok(review instanceof ChatPlanReviewData, 'input request should render plan review data');
+			assert.strictEqual(parts.some(part => part.kind === 'questionCarousel'), false, 'plan review requests should not also render a question carousel');
+			assert.strictEqual(review.title, 'Review Plan');
+			assert.strictEqual(review.content, '## Plan summary');
+			assert.ok(review.planUri);
+			assert.strictEqual(URI.revive(review.planUri).toString(), URI.file('/sessions/abc/plan.md').toString());
+			assert.deepStrictEqual(review.actions, [
+				{ id: 'interactive', label: 'Implement Plan', default: true },
+				{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },
+			]);
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('plan-review approval dispatches accepted selected answer', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: 'Plan',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					actions: [{ id: 'interactive', label: 'Implement Plan', default: true }],
+				},
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'action', message: 'How?', options: [{ id: 'interactive', label: 'Implement Plan' }] }],
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			assert.ok(review);
+			agentHostService.dispatchedActions.length = 0;
+			review.completion.complete({ rejected: false, action: 'Implement Plan', actionId: 'interactive' });
+			await timeout(10);
+
+			const completion = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatInputCompleted)?.action;
+			assert.deepStrictEqual(completion, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'plan-1',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					action: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' },
+					},
+				},
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('plan-review feedback dispatches accepted text answer for revision', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: 'Plan',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					actions: [{ id: 'interactive', label: 'Implement Plan', default: true }],
+				},
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'action', message: 'How?', options: [{ id: 'interactive', label: 'Implement Plan' }] }],
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			assert.ok(review);
+			agentHostService.dispatchedActions.length = 0;
+			review.completion.complete({ rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' });
+			await timeout(10);
+
+			const completion = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatInputCompleted)?.action;
+			assert.deepStrictEqual(completion, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'plan-1',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					action: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' },
+					},
+				},
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('plan-review completion from another client clears local plan review without redispatching', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-plan-review-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: 'Plan',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					actions: [{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' }],
+				},
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'action', message: 'How?', options: [{ id: 'autopilot', label: 'Implement with Autopilot' }] }],
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			assert.ok(review);
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.ChatInputCompleted,
+				requestId: 'plan-1',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					action: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
+					},
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			assert.strictEqual(review.isUsed, true);
+			assert.deepStrictEqual(review.data, { rejected: false, action: 'Implement with Autopilot', actionId: 'autopilot' });
+			assert.deepStrictEqual(await review.completion.p, { rejected: false, action: 'Implement with Autopilot', actionId: 'autopilot' });
+			assert.deepStrictEqual(chatWidgetService.clearPlanReviewCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'plan-1' },
+			]);
+			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('plan-review cancellation clears docked widget even when review was already dismissed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/dismissed-plan-review-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-1',
+				planReview: {
+					title: 'Review Plan',
+					content: 'Plan',
+					canProvideFeedback: true,
+					answerQuestionId: 'action',
+					actions: [{ id: 'interactive', label: 'Implement Plan', default: true }],
+				},
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'action', message: 'How?', options: [{ id: 'interactive', label: 'Implement Plan' }] }],
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			assert.ok(review);
+			review.dismiss();
+			assert.strictEqual(review.isUsed, true);
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(chatWidgetService.clearPlanReviewCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
+				{ responseId: undefined, resolveId: 'plan-1' },
+			]);
 		}));
 
 		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

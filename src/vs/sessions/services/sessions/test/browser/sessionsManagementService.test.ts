@@ -759,6 +759,46 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat'), status: constObservable(SessionStatus.Untitled) };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		let completeSendRequest: (() => void) | undefined;
+		let sentChatResource: URI | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sentChatResource = chatResource;
+				await new Promise<void>(resolve => {
+					completeSendRequest = resolve;
+				});
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		let willSendCount = 0;
+		disposables.add(service.onWillSendRequest(() => willSendCount++));
+
+		// The background send is fire-and-forget (it resolves before the
+		// provider commits) and never fires `onWillSendRequest`, so the view's
+		// send-follow cannot navigate into the sent chat.
+		await service.sendRequest(session, chat, { query: 'hi', background: true });
+
+		assert.deepStrictEqual({
+			sentChatResource: sentChatResource?.toString(),
+			willSendCount,
+		}, {
+			sentChatResource: chat.resource.toString(),
+			willSendCount: 0,
+		});
+
+		completeSendRequest?.();
+	});
+
 	test('createAndSendNewChatRequest sends without changing the active view', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -1001,6 +1041,31 @@ suite('SessionsManagementService', () => {
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
 			const result = await service.createNewChatInSession(session);
+
+			assert.deepStrictEqual({
+				result: result?.resource.toString(),
+				createNewChatCalls,
+			}, {
+				result: createdChat.resource.toString(),
+				createNewChatCalls: 1,
+			});
+		});
+
+		test('forceNew creates a fresh chat even when an untitled one exists', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'force-new', providerId: 'test', chats: constObservable([untitledChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session, { forceNew: true });
 
 			assert.deepStrictEqual({
 				result: result?.resource.toString(),

@@ -932,7 +932,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(
 			() => provider.sendRequest('nonexistent', URI.parse('untitled:chat'), { query: 'test' }),
-			/not found or not a new session/,
+			/not found/,
 		);
 	});
 

@@ -24,6 +24,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -49,7 +50,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -57,6 +58,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -248,6 +250,102 @@ function convertProtocolAnswers(raw: Record<string, ChatInputAnswer> | undefined
 		}
 	}
 	return Object.keys(answers).length > 0 ? answers : undefined;
+}
+
+type PlanReviewInputCompletion = { response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> };
+
+function getPlanReviewAction(planReview: IAgentHostPlanReview, actionId: string | undefined, actionLabel: string | undefined) {
+	if (actionId) {
+		const action = planReview.actions.find(a => a.id === actionId);
+		if (action) {
+			return action;
+		}
+	}
+	if (actionLabel) {
+		return planReview.actions.find(a => a.label === actionLabel);
+	}
+	return undefined;
+}
+
+function submittedTextAnswer(value: string): ChatInputAnswer {
+	return {
+		state: ChatInputAnswerState.Submitted,
+		value: { kind: ChatInputAnswerValueKind.Text, value },
+	};
+}
+
+function submittedSelectedAnswer(value: string, feedback?: string): ChatInputAnswer {
+	return {
+		state: ChatInputAnswerState.Submitted,
+		value: {
+			kind: ChatInputAnswerValueKind.Selected,
+			value,
+			...(feedback ? { freeformValues: [feedback] } : {}),
+		},
+	};
+}
+
+function convertPlanReviewResult(planReview: IAgentHostPlanReview, result: IChatPlanReviewResult): PlanReviewInputCompletion {
+	const feedback = result.feedback?.trim();
+	if (feedback) {
+		const action = getPlanReviewAction(planReview, result.actionId, result.action);
+		return {
+			response: ChatInputResponseKind.Accept,
+			answers: {
+				[planReview.answerQuestionId]: action
+					? submittedSelectedAnswer(action.id, feedback)
+					: submittedTextAnswer(feedback),
+			},
+		};
+	}
+
+	if (result.rejected) {
+		return { response: ChatInputResponseKind.Decline };
+	}
+
+	const action = getPlanReviewAction(planReview, result.actionId, result.action);
+	if (!action) {
+		return { response: ChatInputResponseKind.Decline };
+	}
+
+	return {
+		response: ChatInputResponseKind.Accept,
+		answers: {
+			[planReview.answerQuestionId]: submittedSelectedAnswer(action.id),
+		},
+	};
+}
+
+function convertProtocolPlanReviewResult(planReview: IAgentHostPlanReview, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): IChatPlanReviewResult | undefined {
+	if (response === ChatInputResponseKind.Decline) {
+		return { rejected: true };
+	}
+	if (response !== ChatInputResponseKind.Accept) {
+		return undefined;
+	}
+
+	const answer = answers?.[planReview.answerQuestionId];
+	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
+		return undefined;
+	}
+
+	const value = answer.value;
+	if (value.kind === ChatInputAnswerValueKind.Text) {
+		const feedback = value.value.trim();
+		return feedback ? { rejected: false, feedback, feedbackOverall: feedback } : undefined;
+	}
+	if (value.kind !== ChatInputAnswerValueKind.Selected) {
+		return undefined;
+	}
+
+	const action = getPlanReviewAction(planReview, value.value, undefined);
+	const feedback = value.freeformValues?.find(v => v.trim().length > 0)?.trim();
+	return {
+		rejected: false,
+		action: action?.label ?? value.value,
+		actionId: action?.id ?? value.value,
+		...(feedback ? { feedback, feedbackOverall: feedback } : {}),
+	};
 }
 
 // =============================================================================
@@ -2129,6 +2227,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
+		const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
+		if (planReview) {
+			this._setupPlanReviewInputRequest(inputReq, planReview, store, opts);
+			return;
+		}
+
 		if (inputReq.url) {
 			this._setupUrlInputRequest(inputReq, inputReq.url, store, opts);
 			return;
@@ -2283,6 +2387,92 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.draftCollapsed = undefined;
 			carousel.completion.complete({ answers: carouselAnswers });
 			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
+		}));
+	}
+
+	private _setupPlanReviewInputRequest(
+		inputReq: ChatInputRequest,
+		planReview: IAgentHostPlanReview,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const review = new ChatPlanReviewData(
+			planReview.title,
+			planReview.content,
+			planReview.actions.map(action => ({
+				id: action.id,
+				label: action.label,
+				...(action.description ? { description: action.description } : {}),
+				...(action.default ? { default: true } : {}),
+				...(action.permissionLevel ? { permissionLevel: action.permissionLevel } : {}),
+			})),
+			planReview.canProvideFeedback,
+			planReview.planUri ? URI.parse(planReview.planUri).toJSON() : undefined,
+			inputReq.id,
+		);
+		opts.sink([review]);
+
+		let inputCompleted = false;
+		let latestResult: IChatPlanReviewResult | undefined = convertProtocolPlanReviewResult(planReview, ChatInputResponseKind.Accept, inputReq.answers);
+		let planReviewCleared = false;
+		const clearPlanReview = () => {
+			if (planReviewCleared) {
+				return;
+			}
+			planReviewCleared = true;
+			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearPlanReview(undefined, inputReq.id);
+		};
+
+		const sub = this._ensureChatSubscription(opts.backendSession.toString(), opts.chatChannel);
+		store.add(sub.onWillApplyAction(envelope => {
+			const action = envelope.action as ChatAction;
+			if (action.type !== ActionType.ChatInputCompleted || action.requestId !== inputReq.id) {
+				return;
+			}
+			inputCompleted = true;
+			latestResult = convertProtocolPlanReviewResult(planReview, action.response, (action as ChatInputCompletedAction).answers);
+			review.data = latestResult;
+			review.isUsed = true;
+			review.draftFeedback = undefined;
+			review.draftCollapsed = undefined;
+			void review.completion.complete(latestResult);
+			clearPlanReview();
+		}));
+
+		review.completion.p.then(result => {
+			if (store.isDisposed || inputCompleted) {
+				return;
+			}
+			const completion = result
+				? convertPlanReviewResult(planReview, result)
+				: { response: ChatInputResponseKind.Cancel };
+			this._config.connection.dispatch(opts.chatChannel, {
+				type: ActionType.ChatInputCompleted,
+				requestId: inputReq.id,
+				...completion,
+			});
+		});
+
+		if (opts.cancellationToken.isCancellationRequested) {
+			review.dismiss();
+		} else {
+			const tokenListener = opts.cancellationToken.onCancellationRequested(() => review.dismiss());
+			review.completion.p.finally(() => tokenListener.dispose());
+		}
+
+		store.add(toDisposable(() => {
+			if (!review.isUsed) {
+				if (inputCompleted) {
+					review.data = latestResult;
+					review.isUsed = true;
+					review.draftFeedback = undefined;
+					review.draftCollapsed = undefined;
+					void review.completion.complete(latestResult);
+				} else {
+					review.dismiss();
+				}
+			}
+			clearPlanReview();
 		}));
 	}
 

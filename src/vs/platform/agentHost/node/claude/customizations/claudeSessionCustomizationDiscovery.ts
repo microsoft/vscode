@@ -11,7 +11,7 @@ import { IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsedAgent, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CustomizationLoadStatus, customizationId, type AgentCustomization, type Customization, type DirectoryCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, customizationId, type AgentCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
@@ -33,7 +33,7 @@ export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
  */
 const CLAUDE_INTERNAL_SCHEME = 'claude-internal';
 
-function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization)[]): DirectoryCustomization {
+function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization | HookCustomization)[]): DirectoryCustomization {
 	const uri = URI.joinPath(base, '.claude', sub).toString();
 	return {
 		type: CustomizationType.Directory,
@@ -82,12 +82,13 @@ function scopeOf(uri: URI, workingDirectory: URI | undefined): ClaudeCustomizati
 export function mapDiscoveredCustomizations(
 	discovered: readonly (IParsedAgent | IParsedSkill | IParsedRule)[],
 	mcpServers: readonly McpServerCustomization[],
+	hooks: readonly HookCustomization[],
 	workingDirectory: URI | undefined,
 	userHome: URI,
 ): readonly Customization[] {
-	const buckets = new Map<ClaudeCustomizationScope, { agents: AgentCustomization[]; skills: SkillCustomization[]; rules: RuleCustomization[] }>([
-		[ClaudeCustomizationScope.Workspace, { agents: [], skills: [], rules: [] }],
-		[ClaudeCustomizationScope.User, { agents: [], skills: [], rules: [] }],
+	const buckets = new Map<ClaudeCustomizationScope, { agents: AgentCustomization[]; skills: SkillCustomization[]; rules: RuleCustomization[]; hooks: HookCustomization[] }>([
+		[ClaudeCustomizationScope.Workspace, { agents: [], skills: [], rules: [], hooks: [] }],
+		[ClaudeCustomizationScope.User, { agents: [], skills: [], rules: [], hooks: [] }],
 	]);
 	for (const d of discovered) {
 		const bucket = buckets.get(scopeOf(d.uri, workingDirectory))!;
@@ -98,6 +99,12 @@ export function mapDiscoveredCustomizations(
 		} else {
 			bucket.rules.push(d.customization);
 		}
+	}
+	// Hooks arrive already projected (one per declaring settings file); they
+	// carry no `IParsed*` wrapper, so attribute them to scope via their source
+	// settings-file uri.
+	for (const hook of hooks) {
+		buckets.get(scopeOf(URI.parse(hook.uri), workingDirectory))!.hooks.push(hook);
 	}
 
 	const result: Customization[] = [];
@@ -120,6 +127,9 @@ export function mapDiscoveredCustomizations(
 		}
 		if (bucket.rules.length > 0) {
 			result.push(makeDirectory(base, 'rules', CustomizationType.Rule, bucket.rules));
+		}
+		if (bucket.hooks.length > 0) {
+			result.push(makeDirectory(base, 'hooks', CustomizationType.Hook, bucket.hooks));
 		}
 	}
 
@@ -221,6 +231,7 @@ export async function resolveClaudeAgentName(
 export function buildDiscoveredCustomizations(
 	discovered: readonly (IParsedAgent | IParsedSkill | IParsedRule)[],
 	mcpServers: readonly McpServerCustomization[],
+	hooks: readonly HookCustomization[],
 	workingDirectory: URI | undefined,
 	userHome: URI,
 	sdk: ISdkResolvedCustomizations | undefined,
@@ -251,7 +262,7 @@ export function buildDiscoveredCustomizations(
 		const builtinAgents = CLAUDE_BUILTIN_AGENTS
 			.filter(a => a.name !== CLAUDE_SDK_DEFAULT_AGENT_NAME && !diskAgentNames.has(a.name))
 			.map(a => toParsedAgent({ uri: nonEditableUri('agent', a.name), name: a.name, description: a.description() }));
-		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, workingDirectory, userHome));
+		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, hooks, workingDirectory, userHome));
 	}
 
 	const agentNames = new Set(sdk.agents.map(a => a.name));
@@ -316,7 +327,7 @@ export function buildDiscoveredCustomizations(
 		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
 	}
 
-	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, workingDirectory, userHome));
+	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, hooks, workingDirectory, userHome));
 }
 
 /**

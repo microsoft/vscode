@@ -170,6 +170,11 @@
 	display: flex;
 }
 
+/* Spacing between the left toolbar's actions. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
 /* Remove the titlebar shadow in agent sessions */
 .agent-sessions-workbench.monaco-workbench .part.titlebar {
 	box-shadow: none;

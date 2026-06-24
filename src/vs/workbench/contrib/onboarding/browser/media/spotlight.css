@@ -8,6 +8,7 @@
 .spotlight-overlay {
 	position: fixed;
 	inset: 0;
+	pointer-events: none;
 	/* Above dialogs (2575) so the onboarding spotlight wins over modal chrome. */
 	z-index: 2600;
 }
@@ -39,9 +40,44 @@
 	transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
 }
 
+.spotlight-callout-pointer {
+	position: fixed;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.spotlight-callout-pointer::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--vscode-editorWidget-background);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+}
+
+.spotlight-callout-pointer.top::after {
+	transform: rotate(225deg);
+}
+
+.spotlight-callout-pointer.right::after {
+	transform: rotate(315deg);
+}
+
+.spotlight-callout-pointer.bottom::after {
+	transform: rotate(45deg);
+}
+
+.spotlight-callout-pointer.left::after {
+	transform: rotate(135deg);
+}
+
 .spotlight-callout {
 	position: fixed;
 	box-sizing: border-box;
+	z-index: 0;
 	width: 320px;
 	max-width: calc(100vw - var(--vscode-spacing-size320));
 	padding: var(--vscode-spacing-size160);

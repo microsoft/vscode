@@ -54,7 +54,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			description: localize('onboarding.developerMode', "When enabled, onboarding tours ignore usage-based eligibility checks (such as how many sessions you have started) so they can be triggered for testing. Tours are still shown at most once; use the \"Reset Onboarding Shown State\" command to replay them.")
+			description: localize('onboarding.developerMode', "When enabled, onboarding tours ignore usage-based eligibility checks (such as how many sessions you have started) and previously persisted shown state so they can be replayed once per window session for testing.")
 		}
 	}
 });

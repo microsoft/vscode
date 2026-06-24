@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type HookCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
 import { customizationId } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
@@ -46,7 +46,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			];
 			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', enabled: true, state: { kind: McpServerStatus.Starting } }];
 
-			const result = mapDiscoveredCustomizations(discovered, mcp, workspace, userHome);
+			const result = mapDiscoveredCustomizations(discovered, mcp, [], workspace, userHome);
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			// Workspace containers first (agents, skills), then user — each rooted at
@@ -74,7 +74,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			});
 			const discovered = [rule(wsRuleUri, 'CLAUDE.md'), rule(userRuleUri, 'g')];
 
-			const result = mapDiscoveredCustomizations(discovered, [], workspace, userHome);
+			const result = mapDiscoveredCustomizations(discovered, [], [], workspace, userHome);
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
@@ -82,6 +82,23 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'CLAUDE.md', uri: wsRuleUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'g', uri: userRuleUri.toString() }] },
+				],
+			);
+		});
+
+		test('maps hooks into per-scope Directory containers carrying the real settings-file URI', () => {
+			const wsHookUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/settings.json' });
+			const userHookUri = URI.from({ scheme: Schemas.inMemory, path: '/home/.claude/settings.json' });
+			const hook = (uri: URI): HookCustomization => ({ type: CustomizationType.Hook, id: customizationId(uri.toString()), uri: uri.toString(), name: 'settings.json' });
+
+			const result = mapDiscoveredCustomizations([], [], [hook(wsHookUri), hook(userHookUri)], workspace, userHome);
+
+			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
+			assert.deepStrictEqual(
+				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				[
+					{ uri: URI.joinPath(workspace, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: wsHookUri.toString() }] },
+					{ uri: URI.joinPath(userHome, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: userHookUri.toString() }] },
 				],
 			);
 		});
@@ -104,7 +121,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				mcpServers: [{ name: 'diskmcp', status: 'connected' }, { name: 'sdkmcp', status: 'failed' }],
 			};
 
-			const result = buildDiscoveredCustomizations(discovered, [diskMcp], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [diskMcp], [], workspace, userHome, sdk);
 
 			// Children are split into per-scope containers; aggregate across them.
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
@@ -146,7 +163,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				mcpServers: [],
 			};
 
-			const result = buildDiscoveredCustomizations(discovered, [], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, sdk);
 			const skillDirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 
 			// Editable disk-skill directories contain only the real on-disk skill.
@@ -169,12 +186,25 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			}];
 			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [] };
 
-			const result = buildDiscoveredCustomizations(discovered, [], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, sdk);
 
 			const ruleChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
 				.filter(d => d.contents === CustomizationType.Rule)
 				.flatMap(d => d.children ?? []);
 			assert.deepStrictEqual(ruleChildren.map(c => ({ name: c.name, uri: c.uri })), [{ name: 'CLAUDE.md', uri: ruleUri.toString() }]);
+		});
+
+		test('hooks survive the post-materialize SDK filter (no SDK counterpart)', () => {
+			const hookUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/settings.json' });
+			const hooks: HookCustomization[] = [{ type: CustomizationType.Hook, id: customizationId(hookUri.toString()), uri: hookUri.toString(), name: 'settings.json' }];
+			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [] };
+
+			const result = buildDiscoveredCustomizations([], [], hooks, workspace, userHome, sdk);
+
+			const hookChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+				.filter(d => d.contents === CustomizationType.Hook)
+				.flatMap(d => d.children ?? []);
+			assert.deepStrictEqual(hookChildren.map(c => ({ name: c.name, uri: c.uri })), [{ name: 'settings.json', uri: hookUri.toString() }]);
 		});
 
 		test('pre-materialize seeds curated built-in agents (claude-internal; general-purpose hidden; disk name wins)', () => {
@@ -183,7 +213,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			const diskExplore = URI.from({ scheme: Schemas.inMemory, path: '/home/.claude/agents/Explore.md' });
 			const discovered = [toParsedAgent({ uri: diskExplore, name: 'Explore', description: 'mine' })];
 
-			const result = buildDiscoveredCustomizations(discovered, [], workspace, userHome, undefined);
+			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, undefined);
 
 			const agentChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
 				.filter(d => d.contents === CustomizationType.Agent)

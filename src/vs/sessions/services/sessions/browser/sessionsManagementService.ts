@@ -12,7 +12,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
@@ -318,15 +318,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
-	async createNewChatInSession(session: ISession): Promise<IChat | undefined> {
+	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
 		const provider = this._getProvider(session);
 		if (!provider) {
 			this.logService.warn(`[SessionsManagement] createNewChatInSession: provider '${session.providerId}' not found`);
 			return undefined;
 		}
-		// Reuse an existing untitled chat if one exists, otherwise create a new one.
-		const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
-		return existingUntitled ?? await provider.createNewChat(session.sessionId);
+		// `forceNew` skips reuse so callers can reset the composer right after
+		// sending a chat (which may still transiently report `Untitled`).
+		if (!options?.forceNew) {
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			if (existingUntitled) {
+				return existingUntitled;
+			}
+		}
+		const created = await provider.createNewChat(session.sessionId);
+		return created;
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
@@ -342,11 +349,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (options.background) {
-			// Run the send fire-and-forget so the composer can reset and reseed
-			// immediately while the request commits. If the commit fails, the
-			// graduating draft is stranded (no longer the current new session),
-			// so dispose it through its provider to release the eager backend
-			// session. Safe no-op if the provider already graduated/removed it.
+			// Fire-and-forget so the composer can reset immediately. On commit
+			// failure the graduating draft is stranded, so dispose it through
+			// its provider (no-op if already graduated/removed).
 			this._sendNewChatRequestInBackground(provider, session, options).catch(e => {
 				provider.deleteNewSession(session.sessionId);
 				this.logService.error('[SessionsManagement] Failed to send background request:', e);
@@ -454,16 +459,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// so dispose it to release its eager backend session.
 		this.discardNewSession();
 
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+
+		if (options.background) {
+			// Fire-and-forget so the composer can reset immediately. Unlike the
+			// foreground path this skips `_onWillSendRequest` so the view's
+			// send-follow does not navigate the visible slot into the sent chat.
+			this._sendRequestInBackground(provider, session, chat, options).catch(e => {
+				this.logService.error('[SessionsManagement] Failed to send background request:', e);
+			});
+			return;
+		}
+
 		// Notify listeners that a send is starting. Listeners (e.g., telemetry)
 		// can use this to prewarm caches whose result is consumed when
 		// `onDidSendRequest` fires below. The view service observes the will/did
 		// send pair to keep the sent chat active in the visible slot.
 		this._onWillSendRequest.fire(session);
-
-		const provider = this._getProvider(session);
-		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
-		}
 
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
@@ -477,6 +492,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 		}
 
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
+	}
+
+	/**
+	 * Send a request for an existing chat in the background: commit the send via
+	 * the provider and—on success—fire {@link _onDidSendRequest}. Unlike the
+	 * foreground {@link sendRequest} path this does not fire
+	 * {@link _onWillSendRequest}, so the view's send-follow never navigates the
+	 * visible slot into the sent chat. Errors are propagated to the caller.
+	 */
+	private async _sendRequestInBackground(provider: ISessionsProvider, session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const chatResourceKey = chat.resource.toString();
+		this._pendingSendChatResources.add(chatResourceKey);
+		let updatedSession: ISession;
+		try {
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		} finally {
+			this._pendingSendChatResources.delete(chatResourceKey);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 

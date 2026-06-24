@@ -51,6 +51,12 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 
 //#endregion
 
+//#region < --- Experiments --- >
+
+export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
+
+//#endregion
+
 //#region < --- Workspace Picker --- >
 
 export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('sessionWorkspacePickerGroup', '', localize('sessionWorkspacePickerGroup', "The currently active group tab in the session workspace picker"));

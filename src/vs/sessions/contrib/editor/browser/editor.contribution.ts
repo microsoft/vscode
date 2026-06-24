@@ -118,35 +118,6 @@ class RestoreMainEditorPartAction extends Action2 {
 
 registerAction2(RestoreMainEditorPartAction);
 
-class CloseMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';
-
-	constructor() {
-		super({
-			id: CloseMainEditorPartAction.ID,
-			title: localize2('closeMainEditorPart', "Close Editor Area"),
-			icon: Codicon.close,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 100,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('workbench.action.closeAllGroups');
-	}
-}
-
-registerAction2(CloseMainEditorPartAction);
-
 class OpenEditorInModalEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';
 

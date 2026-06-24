@@ -41,6 +41,7 @@ import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspa
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
@@ -271,13 +272,15 @@ export class WorkspacePicker extends Disposable {
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
+		// Onboarding spotlight target — id is referenced by the "new session" tour
+		// in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker'));
 
 		this._updateTriggerLabel();
 

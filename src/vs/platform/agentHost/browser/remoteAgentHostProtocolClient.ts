@@ -37,7 +37,7 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -338,6 +338,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 				this._updateSessionSyncEnabled();
 			}
+			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateTerminalAutoApproveEnabled();
+			}
 		}));
 
 		// Detect silently-dead transports — see {@link _resetLivenessTimers}.
@@ -425,6 +431,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._initializeResult = result;
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
+		this._updateTerminalAutoApproveEnabled();
 		this._transitionTo({ kind: AgentHostClientState.Connected });
 	}
 
@@ -1290,6 +1297,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
+	private _updateTerminalAutoApproveEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled },
 		}, this._clientId, 0);
 	}
 

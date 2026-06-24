@@ -18,7 +18,7 @@ import { Memento } from '../../../common/memento.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
+import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 
 /** Persisted "shown" state for a single scenario. */
 interface IScenarioState {
@@ -56,6 +56,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private _started = false;
 	private _stopped = false;
+	private readonly _shownSinceStart = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -100,7 +101,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._register(this.contextKeyService.onDidChangeContext(() => this._evaluate()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ONBOARDING_ENABLED_CONFIG)) {
+			if (e.affectsConfiguration(ONBOARDING_ENABLED_CONFIG) || e.affectsConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG)) {
 				this._evaluate();
 			}
 		}));
@@ -123,6 +124,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	hasBeenShown(id: string): boolean {
+		if (this._developerMode) {
+			return this._shownSinceStart.has(id);
+		}
 		return !!this._state[id]?.shownAt;
 	}
 
@@ -142,6 +146,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private get _enabled(): boolean {
 		return this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) !== false;
+	}
+
+	private get _developerMode(): boolean {
+		return this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true;
 	}
 
 	/**
@@ -312,6 +320,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	//#region Persistence
 
 	private _markShown(id: string): void {
+		this._shownSinceStart.add(id);
 		const previous = this._state[id];
 		const next: IScenarioState = {
 			shownAt: Date.now(),
