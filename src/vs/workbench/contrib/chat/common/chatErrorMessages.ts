@@ -128,7 +128,7 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 		return localize({ key: 'chatError.rateLimit.overloaded', comment: [`{Locked=']({'}`] }, "Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0} or consider switching to Auto. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 	if (code?.startsWith('user_global_rate_limited')) {
-		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
+		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro' || copilotPlan === 'edu') {
 			return localize({ key: 'chatError.rateLimit.sessionUpgrade', comment: [`{Locked=']({'}`] }, "You've hit your session rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 		}
 		return localize({ key: 'chatError.rateLimit.session', comment: [`{Locked=']({'}`] }, "You've hit your session rate limit. Please wait {0} for your limit to reset. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
