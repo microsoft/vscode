@@ -1500,7 +1500,18 @@ curated built-in agents/skills tier are generated declaratively inline,
 no stub files on disk); `createSession` lifecycle (provisional, cold) is
 unchanged. **Shipped.**
 
-### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan
+### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan ✅ **DONE**
+
+> **Status:** both parts shipped. Part A (hooks) landed as PR #322637; Part B
+> (native plugins) landed as PR #322766. Both are surface-only (no
+> `Options.plugins` / `claudeSdkOptions.ts` change) — unit-tested,
+> council-reviewed, and live-E2E verified (real `telegram@claude-plugins-official`
+> + `github-inbox@vscode-team-kit` plugins surface under the customization modal
+> with their real cache roots, and a workspace `settings.local.json` disable
+> hides them via the watcher). See [phase17-plan.md](./phase17-plan.md) for the
+> full retrospective, including the post-E2E fixes (multi-format manifest
+> detection, `source`-based post-materialize match, and PB-10 standalone-fallback
+> suppression).
 
 > **Driver.** Phase 16's disk scan surfaces agents, skills, slash commands,
 > MCP servers, and rules — but **hooks** and **Claude-native plugins** that
@@ -1664,8 +1675,9 @@ the runtime (verified via the captured `init.plugins`) with **no**
 host-added `Options.plugins` entry; provisional sessions show the full
 disk set, materialized sessions hide native plugins the live session did
 not load; the `createSession` provisional/cold lifecycle (M9) is
-unchanged. Ships as two PRs: Part A (hooks) then Part B (native plugins).
-Detailed implementation contract: [phase17-plan.md](./phase17-plan.md).
+unchanged. Shipped as two PRs: Part A (hooks, #322637) then Part B
+(native plugins, #322766). Detailed implementation contract:
+[phase17-plan.md](./phase17-plan.md).
 
 ---
 
