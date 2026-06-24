@@ -300,8 +300,32 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('workbench.action.openSettings', '@id:agents.voice');
+
+		const items = [
+			{
+				label: nls.localize('voiceSettings.selectMic', "$(mic) Select Microphone"),
+				id: 'selectMic',
+			},
+			{
+				label: nls.localize('voiceSettings.openSettings', "$(settings-gear) Voice Mode Settings"),
+				id: 'openSettings',
+			},
+		];
+
+		const picked = await quickInputService.pick(items, {
+			placeHolder: nls.localize('voiceSettings.placeholder', "Voice Mode"),
+		});
+
+		if (picked) {
+			const selection = picked as typeof items[number];
+			if (selection.id === 'selectMic') {
+				await commandService.executeCommand('agentsVoice.selectMicrophone');
+			} else if (selection.id === 'openSettings') {
+				await commandService.executeCommand('workbench.action.openSettings', '@id:agents.voice');
+			}
+		}
 	}
 });
 
