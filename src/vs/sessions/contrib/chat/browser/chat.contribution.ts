@@ -40,7 +40,7 @@ import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 
 
@@ -77,7 +77,12 @@ class NewChatInSessionsWindowAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+					// Surface a quick "new session" affordance in the titlebar only
+					// when the sessions list (sidebar) is hidden, since the list has
+					// its own new-session button. Gated behind an A/B experiment
+					// (SessionsTitleBarNewSessionEnabledContext) so we can measure how
+					// the affordance moves new-session metrics before rolling it out.
+					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
 				}
 			]
 		});

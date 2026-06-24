@@ -15,7 +15,7 @@ import { OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -23,7 +23,9 @@ import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.j
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../browser/menus.js';
+import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/contextkeys.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
@@ -78,7 +80,7 @@ class NewSessionActionViewItem extends BaseActionViewItem {
 			if (!this.action.enabled) {
 				return;
 			}
-			logSessionsInteraction(this.telemetryService, 'newSession');
+			logSessionsInteraction(this.telemetryService, 'newSession', this.inTitleBar ? 'titleBar' : 'sidebar');
 			this.actionRunner.run(this.action);
 		}));
 
@@ -147,15 +149,30 @@ class NewSessionActionViewItem extends BaseActionViewItem {
  * surfaces it (the sessions sidebar header and the titlebar's left toolbar). The factory is
  * announced once right after registration so a toolbar that was built before this contribution
  * ran re-renders and picks the widget up.
+ *
+ * The titlebar entry is additionally gated behind an A/B experiment: this contribution resolves
+ * the {@link NEW_SESSION_TITLEBAR_TREATMENT} treatment and reflects it into
+ * {@link SessionsTitleBarNewSessionEnabledContext}, which the titlebar menu's `when` clause
+ * checks. The control group keeps the prior behaviour (no titlebar button) so we can measure how
+ * the affordance moves new-session metrics before rolling it out.
  */
 export class NewSessionActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.newSessionActionViewItem';
 
+	/** ExP treatment that, when enabled, shows the new-session button in the titlebar. */
+	private static readonly NEW_SESSION_TITLEBAR_TREATMENT = 'agentSessionsTitleBarNewSession';
+
+	private readonly titleBarEnabledContext: IContextKey<boolean>;
+
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
+
+		this.titleBarEnabledContext = SessionsTitleBarNewSessionEnabledContext.bindTo(contextKeyService);
 
 		const onDidRegister = this._register(new Emitter<void>());
 		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
@@ -169,5 +186,14 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 			}, onDidRegister.event));
 		}
 		onDidRegister.fire();
+
+		// Resolve the titlebar experiment now and whenever the assignment service refetches.
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTitleBarTreatment()));
+		this.updateTitleBarTreatment();
+	}
+
+	private async updateTitleBarTreatment(): Promise<void> {
+		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
+		this.titleBarEnabledContext.set(enabled === true);
 	}
 }
