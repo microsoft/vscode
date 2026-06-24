@@ -86,8 +86,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 
 	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
 		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		const roots = getSearchRoots();
 		for (const folder of this.workspaceService.getWorkspaceFolders()) {
-			for (const root of searchRoots.workspace) {
+			for (const root of roots.workspace) {
 				if (root.type === type) {
 					folders.push({
 						uri: URI.joinPath(folder, ...root.path),
@@ -96,7 +97,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				}
 			}
 		}
-		for (const root of searchRoots.user) {
+		for (const root of roots.user) {
 			if (root.type === type) {
 				folders.push({
 					uri: URI.joinPath(this.envService.userHome, ...root.path),
@@ -267,21 +268,23 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 }
 
 
-const searchRoots = {
-	workspace: [
-		{ path: ['.github', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
-		{ path: ['.agents', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
-		{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
-		{ path: ['.github', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
-		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
-		{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
-		{ path: ['.github', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
-		{ path: ['.github', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
-	],
-	user: [
-		{ path: ['.copilot', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
-		{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
-		{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
-		{ path: ['.copilot', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
-	],
-};
+function getSearchRoots() {
+	return {
+		workspace: [
+			{ path: ['.github', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.github', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.github', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.github', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+		user: [
+			{ path: ['.copilot', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.copilot', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+	};
+}
