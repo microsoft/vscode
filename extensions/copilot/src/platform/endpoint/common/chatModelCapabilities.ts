@@ -5,10 +5,8 @@
 
 import type { LanguageModelChat } from 'vscode';
 import { getCachedSha256Hash } from '../../../util/common/crypto';
-import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import type { IChatEndpoint } from '../../networking/common/networking';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 const HIDDEN_MODEL_A_HASHES = [
 	'a99dd17dfee04155d863268596b7f6dd36d0a6531cd326348dbe7416142a21a3',
@@ -156,24 +154,6 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
-}
-
-export function isGpt55EconomicalSearchAndEditExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
-}
-
-export function isGpt55LargePromptSectionsExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
 }
 
 export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {

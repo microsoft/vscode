@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { GetSessionMessagesOptions, McpSdkServerConfigWithInstance, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -23,6 +23,7 @@ import {
 	makeThinkingDelta,
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,6 +36,10 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -184,6 +189,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * deterministically. Resolves immediately when undefined.
 	 */
 	queryAdvance: ((index: number) => Promise<void>) | undefined;
+
+	/**
+	 * Phase 16 — programmable live SDK customization snapshot, read by
+	 * {@link FakeQuery.supportedCommands} / `supportedAgents` /
+	 * `mcpServerStatus`. `supportedCommands` defaults to `[]`; the other two
+	 * stay unmodeled (throwing) until a test opts in, preserving the
+	 * snapshot-failure coverage.
+	 */
+	supportedCommandsResult: SlashCommand[] = [];
+	supportedAgentsResult: AgentInfo[] | undefined = undefined;
+	mcpServerStatusResult: McpServerStatus[] | undefined = undefined;
 
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
@@ -461,11 +477,17 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
 
 	supportedCommands(): never {
-		return Promise.resolve([]) as never;
+		return Promise.resolve(this._sdk.supportedCommandsResult) as never;
 	}
 	supportedModels(): never { throw new Error('FakeQuery: supportedModels not modeled'); }
-	supportedAgents(): never { throw new Error('FakeQuery: supportedAgents not modeled'); }
-	mcpServerStatus(): never { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
+	supportedAgents(): never {
+		if (this._sdk.supportedAgentsResult === undefined) { throw new Error('FakeQuery: supportedAgents not modeled'); }
+		return Promise.resolve(this._sdk.supportedAgentsResult) as never;
+	}
+	mcpServerStatus(): never {
+		if (this._sdk.mcpServerStatusResult === undefined) { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
+		return Promise.resolve(this._sdk.mcpServerStatusResult) as never;
+	}
 	getContextUsage(): never { throw new Error('FakeQuery: getContextUsage not modeled'); }
 	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('FakeQuery: usage_EXPERIMENTAL not modeled'); }
 	/** Phase 11 — programmable tool-name snapshot returned by `reloadPlugins()`. */
@@ -603,6 +625,7 @@ interface ITestContext {
 	readonly stateManager: AgentHostStateManager;
 	readonly configService: AgentConfigurationService;
 	readonly instantiationService: IInstantiationService;
+	readonly fileService: IFileService;
 }
 
 /**
@@ -642,7 +665,14 @@ function createTestContext(
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
+	// In-memory file service the session's customization scan / agent-name
+	// resolution runs against; exposed so tests can seed `.claude/**` files.
+	const fileService = disposables.add(new FileService(new NullLogService()));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+
 	const services = new ServiceCollection(
+		[IFileService, fileService],
+		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
 		[ILogService, logService],
 		[ICopilotApiService, api],
 		[IClaudeProxyService, proxy],
@@ -655,7 +685,7 @@ function createTestContext(
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -674,6 +704,22 @@ function stubAgentSdkDownloader(): IAgentSdkDownloader {
 		isAvailable: () => false,
 		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
 	};
+}
+
+/**
+ * Foundational services every {@link ClaudeAgentSession} requires for its
+ * customization disk scan: an in-memory {@link IFileService} (nothing is
+ * seeded under the mock home, so the scan is deterministically empty in
+ * tests) and a mock {@link INativeEnvironmentService} supplying `userHome`.
+ * Spread into each test {@link ServiceCollection}.
+ */
+function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [typeof IFileService | typeof INativeEnvironmentService, IFileService | INativeEnvironmentService][] {
+	const fileService = disposables.add(new FileService(new NullLogService()));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	return [
+		[IFileService, fileService],
+		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
+	];
 }
 
 // #endregion
@@ -1341,6 +1387,43 @@ suite('ClaudeAgent', () => {
 			startupOptionsCwd: URI.file('/work').fsPath,
 			startupOptionsSessionId: sessionId,
 		});
+	});
+
+	test('materialize resolves the SDK agent name from the file frontmatter, not the filename', async () => {
+		// `_resolveAgentName` parses the selected `~/.claude/agents/<file>.md`:
+		// the SDK keys agents by their frontmatter `name`, which need not match
+		// the filename. A selection pointing at `foo.md` whose frontmatter says
+		// `name: my-real-agent` must start the SDK up with agent=my-real-agent.
+		const { agent, sdk, fileService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const agentFile = URI.file('/mock-home/.claude/agents/foo.md');
+		await fileService.writeFile(agentFile, VSBuffer.fromString('---\nname: my-real-agent\ndescription: A real agent\n---\nbody'));
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work'), agent: { uri: agentFile.toString() } });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'my-real-agent');
+	});
+
+	test('materialize resolves a built-in (claude-internal) agent selection to its name', async () => {
+		// A built-in agent (e.g. `Explore`) has no editable file on disk; it is
+		// selected via a synthetic `claude-internal:/agent/<name>` URI. Materialize
+		// must decode the name from the path and start the SDK with agent=Explore
+		// (the inverse of `nonEditableUri`).
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work'), agent: { uri: 'claude-internal:/agent/Explore' } });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'Explore');
 	});
 
 	test('materialize event payload shape — { session, workingDirectory, project: undefined }', async () => {
@@ -2051,6 +2134,7 @@ suite('ClaudeAgent', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 		const services = new ServiceCollection(
+			...claudeFileEnvServices(disposables),
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
@@ -3197,6 +3281,7 @@ suite('ClaudeAgent', () => {
 		}
 
 		const services = new ServiceCollection(
+			...claudeFileEnvServices(disposables),
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new RecordingProxyService()],
@@ -3248,6 +3333,7 @@ suite('ClaudeAgent', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 		const services = new ServiceCollection(
+			...claudeFileEnvServices(disposables),
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
@@ -3605,6 +3691,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		} as unknown as IAgentConfigurationService;
 		const sessionData = new RecordingSessionDataService(createSessionDataService());
 		const services = new ServiceCollection(
+			...claudeFileEnvServices(disposables),
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IClaudeAgentSdkService, sdk],
@@ -4877,7 +4964,12 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+
 		const services = new ServiceCollection(
+			[IFileService, fileService],
+			[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
@@ -4890,7 +4982,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService };
+		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 	}
 
 	test('setClientCustomizations forwards each item as a SessionCustomizationUpdated action', async () => {
@@ -4969,7 +5061,30 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
-		assert.strictEqual(customizations.length, 1);
+		// The client-pushed customization, plus the curated read-only built-ins
+		// always present pre-materialize for discoverability (before a live SDK
+		// set exists): the built-in agents directory and the "Built-in" skills
+		// container.
+		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
+	});
+
+	test('getSessionCustomizations overlays the enablement state onto client-pushed entries', async () => {
+		const pm = new FakeAgentPluginManager();
+		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+
+		await agent.setClientCustomizations(created.session, 'c', [makeClientCustomization('https://a', 'A')]);
+		// Disable the client-pushed entry; the projection must reflect it.
+		agent.setCustomizationEnabled(customizationId('https://a'), false);
+		// Disabling a DISCOVERED entry's id must be a no-op — the enablement
+		// overlay is applied to the client-pushed tier only.
+		agent.setCustomizationEnabled(customizationId('agent-builtin:/skills'), false);
+
+		const customizations = await agent.getSessionCustomizations!(created.session);
+		assert.strictEqual(customizations.find(c => c.uri === 'https://a')?.enabled, false);
+		assert.strictEqual(customizations.find(c => c.uri === 'agent-builtin:/skills')?.enabled, true, 'discovered entries are not toggled by the enablement map');
 	});
 
 	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {
@@ -5071,8 +5186,47 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
 
 		const customizations = await agent.getSessionCustomizations!(created.session);
-		assert.strictEqual(customizations.length, 1, 'client-pushed projection survives SDK snapshot failure');
-		assert.strictEqual(customizations[0].uri, 'https://a');
+		// SDK snapshot failed → `sdk` stays undefined → unfiltered fallback:
+		// the client-pushed entry survives (UI not blanked) and the curated
+		// built-ins are appended (the built-in agents directory and the skills
+		// container) since there is no live set to derive from.
+		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills'], 'client-pushed projection survives SDK snapshot failure');
+	});
+
+	test('getSessionCustomizations derives the Built-in container from the live SDK command set post-materialize', async () => {
+		// Once materialized, the runtime's real built-ins are exactly the SDK
+		// commands we don't discover on disk — surfaced read-only with the
+		// SDK's own descriptions, replacing the curated pre-materialize seed.
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// A successful snapshot: one SDK-only command, no agents/MCP. (No disk
+		// skills exist under /work, so the command becomes a built-in.)
+		sdk.supportedCommandsResult = [{ name: 'sdkcmd', description: 'Provided by the runtime.', argumentHint: '' }];
+		sdk.supportedAgentsResult = [];
+		sdk.mcpServerStatusResult = [];
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		const customizations = await agent.getSessionCustomizations!(created.session);
+		assert.strictEqual(customizations.length, 1);
+		const container = customizations[0];
+		assert.strictEqual(container.type, CustomizationType.Directory);
+		assert.strictEqual(container.uri, 'agent-builtin:/skills');
+
+		// The single child is the SDK command (with the SDK's description),
+		// proving the live command set — not the curated hardcoded list —
+		// drives the post-materialize built-ins.
+		const child = container.children?.[0];
+		assert.ok(child);
+		assert.strictEqual(child.type, CustomizationType.Skill);
+		assert.deepStrictEqual(
+			{ count: container.children?.length, name: child.name, description: child.description },
+			{ count: 1, name: 'sdkcmd', description: 'Provided by the runtime.' }
+		);
 	});
 
 	test('changeAgent on a provisional session stashes the selection (no SDK contact) and lands on Options.agent at materialize', async () => {

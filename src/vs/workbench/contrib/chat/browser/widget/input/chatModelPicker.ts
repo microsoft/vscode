@@ -1564,7 +1564,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	// --- Cost info (UBB only) ---
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
+		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
 			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
 			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
@@ -1581,15 +1581,17 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				table.classList.add('has-long-context');
 			}
 
-			// Each value cell paints a dotted leader behind a right-aligned, background-masked
-			// number so the dots run right up to the number (and between the two columns).
-			const appendValueCell = (row: HTMLElement, cost: number | undefined): void => {
+			// Each row paints a single continuous dotted line behind its cells (see CSS); the
+			// right-aligned number has an opaque background that masks the line so the dots read
+			// as one continuous leader from the label to the number.
+			const appendValueCell = (row: HTMLElement, cost: number | null | undefined): void => {
 				if (cost === undefined) {
 					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
 					return;
 				}
 				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
-					dom.$('span.chat-model-hover-cost-number', undefined, String(cost)),
+					dom.$('span.chat-model-hover-cost-number', undefined,
+						typeof cost === 'number' ? String(cost) : localize('models.cost.unknown', "Unknown")),
 				));
 			};
 
@@ -1605,12 +1607,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			}
 			table.appendChild(headerRow);
 
-			// Cost rows: label on the left, dotted leader, then right-aligned credit value(s)
+			// Cost rows: label on the left, a continuous dotted line, then right-aligned credit value(s)
 			for (const metric of metrics) {
 				const row = dom.$('.chat-model-hover-cost-row');
 				const labelCell = dom.$('.chat-model-hover-cost-label');
 				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
-				labelCell.appendChild(dom.$('span.chat-model-hover-cost-leader'));
 				row.appendChild(labelCell);
 				appendValueCell(row, metric.def);
 				if (hasLongContext) {

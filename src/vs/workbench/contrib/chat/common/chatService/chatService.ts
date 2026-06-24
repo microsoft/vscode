@@ -166,6 +166,12 @@ export interface IChatUsage {
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	copilotCredits?: number;
+	/**
+	 * The language-model ID that actually served the request. Set when a
+	 * meta-model (e.g. "auto") routes to a concrete model so consumers
+	 * can look up the real model's metadata (context window size, etc.).
+	 */
+	actualModelId?: string;
 	kind: 'usage';
 }
 
@@ -595,10 +601,6 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
-	/** Whether an explicit unsandboxed request was deferred for an initial sandboxed execution. */
-	deferredUnsandboxedExecution?: boolean;
-	/** Whether an explicit unrestricted-network request was deferred for an initial sandboxed execution. */
-	deferredAllowNetworkRequest?: boolean;
 	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
 	requestAllowNetwork?: boolean;
 	/** The model-provided reason for requesting unrestricted network access within the sandbox */

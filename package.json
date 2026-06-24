@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.127.0",
-  "distro": "e6b302180cc8fecde16d482d0f2add78b067b6bf",
+  "distro": "0d726028b9bf2f38975a035474182955e771bccd",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -107,7 +107,7 @@
     "@microsoft/mxc-sdk": "0.6.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-20",
+    "@vscode/codicons": "^0.0.46-21",
     "@vscode/copilot-api": "^0.4.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -192,7 +192,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260609",
     "@vscode/component-explorer": "^0.2.1-58",
     "@vscode/component-explorer-cli": "^0.2.1-59",
-    "@vscode/gulp-electron": "1.41.3",
+    "@vscode/gulp-electron": "^1.42.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",
     "@vscode/test-cli": "^0.0.6",

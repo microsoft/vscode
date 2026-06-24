@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
@@ -63,6 +64,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
+				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
+				const isAuto = m.id === 'auto';
+				const discountPercent = pricing.discountPercent;
+				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
+				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
+				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: undefined;
+				const tooltip = isAuto
+					? localize('agentHost.auto.tooltip', "Auto selects the best model based on your request complexity and model performance.")
+					: undefined;
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -72,6 +84,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						vendor: this._vendor,
 						version: '1.0',
 						family: m.id,
+						...(tooltip !== undefined && { tooltip }),
+						...(detail !== undefined && { detail }),
 						maxInputTokens: m.maxContextWindow ?? 0,
 						maxOutputTokens: 0,
 						isDefaultForLocation: {},
