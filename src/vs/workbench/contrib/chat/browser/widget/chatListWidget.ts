@@ -541,7 +541,7 @@ export class ChatListWidget extends Disposable {
 		this._register(
 			this._tree.onDidChangeContentHeight(() => {
 				this._onDidChangeContentHeight.fire();
-				this._scrollbarPromptMarkerController.refresh();
+				this._scrollbarPromptMarkerController.refreshIfDimensionsChanged();
 			}),
 		);
 

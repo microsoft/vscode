@@ -4420,7 +4420,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-scrollbarSlider-background);
 	opacity: 0.85;
 	pointer-events: auto;
-	transition: top 0.15s ease-out, height 0.15s ease-out;
+	transition: top 0.05s ease-out, height 0.05s ease-out;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker:hover {
+	opacity: 1;
+}
+
+.chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.active {
+	opacity: 1;
+	outline: 1px solid var(--vscode-contrastActiveBorder, var(--vscode-contrastBorder));
 }
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-left {
@@ -4459,4 +4468,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-type-error {
 	background-color: var(--vscode-charts-red, #f85149);
+}
+
+.hc-black .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker,
+.hc-light .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
+	border: 1px solid var(--vscode-contrastBorder);
 }

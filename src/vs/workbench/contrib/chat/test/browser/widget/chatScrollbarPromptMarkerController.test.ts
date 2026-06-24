@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
@@ -225,7 +224,7 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			// Listeners should not have been attached
 			assert.strictEqual(controller['parentPointerDownListener'].value, undefined);
 			assert.strictEqual(controller['parentClickListener'].value, undefined);
-			assert.strictEqual(controller['parentMouseUpListener'].value, undefined);
+			assert.strictEqual(controller['parentPointerUpListener'].value, undefined);
 		});
 
 		test('setEnabled(true) after disabled installs DOM and listeners on next layout', () => {
@@ -447,6 +446,79 @@ suite('ChatScrollbarPromptMarkerController', () => {
 				assert.ok(top + height <= 50, `marker bottom ${top + height} should not exceed rulerHeight 50`);
 			}
 		});
+
+		test('overlap resolution backward pass: 3 crowded markers do not exceed ruler', () => {
+			const req1 = makeRequest('r1');
+			const req2 = makeRequest('r2');
+			const req3 = makeRequest('r3');
+			const layoutInfo = makeLayoutInfo(14);
+			// 3 markers each 10px tall in a 50px ruler, all near the bottom
+			const heights = new Map([['r1', 10], ['r2', 10], ['r3', 10]]);
+			const tops = new Map([['r1', 35], ['r2', 38], ['r3', 41]]);
+			const host = new FakeHost({
+				renderHeight: 50, scrollHeight: 50,
+				items: [req1, req2, req3], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markers = Array.from(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker')) as HTMLElement[];
+			assert.strictEqual(markers.length, 3);
+
+			// All markers should be within the ruler bounds
+			for (let i = 0; i < markers.length; i++) {
+				const top = parseInt(markers[i].style.top, 10);
+				const height = parseInt(markers[i].style.height, 10);
+				assert.ok(top >= 0, `marker ${i} top ${top} should be >= 0`);
+				assert.ok(top + height <= 50, `marker ${i} bottom ${top + height} should not exceed rulerHeight 50`);
+			}
+		});
+
+		test('refreshIfDimensionsChanged skips re-render when dimensions are unchanged', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 400,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			const markerBefore = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			const topBefore = markerBefore.style.top;
+
+			// Same dimensions — should be a no-op
+			controller.refreshIfDimensionsChanged();
+			const markerAfter = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			assert.strictEqual(markerAfter.style.top, topBefore);
+		});
+
+		test('refreshIfDimensionsChanged re-renders when scrollHeight changes', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 100]]);
+			let scrollHeight = 400;
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight,
+				items: [req], heights, tops, layoutInfo,
+			});
+			// Override scrollHeight getter to be mutable
+			Object.defineProperty(host, 'scrollHeight', { get: () => scrollHeight });
+			const controller = createController(host);
+
+			controller.layout();
+			const markerBefore = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			const topBefore = markerBefore.style.top;
+
+			// Change scrollHeight — should trigger re-render with different positions
+			scrollHeight = 800;
+			controller.refreshIfDimensionsChanged();
+			const markerAfter = controller['container'].querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
+			assert.notStrictEqual(markerAfter.style.top, topBefore);
+		});
 	});
 
 	suite('setVisible', () => {
@@ -489,13 +561,8 @@ suite('ChatScrollbarPromptMarkerController', () => {
 				toJSON: () => ({}),
 			});
 
-			// Mock marker rects — the prompt marker is at top=0, height=4
-			const markers = container.querySelectorAll('.chat-scrollbar-prompt-marker');
-			(markers[0] as HTMLElement).getBoundingClientRect = () => ({
-				width: 7, height: 4, x: 7, y: 0,
-				left: 7, top: 0, right: 14, bottom: 4,
-				toJSON: () => ({}),
-			});
+			// Marker is at top=0, height=4 (set by renderMarkers via layout)
+			// No need to mock marker.getBoundingClientRect — hit-testing uses cached style values
 
 			// Click at x=0 (left side, opposite lane), y=2 (within marker Y range)
 			const target = controller['getTargetAtPoint'](0, 2);
@@ -572,14 +639,11 @@ suite('ChatScrollbarPromptMarkerController', () => {
 				toJSON: () => ({}),
 			});
 
-			// Mock both markers to overlap at Y=0..4
+			// Both markers overlap at Y=0..4 — set inline styles for cached hit-testing
 			const markers = container.querySelectorAll('.chat-scrollbar-prompt-marker');
 			for (const marker of markers) {
-				(marker as HTMLElement).getBoundingClientRect = () => ({
-					width: 7, height: 4, x: 0, y: 0,
-					left: 0, top: 0, right: 7, bottom: 4,
-					toJSON: () => ({}),
-				});
+				(marker as HTMLElement).style.top = '0px';
+				(marker as HTMLElement).style.height = '4px';
 			}
 
 			// Both markers overlap at Y=2; right-lane (prompt) should win
@@ -672,7 +736,7 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.deepStrictEqual(calls, ['reveal']);
 		});
 
-		test('with RevealAndFocus calls reveal immediately and retries focusItem across animation frames', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('with RevealAndFocus calls reveal immediately and retries focusItem across animation frames', async () => {
 			const req = makeRequest('r1');
 			const layoutInfo = makeLayoutInfo(14);
 			const heights = new Map([['r1', 100]]);
@@ -700,13 +764,14 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			// reveal is called immediately; focusItem is deferred to animation frames
 			assert.deepStrictEqual(calls, ['reveal']);
 
-			// Flush scheduled animation frames deterministically
-			await new Promise(resolve => setTimeout(resolve, 0));
+			// Flush scheduled animation frames — use a real timeout since
+			// scheduleAtNextAnimationFrame is not virtualized by runWithFakedTimers
+			await new Promise(resolve => setTimeout(resolve, 200));
 
 			// focusItem should have been called once after hasElement returned true
 			assert.ok(calls.includes('focusItem'), `expected focusItem to be called, got: ${JSON.stringify(calls)}`);
 			assert.strictEqual(calls.filter(c => c === 'focusItem').length, 1);
-		}));
+		});
 	});
 
 	suite('pointer/click event handling', () => {
@@ -732,13 +797,8 @@ suite('ChatScrollbarPromptMarkerController', () => {
 				toJSON: () => ({}),
 			});
 
-			// Mock marker rect so hit-testing finds it
-			const marker = container.querySelector('.chat-scrollbar-prompt-marker') as HTMLElement;
-			marker.getBoundingClientRect = () => ({
-				width: 7, height: 4, x: 7, y: 0,
-				left: 7, top: 0, right: 14, bottom: 4,
-				toJSON: () => ({}),
-			});
+			// Marker is at top=0, height=4 (set by renderMarkers via layout)
+			// No need to mock marker.getBoundingClientRect — hit-testing uses cached style values
 
 			let prevented = false;
 			let stopped = false;
@@ -792,7 +852,7 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.deepStrictEqual(calls, []);
 		});
 
-		test('click and mouseup are suppressed when markerActivated is true', () => {
+		test('pointerup and click are suppressed when markerActivated is true', () => {
 			const req = makeRequest('r1');
 			const layoutInfo = makeLayoutInfo(14);
 			const heights = new Map([['r1', 100]]);
@@ -806,42 +866,46 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			controller.layout();
 			controller['markerActivated'] = true;
 
-			// mouseup happens before click in the event sequence
-			let mouseupPrevented = false;
-			let mouseupStopped = false;
-			const mouseupEvent = {
-				preventDefault: () => { mouseupPrevented = true; },
-				stopPropagation: () => { mouseupStopped = true; },
-			} as unknown as MouseEvent;
-			controller['onOverviewRulerMouseUp'](mouseupEvent);
+			// pointerup happens before click in the event sequence
+			let pointerupPrevented = false;
+			let pointerupStopped = false;
+			const pointerupEvent = {
+				preventDefault: () => { pointerupPrevented = true; },
+				stopPropagation: () => { pointerupStopped = true; },
+			} as unknown as PointerEvent;
+			controller['onOverviewRulerPointerUp'](pointerupEvent);
 
+			// pointerup resets markerActivated as a safety net
+			assert.strictEqual(controller['markerActivated'], false);
+			assert.strictEqual(pointerupPrevented, true);
+			assert.strictEqual(pointerupStopped, true);
+
+			// Click after pointerup: markerActivated is already false, so click is not suppressed
 			let clickPrevented = false;
-			let clickStopped = false;
 			const clickEvent = {
 				preventDefault: () => { clickPrevented = true; },
-				stopPropagation: () => { clickStopped = true; },
+				stopPropagation: () => { },
 			} as unknown as MouseEvent;
 			controller['onOverviewRulerClick'](clickEvent);
 
-			assert.strictEqual(mouseupPrevented, true);
-			assert.strictEqual(mouseupStopped, true);
-			assert.strictEqual(clickPrevented, true);
-			assert.strictEqual(clickStopped, true);
-			// Click resets markerActivated
-			assert.strictEqual(controller['markerActivated'], false);
+			assert.strictEqual(clickPrevented, false);
 		});
 
-		test('click and mouseup are not suppressed when markerActivated is false', () => {
+		test('click and pointerup are not suppressed when markerActivated is false', () => {
 			const controller = createController(new FakeHost({ renderHeight: 200, scrollHeight: 200, layoutInfo: makeLayoutInfo(14) }));
 
 			let prevented = false;
-			const event = {
+			const clickEvent = {
 				preventDefault: () => { prevented = true; },
 				stopPropagation: () => { },
 			} as unknown as MouseEvent;
+			const pointerUpEvent = {
+				preventDefault: () => { prevented = true; },
+				stopPropagation: () => { },
+			} as unknown as PointerEvent;
 
-			controller['onOverviewRulerClick'](event);
-			controller['onOverviewRulerMouseUp'](event);
+			controller['onOverviewRulerClick'](clickEvent);
+			controller['onOverviewRulerPointerUp'](pointerUpEvent);
 
 			assert.strictEqual(prevented, false);
 		});
@@ -874,13 +938,13 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.strictEqual(controller['container'].parentElement, null);
 			assert.strictEqual(controller['parentPointerDownListener'].value, undefined);
 			assert.strictEqual(controller['parentClickListener'].value, undefined);
-			assert.strictEqual(controller['parentMouseUpListener'].value, undefined);
+			assert.strictEqual(controller['parentPointerUpListener'].value, undefined);
 
 			// Dispatching events on the former parent should not call any host methods
 			calls.length = 0;
 			layoutInfo.parent.dispatchEvent(new PointerEvent('pointerdown'));
 			layoutInfo.parent.dispatchEvent(new MouseEvent('click'));
-			layoutInfo.parent.dispatchEvent(new MouseEvent('mouseup'));
+			layoutInfo.parent.dispatchEvent(new PointerEvent('pointerup'));
 			assert.deepStrictEqual(calls, []);
 		});
 

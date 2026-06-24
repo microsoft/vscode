@@ -70,7 +70,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private readonly parentClickListener = this._register(
 		new MutableDisposable(),
 	);
-	private readonly parentMouseUpListener = this._register(
+	private readonly parentPointerUpListener = this._register(
 		new MutableDisposable(),
 	);
 	private pointerDownListenerParent: HTMLElement | undefined;
@@ -127,7 +127,6 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		this.updateContainerVisibility();
 		if (enabled) {
 			this.layout();
-			this.refresh();
 		}
 	}
 
@@ -169,10 +168,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				(event) => this.onOverviewRulerClick(event),
 				true,
 			);
-			this.parentMouseUpListener.value = dom.addDisposableListener(
+			this.parentPointerUpListener.value = dom.addDisposableListener(
 				layoutInfo.parent,
-				dom.EventType.MOUSE_UP,
-				(event) => this.onOverviewRulerMouseUp(event),
+				dom.EventType.POINTER_UP,
+				(event) => this.onOverviewRulerPointerUp(event),
 				true,
 			);
 		}
@@ -267,6 +266,17 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			current.top = Math.min(current.top, next.top - current.height - 1, rulerMaxTop);
 		}
 
+		// Second forward pass: the backward pass may have pushed markers up and re-introduced overlaps;
+		// re-run the forward pass to resolve any such collisions.
+		for (let i = 1; i < markerLayouts.length; i++) {
+			const previous = markerLayouts[i - 1];
+			const current = markerLayouts[i];
+			const minimumTop = previous.top + previous.height + 1;
+			if (current.top < minimumTop) {
+				current.top = minimumTop;
+			}
+		}
+
 		for (const { descriptor, top, height } of markerLayouts) {
 			const clampedTop = Math.max(0, Math.min(Math.round(top), Math.max(rulerHeight - height, 0)));
 
@@ -301,6 +311,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			marker.dataset.markerId = descriptor.id;
 			marker.dataset.requestId = descriptor.request.id;
 			marker.dataset.markerType = descriptor.markerType;
+			marker.dataset.lane = descriptor.lane;
 			marker.style.top = `${clampedTop}px`;
 			marker.style.height = `${height}px`;
 			marker.style.zIndex = String(descriptor.priority);
@@ -346,11 +357,14 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		this.revealItem(target);
 	}
 
-	private onOverviewRulerMouseUp(event: MouseEvent): void {
+	private onOverviewRulerPointerUp(event: PointerEvent): void {
 		if (!this.markerActivated) {
 			return;
 		}
-		// Suppress mouseup so the scrollbar doesn't process it and steal focus
+		// Suppress pointerup so the scrollbar doesn't process it and steal focus.
+		// Reset the flag here as a safety net in case the subsequent click event
+		// does not fire (e.g. on touch/pen devices where click may be suppressed).
+		this.markerActivated = false;
 		event.preventDefault();
 		event.stopPropagation();
 	}
@@ -402,13 +416,20 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 		const candidates: Array<{ id: string; lane: string }> = [];
 		for (const [id, marker] of this.markerById) {
-			const rect = marker.getBoundingClientRect();
-			if (clientY < rect.top || clientY > rect.bottom) {
+			// Use cached positions from the last renderMarkers pass (stored as
+			// pixel strings in style.top/style.height) to avoid forcing a
+			// synchronous layout read per marker during hit-testing.
+			const top = parseFloat(marker.style.top);
+			const height = parseFloat(marker.style.height);
+			if (Number.isNaN(top) || Number.isNaN(height)) {
 				continue;
 			}
-			const lane = marker.dataset.markerType === 'prompt' ? 'right'
-				: marker.classList.contains('chat-scrollbar-prompt-marker-lane-left') ? 'left'
-					: 'full';
+			const markerTop = containerRect.top + top;
+			const markerBottom = markerTop + height;
+			if (clientY < markerTop || clientY > markerBottom) {
+				continue;
+			}
+			const lane = marker.dataset.lane ?? 'full';
 			candidates.push({ id, lane });
 		}
 
