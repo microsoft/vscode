@@ -1005,7 +1005,6 @@ suite('CopilotAgent', () => {
 				multiplierNumeric: 1,
 				inputCost: 3,
 				cacheCost: 1,
-				cacheWriteCost: 1,
 				outputCost: 15,
 				longContextInputCost: 6,
 				longContextOutputCost: 22.5,

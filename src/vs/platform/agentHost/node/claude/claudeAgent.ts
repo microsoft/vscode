@@ -40,6 +40,7 @@ import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
@@ -93,7 +94,11 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const multiplier = m.billing?.multiplier;
+	const billing = m.billing as ICAPIModelBilling | undefined;
+	// priceCategory may appear as a top-level model field depending on the CAPI version.
+	const priceCategory = typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
+		? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+		: undefined;
 	return {
 		provider,
 		// CAPI/endpoint format, dotted version (e.g. `claude-haiku-4.5`) — the
@@ -105,7 +110,7 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		supportsVision: !!supports?.vision,
 		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
-		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
+		_meta: createPricingMetaFromBilling(billing, priceCategory),
 	};
 }
 
