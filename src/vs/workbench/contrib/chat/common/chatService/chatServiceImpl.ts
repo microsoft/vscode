@@ -1930,12 +1930,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (this._isServerManagedQueue(sessionResource)) {
-			// Agent host sessions drain their queue on the server, and the
-			// server intentionally does not consume pending messages on
-			// cancellation. So the local reorder/process dance is a no-op and
-			// the message would be dropped. Instead, remove the targeted
-			// message from the queue (clearing it server-side) and re-send it
-			// as a normal turn once the active turn has been cancelled.
+			// Agent host queues are drained by the server, which intentionally
+			// skips pending messages on cancellation. So remove the message
+			// (clearing it server-side) and re-send it as a normal turn after
+			// cancelling. Remove before sending to avoid the server also
+			// auto-draining it (double send); restore it on failure so a
+			// rejected re-send doesn't silently drop the message.
 			const message = target.request.message.text;
 			const attachedContext = target.request.variableData.variables.slice();
 			const sendOptions: IChatSendRequestOptions = {
@@ -1943,11 +1943,6 @@ export class ChatService extends Disposable implements IChatService {
 				queue: undefined,
 				attachedContext,
 			};
-			// Remove before sending so the server does not also auto-drain the
-			// same message when the cancelled turn settles (which would send it
-			// twice). The trade-off is that a failed re-send would otherwise
-			// drop the message entirely, so on failure we restore it to the
-			// queue with its original kind rather than losing it silently.
 			this.removePendingRequest(sessionResource, requestId);
 			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
 			let result: ChatSendResult | undefined;
@@ -1963,9 +1958,8 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Local sessions: move the targeted message to the front (keeping its
-		// kind), cancel the in-flight request, then let the queue processor
-		// dequeue and send it.
+		// Local sessions: move the target to the front (keeping its kind),
+		// cancel the in-flight request, and let the queue processor send it.
 		const reordered = [
 			{ requestId: target.request.id, kind: target.kind },
 			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),

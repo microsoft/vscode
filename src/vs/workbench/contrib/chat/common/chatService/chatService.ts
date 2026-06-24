@@ -1789,12 +1789,10 @@ export interface IChatService {
 	 */
 	processPendingRequests(sessionResource: URI): void;
 	/**
-	 * Sends a single pending (queued or steering) request immediately,
-	 * cancelling the in-flight request for the session first. For local
-	 * sessions the targeted message is moved to the front of the queue and
-	 * dequeued; for server-managed (agent host) sessions, where the queue is
-	 * drained by the server and not on cancel, the message is removed from the
-	 * queue and re-sent as a normal turn once the active turn is cancelled.
+	 * Cancels the in-flight request and immediately sends a single pending
+	 * (queued or steering) request. Local sessions move it to the front and
+	 * dequeue it; server-managed (agent host) sessions re-send it as a normal
+	 * turn, since the server does not drain its queue on cancellation.
 	 */
 	sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;

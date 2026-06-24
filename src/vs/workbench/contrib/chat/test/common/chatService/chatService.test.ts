@@ -1070,8 +1070,7 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(response);
 		await firstStarted.p;
 
-		// Queue a steering message while the first turn is in progress. On agent
-		// host sessions the queue is server-managed, so it stays pending here.
+		// Steering stays pending here since agent host queues are server-managed.
 		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentId: sessionType, queue: ChatRequestQueueKind.Steering });
 		assert.ok(ChatSendResult.isQueued(steering));
 
@@ -1079,8 +1078,7 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 1);
 		const pendingId = model.getPendingRequests()[0].request.id;
 
-		// Send Immediately must cancel the current turn AND actually send the
-		// steering message (the previous behavior dropped it).
+		// Must cancel the current turn AND send the steering message (was dropped before).
 		await testService.sendPendingRequestImmediately(sessionResource, pendingId);
 		await secondInvoked.p;
 
