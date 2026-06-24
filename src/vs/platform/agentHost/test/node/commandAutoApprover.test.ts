@@ -116,6 +116,16 @@ suite('CommandAutoApprover', () => {
 			]);
 		});
 
+		test('uses forwarded terminal auto-approve rules instead of fallback defaults', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hello', { autoApproveRules: {} }),
+				approver.shouldAutoApprove('rm file.txt', { autoApproveRules: {} }),
+			], [
+				'noMatch',
+				'noMatch',
+			]);
+		});
+
 		// Transient env vars
 		test('denies transient environment variable assignments', () => {
 			assert.strictEqual(approver.shouldAutoApprove('FOO=bar some-command'), 'denied');

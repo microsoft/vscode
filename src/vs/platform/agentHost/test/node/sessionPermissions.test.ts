@@ -154,6 +154,13 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
+
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, undefined);
+	});
+
 	test('respects forwarded terminal auto-approve deny rules in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { echo: false } });
 

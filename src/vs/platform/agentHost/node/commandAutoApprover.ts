@@ -446,6 +446,8 @@ function convertAutoApproveEntryToRegex(value: string): RegExp {
 //
 // Compatibility fallback for clients that do not forward the VS Code
 // `chat.tools.terminal.autoApprove` setting.
+// TODO: Remove this fallback once all agent-host clients are guaranteed to
+// forward `chat.tools.terminal.autoApprove` before shell approvals run.
 
 const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerminalAutoApproveRuleValue>> = {
 	// Safe readonly commands
