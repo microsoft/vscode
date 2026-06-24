@@ -129,7 +129,7 @@ export class CustomizationCreatorService {
 		}
 		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
 		if (!allFolders) {
-			// extension host provider that has no provideSourceFolders
+			// Provider returned no source folders for this type/session.
 			return undefined;
 		}
 
