@@ -424,7 +424,7 @@ export function getFileBeingEdited(permissionRequest: Extract<PermissionRequest,
 	const editFile = editFiles && editFiles.length ? editFiles[0] : (permissionRequest.fileName ? URI.file(permissionRequest.fileName) : undefined);
 	return editFile;
 }
-function codeBlock(obj: Record<string, unknown>): string {
+function codeBlock(obj: unknown): string {
 	return `\n\n\`\`\`\n${JSON.stringify(obj, null, 2)}\n\`\`\``;
 }
 

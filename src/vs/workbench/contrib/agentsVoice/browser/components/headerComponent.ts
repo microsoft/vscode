@@ -19,6 +19,7 @@ export interface HeaderProps {
 	readonly draggable: boolean;
 	readonly showClose: boolean;
 	readonly showPopout: boolean;
+	readonly hideDisconnect: boolean;
 	readonly centerConnectButton: boolean;
 	readonly onMicDown: (e: MouseEvent) => void;
 	readonly onMicUp: () => void;
@@ -179,7 +180,7 @@ export function createHeader(): HeaderComponent {
 			gearBtn.onclick = props.onPttKeyClick;
 
 			// Connection indicator
-			connIndicator.style.display = showConnected ? 'inline-flex' : 'none';
+			connIndicator.style.display = showConnected && !props.hideDisconnect ? 'inline-flex' : 'none';
 			connIndicator.onclick = props.onDisconnectClick;
 
 			// Spacer / center connect button

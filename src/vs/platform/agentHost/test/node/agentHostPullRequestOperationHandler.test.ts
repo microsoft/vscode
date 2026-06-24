@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
-import { withSessionGitState, type ISessionFileDiff, SessionStatus } from '../../common/state/sessionState.js';
+import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -121,8 +121,16 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		branchName: 'feature/test',
 		baseBranchName: 'main',
 	}));
+	stateManager.setSessionSummaryMeta(session.toString(), withSessionGitHubState(undefined, {
+		owner: 'microsoft',
+		repo: 'vscode',
+	}));
 	return {
-		handler: new AgentHostPullRequestOperationHandler(false, sessionKey => stateManager.getSessionState(sessionKey), event => createdEvents.push(`${event.sessionKey}:${event.branchName}`), createAgentService(), gitService, octoKitService, new NullLogService()),
+		handler: new AgentHostPullRequestOperationHandler(
+			false,
+			sessionKey => stateManager.getSessionState(sessionKey),
+			event => createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`),
+			createAgentService(), gitService, octoKitService, new NullLogService()),
 		session,
 		createdEvents,
 	};
@@ -160,7 +168,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				'findPullRequestByHeadBranch:feature/test',
 				'createPullRequest:false',
 			],
-			createdEvents: ['agent:/session:feature/test'],
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
 		});
 	});
 
@@ -184,7 +192,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			message: { markdown: 'Pull request [#7](https://github.com/microsoft/vscode/pull/7) already exists.' },
 			octoCalls: ['findPullRequestByHeadBranch:feature/test'],
 			followUp: { content: { uri: 'https://github.com/microsoft/vscode/pull/7', contentType: 'text/html' }, external: true },
-			createdEvents: ['agent:/session:feature/test'],
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/7'],
 		});
 	});
 
@@ -233,7 +241,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		assert.deepStrictEqual({ message: result.message, octoCalls: octoKitService.calls, createdEvents }, {
 			message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.' },
 			octoCalls: ['findPullRequestByHeadBranch:feature/test', 'createPullRequest:false', 'findPullRequestByHeadBranch:feature/test'],
-			createdEvents: ['agent:/session:feature/test'],
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
 		});
 	});
 

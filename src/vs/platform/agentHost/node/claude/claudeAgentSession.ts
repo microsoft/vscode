@@ -9,6 +9,8 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -31,8 +33,11 @@ import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
-import { projectSessionCustomizations } from './customizations/claudeSessionCustomizationsProjector.js';
-import { ClaudeSdkCustomizationBundler } from './customizations/claudeSdkCustomizationBundler.js';
+import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
+import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
+import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
+import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
+import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
@@ -82,7 +87,6 @@ function resolveCurrentPermissionMode(
 export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
-	private _sdkBundler: ClaudeSdkCustomizationBundler | undefined;
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
@@ -257,6 +261,8 @@ export class ClaudeAgentSession extends Disposable {
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this.project = project;
@@ -266,6 +272,18 @@ export class ClaudeAgentSession extends Disposable {
 		this.abortController = abortController;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
+
+		// Watch the on-disk Claude customization sources so edits made outside
+		// the session (a new `~/.claude/agents/*.md`, an edited skill, a changed
+		// `.mcp.json`) drive a workbench re-fetch. Active from construction so
+		// it covers the provisional (pre-materialize) window too.
+		const customizationWatcher = this._register(new ClaudeCustomizationWatcher(
+			this.workingDirectory,
+			this._environmentService.userHome,
+			this._fileService,
+			this._logService,
+		));
+		this._register(customizationWatcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
 	}
 
 	/**
@@ -291,6 +309,7 @@ export class ClaudeAgentSession extends Disposable {
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
+		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 
 		const options = await buildOptions(
 			{
@@ -304,7 +323,7 @@ export class ClaudeAgentSession extends Disposable {
 				mcpServers,
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
-				agent: this._resolveAgentName(this._provisionalAgent),
+				agent: agentName,
 			},
 			ctx.proxyHandle,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -340,15 +359,6 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
-		// On-disk Open Plugin bundle for SDK-discovered customizations.
-		// The bundle directory is content-addressed by the SDK snapshot
-		// hash and lives under the plugin manager's user-data tree;
-		// disposing the bundler does NOT delete the on-disk tree (kept
-		// as a warm cache across sessions on the same workingDirectory).
-		this._sdkBundler = this._register(this._instantiationService.createInstance(
-			ClaudeSdkCustomizationBundler,
-			this.workingDirectory,
-		));
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
@@ -389,6 +399,7 @@ export class ClaudeAgentSession extends Disposable {
 			const liveMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 			try {
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
+				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildAbort = new AbortController();
 				const rebuildOptions = await buildOptions(
 					{
@@ -402,7 +413,7 @@ export class ClaudeAgentSession extends Disposable {
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
-						agent: this._resolveAgentName(this._provisionalAgent),
+						agent: rebuildAgentName,
 					},
 					ctx.proxyHandle,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -626,33 +637,6 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Resolve an {@link AgentSelection} URI to the SDK agent name the
-	 * SDK expects on `Options.agent`. Every custom agent the picker can
-	 * surface for a Claude session comes from the SDK side
-	 * ({@link ClaudeSdkCustomizationBundler} populates
-	 * `SessionCustomization.agents` from `Query.supportedAgents()`),
-	 * pointing at on-disk `.../agents/<name>.md` files we wrote
-	 * ourselves, so the name is the file basename.
-	 *
-	 * Returns `undefined` when no agent is selected (or the URI doesn't
-	 * resolve to a known agent file) so the SDK falls back to its default
-	 * (no `--agent` flag).
-	 */
-	private _resolveAgentName(agent: AgentSelection | undefined): string | undefined {
-		if (!agent) {
-			return undefined;
-		}
-		const uri = URI.parse(agent.uri);
-		const basename = uri.path.split('/').pop() ?? '';
-		const name = basename.replace(/\.md$/i, '');
-		if (!name) {
-			this._logService.warn(`[Claude:${this.sessionId}] _resolveAgentName: could not extract agent name from URI '${agent.uri}'`);
-			return undefined;
-		}
-		return name;
-	}
-
-	/**
 	 * Inject a steering message. Builds the `priority: 'now'`
 	 * {@link SDKUserMessage} and hands it to the pipeline; the pipeline
 	 * inherits the parent's turnId (CONTEXT.md M10) and fires
@@ -853,23 +837,42 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
-		let bundled: Customization | undefined;
-		if (this._pipeline && this._sdkBundler) {
-			let sdk: ISdkResolvedCustomizations | undefined;
+		const userHome = this._environmentService.userHome;
+		const [discovered, rules, mcpServers, hooks] = await Promise.all([
+			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
+			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
+			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
+			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+		]);
+
+		// Post-materialize, the live SDK snapshot filters the disk set down to
+		// what the session actually loaded (and surfaces SDK-only items as
+		// non-editable). Pre-materialize there is no Query, so the full disk
+		// set is shown. A transient SDK read failure leaves `sdk` undefined,
+		// falling back to the unfiltered disk set rather than blanking the UI.
+		let sdk: ISdkResolvedCustomizations | undefined;
+		if (this._pipeline) {
 			try {
 				sdk = await this._pipeline.snapshotResolvedCustomizations();
 			} catch (err) {
 				this._logService.warn(`[Claude:${this.sessionId}] snapshotResolvedCustomizations failed`, err);
 			}
-			if (sdk) {
-				try {
-					bundled = await this._sdkBundler.bundle(sdk);
-				} catch (err) {
-					this._logService.warn(`[Claude:${this.sessionId}] SDK bundle failed`, err);
-				}
-			}
 		}
-		return projectSessionCustomizations(synced, enablement, bundled);
+
+		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
+		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
+		// both agents and skills, so the SDK-vs-curated decision lives in one place.
+		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, this.workingDirectory, userHome, sdk);
+
+		// Final projection: the client-pushed tier (with the per-id enablement
+		// overlay) first, then the discovered tier appended verbatim — the
+		// enablement map is deliberately NOT applied to discovered entries.
+		const result: Customization[] = synced.map(item => ({
+			...item.customization,
+			enabled: enablement.get(item.customization.id) ?? item.customization.enabled,
+		}));
+		result.push(...discoveredCustomizations);
+		return result;
 	}
 
 	// #endregion

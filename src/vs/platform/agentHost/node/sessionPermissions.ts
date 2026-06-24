@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostTerminalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
@@ -272,6 +272,9 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
+			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
+				return undefined;
+			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				isWriteDestApproved: (dest) => this._isShellWriteDestApproved(dest, workDir),
 			});
