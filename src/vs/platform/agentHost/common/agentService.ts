@@ -661,6 +661,27 @@ export interface IAgentCreateChatOptions {
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
+	/**
+	 * Fork an existing chat into this new chat. The new chat starts
+	 * pre-populated with the source chat's turns up to and including
+	 * {@link IAgentCreateChatForkSource.turnId}, and its backing conversation
+	 * is forked from the source so it can continue independently.
+	 */
+	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/** Identifies a source chat and turn to fork a new chat from. */
+export interface IAgentCreateChatForkSource {
+	/** URI of the existing chat to fork from. */
+	readonly source: URI;
+	/** Turn ID in the source chat; content up to and including this turn is copied. */
+	readonly turnId: string;
+	/**
+	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
+	 * by the agent service so the agent can remap per-turn data (e.g. SDK event
+	 * ID mappings) in the forked conversation's database.
+	 */
+	readonly turnIdMapping?: ReadonlyMap<string, string>;
 }
 
 export interface IAgentResolveSessionConfigParams {

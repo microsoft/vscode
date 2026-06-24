@@ -243,6 +243,17 @@ export interface ISessionsManagementService {
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
 
 	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn. Used
+	 * for the fork gesture on sessions that support multiple chats.
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
 	 * Discard the in-progress new session, disposing it through its provider to
 	 * release the eagerly-acquired backend session.
 	 *

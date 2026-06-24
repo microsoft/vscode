@@ -12,7 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -118,6 +118,27 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedChats: URI[] = [];
 	override async disposeChat(chat: URI): Promise<void> {
 		this.disposedChats.push(chat);
+	}
+
+	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatOptions }[] = [];
+	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		this.createdChats.push({ session, chat, options });
+		// Mirror the host: append the new chat to the session catalog so the
+		// provider's `waitForState` on `cached.chats` resolves.
+		const key = session.toString();
+		const existing = this._sessionStateValues.get(key) as SessionState | undefined;
+		if (existing && Array.isArray(existing.chats)) {
+			const newChat: ChatSummary = {
+				resource: chat.toString(),
+				title: options?.title ?? '',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			};
+			this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
+				...existing,
+				chats: [...existing.chats, newChat],
+			});
+		}
 	}
 
 	public createdSessionUris: URI[] = [];
@@ -1880,6 +1901,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await provider.deleteChat(session.sessionId, peer!.resource);
 
 			assert.deepStrictEqual(agentHost.disposedChats, []);
+		}));
+
+		test('forkChat forwards the source chat and turn to the host and surfaces a new peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-fork');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+
+			agentHost.setSessionState('multi-fork', 'copilotcli', makeState('multi-fork', [
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+
+			const call = agentHost.createdChats.at(-1);
+			assert.deepStrictEqual({
+				forkSource: call?.options?.fork?.source.toString(),
+				forkTurnId: call?.options?.fork?.turnId,
+				forkedIsPeer: !!forked.resource.fragment,
+				forkedInCatalog: session.chats.get().some(c => c.resource.toString() === forked.resource.toString()),
+			}, {
+				forkSource: sessionUri,
+				forkTurnId: 'turn-1',
+				forkedIsPeer: true,
+				forkedInCatalog: true,
+			});
 		}));
 
 		test('single-chat catalog degrades to the default chat only', () => {

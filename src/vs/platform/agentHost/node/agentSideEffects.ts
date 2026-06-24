@@ -34,6 +34,7 @@ import {
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
+	type Turn,
 	type URI as ProtocolURI,
 	type ISessionWithDefaultChat,
 	type ErrorInfo,
@@ -992,6 +993,15 @@ export class AgentSideEffects extends Disposable {
 
 	cancelSessionTitleGeneration(session: ProtocolURI): void {
 		this._titleController.cancelTitleGeneration(session);
+	}
+
+	/**
+	 * Generates a content-derived title for a freshly forked session
+	 * (`chatChannel` undefined) or peer chat from its inherited conversation
+	 * turns, replacing the placeholder `Forked: …` title once ready.
+	 */
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
 	}
 
 	/**
