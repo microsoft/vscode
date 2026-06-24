@@ -8,6 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import { TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallCancellationReason, ResponsePartKind, PendingMessageKind, type ChatInputRequest, type ChatState, type ToolCallState, type ResponsePart, type ToolCallResponsePart, type Turn, type PendingMessage, type ConfirmationOption } from './state.js';
+import type { UsageInfo } from '../common/state.js';
 import { SessionStatus } from '../channels-session/state.js';
 import type { ChatAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
@@ -87,6 +88,24 @@ function refreshSummaryStatus(state: ChatState): ChatState {
 		return state;
 	}
 	return { ...state, status };
+}
+
+/**
+ * Merge an incoming usage report into the turn's existing usage. Overlapping
+ * top-level fields take the incoming value (assign-last-wins), while the
+ * well-known `_meta` bag is shallow-merged so a credit-only amend does not drop
+ * previously reported token counts and a token report does not drop previously
+ * reported credits. Re-emitting a running total is therefore idempotent.
+ */
+function mergeUsageInfo(existing: UsageInfo | undefined, incoming: UsageInfo): UsageInfo {
+	if (!existing) {
+		return incoming;
+	}
+	const merged: UsageInfo = { ...existing, ...incoming };
+	if (existing._meta || incoming._meta) {
+		merged._meta = { ...existing._meta, ...incoming._meta };
+	}
+	return merged;
 }
 
 /**
@@ -486,14 +505,29 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			});
 
 
-		case ActionType.ChatUsage:
-			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+		case ActionType.ChatUsage: {
+			// Usage (notably real per-turn Copilot credits) can land while the turn
+			// is active, but also AFTER it has already moved into `turns` — e.g. a
+			// cancelled turn whose billed credits are flushed on abort, or a late
+			// `/v1/messages` credit report that the proxy surfaces once the upstream
+			// request settles. Apply to the active turn when it matches, otherwise to
+			// the matching terminal turn, so per-turn costs are never undercounted.
+			// `mergeUsageInfo` is assign-last-wins on overlapping fields, so repeated
+			// reports of a running total stay idempotent (no overcount).
+			if (state.activeTurn && state.activeTurn.id === action.turnId) {
+				return {
+					...state,
+					activeTurn: { ...state.activeTurn, usage: mergeUsageInfo(state.activeTurn.usage, action.usage) },
+				};
+			}
+			const idx = state.turns.findIndex(t => t.id === action.turnId);
+			if (idx === -1) {
 				return state;
 			}
-			return {
-				...state,
-				activeTurn: { ...state.activeTurn, usage: action.usage },
-			};
+			const turns = state.turns.slice();
+			turns[idx] = { ...turns[idx], usage: mergeUsageInfo(turns[idx].usage, action.usage) };
+			return { ...state, turns };
+		}
 
 		case ActionType.ChatReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {

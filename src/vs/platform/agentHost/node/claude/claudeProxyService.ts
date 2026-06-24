@@ -203,6 +203,23 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
 	}
 
+	/**
+	 * Report credits the proxy already observed on a `/v1/messages` stream that
+	 * was then abandoned (client cancel / disconnect) before a clean end. When
+	 * `copilot_usage` was already on the wire CAPI has billed the request, so
+	 * surfacing it is correct and cannot overcount — and not surfacing it would
+	 * undercount the turn. No-op when no usage was seen yet (cancel landed before
+	 * CAPI reported `copilot_usage`).
+	 */
+	private _reportCreditsOnCancel(sessionId: string | undefined, totalNanoAiu: number | undefined, reason: string): void {
+		if (totalNanoAiu === undefined) {
+			this._logService.trace(`[${PROXY_USER_FACING_NAME}] request cancelled before credits reported: session=${sessionId} reason=${reason}`);
+			return;
+		}
+		this._logService.trace(`[${PROXY_USER_FACING_NAME}] reporting credits seen before cancel: session=${sessionId} totalNanoAiu=${totalNanoAiu} reason=${reason}`);
+		this._reportCredits(sessionId, totalNanoAiu);
+	}
+
 	// #region Dispatch
 
 	protected override async handleRequest(
@@ -397,6 +414,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 			message = await this._copilotApiService.messages(runtime.state.githubToken, body, options);
 		} catch (err) {
 			if (entry.ac.signal.aborted) {
+				this._reportCreditsOnCancel(sessionId, undefined, 'non-streaming abort before response');
 				if (!entry.clientGone && !res.writableEnded) {
 					res.destroy();
 				}
@@ -494,6 +512,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 				reportedNanoAiu = readCopilotUsageNanoAiu(first.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(first.value);
 				if (!ok) {
+					this._reportCreditsOnCancel(sessionId, reportedNanoAiu, 'drain aborted on first frame');
 					return;
 				}
 			}
@@ -503,6 +522,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 					next = await stream.next();
 				} catch (err) {
 					if (entry.ac.signal.aborted) {
+						this._reportCreditsOnCancel(sessionId, reportedNanoAiu, 'stream.next() aborted');
 						if (!entry.clientGone && !res.writableEnded) {
 							res.destroy();
 						}
@@ -528,6 +548,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 				reportedNanoAiu = readCopilotUsageNanoAiu(next.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(next.value);
 				if (!ok) {
+					this._reportCreditsOnCancel(sessionId, reportedNanoAiu, 'drain aborted mid-stream');
 					return;
 				}
 			}

@@ -206,13 +206,87 @@ export class ClaudeAgentSession extends Disposable {
 	private _currentTurnNanoAiu = 0;
 
 	/**
-	 * Accumulate proxy-reported billed credits for the in-flight turn.
-	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
-	 * routed to this session. Ignores non-positive / non-finite values.
+	 * The turn id of the in-flight (or most recently active) turn. Set at the
+	 * start of each {@link send} and used to attribute proxy-reported credits —
+	 * including any that arrive AFTER the turn ends (e.g. a cancelled turn whose
+	 * billed `/v1/messages` credits settle moments later) — back to the correct
+	 * turn via {@link _emitTurnCredits}.
+	 */
+	private _currentTurnId: string | undefined;
+
+	/**
+	 * Whether {@link _currentTurnId} is still streaming. While `true`, credits
+	 * ride out on the turn's terminal `ChatUsage` (the SDK `result`, enriched by
+	 * {@link _enrichSignalWithCredits}). Once the turn ends (complete / error /
+	 * abort), {@link recordTurnCredits} actively re-emits the running total so
+	 * late-arriving credits still reach the now-terminal turn instead of being
+	 * dropped (which would undercount).
+	 */
+	private _turnActive = false;
+
+	/**
+	 * Accumulate proxy-reported billed credits for the current turn. Called from
+	 * {@link ClaudeAgent} for every proxy `onDidReportCredits` routed to this
+	 * session. Ignores non-positive / non-finite values. When the credit arrives
+	 * after the turn has already ended (cancel or a late upstream settle), it is
+	 * flushed immediately to the terminal turn so per-turn costs are not
+	 * undercounted; during an active turn it simply accumulates and rides out on
+	 * the turn's terminal `ChatUsage`.
 	 */
 	recordTurnCredits(totalNanoAiu: number): void {
 		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
 			this._currentTurnNanoAiu += totalNanoAiu;
+			this._logService.trace(`[Claude:${this.sessionId}] recordTurnCredits: +${totalNanoAiu} nano-AIU (turn total=${this._currentTurnNanoAiu}, turnActive=${this._turnActive})`);
+			if (!this._turnActive) {
+				this._emitTurnCredits();
+			}
+		}
+	}
+
+	/**
+	 * Fire a `ChatUsage` signal carrying the current turn's accumulated Copilot
+	 * credits as `_meta.copilotUsage.totalNanoAiu`. Emits the running total
+	 * (assign-last-wins on the consumer), so repeated calls are idempotent and
+	 * never overcount. No-op when there is no turn id or no credits yet.
+	 *
+	 * The consumer reducer applies `ChatUsage` to the matching turn whether it is
+	 * still active or already terminal, so this safely reconciles credits that
+	 * arrive after an aborted / completed turn.
+	 */
+	private _emitTurnCredits(): void {
+		if (this._currentTurnId === undefined || this._currentTurnNanoAiu <= 0) {
+			return;
+		}
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session: this.sessionUri,
+			action: {
+				type: ActionType.ChatUsage,
+				turnId: this._currentTurnId,
+				usage: { _meta: { copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu } } },
+			},
+		});
+	}
+
+	/**
+	 * Observe pipeline signals for turn-end so {@link recordTurnCredits} knows
+	 * when to switch from "accumulate" to "flush immediately". On the terminal
+	 * `ChatTurnComplete` / `ChatError`, also flush once more before forwarding
+	 * the terminal signal — this reconciles any credit that landed in the narrow
+	 * window after the SDK `result`'s enriched `ChatUsage` but before the turn
+	 * closed. Cancellation does not flow through here (it is driven by the
+	 * client-dispatched `ChatTurnCancelled` → {@link abort}); that path flushes
+	 * directly in {@link abort}.
+	 */
+	private _observeTurnLifecycle(signal: AgentSignal): void {
+		if (signal.kind !== 'action' || !this._turnActive) {
+			return;
+		}
+		const action = signal.action;
+		if ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+			&& action.turnId === this._currentTurnId) {
+			this._turnActive = false;
+			this._emitTurnCredits();
 		}
 	}
 
@@ -356,7 +430,10 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
+		this._register(pipeline.onDidProduceSignal(s => {
+			this._observeTurnLifecycle(s);
+			this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s));
+		}));
 		this._pipeline = pipeline;
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
@@ -531,8 +608,11 @@ export class ClaudeAgentSession extends Disposable {
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
 		// New turn: reset the per-turn credit accumulator so proxy reports
-		// for this turn's `/v1/messages` calls sum from zero.
+		// for this turn's `/v1/messages` calls sum from zero, and bind the
+		// turn id / active flag so late-arriving credits attribute correctly.
 		this._currentTurnNanoAiu = 0;
+		this._currentTurnId = turnId;
+		this._turnActive = true;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
 		} else {
@@ -567,6 +647,18 @@ export class ClaudeAgentSession extends Disposable {
 	 * with a deny / cancel result instead of leaving stale UI behind.
 	 */
 	abort(): void {
+		// On an aborted turn the SDK emits no `result` with subtype `success`,
+		// so `mapResult` produces no `ChatUsage` and `_enrichSignalWithCredits`
+		// never runs. Flush the credits already accumulated from `/v1/messages`
+		// requests that completed earlier this turn so they reach the (now
+		// terminal) turn instead of being dropped (undercount). Mark the turn
+		// inactive first so any credits that settle AFTER the abort are flushed
+		// immediately by `recordTurnCredits` too.
+		this._turnActive = false;
+		if (this._currentTurnNanoAiu > 0) {
+			this._logService.trace(`[Claude:${this.sessionId}] abort: flushing ${this._currentTurnNanoAiu} nano-AIU accumulated this turn`);
+			this._emitTurnCredits();
+		}
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._requirePipeline().abort();
