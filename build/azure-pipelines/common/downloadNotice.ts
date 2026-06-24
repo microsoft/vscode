@@ -35,7 +35,7 @@ import { Readable } from 'stream';
 import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
-import { type Artifact, e, requestAZDOAPI } from './publish.ts';
+import { e, requestAZDOAPI } from './publish.ts';
 import { retry } from './retry.ts';
 
 const ARTIFACT_NAME = 'notice_output';
@@ -47,8 +47,9 @@ const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 // Poll budget: 20 attempts x 30s = 10 minutes. Deliberately far below the
 // copilot 30min so a never-produced artifact degrades to fallback quickly, but
 // with generous margin over the parallel Quality stage (CG + scan + merge).
-// Observed: the Quality job completed and the poller accepted at ~attempt 10
-// (~4.5min) in builds 450470/450477, so 10min is ~2x the observed need.
+// The PRIMARY gate accepts the instant ThirdPartyNotices.new.txt appears in the
+// container listing (observed ~3-4min), so the budget is mostly safety margin;
+// the Quality-completion backstop ends the wait early if the file never lands.
 // NB: this is the OUTER artifact-availability poll. It is unrelated to the
 // inner retry() wrapper in retry.ts, which independently retries each AZDO API
 // call up to 10 times for transient network errors and emits no attempt log.
@@ -68,6 +69,20 @@ interface TimelineRecord {
 
 interface Timeline {
 	readonly records: TimelineRecord[];
+}
+
+// We need the container `data` field (which the publish.ts Artifact type omits)
+// to list the FILES inside the notice_output container artifact. For a container
+// artifact, resource.data looks like "#/<containerId>/<rootPath>".
+interface NoticeArtifact {
+	readonly name: string;
+	readonly resource: {
+		readonly downloadUrl: string;
+		readonly data?: string;
+		readonly properties: {
+			readonly artifactsize: number;
+		};
+	};
 }
 
 function installDiagnostics(): void {
@@ -100,9 +115,35 @@ function getAzdoFetchOptions() {
 	};
 }
 
-async function getPipelineArtifacts(): Promise<Artifact[]> {
-	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
+async function getPipelineArtifacts(): Promise<NoticeArtifact[]> {
+	const result = await requestAZDOAPI<{ readonly value: NoticeArtifact[] }>('artifacts');
 	return result.value;
+}
+
+// Lists the FILES inside a container artifact via the AZDO container-items API.
+// Container-artifact file uploads are atomic per file: a file only appears in
+// this listing AFTER its upload has finished, so seeing ThirdPartyNotices.new.txt
+// here means it is fully written and safe to download. Returns the file paths,
+// or undefined if the listing could not be retrieved (transient error) so the
+// caller can distinguish "file genuinely absent" from "could not check".
+async function listArtifactFiles(artifact: NoticeArtifact): Promise<string[] | undefined> {
+	// resource.data for a container artifact looks like: #/<containerId>/<rootPath>
+	const match = /^#\/(\d+)\/(.+)$/.exec(artifact.resource.data ?? '');
+	if (!match) {
+		return undefined;
+	}
+
+	const [, containerId, itemPath] = match;
+	const collectionUri = e('SYSTEM_COLLECTIONURI').replace(/\/$/, '');
+	const url = `${collectionUri}/_apis/resources/Containers/${containerId}?itemPath=${encodeURIComponent(itemPath)}&isShallow=false&api-version=4.1-preview.4`;
+
+	const res = await retry(() => fetch(url, getAzdoFetchOptions()));
+	if (!res.ok) {
+		throw new Error(`Container items request failed: ${res.status}`);
+	}
+
+	const body = await res.json() as { readonly value: { readonly path: string; readonly itemType: string }[] };
+	return body.value.filter(item => item.itemType === 'file').map(item => item.path);
 }
 
 async function getQualityJob(): Promise<TimelineRecord | undefined> {
@@ -110,7 +151,7 @@ async function getQualityJob(): Promise<TimelineRecord | undefined> {
 	return timeline.records.find(r => r.type === 'Job' && QUALITY_JOB_NAMES.includes(r.name));
 }
 
-async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
+async function downloadArtifact(artifact: NoticeArtifact, downloadPath: string): Promise<void> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 4 * 60 * 1000);
 
@@ -165,7 +206,7 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 }
 
 // Returns the artifact if it appears within the short budget, otherwise undefined.
-async function waitForArtifact(): Promise<Artifact | undefined> {
+async function waitForArtifact(): Promise<NoticeArtifact | undefined> {
 	const startTime = Date.now();
 
 	for (let index = 0; index < POLL_ATTEMPTS; index++) {
@@ -174,10 +215,9 @@ async function waitForArtifact(): Promise<Artifact | undefined> {
 		try {
 			log(`Waiting for ${ARTIFACT_NAME} artifact (attempt ${index + 1}/${POLL_ATTEMPTS}, ${elapsed}s elapsed)...`);
 
-			// Best-effort: if the Quality job has completed and clearly failed,
-			// stop early -- the artifact is not coming. continueOnError steps in
-			// the Quality stage mean a "failed" job can still upload the artifact,
-			// so we only bail on a hard, completed failure.
+			// The Quality job state is only a BACKSTOP now (see below): if it has
+			// completed and .new.txt is still absent, the file is never coming and
+			// we give up early instead of burning the whole budget.
 			const qualityJob = await getQualityJob().catch(() => undefined);
 			if (qualityJob) {
 				log(`  * Quality job: state=${qualityJob.state}, result=${qualityJob.result ?? 'n/a'}`);
@@ -188,16 +228,34 @@ async function waitForArtifact(): Promise<Artifact | undefined> {
 
 			const artifact = allArtifacts.find(a => a.name === ARTIFACT_NAME);
 			if (artifact) {
-				// IMPORTANT: the notice_output artifact is populated in TWO phases by
-				// two different Quality-stage steps -- first generated.txt + meta, then
-				// (seconds later) the shipping ThirdPartyNotices.new.txt. The artifact
-				// NAME appears after phase 1, so we must NOT accept it until the Quality
-				// job has COMPLETED, otherwise we race and download before .new.txt lands.
-				if (qualityJob && qualityJob.state === 'completed') {
-					log('  * notice_output artifact found and Quality job completed');
-					return artifact;
+				// PRIMARY GATE: accept the instant ThirdPartyNotices.new.txt actually
+				// exists inside the container artifact. The artifact is populated in
+				// TWO phases by two Quality-stage steps (first generated.txt + meta,
+				// then seconds-to-minutes later the shipping .new.txt). The artifact
+				// NAME appears after phase 1, so checking the NAME alone races. But a
+				// container file appears in the listing only after its upload finishes,
+				// so the listing is an exact, race-free readiness signal -- and it lets
+				// us accept as soon as .new.txt lands rather than waiting for the whole
+				// Quality job to finish (which observably wastes ~80s of margin).
+				const files = await listArtifactFiles(artifact).catch(() => undefined);
+				if (files === undefined) {
+					// Could not list (transient error or unexpected data shape). Do not
+					// give up; just retry next poll. The budget still bounds the wait.
+					log('  * could not list notice_output files yet; will recheck next poll');
+				} else {
+					log(`  * notice_output files: ${files.map(f => path.basename(f)).join(', ') || '(empty)'}`);
+					if (files.some(f => path.basename(f) === SHIPPING_NOTICE_NAME)) {
+						log(`  * ${SHIPPING_NOTICE_NAME} present in artifact; accepting.`);
+						return artifact;
+					}
+					// BACKSTOP: file confirmed absent AND the Quality job has finished
+					// => it is never coming. Fall back instead of polling the full budget.
+					if (qualityJob && qualityJob.state === 'completed') {
+						log(`  * Quality job completed but ${SHIPPING_NOTICE_NAME} absent from artifact; giving up.`);
+						return undefined;
+					}
+					log(`  * ${SHIPPING_NOTICE_NAME} not in artifact yet; waiting...`);
 				}
-				log('  * notice_output found but Quality job still running (uploads may be incomplete); waiting...');
 			} else if (qualityJob && qualityJob.state === 'completed') {
 				log('  * Quality job completed but no notice_output artifact; giving up.');
 				return undefined;
