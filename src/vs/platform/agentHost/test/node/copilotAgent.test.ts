@@ -33,7 +33,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -194,7 +194,7 @@ interface ITestCopilotModelInfo {
 	readonly name: string;
 	readonly capabilities?: {
 		readonly supports?: { readonly vision?: boolean };
-		readonly limits?: { readonly max_context_window_tokens?: number };
+		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_output_tokens?: number; readonly max_prompt_tokens?: number };
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
 	readonly billing?: ModelInfo['billing'] & {
@@ -231,7 +231,12 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
 			},
 			limits: {
 				max_context_window_tokens: model.capabilities?.limits?.max_context_window_tokens ?? 0,
-			},
+				// `max_output_tokens` is present on the RPC `models.list` shape the
+				// agent reads but absent from the SDK's `ModelInfo` limits type, so
+				// widen here to let fixtures exercise the real value.
+				max_output_tokens: model.capabilities?.limits?.max_output_tokens,
+				max_prompt_tokens: model.capabilities?.limits?.max_prompt_tokens,
+			} as ModelInfo['capabilities']['limits'],
 		},
 		...(model.policy ? { policy: { state: model.policy.state ?? 'enabled', terms: '' } } : {}),
 		...(model.billing ? { billing: model.billing } : {}),
@@ -956,7 +961,7 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				billing: { multiplier: 1.5 },
-				capabilities: { limits: { max_context_window_tokens: 128000 }, supports: { vision: true } },
+				capabilities: { limits: { max_context_window_tokens: 128000, max_output_tokens: 16000, max_prompt_tokens: 112000 }, supports: { vision: true } },
 			}]),
 		});
 		try {
@@ -968,6 +973,8 @@ suite('CopilotAgent', () => {
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				maxContextWindow: 128000,
+				maxOutputTokens: 16000,
+				maxPromptTokens: 112000,
 				supportsVision: true,
 				configSchema: undefined,
 				policyState: undefined,
@@ -1032,13 +1039,13 @@ suite('CopilotAgent', () => {
 			const schema = models[0].configSchema;
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
-			assert.strictEqual(schema?.properties.contextTier, undefined);
+			assert.strictEqual(schema?.properties.contextSize, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema emits a contextTier property when long_context tier exceeds default', async () => {
+	test('configSchema emits a numeric contextSize property when long_context tier exceeds default', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
@@ -1057,16 +1064,17 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			const contextTier = models[0].configSchema?.properties.contextTier;
-			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
-			assert.strictEqual(contextTier?.default, 'default');
-			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+			const contextSize = models[0].configSchema?.properties.contextSize;
+			assert.strictEqual(contextSize?.type, 'number');
+			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
+			assert.strictEqual(contextSize?.default, 200_000);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['200K', '1M']);
 		} finally {
 			await disposeAgent(agent);
 		}
 	});
 
-	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
+	test('configSchema omits contextSize when long_context tier is missing or not larger', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [
 				{
@@ -1093,6 +1101,72 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	suite('contextSize to contextTier mapping', () => {
+		const longContextModel: ITestCopilotModelInfo = {
+			id: 'claude-sonnet',
+			name: 'Claude Sonnet',
+			capabilities: { limits: { max_context_window_tokens: 200_000 } },
+			billing: {
+				multiplier: 1,
+				tokenPrices: {
+					contextMax: 200_000,
+					longContext: { contextMax: 1_000_000, inputPrice: 2 },
+				},
+			},
+		};
+
+		async function captureSessionConfig(model: ModelSelection | undefined, models: readonly ITestCopilotModelInfo[]): Promise<CopilotCreateSessionOptions | undefined> {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], models);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'ctx-session'),
+					workingDirectory: URI.file('/workspace'),
+					...(model ? { model } : {}),
+				});
+				await agent.sendMessage(result.session, 'hello');
+				return capturedConfig;
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+
+		test('maps the largest numeric context size to long_context', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '1000000' } }, [longContextModel]);
+			assert.ok(config, 'SDK createSession should be called during materialization');
+			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('maps the default numeric context size to default', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '200000' } }, [longContextModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, 'default');
+		});
+
+		test('drops a numeric context size the model does not offer', async () => {
+			const config = await captureSessionConfig(
+				{ id: 'no-context-picker', config: { contextSize: '1000000' } },
+				[{ id: 'no-context-picker', name: 'No Picker' }],
+			);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, undefined);
+		});
+
+		test('passes through a legacy resolved tier string under the deprecated contextTier key', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: 'long_context' } }, [longContextModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, 'long_context');
+		});
 	});
 
 	test('agent-created sessions can resolve session-state paths via INativeEnvironmentService', async () => {
