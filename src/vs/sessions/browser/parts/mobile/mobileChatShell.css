@@ -71,20 +71,34 @@
 
 .mobile-top-bar .mobile-top-bar-button.mobile-changes-pill {
 	width: auto;
-	height: 28px;
+	min-width: 44px;
+	height: 44px;
 	padding: 0 10px;
+	position: relative;
 	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
 	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
-	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
 }
 
+.mobile-top-bar .mobile-top-bar-button.mobile-changes-pill::before {
+	content: '';
+	position: absolute;
+	inset: 8px 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+}
+
+.mobile-top-bar .mobile-changes-pill > span {
+	position: relative;
+}
+
 .mobile-top-bar .mobile-changes-pill .mobile-changes-pill-icon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
 	display: flex;
 	align-items: center;
@@ -113,6 +127,10 @@
 .mobile-top-bar .mobile-session-title {
 	flex: 1;
 	min-width: 0;
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	text-align: center;
 	font-size: 16px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -159,6 +177,31 @@
 .mobile-top-bar.show-actions .mobile-top-bar-actions {
 	display: flex;
 	flex-direction: column;
+}
+
+.mobile-top-bar .monaco-toolbar,
+.mobile-top-bar .monaco-action-bar,
+.mobile-top-bar .monaco-action-bar > .actions-container {
+	height: 100%;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+}
+
+.mobile-top-bar .monaco-action-bar .action-item.agent-host-filter-combo {
+	height: 44px;
+	padding-right: 0;
+}
+
+.mobile-top-bar .agent-host-filter-combo .agent-host-filter-dropdown {
+	height: 44px;
+	min-height: 44px;
+}
+
+.mobile-top-bar .agent-host-filter-combo .agent-host-filter-connect {
+	width: 44px;
+	height: 44px;
+	margin-left: 0;
 }
 
 /* ---- Phone Layout: Full-screen chat ---- */
