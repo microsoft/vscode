@@ -393,6 +393,7 @@ export class PluginListWidget extends Disposable {
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private buttonContainer!: HTMLElement;
 	private browseButton!: Button;
+	private backButton!: Button;
 	private addButtonContainer!: HTMLElement;
 	private addButtonSimple!: Button;
 	private addButton!: ButtonWithDropdown;
@@ -510,6 +511,15 @@ export class PluginListWidget extends Disposable {
 
 		// Button container (Browse Marketplace + Add actions + Create Plugin)
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
+
+		// Back button (visible only in marketplace browse mode)
+		const backButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
+		const backToInstalledLabel = localize('backToInstalledPlugins', "Back to Installed Plugins");
+		this.backButton = this._register(new Button(backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backToInstalledLabel, ariaLabel: backToInstalledLabel }));
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('pluginBrowseBack', "Back")}`;
+		this.backButton.element.classList.add('list-add-button');
+		backButtonContainer.style.display = 'none';
+		this._register(this.backButton.onDidClick(() => this.toggleBrowseMode(false)));
 
 		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
 		const browseMarketplaceLabel = localize('browseMarketplace', "Browse Marketplace");
@@ -799,7 +809,14 @@ export class PluginListWidget extends Disposable {
 				label: localize('installFromSource', "Install Plugin from Source"),
 				tooltip: localize('installFromSource', "Install Plugin from Source"),
 				icon: Codicon.add,
-				run: () => this.commandService.executeCommand('workbench.action.chat.installPluginFromSource'),
+				run: async () => {
+					const installed = await this.commandService.executeCommand<boolean>('workbench.action.chat.installPluginFromSource', { skipReveal: true });
+					// Return to the installed list so the newly installed plugin is
+					// visible — source-installed plugins may not appear in the marketplace.
+					if (installed && this.browseMode) {
+						this.exitBrowseMode();
+					}
+				},
 			},
 		];
 	}
@@ -849,6 +866,7 @@ export class PluginListWidget extends Disposable {
 		this.searchQuery = '';
 
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.backButton.element.parentElement!.style.display = browse ? '' : 'none';
 
 		this.searchInput.setPlaceHolder(browse
 			? localize('searchMarketplacePlaceholder', "Search plugin marketplace...")

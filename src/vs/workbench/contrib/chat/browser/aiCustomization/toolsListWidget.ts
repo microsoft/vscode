@@ -347,10 +347,8 @@ export class ToolsListWidget extends Disposable {
 		this._lastWidth = width;
 		this._searchInput.layout();
 
-		const headerHeight = this._header.offsetHeight;
-		const searchRowHeight = this._searchRow.offsetHeight;
-		const listHeight = Math.max(0, height - headerHeight - searchRowHeight - 32 /* flex gaps */);
-		this._galleryList.layout(listHeight, width);
+		const galleryOffset = this._galleryContainer.getBoundingClientRect().top - this.element.getBoundingClientRect().top;
+		this._galleryList.layout(Math.max(0, height - galleryOffset), width);
 	}
 
 	/** Enters/leaves marketplace browse mode, swapping the tree for the gallery list. */

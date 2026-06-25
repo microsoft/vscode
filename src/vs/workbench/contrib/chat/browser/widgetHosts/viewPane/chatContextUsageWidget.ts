@@ -20,13 +20,41 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
 const $ = dom.$;
+
+/**
+ * Resolves the input-token denominator used by the context-usage gauge.
+ *
+ * Resolution order, mirroring the request path's `applyContextSizeOverride`:
+ *   1. An explicit `contextSize` in the resolved model configuration.
+ *   2. The schema's default `contextSize` tier (e.g. 200K). Used when the
+ *      resolved configuration is missing `contextSize` (e.g. the schema default
+ *      has not loaded yet) so the gauge denominator agrees with the size the
+ *      request actually uses instead of jumping to the model's full native
+ *      window. See issue #320393.
+ *   3. The model's full native window (`maxInputTokens`). Models without a
+ *      context-size picker have no such schema property and land here, where
+ *      default and max are the same value.
+ *
+ * @internal - exported for testing
+ */
+export function resolveContextWindowInputTokens(
+	modelConfiguration: IStringDictionary<unknown> | undefined,
+	configurationSchema: ILanguageModelConfigurationSchema | undefined,
+	maxInputTokens: number | undefined,
+): number | undefined {
+	const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
+	const schemaDefaultContextSize = configurationSchema?.properties?.contextSize?.default;
+	return configuredContextSize
+		?? (typeof schemaDefaultContextSize === 'number' ? schemaDefaultContextSize : undefined)
+		?? maxInputTokens;
+}
 
 /**
  * A reusable circular progress indicator that displays a ring.
@@ -342,8 +370,8 @@ export class ChatContextUsageWidget extends Disposable {
 		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
-		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
-		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata?.configurationSchema, modelMetadata?.maxInputTokens);
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);

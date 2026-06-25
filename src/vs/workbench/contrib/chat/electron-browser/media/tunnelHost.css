@@ -8,9 +8,9 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 24px;
-	height: 24px;
-	padding: 4px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	border-radius: var(--vscode-cornerRadius-small);

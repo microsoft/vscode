@@ -80,7 +80,7 @@ class NewSessionTourContribution extends Disposable implements IWorkbenchContrib
 		const developerMode = this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true;
 		if (!developerMode) {
 			const sessionsStarted = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
-			if (sessionsStarted >= NewSessionTourContribution.MAX_SESSIONS_FOR_TOUR) {
+			if (sessionsStarted > NewSessionTourContribution.MAX_SESSIONS_FOR_TOUR) {
 				return;
 			}
 		}

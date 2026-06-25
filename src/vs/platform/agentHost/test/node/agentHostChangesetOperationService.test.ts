@@ -13,7 +13,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, type ChangesetOperation, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -73,6 +73,8 @@ class TestGitStateService implements IAgentHostGitStateService {
 	}
 
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
+
+	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }
 
 suite('AgentHostChangesetOperationService', () => {
@@ -156,6 +158,44 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.match(error.message, /is disabled/);
 		assert.strictEqual(handler.calls, 0);
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Disabled);
+	});
+
+	test('rejects invocation while a turn is active even if the advertised status is idle', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		const summary: SessionSummary = {
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		};
+		stateManager.createSession(summary);
+		stateManager.registerChangeset(changesetUri);
+		// Advertise the operation as Idle (e.g. a previous operation finished and
+		// a ChangesetOperationStatusChanged reset the status) ...
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+		// ... while a chat turn is still streaming on the session.
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
+		});
+
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId }).then(undefined, error => error);
+
+		assert.match(error.message, /disabled while a turn is active/);
+		assert.strictEqual(handler.calls, 0);
+		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Idle);
 	});
 
 	test('publishes running and error state when a changeset operation fails', async () => {

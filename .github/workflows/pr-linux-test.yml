@@ -144,15 +144,24 @@ jobs:
             exit 0
           fi
           echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
-          # Workaround: use a minimal fontconfig config with no <include> directives,
-          # avoiding the external entity parser codepath entirely. Based on upstream
-          # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
-          # aliases inlined, and default font mappings for generic families added
-          # (from conf.d/49-sansserif.conf and DejaVu font configs).
-          # Remove once Ubuntu backports the remaining CVE fixes.
+          # Workaround: use a minimal fontconfig config with no <include> directives
+          # AND no <!DOCTYPE ... SYSTEM ...> external DTD reference, avoiding every
+          # expat external-entity codepath. Based on upstream fontconfig 2.15.0
+          # fonts.conf.in with <include> removed, generic family aliases inlined, and
+          # default font mappings for generic families added (from conf.d/49-sansserif.conf
+          # and DejaVu font configs).
+          #
+          # The DOCTYPE line is intentionally omitted: fontconfig feeds the referenced
+          # external DTD ("urn:fontconfig:fonts.dtd") to expat as an external PARAMETER
+          # entity, which still triggers the not-yet-backported NULL-deref CVEs
+          # (CVE-2026-32776 / CVE-2026-32778) on expat 2.6.1 even when <include> is gone.
+          # This was observed as a SIGSEGV inside libexpat (called from libfontconfig)
+          # during Chromium browser-process font init, crashing Electron at startup.
+          # fontconfig does not require the DOCTYPE, so dropping it removes the last
+          # external-entity path. Remove the whole workaround once Ubuntu backports the
+          # remaining CVE fixes (expat >= 2.7.5).
           cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
           <?xml version="1.0"?>
-          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
           <fontconfig>
             <dir>/usr/share/fonts</dir>
             <dir>/usr/local/share/fonts</dir>
