@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -112,6 +113,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -146,9 +148,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	/**
-	 * Enrolls the user in the trajectory experiment. Called lazily, only once
-	 * the user has met every condition required to render the nudge, so that
-	 * the experiment is not diluted with users who would never be exposed.
+	 * Reads the trajectory experiment treatment. Called lazily, only once
+	 * the user has met every condition required to render the nudge.
 	 *
 	 * Stores the raw treatment value. `undefined` means the user is not
 	 * assigned to the flight (or assignments are not available); only a `true`
@@ -158,20 +159,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * the user is actually assigned to a flight.
 	 */
 	private async _resolveTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): Promise<void> {
-		let treatment: boolean | undefined;
-		try {
-			treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatmentName);
-		} catch (error) {
-			console.error(`Failed to resolve ${TRAJECTORY_NUDGE_SPEC.treatmentName}`, error);
-			this._trajectoryAssignmentRequested = false;
-			return;
-		}
+		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatmentName);
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
 			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
 		}
 		if (treatment === true) {
 			this._update();
+		}
+	}
+
+	private _requestTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		if (!this._trajectoryAssignmentRequested) {
+			this._trajectoryAssignmentRequested = true;
+			void this._resolveTrajectoryTreatment(warning).catch(error => {
+				this._logService.error(`Failed to resolve ${TRAJECTORY_NUDGE_SPEC.treatmentName}`, error);
+				this._trajectoryAssignmentRequested = false;
+			});
 		}
 	}
 
@@ -344,15 +348,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		// Every render condition is met. Enroll in the experiment now
-		// (just-in-time) so treatment and control cohorts are assigned at the
-		// same point and users who would never see the nudge are not exposed.
-		// While assignment is pending, fall through; _update re-runs once it
-		// resolves and only the treatment cohort then renders the nudge.
-		if (!this._trajectoryAssignmentRequested) {
-			this._trajectoryAssignmentRequested = true;
-			void this._resolveTrajectoryTreatment({ averageDailyUsage, percentUsed });
-		}
+		this._requestTrajectoryTreatment({ averageDailyUsage, percentUsed });
 		return this._trajectoryTreatment === true ? { averageDailyUsage, percentUsed } : undefined;
 	}
 

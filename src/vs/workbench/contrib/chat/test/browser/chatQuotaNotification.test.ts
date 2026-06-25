@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -296,6 +297,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			storageService,
 			assignmentMock.service,
 			modelOpts?.telemetryService ?? new NullTelemetryServiceShape(),
+			new NullLogService(),
 			chatWidgetService,
 		));
 
@@ -1230,6 +1232,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				storageService,
 				assignmentMock.service,
 				new NullTelemetryServiceShape(),
+				new NullLogService(),
 				chatWidgetService,
 			));
 
