@@ -67,7 +67,7 @@ export async function baseActivate(configuration: IExtensionActivationConfigurat
 	await instantiationService.invokeFunction(async accessor => {
 		const expService = accessor.get(IExperimentationService);
 		const configService = accessor.get(IConfigurationService);
-		context.subscriptions.push(registerChatQuotaTrajectoryNudgeEnabledCommand(configService, expService));
+		context.subscriptions.push(registerChatQuotaTrajectoryNudgeEnabledCommand(commands, configService, expService));
 
 		// Await intialization of exp service. This ensure cache is fresh.
 		// It will then auto refresh every 30 minutes after that.

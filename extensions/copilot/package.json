@@ -80,7 +80,6 @@
   "activationEvents": [
     "onStartupFinished",
     "onLanguageModelChat:copilot",
-    "onCommand:_github.copilot.chat.getQuotaTrajectoryNudgeEnabled",
     "onUri",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
