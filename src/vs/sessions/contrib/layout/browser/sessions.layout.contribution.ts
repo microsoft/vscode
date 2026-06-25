@@ -15,10 +15,12 @@ import { MobileLayoutController } from './mobileSessionLayoutController.js';
 // Contribute the layout controller for the current platform. The web bundle
 // serves both the web desktop and the web phone layouts, so the choice is made
 // at runtime; the native desktop bundle always uses the desktop controller.
+// Registered at `BlockRestore` so the controller is in place before the window
+// restores its UI, getting the side-pane layout right without a visible flash.
 if (isWeb && isMobile) {
-	registerWorkbenchContribution2(MobileLayoutController.ID, MobileLayoutController, WorkbenchPhase.AfterRestored);
+	registerWorkbenchContribution2(MobileLayoutController.ID, MobileLayoutController, WorkbenchPhase.BlockRestore);
 } else {
-	registerWorkbenchContribution2(LayoutController.ID, LayoutController, WorkbenchPhase.AfterRestored);
+	registerWorkbenchContribution2(LayoutController.ID, LayoutController, WorkbenchPhase.BlockRestore);
 }
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
