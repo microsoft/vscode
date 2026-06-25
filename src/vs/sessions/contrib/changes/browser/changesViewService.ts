@@ -233,13 +233,15 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	}
 
 	private _getActiveSessionAgentFeedback(): IObservable<Map<string, number>> {
+		const didChangeFeedbackSignal = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
+
 		return derived(reader => {
 			const sessionResource = this.activeSessionResourceObs.read(reader);
 			if (!sessionResource) {
 				return new Map<string, number>();
 			}
 
-			observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback).read(reader);
+			didChangeFeedbackSignal.read(reader);
 
 			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
 			const result = new Map<string, number>();
