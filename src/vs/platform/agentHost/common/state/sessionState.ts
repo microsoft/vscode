@@ -475,6 +475,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	return {
 		summary,
 		lifecycle: SessionLifecycle.Creating,
+		activeClients: [],
 		chats: [],
 		defaultChat: undefined,
 	};

@@ -15,7 +15,14 @@ import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js'
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
 import { SpotlightPlacement } from './spotlightTypes.js';
+import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
+
+/** How the user advanced to the next step. */
+export type SpotlightAdvanceSource = 'button' | 'target';
+
+/** Why a step ended in a skip: the Skip button or the Escape key. */
+export type SpotlightSkipReason = OnboardingDismissReason.SkipButton | OnboardingDismissReason.EscapeKey;
 
 /** Default padding (px) added around the target when cutting the highlight hole. */
 const DEFAULT_HOLE_PADDING = 6;
@@ -77,14 +84,14 @@ export class SpotlightOverlay extends Disposable {
 	/** Listeners scoped to the currently shown step (re-layout sources). */
 	private readonly _stepListeners = this._register(new DisposableStore());
 
-	private readonly _onDidClickNext = this._register(new Emitter<void>());
-	readonly onDidClickNext: Event<void> = this._onDidClickNext.event;
+	private readonly _onDidClickNext = this._register(new Emitter<SpotlightAdvanceSource>());
+	readonly onDidClickNext: Event<SpotlightAdvanceSource> = this._onDidClickNext.event;
 
 	private readonly _onDidClickPrevious = this._register(new Emitter<void>());
 	readonly onDidClickPrevious: Event<void> = this._onDidClickPrevious.event;
 
-	private readonly _onDidSkip = this._register(new Emitter<void>());
-	readonly onDidSkip: Event<void> = this._onDidSkip.event;
+	private readonly _onDidSkip = this._register(new Emitter<SpotlightSkipReason>());
+	readonly onDidSkip: Event<SpotlightSkipReason> = this._onDidSkip.event;
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
@@ -131,7 +138,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		this._skipButton.label = localize('spotlight.skip', "Skip");
-		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire()));
+		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		this._backButton.label = localize('spotlight.back', "Back");
@@ -139,7 +146,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._nextButton = this._register(new Button(actions, { ...defaultButtonStyles }));
 		this._nextButton.label = localize('spotlight.next', "Next");
-		this._register(this._nextButton.onDidClick(() => this._onDidClickNext.fire()));
+		this._register(this._nextButton.onDidClick(() => this._onDidClickNext.fire('button')));
 
 		// Keyboard handling on the callout: Esc skips, focus is trapped within.
 		this._register(addDisposableListener(this._callout, EventType.KEY_DOWN, e => this._onKeyDown(e)));
@@ -188,7 +195,7 @@ export class SpotlightOverlay extends Disposable {
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
 		this._nextButton.element.style.display = advanceOnTargetClick ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire()));
+			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire('target')));
 			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
@@ -361,7 +368,7 @@ export class SpotlightOverlay extends Disposable {
 		if (event.equals(KeyCode.Escape)) {
 			event.stopPropagation();
 			event.preventDefault();
-			this._onDidSkip.fire();
+			this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
 			return;
 		}
 

@@ -255,6 +255,15 @@ export interface ISessionsProvider {
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
 	 * Send a request for a chat within a session.
 	 *
 	 * @param sessionId The ID of the session containing the chat.

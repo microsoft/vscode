@@ -106,7 +106,20 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
-		return operations.length > 0 ? operations : undefined;
+		if (operations.length === 0) {
+			return undefined;
+		}
+
+		// Operations are disabled while a turn is active so the working tree /
+		// branch state can't be mutated mid-request.
+		if (this._stateManager.hasActiveTurn(context.sessionKey)) {
+			return operations.map(operation => ({
+				...operation,
+				status: ChangesetOperationStatus.Disabled
+			}));
+		}
+
+		return operations;
 	}
 
 	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
@@ -129,6 +142,17 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 		if (op.status === ChangesetOperationStatus.Disabled) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled on changeset ${params.channel}`);
+		}
+
+		// Enforce the active-turn gate at invocation time too, independent of
+		// the advertised operation status. A ChangesetOperationStatusChanged
+		// action (e.g. a previously running operation finishing) can reset the
+		// status back to Idle while a chat turn is still streaming, which would
+		// otherwise re-enable invocation mid-turn and let the working tree /
+		// branch state be mutated.
+		const parsed = parseChangesetUri(params.channel);
+		if (parsed && this._stateManager.hasActiveTurn(parsed.sessionUri)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
 
 		const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource

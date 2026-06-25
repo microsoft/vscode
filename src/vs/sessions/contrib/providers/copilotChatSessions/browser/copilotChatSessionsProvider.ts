@@ -1928,6 +1928,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
+	}
+
 	async createNewChat(sessionId: string, prompt?: string): Promise<IChat> {
 		const currentNewSession = this._newSessions.get(sessionId);
 		if (currentNewSession) {

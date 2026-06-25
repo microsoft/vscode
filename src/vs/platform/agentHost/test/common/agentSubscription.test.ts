@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChatStateSubscription, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -35,6 +35,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>)
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
+		activeClients: [],
 		chats: [],
 		...overrides,
 	};
@@ -636,6 +637,27 @@ suite('AgentSubscriptionManager', () => {
 		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
 
 		ref.dispose();
+	});
+
+	test('isActionEnvelopeRelevantToSubscriptionUris filters by subscribed channel', () => {
+		assert.deepStrictEqual({
+			rootVariant: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.RootActiveSessionsChanged, activeSessions: 1 }, 1, undefined, undefined, ROOT_STATE_URI),
+				['ahp-root:'],
+			),
+			rootOnlyGetsSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Nope' }, 2),
+				['ahp-root:'],
+			),
+			exactSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Yep' }, 3),
+				['ahp-root:', sessionUri],
+			),
+		}, {
+			rootVariant: true,
+			rootOnlyGetsSession: false,
+			exactSession: true,
+		});
 	});
 
 	test('creating session subscription for copilot: URI', async () => {

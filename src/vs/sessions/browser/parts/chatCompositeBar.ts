@@ -62,8 +62,11 @@ export interface IChatCompositeBarDelegate {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Close (delete) the given chat. */
+	/** Close (hide) the given chat from the tab strip; it remains reopenable. */
 	closeChat(resource: URI): void;
+
+	/** Permanently delete the given chat. */
+	deleteChat(resource: URI): void;
 
 	/** Rename the given chat. */
 	renameChat(resource: URI, title: string): void;
@@ -299,7 +302,9 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible
+		// Close action — only for non-main chats, always visible. Closing hides the
+		// chat from the tab strip (reopenable from the chats dropdown in the
+		// session header); use Delete to remove it permanently.
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -354,6 +359,12 @@ export class ChatCompositeBar extends Disposable {
 			this._startTabEditing(chatTab);
 		}));
 
+		// Delete permanently removes the chat (destructive). Only non-main chats
+		// can be deleted; the main chat lives and dies with its session.
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
+			this._delegate?.deleteChat(chat.resource);
+		}));
+
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			if (chat.status.get() === SessionStatus.Untitled) {
@@ -375,9 +386,9 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => [
-					renameAction,
-				]
+				getActions: () => isMainChat
+					? [renameAction]
+					: [renameAction, deleteAction]
 			});
 		}));
 

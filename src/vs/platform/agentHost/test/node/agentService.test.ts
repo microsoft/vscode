@@ -22,11 +22,11 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -403,7 +403,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('does not generate an AI title for forked sessions with an existing title', async () => {
+		test('generates an AI title for forked sessions from the forked conversation', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = 'Source generated title';
 			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
@@ -420,6 +420,10 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 2,
 			);
 			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
+
+			// The fork inherits a `Forked: …` placeholder, then regenerates a
+			// content-derived title from the copied conversation.
+			copilotApiService.response = 'Forked branch title';
 			const forkedSession = await svc.createSession({
 				provider: 'copilot',
 				fork: {
@@ -428,19 +432,18 @@ suite('AgentService (node dispatcher)', () => {
 					turnId: 'source-turn',
 				},
 			});
+			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.summary.title === 'Forked branch title', 'forked session should get a content-generated title');
 
-			svc.dispatchAction(
-				forkedSession.toString(),
-				{ type: ActionType.ChatTurnStarted, turnId: 'fork-turn-1', message: { text: 'Continue from the fork', origin: { kind: MessageKind.User } } },
-				'test-client', 3,
-			);
-
+			const forkedCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
 			assert.deepStrictEqual({
 				title: svc.stateManager.getSessionState(forkedSession.toString())?.summary.title,
 				utilityCalls: copilotApiService.utilityCalls.length,
+				includesForkedConversation: userMessage.includes('Seed fork title'),
 			}, {
-				title: 'Forked: Source generated title',
-				utilityCalls: 1,
+				title: 'Forked branch title',
+				utilityCalls: 2,
+				includesForkedConversation: true,
 			});
 		});
 	});
@@ -1583,11 +1586,11 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
 			assert.deepStrictEqual({
-				activeClient: service.stateManager.getSessionState(session.toString())?.activeClient,
-				dispatchedActiveClientChanged: envelopes.some(e => e.action.type === ActionType.SessionActiveClientChanged),
+				activeClients: service.stateManager.getSessionState(session.toString())?.activeClients,
+				dispatchedActiveClientSet: envelopes.some(e => e.action.type === ActionType.SessionActiveClientSet),
 			}, {
-				activeClient,
-				dispatchedActiveClientChanged: false,
+				activeClients: [activeClient],
+				dispatchedActiveClientSet: false,
 			});
 		});
 
@@ -1596,7 +1599,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = await service.createSession({ provider: 'copilot' });
 
-			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.activeClient, undefined);
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.activeClients, []);
 		});
 	});
 
@@ -2131,6 +2134,60 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
 
+		test('eagerly registers subagent child sessions during parent restore', async () => {
+			// An agent that surfaces its subagent children from the parent's
+			// reconstructed history, exercising the eager-registration path.
+			class EagerSubagentMockAgent extends MockAgent {
+				async getSubagentSessions(session: URI): Promise<readonly IRestoredSubagentSession[]> {
+					if (parseSubagentSessionUri(session)) {
+						return [];
+					}
+					const parent = session.toString();
+					const out: IRestoredSubagentSession[] = [];
+					const seen = new Set<string>();
+					for (const rec of this.sessionMessages) {
+						if (rec.type === 'subagent_started' && !seen.has(rec.toolCallId)) {
+							seen.add(rec.toolCallId);
+							const childUri = buildSubagentSessionUri(parent, rec.toolCallId);
+							const turns = await this.getSessionMessages(URI.parse(childUri));
+							if (turns.length > 0) {
+								out.push({ resource: URI.parse(childUri), toolCallId: rec.toolCallId, title: rec.agentDisplayName, turns });
+							}
+						}
+					}
+					return out;
+				}
+			}
+
+			const agent = new EagerSubagentMockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner-1', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found 3 issues' }] } },
+			];
+
+			await service.restoreSession(sessionResource);
+
+			// The subagent child state must already exist WITHOUT any client
+			// subscribing to it: parent restore registered it eagerly.
+			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), 'tc-sub');
+			const childState = service.stateManager.getSessionState(childSessionUri);
+			assert.ok(childState, 'subagent child should be eagerly registered during parent restore');
+			assert.strictEqual(childState!.turns.length, 1, 'child should have its reconstructed turn');
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'child should contain the inner tool call');
+		});
+
 		test('inner assistant messages from subagent route via envelope agentId (fixture)', async () => {
 			// Regression for the SDK migration away from the deprecated
 			// `data.parentToolCallId` to the envelope-level `agentId`. Newer
@@ -2382,6 +2439,78 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				inCatalog: true,
 				peerTurnIds: ['peer-turn-1'],
+			});
+		});
+
+		test('fork seeds the new chat with remapped source turns and forwards fork to the provider', async () => {
+			let receivedFork: IAgentCreateChatForkSource | undefined;
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+					receivedFork = options?.fork;
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Seed the source (default) chat with two turns and a title.
+			const sourceTurns: Turn[] = [
+				{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
+				{ id: 't2', state: TurnState.Complete, message: { text: 'second', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
+			];
+			service.stateManager.seedDefaultChatTurns(session.toString(), sourceTurns);
+			service.stateManager.updateChatTitle(session.toString(), buildDefaultChatUri(session.toString()), 'My Session');
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
+
+			const newChatState = service.stateManager.getChatState(chatUri.toString());
+			const newTurnIds = newChatState?.turns.map(t => t.id) ?? [];
+			assert.deepStrictEqual({
+				forkSource: receivedFork?.source.toString(),
+				forkTurnId: receivedFork?.turnId,
+				mappingSize: receivedFork?.turnIdMapping?.size,
+				mappedFromT1: receivedFork?.turnIdMapping?.get('t1'),
+				newTurnCount: newTurnIds.length,
+				newTurnIsRemapped: newTurnIds[0] !== undefined && newTurnIds[0] !== 't1',
+				title: newChatState?.title,
+			}, {
+				forkSource: session.toString(),
+				forkTurnId: 't1',
+				mappingSize: 1,
+				mappedFromT1: newTurnIds[0],
+				newTurnCount: 1,
+				newTurnIsRemapped: true,
+				title: 'Forked: My Session',
+			});
+		});
+
+		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
+			let receivedFork: IAgentCreateChatForkSource | undefined;
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+					receivedFork = options?.fork;
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const sourceTurns: Turn[] = [
+				{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
+			];
+			service.stateManager.seedDefaultChatTurns(session.toString(), sourceTurns);
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 'missing' } });
+
+			const newChatState = service.stateManager.getChatState(chatUri.toString());
+			assert.deepStrictEqual({
+				forkForwarded: receivedFork !== undefined,
+				newTurnCount: newChatState?.turns.length ?? 0,
+			}, {
+				forkForwarded: false,
+				newTurnCount: 0,
 			});
 		});
 	});

@@ -170,6 +170,14 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
+  # Start pulling the CG-generated NOTICE from the parallel Quality stage
+  # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
+  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+    displayName: Pull CG NOTICE (background)
+
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
@@ -210,6 +218,14 @@ steps:
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
+
+  # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
+  # right before gulp packages it. Non-fatal: falls back to legacy on any problem.
+  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+    displayName: Apply CG NOTICE
 
   - script: |
       set -e

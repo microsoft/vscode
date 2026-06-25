@@ -78,7 +78,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			ContextKeyExpr.and(
 				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
 				ContextKeyExpr.or(
-					ContextKeyExpr.equals('activeSessionType', localChatSessionType),
+					ContextKeyExpr.equals('sessionType', localChatSessionType),
 					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
 				)
 			),

@@ -6,9 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
@@ -57,8 +55,6 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly sessionTypeId?: string;
 }
-
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
@@ -112,6 +108,16 @@ export interface IActiveSession extends ISession {
 
 	/** Whether this session is sticky in the sessions part's grid. */
 	readonly sticky: IObservable<boolean>;
+
+	/**
+	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
+	 * closed ones). Read-only view state: closing/reopening is a view operation
+	 * driven through the sessions (view) service, like {@link sticky}.
+	 */
+	readonly openChats: IObservable<readonly IChat[]>;
+
+	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
+	readonly closedChats: IObservable<readonly IChat[]>;
 }
 
 /**
@@ -245,6 +251,17 @@ export interface ISessionsManagementService {
 	 * resolved.
 	 */
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn. Used
+	 * for the fork gesture on sessions that support multiple chats.
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to

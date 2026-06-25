@@ -232,7 +232,7 @@ export class ChatGroupsView extends Themable {
 		this._groups = groups;
 		this._restoreAssignment = assignment;
 		this._restoreOrder = order;
-		this._restoreInitialIds = new Set(session.chats.get().map(c => c.resource.toString()));
+		this._restoreInitialIds = new Set(session.openChats.get().map(c => c.resource.toString()));
 		this._restorePending = true;
 		this._activeGroup = indexToEntry.get(saved.activeGroupIndex) ?? groups[0];
 		for (const group of this._groups) {
@@ -248,7 +248,7 @@ export class ChatGroupsView extends Themable {
 		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, '');
 
 		const chats = derived<readonly IChat[]>(reader => {
-			const all = session.chats.read(reader);
+			const all = session.openChats.read(reader);
 			const ids = resourceIds.read(reader);
 			const result: IChat[] = [];
 			for (const idStr of ids) {
@@ -289,6 +289,7 @@ export class ChatGroupsView extends Themable {
 			tabsVisible,
 			openChat: resource => this._openChat(entry, resource),
 			closeChat: resource => this._closeChat(resource),
+			deleteChat: resource => this._deleteChat(resource),
 			renameChat: (resource, title) => this._renameChat(resource, title),
 			onTabDragStart: () => { },
 			onTabDragEnd: () => { },
@@ -305,7 +306,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
-		const chats = session.chats.read(reader);
+		const chats = session.openChats.read(reader);
 		const activeChat = session.activeChat.read(reader);
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
@@ -519,6 +520,15 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _closeChat(resource: URI): void {
+		if (this._session) {
+			const chat = this._session.openChats.get().find(c => c.resource.toString() === resource.toString());
+			if (chat) {
+				this._sessionsService.closeChat(this._session, chat).catch(onUnexpectedError);
+			}
+		}
+	}
+
+	private _deleteChat(resource: URI): void {
 		if (this._session) {
 			this._sessionsManagementService.deleteChat(this._session, resource).catch(onUnexpectedError);
 		}

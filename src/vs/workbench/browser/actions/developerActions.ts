@@ -46,9 +46,9 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, ICopilotManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
-import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
@@ -676,7 +676,18 @@ function managedSettingsSourceLabel(source: ManagedSettingsSource): string {
 	switch (source) {
 		case 'server': return 'GitHub Server API';
 		case 'nativeMdm': return 'Native MDM';
+		case 'file': return 'File (managed-settings.json)';
 		case 'none': return 'None (no managed settings active)';
+	}
+}
+
+/** Compact label for the "Policy Source" column, where the adjacent "Managed Settings" column already lists the key. */
+function managedSettingsSourceShortLabel(source: ManagedSettingsSource): string {
+	switch (source) {
+		case 'server': return 'Server';
+		case 'nativeMdm': return 'Native MDM';
+		case 'file': return 'File';
+		case 'none': return 'None';
 	}
 }
 
@@ -711,11 +722,19 @@ class PolicyDiagnosticsAction extends Action2 {
 		// Native MDM is a desktop-only channel, registered in the renderer service collection on
 		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
 		// accessor is only valid before the first `await` below.
-		let copilotManagedSettingsService: ICopilotManagedSettingsService | undefined;
+		let nativeManagedSettingsService: INativeManagedSettingsService | undefined;
 		try {
-			copilotManagedSettingsService = accessor.get(ICopilotManagedSettingsService);
+			nativeManagedSettingsService = accessor.get(INativeManagedSettingsService);
 		} catch {
 			// no native MDM channel in this window (e.g. web)
+		}
+		// File-based managed settings is likewise a desktop-only channel registered in the renderer
+		// service collection on desktop and Agents windows, absent in web.
+		let fileManagedSettingsService: IFileManagedSettingsService | undefined;
+		try {
+			fileManagedSettingsService = accessor.get(IFileManagedSettingsService);
+		} catch {
+			// no file channel in this window (e.g. web)
 		}
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -810,15 +829,21 @@ class PolicyDiagnosticsAction extends Action2 {
 		}
 
 		content += '## Managed Settings\n\n';
+		// Captured from the Managed Settings section below so the Policy-Controlled Settings table
+		// can attribute managed-settings-driven policies to their actual delivery channel instead
+		// of the generic AccountPolicyService that hosts the projection.
+		let managedSettingsActiveSource: ManagedSettingsSource = 'none';
+		const activeManagedSettingKeys = new Set<string>();
 		try {
 			const policyData = defaultAccountService.policyData;
 			const serverManagedSettings = policyData?.managedSettings;
 
-			const nativeManagedSettings: ManagedSettingsData | undefined = copilotManagedSettingsService?.managedSettings;
+			const nativeManagedSettings: ManagedSettingsData | undefined = nativeManagedSettingsService?.managedSettings;
+			const fileManagedSettings: ManagedSettingsData | undefined = fileManagedSettingsService?.managedSettings;
 
 			// Reuse the same precedence as policy evaluation so this report can never drift from the
 			// source AccountPolicyService actually applies.
-			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings);
+			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings, fileManagedSettings);
 
 			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
 
@@ -848,10 +873,18 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '### Native MDM\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += `| Available | ${copilotManagedSettingsService ? 'yes' : 'no'} |\n`;
+			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
 			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
-			if (copilotManagedSettingsService) {
+			if (nativeManagedSettingsService) {
 				content += jsonBlock(nativeManagedSettings);
+			}
+
+			content += '### File (managed-settings.json)\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| Available | ${fileManagedSettingsService ? 'yes' : 'no'} |\n`;
+			content += `| Active | ${selection.source === 'file' ? 'yes' : 'no'} |\n\n`;
+			if (fileManagedSettingsService) {
+				content += jsonBlock(fileManagedSettings);
 			}
 
 			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
@@ -864,6 +897,13 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 			const effective = projectManagedSettings(selection.values ?? {}, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+
+			// Remember which managed-settings keys actually reached policy evaluation, and from which
+			// channel, so the Policy-Controlled Settings table can attribute them accurately.
+			managedSettingsActiveSource = selection.source;
+			for (const key of Object.keys(effective)) {
+				activeManagedSettingKeys.add(key);
+			}
 
 			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
 			// back into the object/array-typed setting on read. Re-parse exactly those keys with the
@@ -965,8 +1005,26 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			};
 
+			// A managed-settings-driven policy is hosted by AccountPolicyService but its value really
+			// originates from a delivery channel (server / native MDM / file). Attribute it to that
+			// channel when its declared managed key actually reached policy evaluation, so the report
+			// doesn't misleadingly credit every such policy to AccountPolicyService. When the Account
+			// Policy Gate is actively restricting, the value comes from the gate's restricted value
+			// (which overrides managed settings), so don't credit the channel in that case.
+			const gateInfo = accountPolicyGateService.gateInfo;
+			const gateRestricted = gateInfo.state === AccountPolicyGateState.Restricted
+				&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getRefinedPolicySource = (item: { name: string; property: any }): string => {
+				const declaredKeys = item.property.policy?.managedSettings ? Object.keys(item.property.policy.managedSettings) : [];
+				if (!gateRestricted && managedSettingsActiveSource !== 'none' && declaredKeys.some(key => activeManagedSettingKeys.has(key))) {
+					return `Managed Settings: ${managedSettingsSourceShortLabel(managedSettingsActiveSource)}`;
+				}
+				return getPolicySource(item.name);
+			};
+
 			content += '### Applied Policy\n\n';
-			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
+			appliedPolicy.sort((a, b) => getRefinedPolicySource(a).localeCompare(getRefinedPolicySource(b)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
 				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
 				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
@@ -975,7 +1033,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
-					const policySource = getPolicySource(setting.name);
+					const policySource = getRefinedPolicySource(setting);
 					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
 					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;

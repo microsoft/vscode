@@ -12,11 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileService } from '../../../../files/common/files.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType, McpServerStatus, type AgentSelection, type DirectoryCustomization, type HookCustomization, type McpServerCustomization } from '../../../common/state/protocol/state.js';
-import { customizationId } from '../../../common/state/sessionState.js';
+import { customizationId, type PluginCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
 import { toParsedAgent, toParsedSkill, type IParsedRule } from '../../../../agentPlugins/common/pluginParsers.js';
+import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from './claudeCustomizationTestUtils.js';
 
 suite('claudeSessionCustomizationDiscovery', () => {
@@ -24,6 +25,22 @@ suite('claudeSessionCustomizationDiscovery', () => {
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
 	const seed = (path: string, content = '') => seedFile(fileService, path, content);
+
+	/** Builds a resolved native plugin with optional bundled skills / agents. */
+	const nativePlugin = (id: string, rootPath: string, parts: { skills?: string[]; agents?: string[] } = {}): IResolvedNativePlugin => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: rootPath });
+		return {
+			id,
+			root,
+			parsed: {
+				hooks: [],
+				mcpServers: [],
+				instructions: [],
+				skills: (parts.skills ?? []).map(name => toParsedSkill({ uri: URI.joinPath(root, 'skills', name, 'SKILL.md'), name })),
+				agents: (parts.agents ?? []).map(name => toParsedAgent({ uri: URI.joinPath(root, 'agents', `${name}.md`), name })),
+			},
+		};
+	};
 
 	setup(() => {
 		fileService = createInMemoryFileService(disposables);
@@ -46,7 +63,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			];
 			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', enabled: true, state: { kind: McpServerStatus.Starting } }];
 
-			const result = mapDiscoveredCustomizations(discovered, mcp, [], workspace, userHome);
+			const result = mapDiscoveredCustomizations(discovered, mcp, [], [], workspace, userHome);
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			// Workspace containers first (agents, skills), then user — each rooted at
@@ -74,7 +91,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			});
 			const discovered = [rule(wsRuleUri, 'CLAUDE.md'), rule(userRuleUri, 'g')];
 
-			const result = mapDiscoveredCustomizations(discovered, [], [], workspace, userHome);
+			const result = mapDiscoveredCustomizations(discovered, [], [], [], workspace, userHome);
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
@@ -91,7 +108,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			const userHookUri = URI.from({ scheme: Schemas.inMemory, path: '/home/.claude/settings.json' });
 			const hook = (uri: URI): HookCustomization => ({ type: CustomizationType.Hook, id: customizationId(uri.toString()), uri: uri.toString(), name: 'settings.json' });
 
-			const result = mapDiscoveredCustomizations([], [], [hook(wsHookUri), hook(userHookUri)], workspace, userHome);
+			const result = mapDiscoveredCustomizations([], [], [hook(wsHookUri), hook(userHookUri)], [], workspace, userHome);
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
@@ -100,6 +117,18 @@ suite('claudeSessionCustomizationDiscovery', () => {
 					{ uri: URI.joinPath(workspace, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: wsHookUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: userHookUri.toString() }] },
 				],
+			);
+		});
+
+		test('maps a native plugin into a top-level Plugin container carrying its bundled children', () => {
+			const plugin = nativePlugin('tg@m', '/home/.claude/plugins/cache/m/tg/1.0.0', { skills: ['send'], agents: ['helper'] });
+
+			const result = mapDiscoveredCustomizations([], [], [], [plugin], workspace, userHome);
+
+			const plugins = result.filter(c => c.type === CustomizationType.Plugin) as PluginCustomization[];
+			assert.deepStrictEqual(
+				plugins.map(p => ({ uri: p.uri, name: p.name, children: p.children?.map(c => c.name).sort() })),
+				[{ uri: plugin.root.toString(), name: 'tg@m', children: ['helper', 'send'] }],
 			);
 		});
 	});
@@ -119,9 +148,10 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				agents: [{ name: 'known', description: 'K' }, { name: 'sdkonly', description: 'S' }, { name: 'general-purpose', description: 'default' }],
 				commands: [{ name: 'kskill', description: '', argumentHint: '' }, { name: 'sdkcmd', description: 'C', argumentHint: '' }],
 				mcpServers: [{ name: 'diskmcp', status: 'connected' }, { name: 'sdkmcp', status: 'failed' }],
+				plugins: [],
 			};
 
-			const result = buildDiscoveredCustomizations(discovered, [diskMcp], [], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [diskMcp], [], [], workspace, userHome, sdk);
 
 			// Children are split into per-scope containers; aggregate across them.
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
@@ -161,9 +191,10 @@ suite('claudeSessionCustomizationDiscovery', () => {
 					{ name: 'loop', description: 'Loop', argumentHint: '' },
 				],
 				mcpServers: [],
+				plugins: [],
 			};
 
-			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [], [], [], workspace, userHome, sdk);
 			const skillDirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 
 			// Editable disk-skill directories contain only the real on-disk skill.
@@ -184,9 +215,9 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				name: 'CLAUDE.md',
 				customization: { type: CustomizationType.Rule, id: customizationId(ruleUri.toString()), uri: ruleUri.toString(), name: 'CLAUDE.md', alwaysApply: true },
 			}];
-			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [] };
+			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [], plugins: [] };
 
-			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations(discovered, [], [], [], workspace, userHome, sdk);
 
 			const ruleChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
 				.filter(d => d.contents === CustomizationType.Rule)
@@ -197,14 +228,75 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		test('hooks survive the post-materialize SDK filter (no SDK counterpart)', () => {
 			const hookUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.claude/settings.json' });
 			const hooks: HookCustomization[] = [{ type: CustomizationType.Hook, id: customizationId(hookUri.toString()), uri: hookUri.toString(), name: 'settings.json' }];
-			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [] };
+			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [], plugins: [] };
 
-			const result = buildDiscoveredCustomizations([], [], hooks, workspace, userHome, sdk);
+			const result = buildDiscoveredCustomizations([], [], hooks, [], workspace, userHome, sdk);
 
 			const hookChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
 				.filter(d => d.contents === CustomizationType.Hook)
 				.flatMap(d => d.children ?? []);
 			assert.deepStrictEqual(hookChildren.map(c => ({ name: c.name, uri: c.uri })), [{ name: 'settings.json', uri: hookUri.toString() }]);
+		});
+
+		test('post-materialize keeps native plugins the live session loaded, hides the rest (matched by root path)', () => {
+			const loaded = nativePlugin('loaded@m', '/home/.claude/plugins/cache/m/loaded/1.0.0', { skills: ['x'] });
+			const unloaded = nativePlugin('unloaded@m', '/home/.claude/plugins/cache/m/unloaded/1.0.0', { skills: ['y'] });
+			const sdk: ISdkResolvedCustomizations = { agents: [], commands: [], mcpServers: [], plugins: [{ name: 'loaded', path: loaded.root.fsPath }] };
+
+			const result = buildDiscoveredCustomizations([], [], [], [loaded, unloaded], workspace, userHome, sdk);
+
+			const plugins = result.filter(c => c.type === CustomizationType.Plugin) as PluginCustomization[];
+			assert.deepStrictEqual(plugins.map(p => p.name), ['loaded@m']);
+		});
+
+		test('post-materialize matches a plugin by SDK `source` (id) even when the reported path is not the resolved root', () => {
+			// The SDK reports a workspace-`local`-scoped plugin with a path that
+			// is NOT its cache root (observed: `<workspace-parent>/<marketplace>/<plugin>/`).
+			// `source` (the `<plugin>@<marketplace>` id) is the reliable key.
+			const local = nativePlugin('github-inbox@team-kit', '/home/.claude/plugins/cache/team-kit/github-inbox/1.0.0', { agents: ['inbox'] });
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [], commands: [], mcpServers: [],
+				plugins: [{ name: 'github-inbox', path: '/some/bogus/team-kit/github-inbox/', source: 'github-inbox@team-kit' }],
+			};
+
+			const result = buildDiscoveredCustomizations([], [], [], [local], workspace, userHome, sdk);
+
+			const plugins = result.filter(c => c.type === CustomizationType.Plugin) as PluginCustomization[];
+			assert.deepStrictEqual(plugins.map(p => p.name), ['github-inbox@team-kit']);
+		});
+
+		test('pre-materialize shows all native plugins (no live session to filter against)', () => {
+			const a = nativePlugin('a@m', '/home/.claude/plugins/cache/m/a/1.0.0');
+			const b = nativePlugin('b@m', '/home/.claude/plugins/cache/m/b/1.0.0');
+
+			const result = buildDiscoveredCustomizations([], [], [], [a, b], workspace, userHome, undefined);
+
+			const plugins = result.filter(c => c.type === CustomizationType.Plugin) as PluginCustomization[];
+			assert.deepStrictEqual(plugins.map(p => p.name).sort(), ['a@m', 'b@m']);
+		});
+
+		test('a surfaced plugin\'s components do not also leak as standalone SDK fallbacks (bare + namespaced names suppressed)', () => {
+			// The live SDK reports a loaded plugin's components as agents
+			// (namespaced `<plugin>:<name>`) and commands (usually bare). Both
+			// forms must be suppressed from the standalone `claude-internal:`
+			// agents / Built-in skills — they belong under the plugin container.
+			const plugin = nativePlugin('inbox@team-kit', '/home/.claude/plugins/cache/team-kit/inbox/1.0.0', { agents: ['Investigator'], skills: ['do-thing'] });
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [{ name: 'inbox:Investigator', description: 'p' }, { name: 'standalone-agent', description: 's' }],
+				commands: [{ name: 'do-thing', description: 'p', argumentHint: '' }, { name: 'standalone-cmd', description: 's', argumentHint: '' }],
+				mcpServers: [],
+				plugins: [{ name: 'inbox', path: '/bogus', source: 'inbox@team-kit' }],
+			};
+
+			const result = buildDiscoveredCustomizations([], [], [], [plugin], workspace, userHome, sdk);
+
+			// Plugin surfaced as its own container.
+			assert.deepStrictEqual((result.filter(c => c.type === CustomizationType.Plugin) as PluginCustomization[]).map(p => p.name), ['inbox@team-kit']);
+			// Standalone (per-scope Directory) entries: plugin components absent, non-plugin SDK entries present.
+			const standaloneNames = result.flatMap(c => c.type === CustomizationType.Directory ? (c.children ?? []).map(ch => ch.name) : []);
+			assert.strictEqual(standaloneNames.includes('inbox:Investigator'), false, 'namespaced plugin agent not standalone');
+			assert.strictEqual(standaloneNames.includes('do-thing'), false, 'bare plugin skill not in Built-in');
+			assert.deepStrictEqual([standaloneNames.includes('standalone-agent'), standaloneNames.includes('standalone-cmd')], [true, true], 'non-plugin SDK entries still surface');
 		});
 
 		test('pre-materialize seeds curated built-in agents (claude-internal; general-purpose hidden; disk name wins)', () => {
@@ -213,7 +305,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			const diskExplore = URI.from({ scheme: Schemas.inMemory, path: '/home/.claude/agents/Explore.md' });
 			const discovered = [toParsedAgent({ uri: diskExplore, name: 'Explore', description: 'mine' })];
 
-			const result = buildDiscoveredCustomizations(discovered, [], [], workspace, userHome, undefined);
+			const result = buildDiscoveredCustomizations(discovered, [], [], [], workspace, userHome, undefined);
 
 			const agentChildren = (result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
 				.filter(d => d.contents === CustomizationType.Agent)

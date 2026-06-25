@@ -323,4 +323,67 @@ suite('AgentHostSessionTitleController', () => {
 			keepsHeadAndTail: true,
 		});
 	});
+
+	function turn(id: string, text: string, responseParts: ResponsePart[]): Turn {
+		return {
+			id,
+			message: { text, origin: { kind: MessageKind.User } },
+			responseParts,
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+	}
+
+	test('generateForkedTitle replaces the inherited title using the whole forked conversation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Compaction strategy';
+		const { controller, stateManager, session, db, titleActions } = setup(copilotApiService, 'Forked: Source title');
+
+		stateManager.seedDefaultChatTurns(session.toString(), [
+			turn('turn-1', 'Add dark mode toggle', [textPart('Implemented the toggle in settings.')]),
+			turn('turn-2', 'Now compact the history', [textPart('Summarized earlier turns.')]),
+		]);
+		const turns = stateManager.getSessionState(session.toString())!.turns;
+		controller.generateForkedTitle(session.toString(), undefined, turns, 'Forked: Source title', 'Source title');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Compaction strategy', 'forked title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0]?.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			titles: titleActions,
+			persistedTitle: await db.getMetadata('customTitle'),
+			mentionsConversation: userMessage.includes('conversation'),
+			framesAsBranch: userMessage.includes('branched from an earlier chat titled "Source title"'),
+			includesFirstTurn: userMessage.includes('Add dark mode toggle') && userMessage.includes('Implemented the toggle in settings.'),
+			includesSecondTurn: userMessage.includes('Now compact the history') && userMessage.includes('Summarized earlier turns.'),
+		}, {
+			titles: ['Compaction strategy'],
+			persistedTitle: 'Compaction strategy',
+			mentionsConversation: true,
+			framesAsBranch: true,
+			includesFirstTurn: true,
+			includesSecondTurn: true,
+		});
+	});
+
+	test('generateForkedTitle does not clobber a title changed during generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		let resolveTitle!: (title: string) => void;
+		copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Forked: Source title');
+
+		stateManager.seedDefaultChatTurns(session.toString(), [turn('turn-1', 'Add dark mode toggle', [textPart('Done.')])]);
+		controller.generateForkedTitle(session.toString(), undefined, stateManager.getSessionState(session.toString())!.turns, 'Forked: Source title');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'forked title generation should start');
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Manual title' });
+		resolveTitle('Generated title');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.summary.title,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			title: 'Manual title',
+			persistedTitle: undefined,
+		});
+	});
 });

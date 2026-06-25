@@ -160,6 +160,12 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	override clearInput(): void {
 		this.widget.setModel(undefined);
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `updateModel` cycle to finish
+		// before acting on the editor.
+		if (this._editorContainer) {
+			delete this._editorContainer.dataset.boundChatResource;
+		}
 		super.clearInput();
 	}
 
@@ -278,6 +284,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	private updateModel(model: IChatModel): void {
 		this.widget.setModel(model);
+		// Expose the bound chat resource on the DOM so test automation can
+		// synchronize with the post-rebind state without polling timeouts.
+		// Set AFTER `setModel` so observers see the attribute only once the
+		// widget is fully attached to the loaded model. Mirrors the same
+		// signal exposed by the Agents Window's `ChatView`.
+		if (this._editorContainer) {
+			this._editorContainer.dataset.boundChatResource = model.sessionResource.toString();
+		}
 	}
 
 	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {

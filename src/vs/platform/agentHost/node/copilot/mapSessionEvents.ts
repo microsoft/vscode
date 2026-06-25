@@ -521,6 +521,9 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (typeof attachment.data !== 'string') {
+				return undefined;
+			}
 			if (attachment.mimeType.startsWith('text/plain')) {
 				return {
 					type: MessageAttachmentKind.Simple,

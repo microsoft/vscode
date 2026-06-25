@@ -12,7 +12,6 @@ import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
@@ -636,7 +635,7 @@ export interface IAgentCreateSessionConfig {
 	/**
 	 * Eagerly claim the active client role for the new session. When provided,
 	 * the server initializes the session with this client as the active
-	 * client, equivalent to dispatching a `session/activeClientChanged`
+	 * client, equivalent to dispatching a `session/activeClientSet`
 	 * action immediately after creation. The `clientId` MUST match the
 	 * connection's own `clientId`.
 	 */
@@ -662,6 +661,27 @@ export interface IAgentCreateChatOptions {
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
+	/**
+	 * Fork an existing chat into this new chat. The new chat starts
+	 * pre-populated with the source chat's turns up to and including
+	 * {@link IAgentCreateChatForkSource.turnId}, and its backing conversation
+	 * is forked from the source so it can continue independently.
+	 */
+	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/** Identifies a source chat and turn to fork a new chat from. */
+export interface IAgentCreateChatForkSource {
+	/** URI of the existing chat to fork from. */
+	readonly source: URI;
+	/** Turn ID in the source chat; content up to and including this turn is copied. */
+	readonly turnId: string;
+	/**
+	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
+	 * by the agent service so the agent can remap per-turn data (e.g. SDK event
+	 * ID mappings) in the forked conversation's database.
+	 */
+	readonly turnIdMapping?: ReadonlyMap<string, string>;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -681,6 +701,8 @@ export interface IAgentModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly maxContextWindow?: number;
+	readonly maxOutputTokens?: number;
+	readonly maxPromptTokens?: number;
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
@@ -842,6 +864,46 @@ export interface IMcpNotification {
 }
 
 /**
+ * A subagent child session discovered in a parent session's event log,
+ * returned by {@link IAgent.getSubagentSessions} so a parent restore can
+ * register the child's state up-front.
+ */
+export interface IRestoredSubagentSession {
+	/** Child subagent session URI (subscribable by clients). */
+	readonly resource: URI;
+	/** Parent tool call id that spawned the subagent. */
+	readonly toolCallId: string;
+	/** Display title for the subagent session. */
+	readonly title: string;
+	/** Reconstructed turns for the subagent's transcript. */
+	readonly turns: readonly Turn[];
+}
+
+/**
+ * A per-session handle for one active client's contributions (tools and
+ * plugin customizations) to an agent session, obtained via
+ * {@link IAgent.getOrCreateActiveClient}.
+ *
+ * `tools` and `customizations` are mutable accessor properties: assigning a
+ * new array replaces this client's contribution wholesale and triggers the
+ * agent's internal reaction (refreshing the merged tool set exposed to the
+ * model, or kicking off an asynchronous customization sync). The arrays are
+ * `readonly` so callers cannot mutate them in place and silently bypass the
+ * setter. The agent merges the contributions of all active clients on a
+ * session, deduplicating as needed.
+ */
+export interface IActiveClient {
+	/** Client identifier (matches `clientId` from `initialize`). */
+	readonly clientId: string;
+	/** Human-readable client name (e.g. `"VS Code"`), if provided. */
+	readonly displayName: string | undefined;
+	/** This client's tools. Assigning replaces the set (full replacement). */
+	tools: readonly ToolDefinition[];
+	/** This client's plugin customizations. Assigning replaces the set and starts an internal sync. */
+	customizations: readonly ClientPluginCustomization[];
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -928,6 +990,17 @@ export interface IAgent {
 	 * child session's turns).
 	 */
 	getSessionMessages(session: URI): Promise<readonly Turn[]>;
+
+	/**
+	 * Returns the subagent child sessions discoverable in a session's event
+	 * log so a parent restore can eagerly register them in a single pass.
+	 * Without this, every child is restored separately by re-fetching and
+	 * re-reconstructing the full parent event log (one pass per subagent).
+	 * Agents that serve this from the same reconstruction they already
+	 * produced for the parent turns avoid that redundant work entirely.
+	 * Optional; agents without subagents omit it.
+	 */
+	getSubagentSessions?(session: URI): Promise<readonly IRestoredSubagentSession[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -1016,27 +1089,26 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Receives client-provided customization refs for a session and syncs them
-	 * (e.g. copies plugin files to local storage). The agent publishes
-	 * customization state actions as the sync progresses.
+	 * Get (or lazily create) the per-session handle for an active client,
+	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
+	 * `tools` / `customizations` updates only that client's contribution; the
+	 * agent merges the contributions of all active clients when exposing them
+	 * to the model. A session MAY have several active clients at once.
 	 *
-	 * The agent MAY defer a client restart until all active sessions are idle.
+	 * @param session The session URI this client contributes to.
+	 * @param client The client's `clientId` and optional human-readable name.
 	 */
-	setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]>;
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient;
 
 	/**
-	 * Receives client-provided tool definitions to make available in a
-	 * specific session. The agent registers these as custom tools so the
-	 * LLM can call them; execution is routed back to the owning client.
+	 * Remove an active client from a session, clearing its tool and
+	 * customization contributions. No-op when no active client matches
+	 * `clientId`.
 	 *
-	 * Always called on `activeClientChanged`, even with an empty array,
-	 * to clear a previous client's tools.
-	 *
-	 * @param session The session URI this tool set applies to.
-	 * @param clientId The client that owns these tools.
-	 * @param tools The tool definitions (full replacement).
+	 * @param session The session the client is leaving.
+	 * @param clientId The client to remove.
 	 */
-	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void;
+	removeActiveClient(session: URI, clientId: string): void;
 
 	/**
 	 * Called when a client completes a client-provided tool call.

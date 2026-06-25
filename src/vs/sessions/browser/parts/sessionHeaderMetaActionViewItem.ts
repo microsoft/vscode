@@ -83,12 +83,21 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateAriaLabel(): void {
-		const ariaLabel = this.getTooltip();
+		const ariaLabel = this.getAriaLabel();
 		if (ariaLabel) {
 			this.button?.element.setAttribute('aria-label', ariaLabel);
 		} else {
 			this.button?.element.removeAttribute('aria-label');
 		}
+	}
+
+	/**
+	 * The button's accessible name. Defaults to {@link getTooltip}. Subclasses that render
+	 * meaningful state in the visible label (e.g. the workspace name, or diff counts) should
+	 * override this so screen readers announce the same information that is shown visually.
+	 */
+	protected getAriaLabel(): string | undefined {
+		return this.getTooltip();
 	}
 
 	protected override getTooltip(): string | undefined {

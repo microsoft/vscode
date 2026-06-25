@@ -63,8 +63,13 @@ export interface SessionState {
 	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
 	serverTools?: ToolDefinition[];
-	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: SessionActiveClient;
+	/**
+	 * The clients currently providing tools and interactive capabilities to this
+	 * session. If multiple tools or customizations are provided by the same
+	 * active client, an agent host MAY deduplicate them when exposed to a model,
+	 * with a preference given to the client that started the turn.
+	 */
+	activeClients: SessionActiveClient[];
 	/** Catalog of chats in this session. */
 	chats: ChatSummary[];
 	/**
@@ -91,7 +96,7 @@ export interface SessionState {
 	 *   also appear as children of a container.
 	 *
 	 * Client-published plugins arrive via
-	 * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
 	 * and the host propagates them into this list (typically with the
 	 * container's `clientId` set and `children` populated). Clients
 	 * publish in container shape only; bare MCP servers at the top level
@@ -117,10 +122,11 @@ export interface SessionState {
 }
 
 /**
- * The client currently providing tools and interactive capabilities to a session.
+ * A client currently providing tools and interactive capabilities to a session.
  *
- * Only one client may be active per session at a time. The server SHOULD
- * automatically unset the active client if that client disconnects.
+ * A session MAY have several active clients at once; entries in
+ * {@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD
+ * automatically remove an active client when that client disconnects.
  *
  * @category Session State
  */

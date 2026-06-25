@@ -219,7 +219,7 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
-	clientId?: string,
+	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -232,7 +232,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientId),
+				mapStreamEvent(message.event, session, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
 				session,
 				message.parent_tool_use_id,
 				registry,
@@ -504,7 +504,7 @@ function mapStreamEvent(
 	logService: ILogService,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
-	clientId: string | undefined,
+	clientToolOwner: ((toolName: string) => string | undefined) | undefined,
 ): AgentSignal[] {
 	switch (event.type) {
 		case 'message_start':
@@ -581,7 +581,7 @@ function mapStreamEvent(
 				// produced by `buildClaudeToolMeta` because
 				// `getClaudeToolKind('Task') === 'subagent'`.
 				const meta = buildClaudeToolMeta(toolName);
-				const toolClientId = isClientTool ? clientId : undefined;
+				const toolClientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
 				return [{
 					kind: 'action',
 					session,

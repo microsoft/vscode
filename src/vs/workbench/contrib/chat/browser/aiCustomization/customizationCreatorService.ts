@@ -13,9 +13,13 @@ import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/servi
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -35,6 +39,8 @@ export class CustomizationCreatorService {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
@@ -103,53 +109,53 @@ export class CustomizationCreatorService {
 	}
 
 	/**
-	 * Resolves the workspace directory for a new customization file.
-	 * If multiple local source folders exist, shows a picker to let the user choose.
+	 * Resolves the target directory for creating a new customization file.
+	 * If multiple source folders exist for the given storage type, shows a
+	 * picker to let the user choose. Otherwise, returns the single match.
+	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
 	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Filter to only workspace-scoped folders (under the active project root).
-		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
-		// Deduplicate by URI to avoid inflated counts and duplicate picker entries.
-		// When the active harness specifies workspaceSubpaths, further restrict to
-		// directories whose path includes one of those sub-paths (e.g. `.claude`).
-		const seen = new Set<string>();
-		const workspaceFolders = projectRoot
-			? allFolders.filter(f => {
-				if (!isEqualOrParent(f.uri, projectRoot)) {
-					return false;
-				}
-				const key = f.uri.toString();
-				if (seen.has(key)) {
-					return false;
-				}
-				seen.add(key);
-				if (subpaths) {
-					return matchesWorkspaceSubpath(f.uri.path, subpaths);
-				}
-				return true;
-			})
-			: [];
-
-		if (workspaceFolders.length === 0) {
-			// No workspace folders — fall back to the existing resolution logic
-			return this.resolveTargetDirectory(type);
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
 		}
 
-		if (workspaceFolders.length === 1) {
-			return workspaceFolders[0].uri;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+				hasSeen.add(f.uri);
+				matchingFolders.push(f);
+			}
+		}
+
+		if (matchingFolders.length === 0) {
+			// No matching folders — return undefined so the command can fall
+			// back to askForPromptSourceFolder (not null which means cancellation)
+			return undefined;
+		}
+
+		if (matchingFolders.length === 1) {
+			return matchingFolders[0].uri;
 		}
 
 		// Multiple directories — ask the user which one to use
-		const items = workspaceFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));

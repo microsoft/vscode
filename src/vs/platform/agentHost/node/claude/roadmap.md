@@ -465,10 +465,9 @@ are therefore **invisible to other workbench clients** until materialised.
   pre-materialise persistence (Phase 5's `_provisionalSessions` map carries
   the in-memory state). The SDK starts lazily on first `sendMessage`
   (Phase 6).
-- **`createSession({ fork })` — deferred.** The fork branch throws
-  `TODO: Phase 6.5` with no side effects. See "Phase 6.5 — Fork (deferred)"
-  below for the structural reason, the reverted attempt, and the deferred
-  plan that lands alongside Phase 13's result-message mapper.
+- **`createSession({ fork })` — deferred to Phase 6.5 (now ✅ done).** At
+  Phase 5 the fork branch threw `TODO: Phase 6.5`; it now forks the SDK
+  transcript on demand. See "Phase 6.5 — Fork" below.
 - `disposeSession(session)` — tear down the session's `Query` (if alive),
   MCP gateway, in-flight aborts. Provisional sessions dispose by removing
   the in-memory record (no SDK / sidecar to clean up).
@@ -605,15 +604,22 @@ canned Anthropic stream → verify the resulting `AgentSignal` sequence.
 Exit criteria: a workbench client sends "hi" and sees a streamed assistant
 response in the UI.
 
-### Phase 6.5 — Fork (deferred — depends on Phase 13's result-message mapper)
+### Phase 6.5 — Fork ✅ **DONE**
 
-> **Status:** attempted, fully reverted, deferred. `createSession({ fork })`
-> currently throws `TODO: Phase 6.5` at
-> [`claudeAgent.ts:303`](./claudeAgent.ts) with no side effects.
+> **Status:** ✅ done. `createSession({ fork })` is implemented and
+> live-E2E verified (fork-and-continue + restart restore, 2026-06-24).
+> Implementation contract / retrospective:
+> [phase6.5-plan.md](./phase6.5-plan.md). The summary below stays
+> high-level for roadmap continuity; two design points shifted during
+> implementation (see the materialisation note and the plan's Drift
+> section): the turn→uuid lookup is a pure on-demand resolver
+> (`resolveForkAnchorUuid` in [claudeReplayMapper.ts](./claudeReplayMapper.ts)),
+> and fork **defers** the SDK `Query` to the first `sendMessage` rather
+> than materialising eagerly.
 >
 > **Sequencing note:** numbered 6.5 to stay consistent with the throw
-> message and `phase6-plan.md` §8.1, but **executes after Phase 13** because
-> the clean fix shares Phase 13's result-message mapper.
+> message and `phase6-plan.md` §8.1, but **executed after Phase 13** because
+> the clean fix shares Phase 13's transcript reconstruction.
 
 **Why deferred — structural mismatch.** Copilot's fork path
 ([`copilotAgent.ts:660-714`](../copilot/copilotAgent.ts)) calls
@@ -692,16 +698,24 @@ from the JSONL transcript, rather than persisting it.
 
 **Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
 provisional path), `forkSession` writes the forked SDK transcript file
-synchronously. Fork therefore *eagerly* fires `onDidMaterializeSession`
-from inside `createSession`, before returning — there is no provisional
-state to defer. The host's contract for fork is "materialise immediately,
-no separate sendMessage edge" (CONTEXT M9).
+synchronously, so the result is **non-provisional**. But — corrected
+during implementation — fork does **not** start the SDK `Query` or fire
+`onDidMaterializeSession` from inside `createSession`. Doing so raced
+ahead of `AgentService.createSession`'s own (synchronous, non-provisional)
+registration and produced `unknown session` warnings for both the
+materialize event and pipeline progress signals. Instead fork resolves
+the forked `workingDirectory` from `getSessionInfo` and returns; the
+`Query` materialises lazily on the first `sendMessage`, which resumes
+from disk via `_resumeSession`. This matches CONTEXT M9's "`forkSession`
+only writes the new session file; it does not start a `Query` … the SDK
+`Query` is still not started until the first `sendMessage`" and Copilot,
+whose resume path likewise never fires the materialize event.
 
-**Workbench client behavior in the interim.** The agent-host contract today
-is "fork rejects, no side effects" — any client invocation surfaces the
-throw as a session-creation error. Whether the workbench should hide or
-disable the fork affordance for Claude sessions until this phase lands is
-TBD with the workbench owners.
+**Workbench client behavior.** The Agents-window "Fork conversation from
+this point" affordance **is** wired for Claude and works end-to-end
+(verified live 2026-06-24): forking a turn produces a new "Forked: …"
+session truncated to that turn INCLUSIVE, which accepts new turns via
+`Options.resume` and survives an agent-host restart.
 
 Tests (when this phase lands): unit tests for the mapping ingest (turn end
 → persisted row), unit tests for `createSession({ fork })` looking up the
@@ -1500,7 +1514,18 @@ curated built-in agents/skills tier are generated declaratively inline,
 no stub files on disk); `createSession` lifecycle (provisional, cold) is
 unchanged. **Shipped.**
 
-### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan
+### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan ✅ **DONE**
+
+> **Status:** both parts shipped. Part A (hooks) landed as PR #322637; Part B
+> (native plugins) landed as PR #322766. Both are surface-only (no
+> `Options.plugins` / `claudeSdkOptions.ts` change) — unit-tested,
+> council-reviewed, and live-E2E verified (real `telegram@claude-plugins-official`
+> + `github-inbox@vscode-team-kit` plugins surface under the customization modal
+> with their real cache roots, and a workspace `settings.local.json` disable
+> hides them via the watcher). See [phase17-plan.md](./phase17-plan.md) for the
+> full retrospective, including the post-E2E fixes (multi-format manifest
+> detection, `source`-based post-materialize match, and PB-10 standalone-fallback
+> suppression).
 
 > **Driver.** Phase 16's disk scan surfaces agents, skills, slash commands,
 > MCP servers, and rules — but **hooks** and **Claude-native plugins** that
@@ -1664,8 +1689,9 @@ the runtime (verified via the captured `init.plugins`) with **no**
 host-added `Options.plugins` entry; provisional sessions show the full
 disk set, materialized sessions hide native plugins the live session did
 not load; the `createSession` provisional/cold lifecycle (M9) is
-unchanged. Ships as two PRs: Part A (hooks) then Part B (native plugins).
-Detailed implementation contract: [phase17-plan.md](./phase17-plan.md).
+unchanged. Shipped as two PRs: Part A (hooks, #322637) then Part B
+(native plugins, #322766). Detailed implementation contract:
+[phase17-plan.md](./phase17-plan.md).
 
 ---
 

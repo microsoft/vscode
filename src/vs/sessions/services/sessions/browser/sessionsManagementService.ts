@@ -336,6 +336,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return created;
 	}
 
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+		}
+		if (!session.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
+		}
+		return provider.forkChat(session.sessionId, sourceChat, turnId);
+	}
+
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		// The session is graduating into the list (being sent),
 		// so the provider keeps owning it — just drop the pointer, do not delete.

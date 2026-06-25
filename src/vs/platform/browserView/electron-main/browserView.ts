@@ -17,7 +17,7 @@ import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { BrowserSession } from './browserSession.js';
 import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
-import { ISerializedBrowserPermissionsSnapshot } from '../common/browserPermissions.js';
+import { ISerializedBrowserPermissionsSnapshot, PermissionCategory } from '../common/browserPermissions.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -232,6 +232,20 @@ export class BrowserView extends Disposable {
 				this._onDidRequestPermission.fire(e.request);
 			}
 		}));
+		this._register(this.session.permissions.onDidRequestDevice(e => {
+			if (e.webContents === this.webContents && !this._isDisposed) {
+				e.claim();
+				this._onDidRequestPermission.fire({
+					origin: e.origin,
+					category: PermissionCategory.Devices,
+					device: {
+						requestId: e.requestId,
+						deviceType: e.deviceType,
+						devices: e.devices,
+					},
+				});
+			}
+		}));
 		this._register(this.session.permissions.onDidChange(() => {
 			this._onDidChangePermissions.fire(this.session.permissions.serialize());
 		}));
@@ -406,6 +420,11 @@ export class BrowserView extends Disposable {
 			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
 				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
 			});
+		});
+
+		webContents.on('select-bluetooth-device', (event, devices, callback) => {
+			event.preventDefault();
+			this.session.permissions.beginBluetoothRequest(this.webContents, devices, callback);
 		});
 
 		// Focus events
@@ -877,6 +896,14 @@ export class BrowserView extends Disposable {
 	 */
 	async clearStorage(): Promise<void> {
 		await this.session.clearData();
+	}
+
+	/**
+	 * Answer an in-progress hardware-device chooser. Pass the chosen device id,
+	 * or `null` to cancel the chooser.
+	 */
+	selectDevice(requestId: string, deviceId: string | null): void {
+		this.session.permissions.resolveDevice(requestId, deviceId);
 	}
 
 	/**

@@ -236,6 +236,26 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provide the directories where new customization files of the given
+	 * type can be created for this session. The result includes both
+	 * workspace-scoped and user-scoped folders; the caller is responsible
+	 * for partitioning them by storage target.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   creation locations should be returned.
+	 */
+	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
+}
+
+/**
+ * A directory where new customization files of a given type can be created.
+ */
+export interface ICustomizationSourceFolder {
+	readonly uri: URI;
+	/** Display label for the picker when multiple folders are offered. */
+	readonly label: string;
 }
 
 /**
@@ -438,6 +458,7 @@ export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationS
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
+		hiddenSections: [AICustomizationManagementSection.Tools],
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -507,6 +528,9 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 		{
 			hideGenerateButton: true,
 			requiredAgentId: 'copilotcli',
+			// The Tools section manages tool sets pushed to an agent host; the extension-host
+			// Copilot CLI harness is not an agent host, so it is hidden here.
+			hiddenSections: [AICustomizationManagementSection.Tools],
 			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
 			sectionOverrides: new Map([
 				[AICustomizationManagementSection.Instructions, {

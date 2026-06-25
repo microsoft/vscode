@@ -58,6 +58,7 @@ class ImmediatelyDoneQuery implements Query {
 	async setModel(): Promise<void> { /* not exercised here */ }
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
 	async setPermissionMode(): Promise<void> { /* not exercised here */ }
+	async setMcpPermissionModeOverride(): Promise<{ warning?: string }> { return {}; }
 	async interrupt(): Promise<void> { /* not exercised here */ }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }

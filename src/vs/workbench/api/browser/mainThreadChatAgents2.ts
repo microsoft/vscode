@@ -783,6 +783,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					userInvocable: item.userInvocable,
 				}));
 			},
+			provideSourceFolders: async (sessionResource, type, token) => {
+				const folders = await this._proxy.$provideSourceFolders(handle, sessionResource, type, token);
+				if (!folders) {
+					return undefined;
+				}
+				return folders.map(folder => ({
+					uri: URI.revive(folder.uri),
+					label: folder.label,
+				}));
+			},
 		};
 
 		// Convert supportedTypes whitelist to hiddenSections blacklist.

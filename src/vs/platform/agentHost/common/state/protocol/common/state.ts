@@ -27,6 +27,9 @@ export type URI = string;
  */
 export type StringOrMarkdown = string | { markdown: string };
 
+/** A primitive JSON value: a string, number, boolean, or `null`. */
+export type JsonPrimitive = string | number | boolean | null;
+
 // ─── Icon ────────────────────────────────────────────────────────────────────
 
 /**
@@ -161,8 +164,8 @@ export interface ConfigPropertySchema {
 	description?: string;
 	/** JSON Schema: default value */
 	default?: unknown;
-	/** JSON Schema: allowed values (typically used with `string` type) */
-	enum?: string[];
+	/** JSON Schema: allowed values. May be primitives of any JSON type. */
+	enum?: JsonPrimitive[];
 	/** Display extension: human-readable label per enum value (parallel array) */
 	enumLabels?: string[];
 	/** Display extension: description per enum value (parallel array) */

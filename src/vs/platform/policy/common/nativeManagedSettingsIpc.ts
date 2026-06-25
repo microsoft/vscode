@@ -8,14 +8,14 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { ICopilotManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
+import { INativeManagedSettingsService, ManagedSettingsData } from './copilotManagedSettings.js';
 import { PolicyDefinition } from './policy.js';
 
-export class CopilotManagedSettingsChannel implements IServerChannel {
+export class NativeManagedSettingsChannel implements IServerChannel {
 
 	private readonly disposables = new DisposableStore();
 
-	constructor(private readonly service: ICopilotManagedSettingsService) { }
+	constructor(private readonly service: INativeManagedSettingsService) { }
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		switch (event) {
@@ -39,7 +39,7 @@ export class CopilotManagedSettingsChannel implements IServerChannel {
 	}
 }
 
-export class CopilotManagedSettingsChannelClient extends Disposable implements ICopilotManagedSettingsService {
+export class NativeManagedSettingsChannelClient extends Disposable implements INativeManagedSettingsService {
 
 	readonly _serviceBrand: undefined;
 

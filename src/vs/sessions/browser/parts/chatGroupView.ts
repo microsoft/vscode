@@ -43,8 +43,11 @@ export interface IChatGroupContext {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Close (delete) the given chat. */
+	/** Close (hide) the given chat from the tab strip; it remains reopenable. */
 	closeChat(resource: URI): void;
+
+	/** Permanently delete the given chat. */
+	deleteChat(resource: URI): void;
 
 	/** Rename the given chat. */
 	renameChat(resource: URI, title: string): void;
@@ -129,6 +132,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			visible: context.tabsVisible,
 			openChat: resource => context.openChat(resource),
 			closeChat: resource => context.closeChat(resource),
+			deleteChat: resource => context.deleteChat(resource),
 			renameChat: (resource, title) => context.renameChat(resource, title),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),

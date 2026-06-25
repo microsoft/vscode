@@ -17,7 +17,7 @@ import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js'
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -32,9 +32,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	constructor(
 		private readonly getActiveDescriptor: () => IHarnessDescriptor,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
-		private readonly productService: IProductService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.onDidChange = Event.any(
 			this.promptsService.onDidChangeCustomAgents,
@@ -60,6 +60,14 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const sessionType = getChatSessionType(sessionResource);
 		const agents = await this.promptsService.getCustomAgents(token);
 		return agents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
+	}
+
+	async provideSourceFolders(_sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const folders = await this.promptsService.getSourceFolders(type);
+		return folders.map(folder => ({
+			uri: folder.uri,
+			label: this.promptsService.getPromptLocationLabel(folder),
+		}));
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {

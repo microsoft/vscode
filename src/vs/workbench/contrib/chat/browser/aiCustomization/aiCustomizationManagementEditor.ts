@@ -40,6 +40,8 @@ import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
+import { ToolsListWidget } from './toolsListWidget.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
@@ -54,7 +56,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -84,10 +86,12 @@ import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 
 const $ = DOM.$;
 
@@ -262,10 +266,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
+	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
 	private mcpContentContainer: HTMLElement | undefined;
 	private pluginContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
+	private toolsContentContainer: HTMLElement | undefined;
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -388,6 +394,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
 			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
+			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
 		for (const id of this.workspaceService.managementSections) {
 			const info = sectionInfo[id];
@@ -460,6 +467,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.listWidget.layout(height - 16, width - 24);
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					this.pluginListWidget?.layout(height - 16, width - 24);
+					this.toolsListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
@@ -813,6 +821,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
+		// Container for Tools content.
+		if (hasSections.has(AICustomizationManagementSection.Tools)) {
+			this.toolsContentContainer = DOM.append(contentInner, $('.tools-content-container'));
+			// Tools customizations only target the agent host (Copilot CLI), in both windows.
+			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
+			this.toolsContentContainer.appendChild(this.toolsListWidget.element);
+		}
+
 		// Embedded editor container
 		this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
 		this.createEmbeddedEditor();
@@ -845,6 +861,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(AICustomizationManagementSection.Models, count);
 			}));
 			this.modelsWidget.fireItemCount();
+		}
+		if (this.toolsListWidget) {
+			this.editorDisposables.add(this.toolsListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Tools, count);
+			}));
+			this.toolsListWidget.fireItemCount();
 		}
 
 		// Per-prompts-section autoruns: drive sidebar counts from the items model,
@@ -975,6 +997,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1018,6 +1042,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
+		const isToolsSection = this.selectedSection === AICustomizationManagementSection.Tools;
 
 		if (this.welcomePage) {
 			this.welcomePage.container.style.display = isWelcome && !isEditorMode && !isDetailMode ? '' : 'none';
@@ -1039,6 +1064,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
+		}
+		if (this.toolsContentContainer) {
+			this.toolsContentContainer.style.display = !isEditorMode && !isDetailMode && isToolsSection ? '' : 'none';
 		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
@@ -1167,62 +1195,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Partition folders by whether they're under the active project root.
-		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
-		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
-		let matchingFolders;
-		if (target === 'workspace') {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
-						return false;
-					}
-					// When the active harness specifies workspaceSubpaths, only offer
-					// directories whose path includes one of those sub-paths.
-					if (subpaths) {
-						return matchesWorkspaceSubpath(f.uri.path, subpaths);
-					}
-					return true;
-				})
-				: [];
-		} else {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
-				: allFolders;
-
-			// When the active harness restricts user roots, only offer
-			// directories under the harness-accessible user roots
-			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
-			const filter = this.harnessService.getStorageSourceFilter(type);
-			if (filter.includedUserFileRoots) {
-				const roots = filter.includedUserFileRoots;
-				matchingFolders = matchingFolders.filter(f =>
-					roots.some(root => isEqualOrParent(f.uri, root))
-				);
-			}
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
 		}
 
-		// Deduplicate by URI (getSourceFolders may return the same path
-		// from both config-based discovery and the AgenticPromptsService override)
-		const seen = new Set<string>();
-		matchingFolders = matchingFolders.filter(f => {
-			const key = f.uri.toString();
-			if (seen.has(key)) {
-				return false;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (target === 'workspace') {
+				if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
+			} else {
+				if ((!projectRoot || !isEqualOrParent(f.uri, projectRoot)) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
 			}
-			seen.add(key);
-			return true;
-		});
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
@@ -1236,7 +1244,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));
@@ -1326,6 +1334,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
+		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}

@@ -851,6 +851,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
 	}
 
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
+	}
+
 	async renameChat(_sessionId: string, chatUri: URI, title: string): Promise<void> {
 		this.chatService.setSessionTitle(chatUri, title);
 		const session = this._findSessionByResource(chatUri);

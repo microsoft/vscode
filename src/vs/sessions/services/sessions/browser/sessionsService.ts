@@ -16,14 +16,15 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent, ActiveSessionSupportsMultiChatContext } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService } from './sessionsPartService.js';
-import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -60,6 +61,12 @@ interface ISessionState {
 	sessionResource: string;
 	/** The resource URI of the last active chat within the session. */
 	activeChatResource?: string;
+	/**
+	 * Resource URIs of chats that were closed (hidden from the tab strip) at save
+	 * time. Restored so closed chats stay hidden across reloads; reopen them from
+	 * the session header's chats dropdown.
+	 */
+	closedChatResources?: string[];
 	/** Whether this session was the active session at the time of save. */
 	isActive?: boolean;
 	/**
@@ -132,6 +139,12 @@ export interface ISessionsService {
 	 * Open a specific chat within a session and show it in the grid.
 	 */
 	openChat(session: ISession, chatUri: URI): Promise<void>;
+
+	/**
+	 * Close a chat from the session view. The chat is hidden from the tab strip
+	 * and can be reopened from the session header's chats dropdown.
+	 */
+	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
 	/**
 	 * Open the new-session composer.
@@ -224,11 +237,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	private readonly _isNewChatSessionContext: IContextKey<boolean>;
-	private readonly _activeSessionProviderId: IContextKey<string>;
-	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _activeSessionWorkspaceIsVirtual: IContextKey<boolean>;
-	private readonly _isActiveSessionArchived: IContextKey<boolean>;
-	private readonly _supportsMultiChat: IContextKey<boolean>;
 
 	/** Cancelled on every navigation action so in-flight async opens bail out. */
 	private readonly _openSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -281,6 +289,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._visibility = this._register(this.instantiationService.createInstance(
 			VisibleSessions,
 			session => this._restoreInitialChat(session),
+			session => this._restoreClosedChats(session),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.activeSession = this._visibility.activeSession;
@@ -289,11 +298,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// slot (the view's `activeSession`); `isNewChatSession` also consults
 		// the model's in-progress draft (`newSession`).
 		this._isNewChatSessionContext = IsNewChatSessionContext.bindTo(this.contextKeyService);
-		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(this.contextKeyService);
-		this._activeSessionType = ActiveSessionTypeContext.bindTo(this.contextKeyService);
-		this._activeSessionWorkspaceIsVirtual = ActiveSessionWorkspaceIsVirtualContext.bindTo(this.contextKeyService);
-		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(this.contextKeyService);
-		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(this.contextKeyService);
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -318,14 +322,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
 
 		// Keep the active-session context keys in sync with the visible active
-		// slot and the model's in-progress draft.
+		// slot and the model's in-progress draft. The helper reads the session's
+		// observable properties via `reader`, so this autorun re-applies the keys
+		// whenever any of them change.
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
 			const newSession = this.sessionsManagementService.newSession.read(reader);
-			this._handleActiveSessionContextKeys(activeSession, newSession);
-			if (activeSession) {
-				reader.store.add(this._activeSessionContextKeyListeners(activeSession));
-			}
+			// `isNewChatSession` is true when no active session exists, OR when the
+			// active session is still the in-progress new session (created but not yet
+			// sent for the first time). Scoping to the active session avoids flipping
+			// into "new chat" mode while viewing a different established session.
+			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
+			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader);
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
@@ -388,37 +396,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
 		this._visibility.updateSession(from, to);
-	}
-
-	private _handleActiveSessionContextKeys(session: IActiveSession | undefined, newSession: ISession | undefined): void {
-		// Update context keys from session data.
-		// IsNewChatSessionContext is true when no active session exists, OR when the
-		// active session is still the in-progress new session (created but not yet
-		// sent for the first time). Scoping to the active session avoids flipping
-		// into "new chat" mode while viewing a different established session.
-		this._isNewChatSessionContext.set(session === undefined || session.sessionId === newSession?.sessionId);
-		this._activeSessionProviderId.set(session?.providerId ?? '');
-		this._activeSessionType.set(session?.sessionType ?? '');
-		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
-		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
-		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
-	}
-
-	private _activeSessionContextKeyListeners(activeSession: IActiveSession): IDisposable {
-		const disposables = new DisposableStore();
-
-		// Track archived state changes for the active session
-		disposables.add(autorun(reader => {
-			this._isActiveSessionArchived.set(activeSession.isArchived.read(reader));
-		}));
-
-		// Track workspace changes so the virtual-workspace context key stays in sync
-		disposables.add(autorun(reader => {
-			const workspace = activeSession.workspace.read(reader);
-			this._activeSessionWorkspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
-		}));
-
-		return disposables;
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -597,6 +574,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeSession) {
 			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 			if (chat) {
+				// Opening a chat also un-hides it if it was previously closed.
+				this._visibility.openChat(session, chat);
 				this._visibility.setActiveChat(session, chat);
 			}
 		}
@@ -607,6 +586,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 
 		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
+	}
+
+	async closeChat(session: IActiveSession, chat: IChat): Promise<void> {
+		// Closing hides the chat from the tab strip; it stays reopenable from the
+		// session header's chats dropdown.
+		this._visibility.closeChat(session, chat);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
@@ -764,6 +749,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return initialChat;
 	}
 
+	/**
+	 * The resource strings of chats that were closed (hidden from the tab strip)
+	 * when the session was last saved, so they stay hidden across reloads. Stale
+	 * URIs that no longer match a chat are harmless: the visible session
+	 * intersects them with the live chat list.
+	 */
+	private _restoreClosedChats(session: ISession): readonly string[] {
+		return this._sessionStates.get(session.resource)?.closedChatResources ?? [];
+	}
+
 	private async _waitForSessionToLoad(session: ISession, token: CancellationToken): Promise<boolean> {
 		if (!session.loading.get()) {
 			return true;
@@ -838,6 +833,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
 				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				closedChatResources: session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
 				isActive: session.sessionId === activeId,

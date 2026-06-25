@@ -3303,8 +3303,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			getTools() {
 				return registeredToolData.values();
 			},
-			executeToolSet: new ToolSet('execute', 'execute', Codicon.play, ToolDataSource.Internal, undefined, undefined, contextKeyService),
-			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, contextKeyService),
+			executeToolSet: new ToolSet('execute', 'execute', Codicon.play, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
+			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
 

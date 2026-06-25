@@ -8,6 +8,7 @@ import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -50,12 +51,12 @@ export interface ICodexSessionMapState {
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
 	/**
-	 * Workbench client id that owns the session's client-provided
-	 * (`dynamicTools`) tools. Set so `dynamicToolCall` tool-call starts
-	 * carry a `Client` contributor and the workbench routes execution back
-	 * to that client. `undefined` when no client tools are registered.
+	 * Live registry of the session's client-provided (`dynamicTools`) tools,
+	 * keyed by contributing workbench client. A `dynamicToolCall` tool-call
+	 * start is stamped with the owning client (so the workbench routes
+	 * execution back to it) resolved via {@link ActiveClientToolSet.ownerOf}.
 	 */
-	toolsClientId: string | undefined;
+	clientToolSet: ActiveClientToolSet;
 	/**
 	 * Names of the agent host's server tools (executed in-process). A
 	 * `dynamicToolCall` for one of these omits the `Client` contributor so the
@@ -72,13 +73,13 @@ export interface ICodexToolCallEntry {
 	output: string;
 }
 
-export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set()): ICodexSessionMapState {
+export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set(), clientToolSet: ActiveClientToolSet = new ActiveClientToolSet()): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
 		itemToToolCall: new Map(),
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
-		toolsClientId: undefined,
+		clientToolSet,
 		serverToolNames,
 	};
 }
@@ -454,6 +455,7 @@ export function mapItemStarted(
 		// they carry no `Client` contributor; only client-provided tools route
 		// execution back to the owning workbench client.
 		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
+		const ownerClientId = isServerTool ? undefined : state.clientToolSet.ownerOf(params.item.tool);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -467,7 +469,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
-				...(state.toolsClientId && !isServerTool ? { contributor: { kind: ToolCallContributorKind.Client, clientId: state.toolsClientId } } : {}),
+				...(ownerClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,

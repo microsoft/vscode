@@ -362,7 +362,7 @@ suite('SessionsListModelService', () => {
 		service.markRead(session);
 
 		// Make session the active one
-		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false) }, undefined);
+		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]) }, undefined);
 
 		// Seed the last-known status as InProgress
 		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });

@@ -119,7 +119,37 @@ export class Chat {
 	}
 
 	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000): Promise<string> {
-		return await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs);
+		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs);
+		// After a contributed chat session (e.g. Copilot CLI, Claude) returns
+		// its first response, the workbench commits the untitled session into
+		// a real (titled) one and `replaceEditors` swaps the chat editor over.
+		// If a follow-up message is sent during that swap, the participant
+		// request can be cancelled mid-flight by the editor swap. The
+		// {@link ChatEditor} sets `data-bound-chat-resource` on its editor
+		// container after binding its widget to the loaded chat model, and
+		// clears it during rebind — so we can wait for the swap to land via
+		// Playwright's push-based `waitForSelector` (no polling on our side).
+		await this.waitForEditorChatBoundToCommittedResource();
+		return matched;
+	}
+
+	/**
+	 * Wait until the chat editor's root container advertises a non-untitled
+	 * chat resource via `data-bound-chat-resource`. Uses Playwright's
+	 * `page.waitForSelector` which is push-based (MutationObserver in the
+	 * renderer). Soft no-op when the selector never matches within
+	 * `timeoutMs` (e.g. for local sessions that don't go through the
+	 * untitled → committed swap).
+	 */
+	private async waitForEditorChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
+		const selector = `.editor-instance .chat-editor-relative[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		try {
+			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
+		} catch {
+			// Soft failure: caller already verified the response text is on
+			// screen, so proceed and let downstream assertions surface any
+			// actual problem.
+		}
 	}
 
 	private async pollForResponseText(bubbleSelector: string, renderedSelector: string, predicate: string | RegExp, timeoutMs: number): Promise<string> {

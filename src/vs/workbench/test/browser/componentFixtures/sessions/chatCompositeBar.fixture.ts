@@ -50,6 +50,7 @@ function createMockDelegate(chats: readonly IChat[], activeChat: IChat, sessionT
 		}),
 		openChat: () => { },
 		closeChat: () => { },
+		deleteChat: () => { },
 		renameChat: () => { },
 	};
 }

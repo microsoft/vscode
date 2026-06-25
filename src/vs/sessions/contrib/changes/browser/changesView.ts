@@ -74,6 +74,7 @@ import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
+import { IChangesViewService } from './changesViewService.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
@@ -401,11 +402,11 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
-		this._register(this.viewModel);
+		this.viewModel = changesViewService.viewModel;
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
@@ -768,9 +769,13 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
-				// Open a single file diff editor when configured to do so
-				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
-					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
+				// Holding Alt inverts the configured single/multi file diff behavior.
+				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
+				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
+				if (openSingleFileDiff) {
+					// Alt here only switches the diff mode, not the target group.
+					const sideBySide = e.sideBySide && !altKey;
+					void this._openSingleFileDiffEditor(e.element, sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
 					return;
 				}
 

@@ -134,9 +134,10 @@ sidebar list.
 
 ## CRUD & Stubbed Operations
 
-- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `ChatSessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
+- `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
 - `renameChat` — updates the session title.
 - `deleteChat` — no-op (agent host sessions don't model individually deletable chats).
+- `forkChat(sessionId, sourceChat, turnId)` — multi-chat only. Mints a peer chat URI and calls `connection.createChat(sessionUri, chatUri, { fork: { source, turnId } })`, where `source` is the backend chat URI (a `chatId` fragment addresses a peer chat, otherwise the session's default chat). The host seeds the new chat with the forked history; the provider waits for it to surface in `cached.chats` and returns it. Routed from the **Fork Conversation** gesture via `ISessionsManagementService.forkChatInSession`; single-chat sessions instead fork into a new session (the workbench `AgentHostSessionHandler.forkSession`).
 
 ## Picker & Action Contributions
 

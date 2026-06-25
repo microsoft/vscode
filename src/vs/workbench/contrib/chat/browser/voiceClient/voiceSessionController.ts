@@ -1211,6 +1211,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._pttHeld = false;
 			this._statusText.set('Microphone denied', undefined);
 			this._voiceState.set('error', undefined);
+			// Disconnect entirely so the user isn't stuck in a connected state
+			// with no way to record. The notification from micCaptureService
+			// tells them how to fix permissions.
+			if (this._pttMaxDurationTimer) {
+				clearTimeout(this._pttMaxDurationTimer);
+				this._pttMaxDurationTimer = undefined;
+			}
+			this.disconnect();
 		});
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);

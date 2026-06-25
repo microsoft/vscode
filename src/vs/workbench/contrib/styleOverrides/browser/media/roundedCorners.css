@@ -130,6 +130,19 @@
 }
 
 /*
+ * Workbench parts (side bar, panel, auxiliary bar). The editor part is framed
+ * separately by the "Editor Border" module; round the remaining parts to the
+ * inner tier so the whole workbench reads as a set of distinct rounded
+ * surfaces. `overflow: hidden` clips their content to the rounded corners.
+ */
+.style-override .monaco-grid-view .part.sidebar,
+.style-override .monaco-grid-view .part.panel,
+.style-override .monaco-grid-view .part.auxiliarybar {
+	border-radius: var(--vscode-cornerRadius-medium) !important;
+	overflow: hidden;
+}
+
+/*
  * Settings editor row container. The focused/hovered row paints a background
  * (and the focused row draws an outline) on this element, so round it to the
  * inner tier to match.

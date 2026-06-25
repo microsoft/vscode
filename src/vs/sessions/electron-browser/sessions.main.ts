@@ -49,8 +49,9 @@ import { FileUserDataProvider } from '../../platform/userData/common/fileUserDat
 import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
-import { CopilotManagedSettingsChannelClient } from '../../platform/policy/common/copilotManagedSettingsIpc.js';
-import { ICopilotManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { NativeManagedSettingsChannelClient } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { FileManagedSettingsChannelClient } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfile.js';
@@ -219,9 +220,11 @@ export class SessionsMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const copilotManagedSettings = this._register(new CopilotManagedSettingsChannelClient(mainProcessService.getChannel('copilotManagedSettings')));
-		serviceCollection.set(ICopilotManagedSettingsService, copilotManagedSettings);
-		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, copilotManagedSettings));
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
+		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
+		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, nativeManagedSettings, fileManagedSettings));
 		if (policyChannel) {
 			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {

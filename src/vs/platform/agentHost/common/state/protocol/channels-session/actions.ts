@@ -238,29 +238,50 @@ export interface SessionServerToolsChangedAction {
 }
 
 /**
- * The active client for this session has changed.
+ * An active client for this session was added or updated.
  *
- * A client dispatches this action with its own `SessionActiveClient` to claim
- * the active role, or with `null` to release it. The server SHOULD reject if
- * another client is already active. The server SHOULD automatically dispatch
- * this action with `activeClient: null` when the active client disconnects.
+ * Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
+ * a client dispatches this action with its own `SessionActiveClient` to claim
+ * the active role or refresh its entry, replacing any existing entry that has
+ * the same `clientId`. Multiple clients may be active at once. Use
+ * {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
+ * release the role. The server SHOULD automatically dispatch that removal when
+ * an active client disconnects.
  *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
  */
-export interface SessionActiveClientChangedAction {
-	type: ActionType.SessionActiveClientChanged;
-	/** The new active client, or `null` to unset */
-	activeClient: SessionActiveClient | null;
+export interface SessionActiveClientSetAction {
+	type: ActionType.SessionActiveClientSet;
+	/** The active client to add or update, matched by `clientId`. */
+	activeClient: SessionActiveClient;
 }
 
 /**
- * The active client's tool list has changed.
+ * An active client was removed from this session.
  *
- * Full-replacement semantics: the `tools` array replaces the active client's
- * previous tools entirely. The server SHOULD reject if the dispatching client
- * is not the current active client.
+ * Releases the active role for the client identified by `clientId`. No-op when
+ * no active client matches. The server SHOULD dispatch this automatically when
+ * an active client disconnects.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionActiveClientRemovedAction {
+	type: ActionType.SessionActiveClientRemoved;
+	/** The `clientId` of the active client to remove. */
+	clientId: string;
+}
+
+/**
+ * An active client's tool list has changed.
+ *
+ * Full-replacement semantics: the `tools` array replaces the named active
+ * client's previous tools entirely. The active client is identified by
+ * `clientId`; the action is a no-op when no active client matches. The server
+ * SHOULD reject if the dispatching client is not the named active client.
  *
  * @category Session Actions
  * @version 1
@@ -268,6 +289,8 @@ export interface SessionActiveClientChangedAction {
  */
 export interface SessionActiveClientToolsChangedAction {
 	type: ActionType.SessionActiveClientToolsChanged;
+	/** The `clientId` of the active client whose tools changed. */
+	clientId: string;
 	/** Updated client tools list (full replacement) */
 	tools: ToolDefinition[];
 }
