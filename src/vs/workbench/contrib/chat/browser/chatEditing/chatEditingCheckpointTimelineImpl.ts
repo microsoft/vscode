@@ -853,7 +853,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 			refs.forEach(m => m.onChange.read(reader)); // re-read when contents change
 
-			return { originalURI, modifiedURI, promise: new ObservablePromise(this._computeDiff(originalURI, modifiedURI, !!isFinal)) };
+			return { originalURI, modifiedURI, promise: new ObservablePromise(this._computeDiff(originalURI, modifiedURI, !!isFinal, refs[0]?.model.getValueLength() === 0)) };
 		});
 
 		return derivedOpts({ onLastObserverRemoved }, reader => {
@@ -878,7 +878,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		});
 	}
 
-	private _computeDiff(originalUri: URI, modifiedUri: URI, isFinal: boolean): Promise<IEditSessionEntryDiff> {
+	private _computeDiff(originalUri: URI, modifiedUri: URI, isFinal: boolean, originalIsEmpty: boolean): Promise<IEditSessionEntryDiff> {
 		return this._editorWorkerService.computeDiff(
 			originalUri,
 			modifiedUri,
@@ -888,6 +888,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			const entryDiff: IEditSessionEntryDiff = {
 				originalURI: originalUri,
 				modifiedURI: modifiedUri,
+				originalIsEmpty,
 				identical: !!diff?.identical,
 				isFinal,
 				quitEarly: !diff || diff.quitEarly,

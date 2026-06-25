@@ -26,7 +26,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingSession, IEditSessionEntryDiff, shouldOpenEditSessionEntryInRegularEditor } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -162,7 +162,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
 			const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
 
-			if (!openInDiffEditor) {
+			if (!openInDiffEditor || shouldOpenEditSessionEntryInRegularEditor(diff)) {
 				const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
 				if (fileURI) {
 					this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });

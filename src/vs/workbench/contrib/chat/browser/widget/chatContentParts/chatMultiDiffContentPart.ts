@@ -29,7 +29,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../files/brow
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IEditSessionEntryDiff, shouldOpenEditSessionEntryInRegularEditor } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
@@ -213,6 +213,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					item.diff = {
 						originalURI: resource.originalUri,
 						modifiedURI: resource.modifiedUri,
+						originalIsEmpty: resource.originalIsEmpty === true,
 						isFinal: true,
 						quitEarly: false,
 						identical: false,
@@ -242,7 +243,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
 				const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
 
-				if (e.element.diff && !openInDiffEditor) {
+				if (e.element.diff && (!openInDiffEditor || shouldOpenEditSessionEntryInRegularEditor(e.element.diff))) {
 					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(e.element.diff.modifiedURI);
 					if (fileURI) {
 						this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });

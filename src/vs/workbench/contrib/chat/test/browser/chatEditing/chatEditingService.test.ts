@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
+import { isObservable, waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -36,7 +36,7 @@ import { INotebookService } from '../../../../notebook/common/notebookService.js
 import { ChatEditingService } from '../../../browser/chatEditing/chatEditingServiceImpl.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSessionState, editEntriesToMultiDiffData, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, ModifiedFileEntryState, shouldOpenEditSessionEntryInRegularEditor } from '../../../common/editing/chatEditingService.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
@@ -139,6 +139,11 @@ suite('ChatEditingService', function () {
 				return store.add(modelService.createModel(resource.path.repeat(10), null, resource, false));
 			},
 		}));
+		store.add(textModelService.registerTextModelContentProvider('empty', {
+			async provideTextContent(resource) {
+				return store.add(modelService.createModel('', null, resource, false));
+			},
+		}));
 	});
 
 	teardown(async () => {
@@ -164,6 +169,62 @@ suite('ChatEditingService', function () {
 
 		session.dispose();
 		modelRef.dispose();
+	});
+
+	test('addition-only diffs from empty originals open in regular editor', async function () {
+		assert.ok(editingService);
+
+		const uri = URI.from({ scheme: 'empty', path: '/created.md' });
+
+		const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
+		const model = modelRef.object as ChatModel;
+		const session = model.editingSession;
+		assertType(session, 'session not created');
+
+		await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: '# Title' }]);
+		const request = model.getRequests().at(-1);
+		assertType(request);
+
+		const diff = await waitForState(session.getDiffsForFilesInRequest(request.id).map(diffs => diffs.find(candidate => !candidate.isBusy && isEqual(candidate.modifiedURI, uri))));
+
+		assert.deepStrictEqual({
+			added: diff.added,
+			removed: diff.removed,
+			originalIsEmpty: diff.originalIsEmpty,
+			opensRegularEditor: shouldOpenEditSessionEntryInRegularEditor(diff),
+		}, {
+			added: 1,
+			removed: 0,
+			originalIsEmpty: true,
+			opensRegularEditor: true,
+		});
+	});
+
+	test('editEntriesToMultiDiffData preserves empty original metadata', function () {
+		const originalURI = URI.parse('test://original');
+		const modifiedURI = URI.parse('test://modified');
+		const diff: IEditSessionEntryDiff = {
+			originalURI,
+			modifiedURI,
+			originalIsEmpty: true,
+			added: 1,
+			removed: 0,
+			quitEarly: false,
+			identical: false,
+			isFinal: true,
+			isBusy: false,
+		};
+
+		const multiDiffData = editEntriesToMultiDiffData(observableValue('diffs', [diff])).multiDiffData;
+		if (!isObservable(multiDiffData)) {
+			assert.fail('Expected observable multi diff data');
+		}
+
+		assert.deepStrictEqual(multiDiffData.get().resources.map(resource => ({
+			originalIsEmpty: resource.originalIsEmpty,
+		})), [{
+			originalIsEmpty: true,
+		}]);
 	});
 
 	test('create session, file entry & isCurrentlyBeingModifiedBy', async function () {

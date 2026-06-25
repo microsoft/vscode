@@ -205,6 +205,7 @@ export interface IMultiDiffResource {
 	goToFileUri?: URI;
 	added?: number;
 	removed?: number;
+	originalIsEmpty?: boolean;
 }
 
 export interface IChatMultiDiffInnerData {
