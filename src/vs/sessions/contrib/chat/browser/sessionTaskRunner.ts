@@ -30,8 +30,14 @@ export interface ISessionTaskRunner {
 	/**
 	 * Executes the given task in the session's runtime. The returned promise
 	 * resolves once the task has been launched (not when it has finished).
+	 *
+	 * May resolve to an {@link IDisposable} that stops the launched task (e.g.
+	 * kills its terminal/process). Callers that auto-dispatch tasks (such as
+	 * {@link WorktreeCreatedTaskDispatcher}) use it to stop long-running setup
+	 * processes when a session is marked done. Resolves to `undefined` when the
+	 * runner has nothing to stop.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<void>;
+	runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined>;
 }
 
 /**

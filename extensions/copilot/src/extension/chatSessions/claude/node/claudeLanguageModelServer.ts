@@ -16,7 +16,7 @@ import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
-import { ChatCompletion } from '../../../../platform/networking/common/openai';
+import { ChatCompletion, nanoAiuToCredits } from '../../../../platform/networking/common/openai';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
@@ -191,17 +191,6 @@ export class ClaudeLanguageModelServer extends Disposable {
 				tokenSource.cancel();
 			});
 
-			// If the user picked a context tier in the model picker, surface that
-			// value directly as the prompt token budget. CAPI's `tokenPricing.default.contextMax`
-			// is documented as a prompt-token limit (matching `endpoint.modelMaxPromptTokens`),
-			// and CAPI bills the tier based on actual prompt size, so no other signaling is
-			// required. Clamp to the default budget so the override never lowers it.
-			const sessionContextSize = sessionId ? this.sessionStateService.getContextSizeForSession(sessionId) : undefined;
-			const defaultPromptBudget = DEFAULT_MAX_TOKENS - DEFAULT_MAX_OUTPUT_TOKENS;
-			const modelMaxPromptTokens = sessionContextSize !== undefined
-				? Math.max(defaultPromptBudget, sessionContextSize)
-				: defaultPromptBudget;
-
 			const endpointRequestBody = requestBody as IEndpointBody;
 			const streamingEndpoint = this.instantiationService.createInstance(
 				ClaudeStreamingPassThroughEndpoint,
@@ -211,7 +200,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 				headers,
 				'vscode_claude_code',
 				{
-					modelMaxPromptTokens,
+					modelMaxPromptTokens: DEFAULT_MAX_TOKENS - DEFAULT_MAX_OUTPUT_TOKENS,
 					maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS
 				},
 				sessionId
@@ -501,7 +490,7 @@ function messagesApiInputToRawMessagesForLogging(request: AnthropicMessagesReque
 export function processNonStreamingPassThroughResponse(
 	response: Response,
 	forwardChunk: (chunk: Uint8Array) => void,
-	onUsage: ((usage: { promptTokens: number; completionTokens: number }) => void) | undefined,
+	onUsage: ((usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => void) | undefined,
 	telemetryService: ITelemetryService,
 	logService: ILogService,
 	finishCallback: FinishedCallback,
@@ -557,6 +546,7 @@ export function processNonStreamingPassThroughResponse(
 					onUsage({
 						promptTokens: completion.usage.prompt_tokens,
 						completionTokens: completion.usage.completion_tokens,
+						copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 					});
 				}
 			}
@@ -799,7 +789,8 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 								usageHandler({
 									// Could we bucketize these token counts somehow for the details?
 									promptTokens: completion.usage.prompt_tokens,
-									completionTokens: completion.usage.completion_tokens
+									completionTokens: completion.usage.completion_tokens,
+									copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 								});
 							}
 						}
@@ -836,7 +827,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		// branch above) in case it gets registered after the request starts.
 		const sessionId = this.sessionId;
 		const onUsage = sessionId
-			? (usage: { promptTokens: number; completionTokens: number }) => {
+			? (usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => {
 				this.sessionStateService.getUsageHandlerForSession(sessionId)?.(usage);
 			}
 			: undefined;

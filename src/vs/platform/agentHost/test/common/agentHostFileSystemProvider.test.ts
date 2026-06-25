@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
@@ -92,7 +93,7 @@ suite('AgentHostAuthority - encoding', () => {
 		const addresses = ['localhost', 'localhost:8081', 'user@host:8080', 'host with spaces'];
 		for (const address of addresses) {
 			const authority = agentHostAuthority(address);
-			const scheme = `remote-${authority}-copilot`;
+			const scheme = remoteAgentHostSessionTypeId(authority, 'copilot');
 			const uri = URI.from({ scheme, path: '/test' });
 			assert.strictEqual(uri.scheme, scheme, `scheme for '${address}' must round-trip through URI`);
 		}
@@ -123,6 +124,28 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, '/snap/before');
 	});
 
+	test('round-trips query and fragment for synthetic content URIs', () => {
+		const original = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+			fragment: 'L1',
+		});
+
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		const unwrapped = fromAgentHostUri(wrapped);
+
+		assert.deepStrictEqual({
+			wrappedPath: wrapped.path,
+			wrappedFragment: wrapped.fragment,
+			unwrapped: unwrapped.toString(),
+		}, {
+			wrappedPath: original.path,
+			wrappedFragment: original.fragment,
+			unwrapped: original.toString(),
+		});
+	});
+
 	test('local authority returns original URI unchanged', () => {
 		const original = URI.file('/workspace/test.ts');
 		const result = toAgentHostUri(original, 'local');
@@ -138,11 +161,12 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(fromAgentHostUri(uri).path, '/');
 	});
 
-	test('fromAgentHostUri handles malformed path gracefully', () => {
+	test('fromAgentHostUri falls back to a file URI when metadata is missing', () => {
 		const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/file' });
 		const result = fromAgentHostUri(uri);
-		// Should not throw - falls back to extracting scheme only
+		// Should not throw - falls back to a file URI using the path verbatim
 		assert.strictEqual(result.scheme, 'file');
+		assert.strictEqual(result.path, '/file');
 	});
 });
 
@@ -150,38 +174,31 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Replicates the stripPathSegments logic from the label service to
-	 * verify that the formatter's configuration is consistent with the
-	 * URI encoding.
-	 */
-	function stripPath(path: string, segments: number): string {
-		let pos = 0;
-		for (let i = 0; i < segments; i++) {
-			const next = path.indexOf('/', pos + 1);
-			if (next === -1) {
-				break;
-			}
-			pos = next;
-		}
-		return path.substring(pos);
-	}
-
-	test('stripPathSegments matches URI encoding for file URIs', () => {
+	test('label is the original path verbatim for file URIs', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const originalPath = '/Users/roblou/code/vscode';
 		const encodedUri = agentHostUri(authority, originalPath);
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, originalPath);
+		assert.strictEqual(AGENT_HOST_LABEL_FORMATTER.formatting.label, '${path}');
+		assert.strictEqual(encodedUri.path, originalPath);
 	});
 
-	test('stripPathSegments matches URI encoding with authority', () => {
+	test('label is the original path verbatim for URIs with authority', () => {
 		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'myhost', path: '/snap/before' });
 		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, '/snap/before');
+		assert.strictEqual(encodedUri.path, '/snap/before');
+	});
+
+	test('label is the original path verbatim for git-blob URIs', () => {
+		const originalUri = URI.from({
+			scheme: 'git-blob',
+			path: '/src/app.ts',
+			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
+		});
+		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
+
+		assert.strictEqual(encodedUri.path, '/src/app.ts');
 	});
 });
 
@@ -659,6 +676,32 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(stat.type, FileType.Directory);
 		assert.strictEqual(stat.mtime, Date.parse('2026-01-15T00:00:00.000Z'));
 		assert.strictEqual(connection.resolveCalls.length, 1, 'resourceResolve was called');
+	});
+
+	test('stat does not mark resolved files readonly so they remain editable', async () => {
+		const { provider, connection } = setup();
+		connection.nextResolveResult = { uri: '', type: ResourceType.File, size: 10, mtime: '2026-01-15T00:00:00.000Z' };
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.permissions ?? 0, 0, 'resolved files must not carry the Readonly permission');
+	});
+
+	test('realpath re-encodes the connection canonical URI back into provider space', async () => {
+		const { provider, connection } = setup();
+		// Simulate a symlink: the resolve reports a canonical target that
+		// differs from the requested path.
+		connection.resourceResolve = async (params: ResourceResolveParams): Promise<ResourceResolveResult> => {
+			connection.resolveCalls.push(params);
+			return { uri: 'file:///real/target.ts', type: ResourceType.File };
+		};
+		const wrapped = agentHostUri('remote', '/link/source.ts');
+
+		const real = await provider.realpath(wrapped);
+
+		assert.strictEqual(real, agentHostUri('remote', '/real/target.ts').path);
+		assert.strictEqual(connection.resolveCalls.length, 1);
 	});
 
 	test('mkdir delegates to resourceMkdir', async () => {

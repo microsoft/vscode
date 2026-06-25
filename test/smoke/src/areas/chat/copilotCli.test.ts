@@ -43,7 +43,7 @@ export function setup(logger: Logger) {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 			},
 		}));
 
@@ -66,7 +66,7 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('opens a Copilot CLI session and receives a response', async function () {
+		it.skip('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 

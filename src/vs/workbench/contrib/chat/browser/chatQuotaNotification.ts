@@ -7,15 +7,23 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { getSelectedModelVendor, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
+import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+
+/**
+ * Persisted flag remembering that the user dismissed the quota-exceeded
+ * notification. Kept until quota recovers (credit becomes available again) so
+ * the banner does not re-appear on every window reload while quota is still
+ * exhausted.
+ */
+const QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY = 'chat.quotaNotification.exhaustedDismissed';
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
@@ -69,6 +77,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			}
 		}));
 
+		// Remember when the user dismisses the quota-exceeded notification so it
+		// does not re-appear on the next window reload while quota is still
+		// exhausted. The flag is cleared from `_update` once quota recovers.
+		this._register(this._chatInputNotificationService.onDidDismiss(id => {
+			if (id === QUOTA_NOTIFICATION_ID && this._showingExhausted) {
+				this._setExhaustedDismissed();
+			}
+		}));
+
 		// Check initial state in case quota is already exhausted at startup
 		this._update();
 	}
@@ -101,6 +118,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const entitlement = this._chatEntitlementService.entitlement;
 		const isCopilot = this._isCopilotModelSelected();
 
+		// Once quota recovers (credit is positively available again) drop any
+		// persisted dismissal so the quota-exceeded notification can show the next
+		// time quota runs out. Done before the Copilot/BYOK gate so a recovery is
+		// always observed, even while a BYOK model is selected. Guarded on a
+		// present snapshot so the transient "no quota data yet" state at
+		// startup/reload does not wipe the flag.
+		if (this._isQuotaKnownAvailable()) {
+			this._clearExhaustedDismissed();
+		}
+
 		// Defer new notifications when a BYOK model is selected or the model
 		// selection hasn't loaded yet — quota only applies to Copilot models.
 		// Already-shown notifications stay visible.
@@ -115,7 +142,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// authoritative signal that the org has exceeded its budget, regardless of
 		// overages or remaining quota.
 		if (this._isManagedPlan(entitlement) && this._isManagedPlanBlocked()) {
-			this._showManagedPlanBlockedNotification();
+			if (!this._isExhaustedDismissed()) {
+				this._showManagedPlanBlockedNotification();
+			}
 			return;
 		}
 
@@ -126,14 +155,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			const wasAdditionalUsageEnabled = this._prevAdditionalUsageEnabled;
 			this._prevAdditionalUsageEnabled = additionalUsageEnabled;
 
-			if (additionalUsageEnabled) {
-				// Show overage notification on a live transition to 100%,
-				// or when overages are enabled while already at 100%.
-				if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
-					this._showOverageActivationNotification();
+			if (!this._isExhaustedDismissed()) {
+				if (additionalUsageEnabled) {
+					// Show overage notification on a live transition to 100%,
+					// or when overages are enabled while already at 100%.
+					if (this._prevQuotaPercentUsed !== undefined || wasAdditionalUsageEnabled === false) {
+						this._showOverageActivationNotification();
+					}
+				} else {
+					this._showExhaustedNotification();
 				}
-			} else {
-				this._showExhaustedNotification();
 			}
 
 			// Keep the baseline up-to-date so that recovery from exhaustion
@@ -171,7 +202,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number } | undefined {
+	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -181,7 +212,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
 		if (crossed !== undefined) {
-			return { percentUsed: Math.floor(percentUsed) };
+			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
 	}
@@ -233,6 +264,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaExhausted',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.exhausted.title', "Credit Limit Reached"),
 			description,
@@ -249,6 +281,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'overageActivation',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.overage.title', "Credit Limit Reached"),
 			description: localize('quota.overage.desc', "Additional budget is now covering extra usage."),
@@ -260,7 +293,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
 
 		const entitlement = this._chatEntitlementService.entitlement;
@@ -285,6 +318,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: `quotaApproaching${warning.threshold}`,
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
@@ -344,6 +378,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: warning.type === 'session' ? 'sessionRateLimitWarning' : 'weeklyRateLimitWarning',
 			severity: ChatInputNotificationSeverity.Info,
 			message,
 			description,
@@ -361,11 +396,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	 * or if the selected model is from a non-Copilot vendor (BYOK).
 	 */
 	private _isCopilotModelSelected(): boolean {
-		const vendor = getSelectedModelVendor(this._contextKeyService, this._storageService, this._languageModelsService);
-		if (!vendor) {
-			return true;
-		}
-		return vendor === COPILOT_VENDOR_ID;
+		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
@@ -382,6 +413,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'managedPlanBlocked',
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.blocked.managed.title', "Usage Blocked"),
 			description: localize('quota.blocked.managed', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage."),
@@ -408,5 +440,29 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _hideNotification(): void {
 		this._showingExhausted = false;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
+	}
+
+	// --- Exhausted dismissal persistence ------------------------------------
+
+	/**
+	 * Returns `true` only when there is an actual quota snapshot indicating that
+	 * credit is available (i.e. quota is not used up). Returns `false` when no
+	 * snapshot has loaded yet, so the transient "no data" state at startup/reload
+	 * is not mistaken for recovery.
+	 */
+	private _isQuotaKnownAvailable(): boolean {
+		return !!this._getRelevantSnapshot() && !this._isQuotaUsedUp();
+	}
+
+	private _isExhaustedDismissed(): boolean {
+		return this._storageService.getBoolean(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private _setExhaustedDismissed(): void {
+		this._storageService.store(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private _clearExhaustedDismissed(): void {
+		this._storageService.remove(QUOTA_EXHAUSTED_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 }

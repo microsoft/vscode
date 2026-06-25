@@ -5,12 +5,11 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { Client, IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
 import { AgentHostChannel, IAgentHostUpstreamEndpoint, IUpstreamConnection, UnavailableAgentHostChannel } from '../../node/agentHostChannel.js';
-import { IServerLifetimeService } from '../../node/serverLifetimeService.js';
 
 class FakeUpstream extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
@@ -61,13 +60,6 @@ class FakeIPCServer {
 	}
 }
 
-class StubServerLifetimeService implements IServerLifetimeService {
-	declare readonly _serviceBrand: undefined;
-	get hasActiveConsumers(): boolean { return false; }
-	active(_consumer: string) { return toDisposable(() => { }); }
-	delay(): void { }
-}
-
 suite('AgentHostChannel', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -86,7 +78,6 @@ suite('AgentHostChannel', () => {
 			ipc as unknown as IPCServer<string>,
 			{ host: 'localhost', port: '12345' },
 			new NullLogService(),
-			new StubServerLifetimeService(),
 			factory,
 		));
 		return { channel, upstreams, ipc };

@@ -23,8 +23,17 @@ export interface IChatInputNotificationAction {
 	readonly commandArgs?: unknown[];
 }
 
+export interface IChatInputNotificationMuteAction {
+	/** Command executed when the user clicks the mute (bell-slash) button. */
+	readonly commandId: string;
+	readonly commandArgs?: unknown[];
+	/** Tooltip and accessible label for the mute button. */
+	readonly tooltip: string;
+}
+
 export interface IChatInputNotification {
 	readonly id: string;
+	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
 	readonly description: string | undefined;
@@ -38,6 +47,12 @@ export interface IChatInputNotification {
 	 * list will render it.
 	 */
 	readonly sessionTypes?: readonly string[];
+	/**
+	 * Optional "mute" affordance rendered as a bell-slash icon button next to
+	 * the dismiss (X) button. Use for a "stop showing this entirely" action
+	 * that is distinct from a one-off dismissal. Omit to hide the button.
+	 */
+	readonly mute?: IChatInputNotificationMuteAction;
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');

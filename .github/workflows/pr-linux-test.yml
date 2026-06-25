@@ -13,13 +13,19 @@ on:
       remote_tests:
         type: boolean
         default: false
+      unit_and_integration_tests:
+        type: boolean
+        default: true
+      smoke_tests:
+        type: boolean
+        default: true
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
@@ -55,19 +61,12 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
-
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache/restore@v5
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: .build/node_modules_cache
-          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Extract node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: tar -xzf .build/node_modules_cache/cache.tgz
+          key-prefix: node_modules-linux
+          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -108,14 +107,6 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-
       - name: Create .build folder
         run: mkdir -p .build
 
@@ -153,15 +144,24 @@ jobs:
             exit 0
           fi
           echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
-          # Workaround: use a minimal fontconfig config with no <include> directives,
-          # avoiding the external entity parser codepath entirely. Based on upstream
-          # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
-          # aliases inlined, and default font mappings for generic families added
-          # (from conf.d/49-sansserif.conf and DejaVu font configs).
-          # Remove once Ubuntu backports the remaining CVE fixes.
+          # Workaround: use a minimal fontconfig config with no <include> directives
+          # AND no <!DOCTYPE ... SYSTEM ...> external DTD reference, avoiding every
+          # expat external-entity codepath. Based on upstream fontconfig 2.15.0
+          # fonts.conf.in with <include> removed, generic family aliases inlined, and
+          # default font mappings for generic families added (from conf.d/49-sansserif.conf
+          # and DejaVu font configs).
+          #
+          # The DOCTYPE line is intentionally omitted: fontconfig feeds the referenced
+          # external DTD ("urn:fontconfig:fonts.dtd") to expat as an external PARAMETER
+          # entity, which still triggers the not-yet-backported NULL-deref CVEs
+          # (CVE-2026-32776 / CVE-2026-32778) on expat 2.6.1 even when <include> is gone.
+          # This was observed as a SIGSEGV inside libexpat (called from libfontconfig)
+          # during Chromium browser-process font init, crashing Electron at startup.
+          # fontconfig does not require the DOCTYPE, so dropping it removes the last
+          # external-entity path. Remove the whole workaround once Ubuntu backports the
+          # remaining CVE fixes (expat >= 2.7.5).
           cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
           <?xml version="1.0"?>
-          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
           <fontconfig>
             <dir>/usr/share/fonts</dir>
             <dir>/usr/local/share/fonts</dir>
@@ -280,25 +280,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
 
-      - name: Build integration tests
+      - name: Compile extensions for integration tests & smoke tests
         run: |
           set -e
           npm run gulp \
@@ -320,34 +320,50 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: Compile Copilot extension
-        run: npm --prefix extensions/copilot run compile
-
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
           DISPLAY: ":10"
 
       - name: Compile smoke tests
+        if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
         run: npm run compile
 
-      - name: Compile extensions for smoke tests
-        run: npm run gulp compile-extension-media
+      - name: Compile Copilot Chat extension for smoke tests
+        if: ${{ inputs.smoke_tests }}
+        working-directory: extensions/copilot
+        run: npm run compile
+
+      # Remove the musl-libc Claude Code native binary so the bundled
+      # @anthropic-ai/claude-agent-sdk in extensions/copilot falls through to the
+      # glibc variant (or its bundled ./cli.js fallback). The musl binary is
+      # pulled in by the root devDependency @anthropic-ai/claude-agent-sdk@0.2.x,
+      # whose package metadata declares both "linux-x64" and "linux-x64-musl" as
+      # optionalDependencies with `os: ["linux"]` and no libc filter, so npm
+      # installs both variants on any Linux. The SDK probes the musl variant
+      # first; spawning a musl-linked ELF on the glibc-based GitHub Actions
+      # runner returns ENOENT (missing ELF interpreter), which causes Claude
+      # session smoke tests to time out. See
+      # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
+      # resolution order.
+      - name: Remove musl Claude binary on glibc Linux
+        if: ${{ inputs.smoke_tests }}
+        run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |
@@ -356,35 +372,35 @@ jobs:
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
+        if: ${{ inputs.smoke_tests && always() }}
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:
           DISPLAY: ":10"
 
       - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+        if: ${{ inputs.smoke_tests && always() }}
         run: |
           set -e
           ps -ef
           cat /proc/sys/fs/inotify/max_user_watches
           lsof | wc -l
         continue-on-error: true
-        if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7

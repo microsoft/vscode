@@ -194,6 +194,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -3636,6 +3637,48 @@ suite('PromptsService', () => {
 			assert.strictEqual(anotherSkillCommand.storage, PromptsStorage.local);
 		});
 
+		test('should deduplicate skills with the same name from symlinked locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'slash-commands-symlinked-skills';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// `npx skills` installs to `~/.agents/skills` and symlinks
+			// `~/.claude/skills` to it, so the same skill is discovered under two
+			// default user locations. They must collapse to a single slash command.
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/.agents/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+				{
+					path: '/home/user/.claude/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const deployCommands = slashCommands.filter(cmd => cmd.name === 'deploy');
+			assert.strictEqual(deployCommands.length, 1, 'Duplicated skill should appear only once as a slash command');
+		});
+
 		test('should include skills from user storage as slash commands', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
@@ -4427,6 +4470,55 @@ suite('PromptsService', () => {
 				'Frontmatter skill name should not appear as slash command');
 			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'run-ci'), undefined,
 				'Unprefixed skill name should not appear as slash command');
+
+			testPluginsObservable.set([], undefined);
+		});
+
+		test('plugin skill slash command prefix uses plugin label when install path is a pinned SHA', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const pluginUri = URI.file('/cache/agentPlugins/github/datadog/sha_b003fcad48c3a935ffe04b6218f5cf58fe2b6760');
+			const skillUri = URI.joinPath(pluginUri, 'skills', 'ddsetup', 'SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "ddsetup"',
+						'description: "Set up Datadog"',
+						'---',
+						'Datadog setup skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				label: 'datadog',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands
+				.filter(command => command.uri.toString() === skillUri.toString())
+				.map(command => ({ name: command.name, description: command.description, type: command.type, storage: command.storage })), [{
+					name: 'datadog:ddsetup',
+					description: 'Set up Datadog',
+					type: PromptsType.skill,
+					storage: PromptsStorage.plugin,
+				}]);
 
 			testPluginsObservable.set([], undefined);
 		});

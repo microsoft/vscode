@@ -17,8 +17,10 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -29,7 +31,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -86,6 +88,7 @@ export interface ICustomizationItemConfig {
 	readonly modelSection?: ItemsModelSection;
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
+	readonly isTools?: boolean;
 }
 
 /**
@@ -141,6 +144,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.Plugins,
 		isPlugins: true,
 	},
+	{
+		id: 'sessions.customization.tools',
+		label: localize('tools', "Tools"),
+		icon: toolsIcon,
+		section: AICustomizationManagementSection.Tools,
+		isTools: true,
+	},
 ];
 
 /**
@@ -161,6 +171,8 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -213,6 +225,11 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}
 		if (this._config.isPlugins) {
 			return this._itemsModel.getPluginCount().read(reader);
+		}
+		if (this._config.isTools) {
+			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+			const toolSets = this._toolsService.toolSets.read(reader);
+			return countEnabledCustomizationTools(toolSets, state, reader);
 		}
 		return 0;
 	}
@@ -286,9 +303,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
-					const sessionsManagementService = accessor.get(ISessionsManagementService);
+					const sessionsService = accessor.get(ISessionsService);
 					const configurationService = accessor.get(IConfigurationService);
-					const sessionResource = sessionsManagementService.activeSession.get()?.resource;
+					const sessionResource = sessionsService.activeSession.get()?.resource;
 					if (sessionResource) {
 						harnessService.setActiveSession(sessionResource);
 					}
@@ -353,13 +370,13 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
 
 	constructor(
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
-			const session = sessionsManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			if (!session) {
 				return;
 			}

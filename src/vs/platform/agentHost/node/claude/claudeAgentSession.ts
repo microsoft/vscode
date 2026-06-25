@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -16,20 +18,27 @@ import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
+import { toSdkModelId } from './claudeModelId.js';
+import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
-import { projectSessionCustomizations } from './customizations/claudeSessionCustomizationsProjector.js';
-import { ClaudeSdkCustomizationBundler } from './customizations/claudeSdkCustomizationBundler.js';
+import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
+import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
+import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
+import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
+import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
+import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
@@ -49,6 +58,13 @@ export interface IMaterializeContext {
 	readonly proxyHandle: IClaudeProxyHandle;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
+	/**
+	 * Agent host's server-tool host. When present, the session exposes the
+	 * agent host's server tools (feedback "comments" today, more in the future)
+	 * as an in-process MCP server and advertises them as server tools. Omitted
+	 * by providers that don't support server-side tools.
+	 */
+	readonly serverToolHost?: IAgentServerToolHost;
 }
 
 function resolveCurrentPermissionMode(
@@ -64,7 +80,7 @@ function resolveCurrentPermissionMode(
  *   • Per-session identity (sessionId / sessionUri / workingDirectory).
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
- *     mapped per-message signals plus `SessionTurnComplete` and
+ *     mapped per-message signals plus `ChatTurnComplete` and
  *     `steering_consumed`).
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
@@ -72,7 +88,6 @@ function resolveCurrentPermissionMode(
 export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
-	private _sdkBundler: ClaudeSdkCustomizationBundler | undefined;
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
@@ -147,9 +162,9 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Phase 7 / S3.2. User-input deferreds parked for interactive tools
-	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `SessionInputRequest.id`.
+	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `ChatInputRequest.id`.
 	 */
-	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>();
 
 	/**
 	 * Phase 10 — owns the workbench-registered client-tool snapshot
@@ -181,6 +196,54 @@ export class ClaudeAgentSession extends Disposable {
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
+	/**
+	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
+	 * turn, summed across every `/v1/messages` request the SDK made
+	 * (including subagents). Fed by {@link recordTurnCredits} from the
+	 * proxy's `onDidReportCredits`, reset at the start of each {@link send},
+	 * and attached to the turn's `ChatUsage` signal by
+	 * {@link _enrichSignalWithCredits}. Unlike the SDK's `total_cost_usd`
+	 * (an Anthropic-list-price estimate), this is what CAPI actually bills.
+	 */
+	private _currentTurnNanoAiu = 0;
+
+	/**
+	 * Accumulate proxy-reported billed credits for the in-flight turn.
+	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
+	 * routed to this session. Ignores non-positive / non-finite values.
+	 */
+	recordTurnCredits(totalNanoAiu: number): void {
+		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
+			this._currentTurnNanoAiu += totalNanoAiu;
+		}
+	}
+
+	/**
+	 * Inject the turn's accumulated Copilot credits into its `ChatUsage`
+	 * signal as `_meta.copilotUsage.totalNanoAiu` — the well-known key the
+	 * workbench prefers over `_meta.cost` when rendering per-turn credits.
+	 * All other signals pass through untouched.
+	 */
+	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+			return signal;
+		}
+		const usage = signal.action.usage;
+		return {
+			...signal,
+			action: {
+				...signal.action,
+				usage: {
+					...usage,
+					_meta: {
+						...usage._meta,
+						copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu },
+					},
+				},
+			},
+		};
+	}
+
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
@@ -199,6 +262,8 @@ export class ClaudeAgentSession extends Disposable {
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this.project = project;
@@ -208,6 +273,18 @@ export class ClaudeAgentSession extends Disposable {
 		this.abortController = abortController;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
+
+		// Watch the on-disk Claude customization sources so edits made outside
+		// the session (a new `~/.claude/agents/*.md`, an edited skill, a changed
+		// `.mcp.json`) drive a workbench re-fetch. Active from construction so
+		// it covers the provisional (pre-materialize) window too.
+		const customizationWatcher = this._register(new ClaudeCustomizationWatcher(
+			this.workingDirectory,
+			this._environmentService.userHome,
+			this._fileService,
+			this._logService,
+		));
+		this._register(customizationWatcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
 	}
 
 	/**
@@ -232,7 +309,8 @@ export class ClaudeAgentSession extends Disposable {
 		}
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
-		const mcpServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
+		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 
 		const options = await buildOptions(
 			{
@@ -244,8 +322,9 @@ export class ClaudeAgentSession extends Disposable {
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
 				mcpServers,
+				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
-				agent: this._resolveAgentName(this._provisionalAgent),
+				agent: agentName,
 			},
 			ctx.proxyHandle,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -272,30 +351,21 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
-				this.toolDiff.model.state.get().clientId,
+				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {
 			dbRef.dispose();
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
-		// On-disk Open Plugin bundle for SDK-discovered customizations.
-		// The bundle directory is content-addressed by the SDK snapshot
-		// hash and lives under the plugin manager's user-data tree;
-		// disposing the bundler does NOT delete the on-disk tree (kept
-		// as a warm cache across sessions on the same workingDirectory).
-		this._sdkBundler = this._register(this._instantiationService.createInstance(
-			ClaudeSdkCustomizationBundler,
-			this.workingDirectory,
-		));
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			this._provisionalModel?.id,
+			toSdkModelId(this._provisionalModel?.id),
 			clampEffortForRuntime(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -329,7 +399,8 @@ export class ClaudeAgentSession extends Disposable {
 		pipeline.attachRematerializer(async (_reason) => {
 			const liveMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 			try {
-				const rebuildMcp = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
+				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildAbort = new AbortController();
 				const rebuildOptions = await buildOptions(
 					{
@@ -341,8 +412,9 @@ export class ClaudeAgentSession extends Disposable {
 						canUseTool: ctx.canUseTool,
 						isResume: true,
 						mcpServers: rebuildMcp,
+						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
-						agent: this._resolveAgentName(this._provisionalAgent),
+						agent: rebuildAgentName,
 					},
 					ctx.proxyHandle,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -358,11 +430,55 @@ export class ClaudeAgentSession extends Disposable {
 			}
 		});
 
+		// Advertise the agent host's server tools on this session so the client
+		// sees them as server-provided. Execution happens in-process via the
+		// server-tool MCP server built in `_buildStartupToolWiring`.
+		ctx.serverToolHost?.advertise(this.sessionUri.toString());
+
 		// Surface the SDK-resolved customization tier to the workbench.
 		// Pre-materialize, getSessionCustomizations returns only the
 		// client-pushed slice; firing here prompts the workbench to refetch
 		// and pick up the bundled `Discovered in Claude` entry.
 		this._onDidCustomizationsChange.fire();
+	}
+
+	/**
+	 * Build the SDK tool wiring shared by the initial materialize and every
+	 * yield-restart rematerialize: the in-process MCP servers plus the
+	 * auto-approve allow-list.
+	 *
+	 * The MCP servers are the workbench client tools (which round-trip to the
+	 * workbench) plus, when a server-tool host is wired, the agent host's own
+	 * server tools (executed in-process). `mcpServers` is `undefined` when
+	 * neither is present so `Options.mcpServers` is omitted entirely and the
+	 * SDK keeps its default; `allowedTools` carries the SDK-prefixed server tool
+	 * names (so they auto-approve without prompting) and is `undefined` when no
+	 * server-tool host is wired.
+	 *
+	 * Keeping both in one place ensures the two startup paths can never drift,
+	 * and that a newly registered server tool is wired everywhere at once.
+	 */
+	private async _buildStartupToolWiring(
+		serverToolHost: IAgentServerToolHost | undefined,
+	): Promise<{ mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined; allowedTools: readonly string[] | undefined }> {
+		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+		const serverToolServer = serverToolHost
+			? await buildServerToolMcpServer(serverToolHost, this.sessionUri.toString(), this._sdkService)
+			: undefined;
+		const mcpServers = (!clientServers && !serverToolServer)
+			? undefined
+			: {
+				...(clientServers ?? {}),
+				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
+			};
+		// Exclude server tools that require user confirmation from the
+		// auto-approve allow-list so the SDK surfaces them via `canUseTool`
+		// (the host then renders a custom confirmation) instead of running them
+		// silently.
+		const autoApproveToolNames = serverToolHost
+			? serverToolHost.toolNames.filter(name => !serverToolHost.requiresConfirmation(name))
+			: undefined;
+		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -416,6 +532,9 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
+		// New turn: reset the per-turn credit accumulator so proxy reports
+		// for this turn's `/v1/messages` calls sum from zero.
+		this._currentTurnNanoAiu = 0;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
 		} else {
@@ -451,7 +570,7 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	abort(): void {
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._requirePipeline().abort();
 	}
 
@@ -478,10 +597,14 @@ export class ClaudeAgentSession extends Disposable {
 			if (requestedEffort === 'max') {
 				this._logService.warn(`[Claude:${this.sessionId}] setModel: 'max' effort clamped to 'xhigh' (Copilot CAPI has no 'max' model yet)`);
 			}
-			await this._pipeline.setModel(model.id);
-			if (runtimeEffort !== undefined) {
-				await this._pipeline.setEffort(runtimeEffort);
-			}
+			await this._pipeline.setModel(toSdkModelId(model.id));
+			// Always push the resolved effort, including `undefined`. Switching
+			// to a model that does not support reasoning effort (e.g. Haiku)
+			// resolves to `undefined`, which must actively CLEAR any effort the
+			// SDK is still applying from a prior effort-capable model — otherwise
+			// the next turn replays e.g. `'high'` onto Haiku and the API 400s
+			// (`output_config.effort ... does not support reasoning effort`).
+			await this._pipeline.setEffort(runtimeEffort);
 		}
 		await this._metadataStore.write(this.sessionUri, { model });
 	}
@@ -512,33 +635,6 @@ export class ClaudeAgentSession extends Disposable {
 			this.clientCustomizationsDiff.markDirty();
 		}
 		await this._metadataStore.write(this.sessionUri, { agent: agent ?? null });
-	}
-
-	/**
-	 * Resolve an {@link AgentSelection} URI to the SDK agent name the
-	 * SDK expects on `Options.agent`. Every custom agent the picker can
-	 * surface for a Claude session comes from the SDK side
-	 * ({@link ClaudeSdkCustomizationBundler} populates
-	 * `SessionCustomization.agents` from `Query.supportedAgents()`),
-	 * pointing at on-disk `.../agents/<name>.md` files we wrote
-	 * ourselves, so the name is the file basename.
-	 *
-	 * Returns `undefined` when no agent is selected (or the URI doesn't
-	 * resolve to a known agent file) so the SDK falls back to its default
-	 * (no `--agent` flag).
-	 */
-	private _resolveAgentName(agent: AgentSelection | undefined): string | undefined {
-		if (!agent) {
-			return undefined;
-		}
-		const uri = URI.parse(agent.uri);
-		const basename = uri.path.split('/').pop() ?? '';
-		const name = basename.replace(/\.md$/i, '');
-		if (!name) {
-			this._logService.warn(`[Claude:${this.sessionId}] _resolveAgentName: could not extract agent name from URI '${agent.uri}'`);
-			return undefined;
-		}
-		return name;
 	}
 
 	/**
@@ -614,20 +710,20 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Fire a {@link ActionType.SessionInputRequested} action and park on
+	 * Fire a {@link ActionType.ChatInputRequested} action and park on
 	 * a deferred until {@link respondToUserInputRequest} resolves it.
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
-	requestUserInput(request: SessionInputRequest, parentToolCallId?: string): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
+	requestUserInput(request: ChatInputRequest, parentToolCallId?: string): Promise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }> {
 		if (!this._pipeline || this._pipeline.isAborted) {
-			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
+			return Promise.resolve({ response: ChatInputResponseKind.Cancel });
 		}
 		return this._pendingUserInputs.registerAndFire(request.id, () => {
 			this._onDidSessionProgress.fire({
 				kind: 'action',
 				session: this.sessionUri,
 				action: {
-					type: ActionType.SessionInputRequested,
+					type: ActionType.ChatInputRequested,
 					request,
 				},
 				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
@@ -637,8 +733,8 @@ export class ClaudeAgentSession extends Disposable {
 
 	respondToUserInputRequest(
 		requestId: string,
-		response: SessionInputResponseKind,
-		answers?: Record<string, SessionInputAnswer>,
+		response: ChatInputResponseKind,
+		answers?: Record<string, ChatInputAnswer>,
 	): boolean {
 		return this._pendingUserInputs.respond(requestId, { response, answers });
 	}
@@ -647,19 +743,31 @@ export class ClaudeAgentSession extends Disposable {
 
 	// #region Phase 10 — client tools
 
-	/** Replace the registered client tools snapshot. */
-	setClientTools(tools: readonly ToolDefinition[], clientId?: string): void {
-		this.toolDiff.model.setTools(tools, clientId);
-		if (this._pipeline) {
-			this._pipeline.setClientId(this.toolDiff.model.state.get().clientId);
-		}
+	/** Replace a client's registered tools (full replacement). */
+	setClientTools(clientId: string, tools: readonly ToolDefinition[]): void {
+		this.toolDiff.model.setTools(clientId, tools);
+	}
+
+	/** This client's registered tools (empty when absent). */
+	getClientTools(clientId: string): readonly ToolDefinition[] {
+		return this.toolDiff.model.getTools(clientId);
+	}
+
+	/** Remove a client's tool contribution from this session. */
+	removeClientTools(clientId: string): void {
+		this.toolDiff.model.removeClient(clientId);
+	}
+
+	/** Remove a client's customization contribution from this session. */
+	removeClientCustomizations(clientId: string): void {
+		this.clientCustomizationsDiff.model.removeClient(clientId);
 	}
 
 	/**
 	 * Resolve a parked client-tool MCP handler with the workbench-supplied
 	 * result. Returns `true` if a matching deferred was found and settled.
 	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
-	 * `SessionToolCallComplete` envelope, so SDK-owned tool completions land
+	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
 	 * here too and must NOT throw.
 	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
@@ -709,8 +817,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * the resulting snapshot down here. Flips the client-side dirty bit
 	 * so the next {@link send} pre-flight reloads SDK plugins.
 	 */
-	adoptClientCustomizations(synced: readonly ISyncedCustomization[]): void {
-		this.clientCustomizationsDiff.model.setSyncedCustomizations(synced);
+	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
 	}
 
 	/** Toggle a **client-pushed** customization on/off for this session. */
@@ -742,23 +850,43 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
-		let bundled: Customization | undefined;
-		if (this._pipeline && this._sdkBundler) {
-			let sdk: ISdkResolvedCustomizations | undefined;
+		const userHome = this._environmentService.userHome;
+		const [discovered, rules, mcpServers, hooks, nativePlugins] = await Promise.all([
+			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
+			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
+			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
+			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+			scanClaudeNativePlugins(this.workingDirectory, userHome, this._fileService, this._logService),
+		]);
+
+		// Post-materialize, the live SDK snapshot filters the disk set down to
+		// what the session actually loaded (and surfaces SDK-only items as
+		// non-editable). Pre-materialize there is no Query, so the full disk
+		// set is shown. A transient SDK read failure leaves `sdk` undefined,
+		// falling back to the unfiltered disk set rather than blanking the UI.
+		let sdk: ISdkResolvedCustomizations | undefined;
+		if (this._pipeline) {
 			try {
 				sdk = await this._pipeline.snapshotResolvedCustomizations();
 			} catch (err) {
 				this._logService.warn(`[Claude:${this.sessionId}] snapshotResolvedCustomizations failed`, err);
 			}
-			if (sdk) {
-				try {
-					bundled = await this._sdkBundler.bundle(sdk);
-				} catch (err) {
-					this._logService.warn(`[Claude:${this.sessionId}] SDK bundle failed`, err);
-				}
-			}
 		}
-		return projectSessionCustomizations(synced, enablement, bundled);
+
+		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
+		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
+		// both agents and skills, so the SDK-vs-curated decision lives in one place.
+		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, nativePlugins, this.workingDirectory, userHome, sdk);
+
+		// Final projection: the client-pushed tier (with the per-id enablement
+		// overlay) first, then the discovered tier appended verbatim — the
+		// enablement map is deliberately NOT applied to discovered entries.
+		const result: Customization[] = synced.map(item => ({
+			...item.customization,
+			enabled: enablement.get(item.customization.id) ?? item.customization.enabled,
+		}));
+		result.push(...discoveredCustomizations);
+		return result;
 	}
 
 	// #endregion
@@ -767,7 +895,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Resolve parked deferreds before tearing the pipeline down so the
 		// SDK's canUseTool callback unwinds with a deny and the loop exits.
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._pendingClientToolCalls.rejectAll(new CancellationError());
 		super.dispose();
 	}

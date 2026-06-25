@@ -12,13 +12,13 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type SessionActiveClientChangedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -26,12 +26,30 @@ import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } f
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
 function isPingRequest(msg: ProtocolTransportMessage): msg is JsonRpcRequest & { method: 'ping' } {
 	return hasKey(msg, { method: true, id: true }) && msg.method === 'ping';
+}
+
+/**
+ * Locate the `dispatchAction` notification that forwards a particular root
+ * config key. The connect flow sends several `RootConfigChanged` notifications
+ * (telemetry, session sync, terminal auto-approve), so matching on the config
+ * key is more robust than indexing into `sentMessages` by position.
+ */
+function findRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
+	const match = messages.find((msg): msg is JsonRpcNotification => {
+		if (!hasKey(msg, { method: true }) || msg.method !== 'dispatchAction') {
+			return false;
+		}
+		const params = (msg as JsonRpcNotification).params as { action?: { type?: string; config?: Record<string, unknown> } } | undefined;
+		return params?.action?.type === ActionType.RootConfigChanged && !!params.action.config && configKey in params.action.config;
+	});
+	assert.ok(match, `Expected a RootConfigChanged notification carrying '${configKey}'`);
+	return match;
 }
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
@@ -68,6 +86,14 @@ class CloseOnDisposeProtocolTransport extends TestProtocolTransport {
 	override dispose(): void {
 		this.fireClose();
 		super.dispose();
+	}
+}
+
+class CountingLogService extends NullLogService {
+	warnCount = 0;
+
+	override warn(_message: string, ..._args: unknown[]): void {
+		this.warnCount++;
 	}
 }
 
@@ -122,8 +148,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), permissionService, new TestConfigurationService()));
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService()): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, logService, permissionService, new TestConfigurationService()));
 		return { client, transport };
 	}
 
@@ -167,6 +193,39 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.NotFound, message: 'Missing resource', data } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.NotFound, message: 'Missing resource', data });
+	});
+
+	test('does not warn for missing file resource reads', async () => {
+		const logService = new CountingLogService();
+		const { client, transport } = createClient(undefined, undefined, undefined, logService);
+		const resultPromise = client.resourceRead(URI.file('/workspace/src/missing.ts'));
+
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.NotFound, message: 'Content not found' } });
+
+		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.NotFound, message: 'Content not found' });
+		assert.strictEqual(logService.warnCount, 0);
+	});
+
+	test('warns for non-file resource read NotFound errors', async () => {
+		const logService = new CountingLogService();
+		const { client, transport } = createClient(undefined, undefined, undefined, logService);
+		const resultPromise = client.resourceRead(URI.parse('session-db:/missing'));
+
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.NotFound, message: 'Missing snapshot' } });
+
+		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.NotFound, message: 'Missing snapshot' });
+		assert.strictEqual(logService.warnCount, 1);
+	});
+
+	test('warns for non-read NotFound errors', async () => {
+		const logService = new CountingLogService();
+		const { client, transport } = createClient(undefined, undefined, undefined, logService);
+		const resultPromise = client.resourceResolve({ channel: ROOT_STATE_URI, uri: URI.file('/workspace/src/missing.ts').toString() });
+
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.NotFound, message: 'Missing resource' } });
+
+		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.NotFound, message: 'Missing resource' });
+		assert.strictEqual(logService.warnCount, 1);
 	});
 
 	test('ignores response for unknown request id', () => {
@@ -351,9 +410,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
 
 			// Late notification — must not fan out as an action event.
-			const lateAction: SessionActiveClientChangedAction = {
-				type: ActionType.SessionActiveClientChanged,
-				activeClient: null,
+			const lateAction: SessionActiveClientRemovedAction = {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'c1',
 			};
 			transport.fireMessage({
 				jsonrpc: '2.0',
@@ -425,6 +484,32 @@ suite('RemoteAgentHostProtocolClient', () => {
 				action: {
 					type: ActionType.RootConfigChanged,
 					config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE) },
+				},
+			},
+		});
+		const terminalAutoApproveEnabled = findRootConfigNotification(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey);
+		assert.deepStrictEqual(terminalAutoApproveEnabled, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
+				},
+			},
+		});
+		const globalAutoApproveEnabled = findRootConfigNotification(transport.sentMessages, AgentHostGlobalAutoApproveEnabledConfigKey);
+		assert.deepStrictEqual(globalAutoApproveEnabled, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: false },
 				},
 			},
 		});
@@ -651,13 +736,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 			return { service, calls };
 		}
 
-		test('SessionActiveClientChanged dispatches implicit reads for each customization', () => {
+		test('SessionActiveClientSet dispatches implicit reads for each customization', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -683,7 +768,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -705,8 +790,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
-			const action: SessionActiveClientChangedAction = {
-				type: ActionType.SessionActiveClientChanged,
+			const action: SessionActiveClientSetAction = {
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -722,14 +807,14 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.strictEqual(calls.length, 1);
 		});
 
-		test('null activeClient does not crash', () => {
+		test('active client removal does not crash', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
-				activeClient: null,
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'c1',
 			});
 
 			assert.strictEqual(calls.length, 0);

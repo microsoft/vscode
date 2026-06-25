@@ -21,7 +21,7 @@ import type { StringOrMarkdown, FileEdit, ErrorInfo } from '../common/state.js';
  *
  * @category Changesets
  */
-export interface ChangesetSummary {
+export interface Changeset {
 	/** Human-readable label, e.g. `"Uncommitted Changes"`. */
 	label: string;
 	/**
@@ -44,12 +44,26 @@ export interface ChangesetSummary {
 	uriTemplate: string;
 	/** Optional longer description. */
 	description?: string;
-	/** Aggregate line additions across the changeset, when known. */
-	additions?: number;
-	/** Aggregate line deletions across the changeset, when known. */
-	deletions?: number;
-	/** Number of files in the changeset, when known. */
-	files?: number;
+	/**
+	 * Advisory hint describing what kind of changeset this is, so clients can
+	 * group, sort, or render an appropriate icon without parsing
+	 * {@link uriTemplate}. Recognized values include:
+	 *
+	 * - `'session'`: a static, session-wide changeset covering all changes the
+	 *   agent has produced in this session.
+	 * - `'branch'`: changes relative to a base branch (e.g. a feature branch
+	 *   diffed against `main`).
+	 * - `'uncommitted'`: the workspace's current uncommitted changes.
+	 * - `'turn'`: changes produced by a single turn. Typically paired with a
+	 *   `{turnId}` variable in {@link uriTemplate}.
+	 * - `'compare-turns'`: a diff between two turns. Typically paired with
+	 *   `{originalTurnId}` and `{modifiedTurnId}` variables in
+	 *   {@link uriTemplate}.
+	 *
+	 * Implementations MAY provide additional values; clients SHOULD fall back
+	 * to a reasonable default when an unknown value is encountered.
+	 */
+	changeKind: string;
 }
 
 /**
@@ -140,6 +154,10 @@ export const enum ChangesetOperationStatus {
 	 * {@link ChangesetOperation.error}.
 	 */
 	Error = 'error',
+	/**
+	 * The operation is currently disabled and cannot be invoked.
+	 */
+	Disabled = 'disabled',
 }
 
 /**
@@ -186,6 +204,8 @@ export interface ChangesetOperation {
 	confirmation?: StringOrMarkdown;
 	/** Optional generic icon hint, e.g. `"check"`, `"trash"`. */
 	icon?: string;
+	/** Optional group identifier, used to group related operations together. */
+	group?: string;
 	/**
 	 * Current execution status. The server sets
 	 * {@link ChangesetOperationStatus.Running | Running} while an invocation
