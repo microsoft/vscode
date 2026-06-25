@@ -99,7 +99,7 @@ export class LayoutController extends BaseLayoutController {
 			if (editorMaximized) {
 				previousSessionResource = activeSessionResource;
 				previousIsCreated = isCreated;
-				this._viewsService.openView(CHANGES_VIEW_ID, false);
+				void this._viewsService.openView(CHANGES_VIEW_ID, false);
 				return;
 			}
 
@@ -245,7 +245,7 @@ export class LayoutController extends BaseLayoutController {
 				return;
 			}
 		}
-		this._viewsService.openView(CHANGES_VIEW_ID, false);
+		void this._viewsService.openView(CHANGES_VIEW_ID, false);
 	}
 
 	/**
