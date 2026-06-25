@@ -115,6 +115,7 @@ export class SpyingTelemetryService implements ITelemetryService {
 		};
 	}
 
+	/** Clears all captured telemetry events. Useful for isolating assertions across multiple test actions. */
 	public reset(): void {
 		this.telemetryServiceEvents.length = 0;
 		this.telemetrySenderEvents.length = 0;
