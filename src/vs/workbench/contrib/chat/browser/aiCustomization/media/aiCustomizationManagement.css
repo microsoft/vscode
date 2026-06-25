@@ -779,7 +779,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .tools-list-search-and-button-container {
@@ -874,10 +874,20 @@
 	outline-offset: -1px;
 }
 
+/* DomScrollableElement wrapper around the tool tree; takes remaining height for the overlay scrollbar. */
+.ai-customization-management-editor .tools-list-tree-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+/* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
 .ai-customization-management-editor .tools-list-tree {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	flex: 1;
 	gap: 2px;
 }
 
@@ -888,11 +898,21 @@
 	gap: 8px;
 	padding: 6px 12px;
 	border-radius: 4px;
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .tools-list-setrow:hover,
 .ai-customization-management-editor .tools-list-toolrow:hover {
 	background: var(--vscode-list-hoverBackground);
+}
+
+/* Match the other customization lists' focus indicator: :focus-within for the inner checkbox/chevron, :focus for a row click. */
+.ai-customization-management-editor .tools-list-setrow:focus,
+.ai-customization-management-editor .tools-list-setrow:focus-within,
+.ai-customization-management-editor .tools-list-toolrow:focus,
+.ai-customization-management-editor .tools-list-toolrow:focus-within {
+	outline: 1px solid var(--vscode-list-focusOutline);
+	background: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground));
 }
 
 .ai-customization-management-editor .tools-list-chevron {
@@ -909,12 +929,6 @@
 	margin-left: auto;
 }
 
-.ai-customization-management-editor .tools-list-chevron:focus {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-	border-radius: 4px;
-}
-
 /* Child tool row (indented under the tool set) */
 .ai-customization-management-editor .tools-list-children {
 	display: flex;
@@ -929,6 +943,7 @@
 	padding: 4px 12px 4px 40px;
 	border-radius: 4px;
 	cursor: pointer;
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .tools-list-toolrow.readonly {
