@@ -316,7 +316,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
-	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
+	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource (kept for the workbench lifetime so option lookups for the real session resolve to the untitled entry)
+	private readonly _realResources = new ResourceMap<URI>(); // untitled resource -> real resource (cleared when the session is disposed)
 
 	private readonly _customizationsProviders = new Map<string, IChatSessionCustomizationsProvider>();
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
@@ -1252,6 +1253,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
 		this._resourceAliases.set(realResource, untitledResource);
+	}
+
+	public setMaterializedSessionResource(untitledResource: URI, realResource: URI): void {
+		this._realResources.set(untitledResource, realResource);
+	}
+
+	public getMaterializedSessionResource(untitledResource: URI): URI | undefined {
+		return this._realResources.get(untitledResource);
+	}
+
+	public clearMaterializedSessionResource(sessionResource: URI): void {
+		// Drop the forward `untitled → real` mapping for the disposed session,
+		// whether it was passed the untitled key or the real value. The inverse
+		// `real → untitled` alias is intentionally left in place (see
+		// `registerSessionResourceAlias`), so this does not touch `_resourceAliases`.
+		this._realResources.delete(sessionResource);
+		const untitled = this._resourceAliases.get(sessionResource);
+		if (untitled) {
+			this._realResources.delete(untitled);
+		}
 	}
 
 	public fireSessionCommitted(original: URI, committed: URI): void {
