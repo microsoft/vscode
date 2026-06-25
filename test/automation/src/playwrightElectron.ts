@@ -115,7 +115,7 @@ function enrichLaunchError(error: unknown, options: LaunchOptions): Error {
 		`Inspect the crash dumps and the Playwright trace (https://trace.playwright.dev/) for details. Original error: ${original}`
 	);
 	if (error instanceof Error && error.stack) {
-		enriched.stack = error.stack;
+		enriched.stack = `${enriched.name}: ${enriched.message}\nCaused by: ${error.stack}`;
 	}
 	options.logger.log(`Playwright (Electron) ERROR: ${enriched.message}`);
 	return enriched;
