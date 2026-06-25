@@ -78,6 +78,7 @@ export {
 	type ToolCallPendingResultConfirmationState,
 	type ToolCallResponsePart,
 	type ToolCallResult,
+	type ToolCallStructuredContent,
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,

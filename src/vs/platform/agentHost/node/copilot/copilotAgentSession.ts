@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolExecutionCompleteContentTerminal, ToolExecutionCompleteData, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -38,7 +38,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolCallStructuredContent, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -401,6 +401,61 @@ class CopilotTurn {
 
 	markCompleted(): void { this._state = 'completed'; }
 	markAborted(): void { this._state = 'aborted'; }
+}
+
+function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): ToolExecutionCompleteContentTerminal | undefined {
+	const content = result?.contents?.find(content => content.type === 'terminal');
+	return content?.type === 'terminal' ? content : undefined;
+}
+
+// function getSdkTerminalExitCodeFromText(text: string): number | undefined {
+// 	const lastLine = text.trimEnd().split(/\r?\n/).at(-1)?.trim();
+// 	const match = lastLine?.match(/^<(?:shellId: \S+ completed|exited) with exit code (-?\d+)>$/);
+// 	return match ? Number(match[1]) : undefined;
+// }
+
+function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+	const terminalCommand = result?.structuredContent?.terminalCommand;
+	if (!isObject(terminalCommand)) {
+		return undefined;
+	}
+
+	const exitCode = Reflect.get(terminalCommand, 'exitCode');
+	const cwd = Reflect.get(terminalCommand, 'cwd');
+	if (typeof exitCode !== 'number' && typeof cwd !== 'string') {
+		return undefined;
+	}
+
+	return {
+		...(typeof exitCode === 'number' ? { exitCode } : {}),
+		...(typeof cwd === 'string' ? { cwd } : {}),
+	};
+}
+
+function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+	const terminalContent = getSdkTerminalContent(result);
+	const structuredTerminalCommand = getSdkStructuredTerminalCommand(result);
+	const exitCode = terminalContent?.exitCode ?? structuredTerminalCommand?.exitCode;
+	const cwd = terminalContent?.cwd ?? structuredTerminalCommand?.cwd;
+	if (exitCode === undefined && cwd === undefined) {
+		return undefined;
+	}
+
+	return {
+		...(exitCode !== undefined ? { exitCode } : {}),
+		...(cwd !== undefined ? { cwd } : {}),
+	};
+}
+
+function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent | undefined {
+	const terminalCommand = getSdkTerminalCommand(result);
+	if (!result?.structuredContent && !terminalCommand) {
+		return undefined;
+	}
+
+	return terminalCommand
+		? { ...(result?.structuredContent ?? {}), terminalCommand }
+		: result?.structuredContent;
 }
 
 /**
@@ -2516,7 +2571,12 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			const displayName = tracked.displayName;
-			const toolOutput = e.data.error?.message ?? e.data.result?.content;
+			const terminalContent = getSdkTerminalContent(e.data.result);
+			const toolOutput = e.data.error?.message ?? terminalContent?.text ?? e.data.result?.content;
+			const structuredContent = getSdkTerminalStructuredContent(e.data.result);
+			if (isShellTool(tracked.toolName)) {
+				this._logService.info(`[Copilot:${sessionId}] Shell tool terminal result API fields: toolCallId=${e.data.toolCallId}, terminalContentExitCode=${terminalContent?.exitCode ?? '<missing>'}, structuredTerminalCommand=${safeStringify(structuredContent?.terminalCommand)}, contents=${safeStringify(e.data.result?.contents)}, structuredContent=${safeStringify(e.data.result?.structuredContent)}, contentTail=${safeStringify(e.data.result?.content?.slice(-200))}`);
+			}
 
 			if (isTaskCompleteTool(tracked.toolName)) {
 				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
@@ -2588,6 +2648,7 @@ export class CopilotAgentSession extends Disposable {
 					success: e.data.success,
 					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success),
 					content: content.length > 0 ? content : undefined,
+					structuredContent,
 					error: e.data.error,
 				},
 				_meta: completeMeta ? toToolCallMeta(completeMeta) : undefined,

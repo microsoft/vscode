@@ -644,6 +644,21 @@ function getTerminalOutput(tc: ToolCallState) {
 	return { text: text.replace(/\r?\n/g, '\r\n') };
 }
 
+function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
+	const structuredContent = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.PendingResultConfirmation
+		? tc.structuredContent
+		: undefined;
+	const terminalCommand = structuredContent?.terminalCommand;
+	if (terminalCommand !== undefined) {
+		if (terminalCommand.exitCode !== undefined) {
+			return { exitCode: terminalCommand.exitCode };
+		}
+		return undefined;
+	}
+
+	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
+}
+
 function getTerminalLanguage(tc: ToolCallState) {
 	return tc.toolName === 'powershell' ? 'powershell' : 'shellscript';
 }
@@ -892,9 +907,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | undefined;
 	if (isTerminal) {
+		const terminalCommandState = getTerminalCommandState(tc, isSuccess);
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
-			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
+			...(terminalCommandState ? { terminalCommandState } : {}),
 		};
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
@@ -1420,10 +1436,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 
 	if (isTerminal && (isCompleted || isCancelled)) {
 		const existing = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
+		const terminalCommandState = getTerminalCommandState(tc, isCompleted && tc.success);
 		invocation.presentation = undefined;
 		invocation.toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, backendSession, existing),
-			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
+			...(terminalCommandState ? { terminalCommandState } : {}),
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);

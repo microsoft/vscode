@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallStatus, ToolResultContentType, type ResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -67,6 +67,97 @@ suite('mapSessionEvents — task_complete rendering', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
+	});
+
+	test('SDK terminal content maps to text output and structured command status', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'run bad command' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'bad_cmd' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'model-facing output',
+						contents: [{ type: 'terminal', text: 'bad_cmd: command not found', exitCode: 127, cwd: '/workspace' }],
+						structuredContent: { terminalCommand: { cwd: '/workspace' } },
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+
+		assert.ok(toolPart);
+		assert.strictEqual(toolPart.kind, ResponsePartKind.ToolCall);
+		assert.strictEqual(toolPart.toolCall.status, ToolCallStatus.Completed);
+		assert.deepStrictEqual(toolPart.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'bad_cmd: command not found' },
+		]);
+		assert.deepStrictEqual(toolPart.toolCall.structuredContent, {
+			terminalCommand: { cwd: '/workspace', exitCode: 127 },
+		});
+	});
+
+	test('SDK terminal content without exitCode preserves cwd but does not derive status from shell footer', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'run bad command' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'ecjo hi' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'model-facing output',
+						contents: [{ type: 'terminal', text: '/bin/bash: ecjo: command not found\n<shellId: 0 completed with exit code 127>', cwd: '/workspace' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+
+		assert.ok(toolPart);
+		assert.strictEqual(toolPart.kind, ResponsePartKind.ToolCall);
+		assert.strictEqual(toolPart.toolCall.status, ToolCallStatus.Completed);
+		assert.deepStrictEqual(toolPart.toolCall.structuredContent, {
+			terminalCommand: { cwd: '/workspace' },
+		});
+	});
+
+	test('SDK shell result content does not derive command status from shell footer', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'run bad command' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'ecjo hi' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: '/bin/bash: ecjo: command not found\n<shellId: 0 completed with exit code 127>',
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolPart = turns[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+
+		assert.ok(toolPart);
+		assert.strictEqual(toolPart.kind, ResponsePartKind.ToolCall);
+		assert.strictEqual(toolPart.toolCall.status, ToolCallStatus.Completed);
+		assert.deepStrictEqual(toolPart.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: '/bin/bash: ecjo: command not found\n<shellId: 0 completed with exit code 127>' },
+		]);
+		assert.strictEqual(toolPart.toolCall.structuredContent, undefined);
 	});
 });
 

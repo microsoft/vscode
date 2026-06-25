@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContentTerminal, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
-import { isString } from '../../../../base/common/types.js';
+import { isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolCallStructuredContent, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -24,6 +24,61 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): ToolExecutionCompleteContentTerminal | undefined {
+	const content = result?.contents?.find(content => content.type === 'terminal');
+	return content?.type === 'terminal' ? content : undefined;
+}
+
+// function getSdkTerminalExitCodeFromText(text: string): number | undefined {
+// 	const lastLine = text.trimEnd().split(/\r?\n/).at(-1)?.trim();
+// 	const match = lastLine?.match(/^<(?:shellId: \S+ completed|exited) with exit code (-?\d+)>$/);
+// 	return match ? Number(match[1]) : undefined;
+// }
+
+function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+	const terminalCommand = result?.structuredContent?.terminalCommand;
+	if (!isObject(terminalCommand)) {
+		return undefined;
+	}
+
+	const exitCode = Reflect.get(terminalCommand, 'exitCode');
+	const cwd = Reflect.get(terminalCommand, 'cwd');
+	if (typeof exitCode !== 'number' && typeof cwd !== 'string') {
+		return undefined;
+	}
+
+	return {
+		...(typeof exitCode === 'number' ? { exitCode } : {}),
+		...(typeof cwd === 'string' ? { cwd } : {}),
+	};
+}
+
+function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+	const terminalContent = getSdkTerminalContent(result);
+	const structuredTerminalCommand = getSdkStructuredTerminalCommand(result);
+	const exitCode = terminalContent?.exitCode ?? structuredTerminalCommand?.exitCode;
+	const cwd = terminalContent?.cwd ?? structuredTerminalCommand?.cwd;
+	if (exitCode === undefined && cwd === undefined) {
+		return undefined;
+	}
+
+	return {
+		...(exitCode !== undefined ? { exitCode } : {}),
+		...(cwd !== undefined ? { cwd } : {}),
+	};
+}
+
+function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent | undefined {
+	const terminalCommand = getSdkTerminalCommand(result);
+	if (!result?.structuredContent && !terminalCommand) {
+		return undefined;
+	}
+
+	return terminalCommand
+		? { ...(result?.structuredContent ?? {}), terminalCommand }
+		: result?.structuredContent;
 }
 
 /**
@@ -558,7 +613,8 @@ function makeCompletedToolCallPart(
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 ): ResponsePart {
-	const toolOutput = d.error?.message ?? d.result?.content;
+	const terminalContent = getSdkTerminalContent(d.result);
+	const toolOutput = d.error?.message ?? terminalContent?.text ?? d.result?.content;
 	const content: ToolResultContent[] = [];
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
@@ -611,6 +667,7 @@ function makeCompletedToolCallPart(
 		success: d.success,
 		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success),
 		content: content.length > 0 ? content : undefined,
+		structuredContent: getSdkTerminalStructuredContent(d.result),
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({

@@ -373,6 +373,64 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('built-in terminal tool in history uses structured command exit code', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'bash',
+						toolInput: 'bad_cmd',
+						_meta: { toolKind: 'terminal' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'bad_cmd: command not found' },
+						],
+						structuredContent: { terminalCommand: { exitCode: 127, cwd: '/workspace' } },
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode?: number }; terminalCommandUri?: URI };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'bad_cmd: command not found');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandUri, undefined, 'SDK terminal snapshot must not create an AHP terminal URI');
+		});
+
+		test('built-in terminal tool in history does not fabricate exit code when structured status is incomplete', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'bash',
+						toolInput: 'long_running_command',
+						_meta: { toolKind: 'terminal' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'still running' },
+						],
+						structuredContent: { terminalCommand: { cwd: '/workspace' } },
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			assert.strictEqual(termData.terminalCommandState, undefined);
+		});
+
 		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -852,6 +910,38 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
+		});
+
+		test('finalizes built-in terminal tool with structured non-zero exit code', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'bad_cmd',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				invocationMessage: 'Running `bad_cmd`',
+				toolInput: 'bad_cmd',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran `bad_cmd`',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'bad_cmd: command not found' },
+				],
+				structuredContent: { terminalCommand: { exitCode: 127, cwd: '/workspace' } },
+			});
+
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode?: number }; terminalCommandUri?: URI };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'bad_cmd: command not found');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandUri, undefined);
 		});
 
 		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
