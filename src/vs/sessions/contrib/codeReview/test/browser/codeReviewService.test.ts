@@ -258,23 +258,23 @@ suite('CodeReviewService', () => {
 		}
 	});
 
-	test('resolvePRReviewThread uses dedicated review threads model', async () => {
+	test('dismissPRReviewComment filters the comment from the loaded review state', async () => {
 		sessionsManagement.addSession(session);
 		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		gitHubService.reviewThreadsFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts'), makePRThread('thread-200', 'src/b.ts')];
 
-		await service.resolvePRReviewThread(session, 'thread-100');
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+		await gitHubService.getReviewThreadsModel('owner', 'repo', 1).refresh();
+		await tick();
 
-		assert.deepStrictEqual({
-			getPullRequestCalls: gitHubService.getPullRequestCalls,
-			getPullRequestReviewThreadsCalls: gitHubService.getPullRequestReviewThreadsCalls,
-			legacyResolveThreadCalls: gitHubService.legacyFetcher.resolveThreadCalls,
-			reviewResolveThreadCalls: gitHubService.reviewThreadsFetcher.resolveThreadCalls,
-		}, {
-			getPullRequestCalls: 0,
-			getPullRequestReviewThreadsCalls: 1,
-			legacyResolveThreadCalls: [],
-			reviewResolveThreadCalls: [{ threadId: 'thread-100' }],
-		});
+		service.dismissPRReviewComment(session, 'thread-100');
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(
+			state.kind === PRReviewStateKind.Loaded ? state.comments.map(c => c.id) : state.kind,
+			['thread-200'],
+		);
 	});
 });
 
