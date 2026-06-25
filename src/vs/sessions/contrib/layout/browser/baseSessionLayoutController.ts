@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -243,7 +243,7 @@ export abstract class BaseLayoutController extends Disposable {
 		let settledSync = true;
 		try {
 			const result = work();
-			if (result instanceof Promise) {
+			if (isThenable(result)) {
 				settledSync = false;
 				Promise.resolve(result).catch(() => undefined).finally(() => this._restoringSessionLayoutDepth--);
 			}

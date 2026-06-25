@@ -357,14 +357,17 @@ export class ChatContextUsageWidget extends Disposable {
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const outputBuffer = usage.outputBuffer;
 		const usedTokens = promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
-		// Remaining reserve = whatever the model reserved minus what completions
-		// have already consumed. Once completions exceed the reserve, it drops to 0.
-		const outputBufferPercentage = outputBuffer !== undefined
-			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
+		// The reserve band is a property of the model the user currently has
+		// selected (how much of its window is set aside for output), not of the
+		// past response, so it is derived from the selected model's max output
+		// tokens rather than `usage`. Remaining reserve = that reserve minus what
+		// completions have already consumed; once completions exceed it, it drops
+		// to 0.
+		const outputBufferPercentage = maxOutputTokens !== undefined
+			? (Math.max(0, maxOutputTokens - completionTokens) / totalContextWindow) * 100
 			: undefined;
 
 		this.render({

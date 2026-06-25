@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -291,6 +291,24 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this.subagentMessagesByKey.get(`${sessionId}::${agentId}`) ?? [];
 	}
 
+	/**
+	 * Phase 6.5: programmable fork. Tests capture the forwarded
+	 * `(sessionId, options)` and program the resulting new session id (or a
+	 * rejection). Defaults to a deterministic `forked-<source>` id so suites
+	 * that don't care about the exact value don't have to set it.
+	 */
+	forkSessionCalls: { sessionId: string; options: ForkSessionOptions | undefined }[] = [];
+	forkSessionResult: ForkSessionResult | undefined;
+	forkSessionRejection: Error | undefined;
+
+	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
+		this.forkSessionCalls.push({ sessionId, options });
+		if (this.forkSessionRejection) {
+			throw this.forkSessionRejection;
+		}
+		return this.forkSessionResult ?? { sessionId: `forked-${sessionId}` };
+	}
+
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.startupCallCount++;
 		this.capturedStartupOptions.push(params.options);
@@ -472,6 +490,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		this.recordedPermissionModes.push(mode);
 	}
 	async setModel(model?: string): Promise<void> { this.recordedModels.push(model); }
+	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
@@ -691,6 +710,20 @@ function createTestContext(
 /** Drains the microtask queue so awaited refresh writes settle. */
 function tick(): Promise<void> {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * A two-turn source transcript (`u1`/`a1`, `u2`/`a2`) used by the Phase 6.5
+ * fork tests. Forking at `u1` keeps `[u1]` inclusive, anchored on that turn's
+ * last assistant envelope `a1`.
+ */
+function forkSourceMessages(sourceId: string): SessionMessage[] {
+	return [
+		{ type: 'user', uuid: 'u1', session_id: sourceId, parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: 'apple' }] } },
+		{ type: 'assistant', uuid: 'a1', session_id: sourceId, parent_tool_use_id: null, message: { id: 'msg_a1', role: 'assistant', content: [{ type: 'text', text: 'apple!' }] } },
+		{ type: 'user', uuid: 'u2', session_id: sourceId, parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: 'banana' }] } },
+		{ type: 'assistant', uuid: 'a2', session_id: sourceId, parent_tool_use_id: null, message: { id: 'msg_a2', role: 'assistant', content: [{ type: 'text', text: 'banana!' }] } },
+	];
 }
 
 /**
@@ -1337,38 +1370,182 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('createSession({ fork }) throws TODO: Phase 6.5 with no side effects', async () => {
-		// Phase-6 update: fork is deferred to Phase 6.5 because Claude's
-		// `forkSession(sessionId, { upToMessageId })` takes a message UUID,
-		// not an event id, and the protocol-turn-ID → message-UUID
-		// translation needs `sdk.getSessionMessages` (also Phase 6.5).
-		// Locking the throw message here so a half-implementation can't
-		// land in Phase 6 without re-greening this case.
-		const { agent, sessionData, sdk } = createTestContext(disposables);
+	test('createSession({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
+		// Fork translates turnId u1 → its last-assistant uuid a1 (INCLUSIVE),
+		// returns non-provisional WITHOUT starting the Query; the first
+		// sendMessage resumes from disk (Options.resume) — see CONTEXT M9.
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
-		await assert.rejects(
-			agent.createSession({
-				fork: {
-					session: AgentSession.uri('claude', 'src-uuid'),
-					turnIndex: 0,
-					turnId: 'turn-1',
-				},
-			}),
-			/Phase 6\.5/,
-		);
+		const sourceId = 'src-uuid';
+		const sourceUri = AgentSession.uri('claude', sourceId);
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const events: IAgentMaterializeSessionEvent[] = [];
+		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+
+		const result = await agent.createSession({ fork: { session: sourceUri, turnIndex: 0, turnId: 'u1' } });
+		const newUri = AgentSession.uri('claude', 'forked-1');
+
+		// Snapshot fork-time state: file written, no Query, no materialize event.
+		const atForkTime = {
+			getMessagesCall: sdk.getSessionMessagesCalls[0],
+			forkCall: sdk.forkSessionCalls[0],
+			materializeCount: events.length,
+			startupCount: sdk.capturedStartupOptions.length,
+			resultSession: result.session.toString(),
+			resultCwd: result.workingDirectory?.fsPath,
+			provisional: result.provisional,
+		};
+
+		// First send resumes the forked file: the Query starts with `resume`.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(newUri, 'next', undefined, 'turn-1');
 
 		assert.deepStrictEqual({
-			openDatabaseCalls: sessionData.openDatabaseCallCount,
-			tryOpenDatabaseCalls: sessionData.tryOpenDatabaseCallCount,
-			startupCallCount: sdk.startupCallCount,
-			listSessionsCallCount: sdk.listSessionsCallCount,
+			atForkTime,
+			afterSend: {
+				materializeCount: events.length,
+				materializeUri: events[0]?.session.toString(),
+				startupResume: sdk.capturedStartupOptions[0]?.resume,
+				startupSessionId: sdk.capturedStartupOptions[0]?.sessionId,
+			},
 		}, {
-			openDatabaseCalls: 0,
-			tryOpenDatabaseCalls: 0,
-			startupCallCount: 0,
-			listSessionsCallCount: 0,
+			atForkTime: {
+				getMessagesCall: { sessionId: sourceId, options: { includeSystemMessages: true } },
+				forkCall: { sessionId: sourceId, options: { upToMessageId: 'a1' } },
+				materializeCount: 0,
+				startupCount: 0,
+				resultSession: newUri.toString(),
+				resultCwd: URI.file('/work').fsPath,
+				provisional: undefined,
+			},
+			afterSend: {
+				materializeCount: 1,
+				materializeUri: newUri.toString(),
+				startupResume: 'forked-1',
+				startupSessionId: undefined,
+			},
 		});
+	});
+
+	test('createSession({ fork }) at the last turn anchors on that turn\'s assistant', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		await agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 1, turnId: 'u2' } });
+
+		assert.deepStrictEqual(sdk.forkSessionCalls[0], { sessionId: sourceId, options: { upToMessageId: 'a2' } });
+	});
+
+	test('createSession({ fork }) inherits the source permissionMode overlay', async () => {
+		const { agent, sdk, instantiationService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		const sourceUri = AgentSession.uri('claude', sourceId);
+		// Seed the SOURCE overlay; the fork must copy it onto the new session
+		// so it reaches `Options.permissionMode` at materialize.
+		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+		await metaStore.write(sourceUri, { permissionMode: 'plan' });
+
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const result = await agent.createSession({ fork: { session: sourceUri, turnIndex: 0, turnId: 'u1' } });
+
+		// Fork defers the Query; materialize it via the first send. The resume
+		// path reads the inherited overlay into `Options.permissionMode`.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(result.session, 'hi', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.permissionMode, 'plan');
+	});
+
+	test('createSession({ fork }) with a create-config model override persists it on the fork', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const result = await agent.createSession({
+			fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' },
+			model: { id: 'claude-opus-4.6' },
+		});
+
+		const meta = await agent.getSessionMetadata(result.session);
+		assert.strictEqual(meta?.model?.id, 'claude-opus-4.6');
+	});
+
+	test('createSession({ fork }) rejects when the turnId is not in the transcript', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+
+		await assert.rejects(
+			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 9, turnId: 'no-such-turn' } }),
+			/not found in transcript/,
+		);
+		assert.strictEqual(sdk.forkSessionCalls.length, 0, 'no fork when the anchor cannot be resolved');
+	});
+
+	test('createSession({ fork }) rejects when the forked session has no working directory', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const sourceId = 'src-uuid';
+		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		// No `sessionList` entry → `getSessionInfo('forked-1')` resolves
+		// undefined (no cwd), and no `config.workingDirectory` is supplied.
+		// Fail fast here rather than at the first `sendMessage`.
+		await assert.rejects(
+			agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 0, turnId: 'u1' } }),
+			/no working directory/,
+		);
+	});
+
+	test('createSession({ fork }) rejects a subagent source with no SDK contact', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const subagentUri = URI.parse(buildSubagentSessionUri(AgentSession.uri('claude', 'parent').toString(), 'tool-call-1'));
+
+		await assert.rejects(
+			agent.createSession({ fork: { session: subagentUri, turnIndex: 0, turnId: 'u1' } }),
+			/subagent/,
+		);
+		assert.deepStrictEqual({
+			getMessages: sdk.getSessionMessagesCalls.length,
+			fork: sdk.forkSessionCalls.length,
+		}, { getMessages: 0, fork: 0 });
+	});
+
+	test('createSession({ fork }) rejects a provisional/never-sent source', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// A plain createSession is provisional until the first sendMessage.
+		const provisional = await agent.createSession({ workingDirectory: URI.file('/src') });
+
+		await assert.rejects(
+			agent.createSession({ fork: { session: provisional.session, turnIndex: 0, turnId: 'u1' } }),
+			/provisional/,
+		);
+		assert.strictEqual(sdk.forkSessionCalls.length, 0);
 	});
 
 	test('first sendMessage on a provisional session materializes it (single startup, single materialize event)', async () => {
@@ -3147,6 +3324,7 @@ suite('ClaudeAgent', () => {
 			getSessionMessages: async () => [],
 			listSubagents: async () => [],
 			getSubagentMessages: async () => [],
+			forkSession: async () => { throw new Error('not modeled'); },
 			createSdkMcpServer: () => { throw new Error('not modeled'); },
 			tool: () => { throw new Error('not modeled'); },
 		};
@@ -3198,6 +3376,7 @@ suite('ClaudeAgent', () => {
 				getCalls.push({ sessionId, agentId, options });
 				return [{ uuid: 'u1' } as unknown as SessionMessage];
 			},
+			forkSession: async () => { throw new Error('not modeled'); },
 			createSdkMcpServer: () => { throw new Error('not modeled'); },
 			tool: () => { throw new Error('not modeled'); },
 		};

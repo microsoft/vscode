@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
-import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -49,6 +49,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private readonly _connectionTracker: IConnectionTrackerService;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
+	private readonly _subscribedResources = new Map<string, number>();
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -161,6 +162,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
+			if (!isActionEnvelopeRelevantToSubscriptionUris(revived, this._subscribedResources.keys())) {
+				return;
+			}
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
 				this._ahpLogger.log(frame, 's2c');
@@ -281,10 +285,33 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._proxy.shutdown();
 	}
 	private subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource, this.clientId);
+		this._addSubscribedResource(resource);
+		return this._proxy.subscribe(resource, this.clientId).catch(err => {
+			this._removeSubscribedResource(resource);
+			throw err;
+		});
 	}
 	private unsubscribe(resource: URI): void {
+		this._removeSubscribedResource(resource);
 		this._proxy.unsubscribe(resource, this.clientId);
+	}
+
+	private _addSubscribedResource(resource: URI): void {
+		const key = resource.toString();
+		this._subscribedResources.set(key, (this._subscribedResources.get(key) ?? 0) + 1);
+	}
+
+	private _removeSubscribedResource(resource: URI): void {
+		const key = resource.toString();
+		const count = this._subscribedResources.get(key);
+		if (count === undefined) {
+			return;
+		}
+		if (count === 1) {
+			this._subscribedResources.delete(key);
+		} else {
+			this._subscribedResources.set(key, count - 1);
+		}
 	}
 	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
