@@ -512,20 +512,24 @@ export class ToolsListWidget extends Disposable {
 			DOM.append(text, $('span.tools-list-row-subtext')).textContent = detail;
 		}
 
-		this._rowStore.add(DOM.addDisposableListener(main, 'click', () => { row.focus(); toggleExpand(); }));
-
 		const count = DOM.append(row, $('span.tools-list-row-count'));
-		this._rowStore.add(DOM.addDisposableListener(count, 'click', () => { row.focus(); toggleExpand(); }));
 
 		const chevron = DOM.append(row, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('role', 'button');
 		chevron.setAttribute('tabindex', '0');
-		this._rowStore.add(DOM.addDisposableListener(chevron, 'click', e => { e.preventDefault(); toggleExpand(); }));
 		this._rowStore.add(DOM.addDisposableListener(chevron, 'keydown', e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				toggleExpand();
 			}
+		}));
+
+		this._rowStore.add(DOM.addDisposableListener(row, 'click', e => {
+			if (checkbox.domNode.contains(e.target as Node)) {
+				return;
+			}
+			row.focus();
+			toggleExpand();
 		}));
 
 		const group = DOM.append(this._treeContainer, $('.tools-list-children'));
