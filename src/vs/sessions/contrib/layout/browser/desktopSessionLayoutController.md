@@ -36,21 +36,21 @@ When you focus a session, its side pane is restored from the state remembered ab
 The side pane is restored in this order:
 
 - **D3a — No session / no workspace** → nothing changes.
-- **D3b — A new (untitled) session** → all new sessions share one remembered side-pane state. If you
+- **D3b — A new (uncreated) session** → all new sessions share one remembered side-pane state. If you
   explicitly closed the side pane it stays closed (across switches *and* reloads); otherwise it opens
-  to the default view (D3d). This is the **only** time the side pane opens on its own.
-- **D3c — An existing session** → the side pane is **never** opened automatically. If it was closed or
-  has no remembered state it stays closed; if it was open and that view still exists it reopens; if
-  that view is gone it falls back to the default view (D3d).
-- **D3d — Default view** → Changes when the session has file changes, otherwise Files.
+  to the default view (D3d). This is the normal time the side pane opens on its own.
+- **D3c — An existing (created) session** → the side pane is **never** opened automatically on
+  restore. If it was closed or has no remembered state it stays closed; if it was open and that view
+  still exists it reopens; if that view is gone it falls back to the default view (D3d).
+- **D3d — Default view** → Files while the session is uncreated; Changes after the session is created.
 
 ### Scenario: special cases that override the remembered state
 A few transitions intentionally ignore the remembered state above.
 
 #### D4 — Submitting a new session
-When a new session becomes a real session while staying active, the side pane stays as you left it: if
-it was open it stays open and switches to **Changes** so new changes are visible as soon as they land;
-if it was closed it stays closed.
+When a new session becomes created (`isCreated` changes from false to true) while staying active, the
+side pane stays as you left it: if it was open it stays open and switches to **Changes**; if it was
+closed it stays closed, but opening it later shows **Changes**.
 
 #### D5 — Maximizing the editor
 While the editor area is maximized, the side pane always shows **Changes**, regardless of the session's
@@ -62,8 +62,9 @@ forced Changes view never shrinks the editor permanently.
 A running session can produce new file changes at any time.
 
 #### D6 — New changes never open the side pane
-When a chat turn produces new file changes for an existing session, the side pane is **not** opened
-automatically — it stays as you left it. Only a new session opens it (D3b).
+When a chat turn produces new file changes, the side pane is **not** opened automatically and the
+active view is not switched automatically — it stays as you left it. Only a new session opens it
+(D3b), and only the created transition switches it to Changes (D4).
 
 ### Scenario: a cramped (small) window
 On a small window there isn't room for the sessions sidebar, the editor, and the side pane all at once.
@@ -94,19 +95,22 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   `_captureActiveSessionViewState`.
 - **Live tracking [D2]** — `onDidChangePartVisibility` listener for `AUXILIARYBAR_PART`, skipped while
   multiple sessions are visible or the editor is maximized; updates `_captureViewState` (titled) or
-  `_newSessionViewState` (untitled).
-- **Restore [D3]** — `_syncAuxiliaryBarVisibility(resource, hasWorkspace, isUntitled, hasChanges)`.
-  Untitled sessions (D3b) share `_newSessionViewState`, persisted under `sessions.newSessionViewState`.
-  `_openDefaultAuxiliaryBarContainer` / `_isAuxiliaryBarContainerPinned` implement D3c/D3d.
+  `_newSessionViewState` (uncreated). When a created session is revealed from hidden saved state, the
+  saved/default active container is restored before capture.
+- **Restore [D3]** — `_syncAuxiliaryBarVisibility(resource, hasWorkspace, isCreated)`.
+  Uncreated sessions (D3b) share `_newSessionViewState`, persisted under
+  `sessions.newSessionViewState`. `_openDefaultAuxiliaryBarContainer` /
+  `_isAuxiliaryBarContainerPinned` implement D3c/D3d.
 - **New-session submit [D4]** — `_onNewSessionSubmitted` keeps the aux bar as left, switches an open one
-  to Changes, and persists the resulting state so later syncs don't revert to the default.
+  to Changes, and records Changes as the active container even when hidden so opening the side pane
+  later starts on Changes.
 - **Editor maximized [D5]** — driven from the sync autorun via `editorMaximizedObs`
   (`IAgentWorkbenchLayoutService.isEditorMaximized()`); forced visibility is never captured (D2). The
   sessions workbench (`setEditorMaximized` in `browser/workbench.ts`) snapshots the editor part size +
   surrounding part visibility on maximize and restores them on un-maximize, so the editor returns to
   its previous width.
-- **No auto-reveal [D6]** — the sync logic never opens the side pane in response to changes for a titled
-  session; only D3b opens it.
+- **No auto-reveal [D6]** — the sync logic never opens the side pane or switches the active container
+  in response to file changes; only D3b opens it, and D4 switches it to Changes.
 - **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
   && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
   `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==

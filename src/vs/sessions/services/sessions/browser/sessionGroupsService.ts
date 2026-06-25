@@ -13,23 +13,17 @@ import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /**
  * A user-created group of sessions in the sessions list. Groups render like
- * section headers and can be reordered, renamed and deleted. Membership of a
- * session in a group is tracked separately (see {@link ISessionGroupsService}).
+ * section headers and can be reordered, renamed and deleted. Their order is
+ * owned by the section-order service and is fully user-managed; this type only
+ * carries identity, name and creation time. Membership of a session in a group
+ * is tracked separately (see {@link ISessionGroupsService}).
  */
 export interface ISessionGroup {
 	/** Stable identifier (uuid). */
 	readonly id: string;
 	/** User-provided display name. */
 	readonly name: string;
-	/**
-	 * Manual sort-key override applied when the user drags a group to reorder
-	 * it. `undefined` means the group falls back to its natural placement (the
-	 * best/highest sort key among its members). Expressed in the same numeric
-	 * space as session sort keys (timestamps) so groups interleave with the
-	 * date/workspace sections. Higher values sort higher in the list.
-	 */
-	readonly sortKeyOverride: number | undefined;
-	/** Creation timestamp (ms). Used to evict the oldest empty group. */
+	/** Creation timestamp (ms). Used to evict the oldest empty group and as the default order (newest first). */
 	readonly createdAt: number;
 }
 
@@ -88,12 +82,6 @@ export interface ISessionGroupsService {
 
 	/** The session ids that belong to the given group. */
 	getSessionIdsInGroup(groupId: string): string[];
-
-	/**
-	 * Persist a manual sort-key override for a group (or clear it with
-	 * `undefined`). Used when the user drags a group to reorder it.
-	 */
-	setGroupSortKey(groupId: string, sortKeyOverride: number | undefined): void;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
@@ -158,7 +146,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	createGroup(name: string, memberSessionIds?: Iterable<string>): ISessionGroup {
-		const group: ISessionGroup = { id: generateUuid(), name, sortKeyOverride: undefined, createdAt: Date.now() };
+		const group: ISessionGroup = { id: generateUuid(), name, createdAt: Date.now() };
 		this._groups.set(group.id, group);
 
 		const membershipChanged = new Set<string>();
@@ -233,16 +221,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return result;
 	}
 
-	setGroupSortKey(groupId: string, sortKeyOverride: number | undefined): void {
-		const group = this._groups.get(groupId);
-		if (!group || group.sortKeyOverride === sortKeyOverride) {
-			return;
-		}
-		this._groups.set(groupId, { ...group, sortKeyOverride });
-		this.save();
-		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
-	}
-
 	// -- Helpers --
 
 	private setMembership(sessionId: string, groupId: string, changed: Set<string>): void {
@@ -279,24 +257,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	/**
-	 * Sort groups for display as a stable baseline: groups with a manual
-	 * `sortKeyOverride` first (highest key first), then the rest by creation
-	 * time (newest first). The list view computes the final interleaved
-	 * placement using member sort keys; this baseline is used where member keys
-	 * are not available (e.g. the "Add to Group" menu fallback).
+	 * Sort groups for display as a stable baseline: newest first (by creation
+	 * time). The final user-managed order is applied by the section-order
+	 * service; this baseline is used where that order is not available.
 	 */
 	private sortGroups(groups: ISessionGroup[]): ISessionGroup[] {
-		return groups.sort((a, b) => {
-			const aHas = a.sortKeyOverride !== undefined;
-			const bHas = b.sortKeyOverride !== undefined;
-			if (aHas && bHas) {
-				return b.sortKeyOverride! - a.sortKeyOverride!;
-			}
-			if (aHas !== bHas) {
-				return aHas ? -1 : 1;
-			}
-			return b.createdAt - a.createdAt;
-		});
+		return groups.sort((a, b) => b.createdAt - a.createdAt);
 	}
 
 	// -- Storage --
@@ -314,7 +280,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 						this._groups.set(group.id, {
 							id: group.id,
 							name: group.name,
-							sortKeyOverride: typeof group.sortKeyOverride === 'number' ? group.sortKeyOverride : undefined,
 							createdAt: typeof group.createdAt === 'number' ? group.createdAt : Date.now(),
 						});
 					}
@@ -343,18 +308,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		};
 		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
-}
-
-/**
- * Best (highest) sort key among a group's currently-visible members, used to
- * place the group among the other top-level list items. Returns `undefined`
- * when the group has no visible members.
- */
-export function groupSortKey(memberKeys: readonly number[]): number | undefined {
-	if (memberKeys.length === 0) {
-		return undefined;
-	}
-	return Math.max(...memberKeys);
 }
 
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);
