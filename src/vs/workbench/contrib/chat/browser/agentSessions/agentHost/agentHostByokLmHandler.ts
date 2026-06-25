@@ -135,6 +135,18 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	}
 
 	private _toChatMessage(message: IByokLmChatMessage): IChatMessage {
+		// A tool-result message carries its payload solely in the `tool_result`
+		// part — the renderer/extension turns that into a wire `role: 'tool'`
+		// message on its own. Emit it and return early so the shared text branch
+		// below doesn't also inject a duplicate `role: 'user'` copy of the output.
+		// Tool messages that lack a `toolCallId` fall through to the plain text branch.
+		if (message.role === 'tool' && message.toolCallId) {
+			return {
+				role: ChatMessageRole.User,
+				content: [{ type: 'tool_result', toolCallId: message.toolCallId, value: [{ type: 'text', value: message.content }] }],
+			};
+		}
+
 		const content: IChatMessagePart[] = [];
 		if (message.content) {
 			content.push({ type: 'text', value: message.content });
@@ -149,16 +161,6 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					parameters: this._safeParseJson(call.argumentsJson),
 				});
 			}
-		}
-
-		if (message.role === 'tool' && message.toolCallId) {
-			content.push({
-				type: 'tool_result',
-				toolCallId: message.toolCallId,
-				value: [{ type: 'text', value: message.content }],
-			});
-			// Tool results ride on a user-role message in the LM API.
-			return { role: ChatMessageRole.User, content };
 		}
 
 		return { role: this._toChatRole(message.role), content };

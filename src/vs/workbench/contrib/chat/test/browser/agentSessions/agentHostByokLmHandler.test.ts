@@ -153,9 +153,26 @@ suite('AgentHostByokLmHandler', () => {
 			{ role: ChatMessageRole.System, content: [{ type: 'text', value: 'be helpful' }] },
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] },
 			{ role: ChatMessageRole.Assistant, content: [{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } }] },
-			// A `tool` message rides on a User-role message; its text is emitted both as a
-			// leading text part (shared `if (message.content)` branch) and inside the tool_result.
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'sunny' }, { type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
+			// A `tool` message (with a toolCallId) rides on a User-role message and carries its
+			// payload solely in the tool_result part — no duplicate leading text part.
+			{ role: ChatMessageRole.User, content: [{ type: 'tool_result', toolCallId: 't1', value: [{ type: 'text', value: 'sunny' }] }] },
+		]);
+	});
+
+	test('maps a tool message without a toolCallId to a plain user text part', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat(
+			{ vendor: 'acme', modelId: 'claude', messages: [{ role: 'tool', content: 'orphaned tool output' }] },
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual(service.captured?.messages, [
+			{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'orphaned tool output' }] },
 		]);
 	});
 
