@@ -828,6 +828,47 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('discardNewSession fires onDidDiscardNewSession with the discarded draft', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const discarded: string[] = [];
+		disposables.add(service.onDidDiscardNewSession(s => discarded.push(s.sessionId)));
+
+		// Establish a pending draft, then abandon it.
+		service.createNewSession(URI.parse('test:///folder'));
+		service.discardNewSession();
+
+		assert.deepStrictEqual(discarded, ['s1']);
+	});
+
+	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		let discardCount = 0;
+		disposables.add(service.onDidDiscardNewSession(() => discardCount++));
+
+		// Sending the composed draft graduates it into the list rather than
+		// discarding it, so the discard event must not fire.
+		const draft = service.createNewSession(URI.parse('test:///folder'));
+		await service.sendNewChatRequest(draft, { query: 'hi' });
+
+		assert.strictEqual(discardCount, 0);
+	});
+
 	test('getAllSessionTypes orders providers by their order property (lower first)', () => {
 		const service = createOrderedTypesService(disposables, 0, 1);
 		assert.deepStrictEqual(service.getAllSessionTypes().map(type => type.id), ['copilot', 'agent-host']);

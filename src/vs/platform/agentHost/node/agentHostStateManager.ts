@@ -535,6 +535,13 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] refusing to remove default chat: ${chatUri}`);
 			return;
 		}
+		// Drop the chat from its session's active-turn set before deleting its
+		// state. A peer chat can be removed while it still has an active turn;
+		// because active-turn tracking is driven by chat state transitions,
+		// deleting the ChatState here without this would strand the chat URI in
+		// the active set forever, keeping the session permanently "active"
+		// (activeSessions > 0) and leaving changeset operations disabled.
+		this._removeChatActiveTurn(session, chatUri);
 		this._chatStates.delete(chatUri);
 		this.dispatchServerAction(session, { type: ActionType.SessionChatRemoved, chat: chatUri });
 	}
@@ -1033,6 +1040,28 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Removes a single chat from its session's active-turn set, firing the
+	 * session-level active flip ({@link onDidChangeSessionActiveTurn} +
+	 * {@link ActionType.RootActiveSessionsChanged}) when this clears the
+	 * session's last active chat. Safe to call for chats that aren't currently
+	 * tracked as active — it is a no-op in that case. Used both when a turn
+	 * ends and when a chat is removed mid-turn, so the session can't be
+	 * stranded as permanently "active".
+	 */
+	private _removeChatActiveTurn(sessionKey: string, chatUri: string): void {
+		const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+		if (!activeChats || !activeChats.delete(chatUri)) {
+			return;
+		}
+
+		if (activeChats.size === 0) {
+			this._sessionsWithActiveTurn.delete(sessionKey);
+			this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: false });
+			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+		}
+	}
+
+	/**
 	 * Bridges a default-chat state transition back onto its owning session.
 	 *
 	 * The protocol moved turn lifecycle (and therefore the derived
@@ -1054,27 +1083,20 @@ export class AgentHostStateManager extends Disposable {
 		const hadActive = !!prev.activeTurn;
 		const hasActive = !!next.activeTurn;
 		if (hadActive !== hasActive) {
-			const wasSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
 			if (hasActive) {
 				let activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+				const wasSessionActive = !!activeChats?.size;
 				if (!activeChats) {
 					activeChats = new Set<string>();
 					this._sessionsWithActiveTurn.set(sessionKey, activeChats);
 				}
 				activeChats.add(chatUri);
-			} else {
-				const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
-				if (activeChats) {
-					activeChats.delete(chatUri);
-					if (activeChats.size === 0) {
-						this._sessionsWithActiveTurn.delete(sessionKey);
-					}
+				if (!wasSessionActive) {
+					this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: true });
+					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
-			}
-			const isSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
-			if (wasSessionActive !== isSessionActive) {
-				this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: isSessionActive });
-				this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+			} else {
+				this._removeChatActiveTurn(sessionKey, chatUri);
 			}
 		}
 

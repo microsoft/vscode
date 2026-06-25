@@ -218,6 +218,14 @@ export interface ISessionsManagementService {
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	/**
+	 * Fires when the in-progress new session is discarded via
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
+	 */
+	readonly onDidDiscardNewSession: Event<ISession>;
 
 	// -- New Session --
 

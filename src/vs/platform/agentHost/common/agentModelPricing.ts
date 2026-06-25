@@ -142,3 +142,20 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
 	});
 }
+
+/**
+ * Whether the model's long-context tier has any cost that differs from its default tier.
+ * Used to decide whether to show a context-size picker (surcharge → user opts in) or to
+ * silently use the full context window for free.
+ */
+export function hasLongContextSurcharge(billing: ICAPIModelBilling | undefined): boolean {
+	const tokenPrices = billing?.tokenPrices;
+	const longContext = tokenPrices?.longContext;
+	if (!longContext) {
+		return false;
+	}
+	return (longContext.inputPrice !== undefined && longContext.inputPrice !== tokenPrices?.inputPrice)
+		|| (longContext.outputPrice !== undefined && longContext.outputPrice !== tokenPrices?.outputPrice)
+		|| (longContext.cachePrice !== undefined && longContext.cachePrice !== tokenPrices?.cachePrice)
+		|| (longContext.cacheWritePrice !== undefined && longContext.cacheWritePrice !== tokenPrices?.cacheWritePrice);
+}

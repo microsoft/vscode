@@ -44,7 +44,7 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 
 ### How each ID is used
 
-- **`ISession.sessionType`** — The logical session type visible to the sessions framework. Controls session-type pickers, context keys (`activeSessionType`), and behavioral gating (e.g. `isActiveSessionBackgroundProvider`). Copilot agents share `copilotcli` so they behave consistently with local copilot sessions.
+- **`ISession.sessionType`** — The logical session type visible to the sessions framework. Controls session-type pickers, context keys (`sessionType`), and behavioral gating (e.g. `isActiveSessionBackgroundProvider`). Copilot agents share `copilotcli` so they behave consistently with local copilot sessions.
 
 - **`resource.scheme`** — The URI scheme of `ISession.resource` (e.g. `remote-myhost__3000-copilot:///abc123`). Routes `registerChatSessionContentProvider` calls to the correct `AgentHostSessionHandler` for each host. The provider's `getModels` filters available models by `session.resource.scheme` (not `session.sessionType`).
 
