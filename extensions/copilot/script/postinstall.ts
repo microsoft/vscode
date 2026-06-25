@@ -212,7 +212,9 @@ async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
 				if (fs.statSync(src).isFile()) {
 					const normalizedSrc = src.split(path.sep).join(path.posix.sep);
 					return src.endsWith('computer.node')
+						|| src.includes('opilot Computer Use.app')
 						|| src.endsWith('runtime.node')
+						|| src.endsWith('computer-use-mcp')
 						|| src.endsWith('cli-native.node')
 						// node-pty natives: pty.node (+ spawn-helper) on Unix,
 						// conpty.node and its companions on Windows. `endsWith('pty.node')`
