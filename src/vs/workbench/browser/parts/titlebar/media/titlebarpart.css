@@ -402,11 +402,14 @@
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	margin-right: auto;
-	min-width: 0;
-	overflow: hidden;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {
+	display: none;
+}
+
+/* Hidden when the title bar is too narrow to fit it without pushing the window controls off-screen (#303222). */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.overflowing {
 	display: none;
 }
 
