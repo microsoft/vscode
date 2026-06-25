@@ -640,9 +640,17 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
-			state.activeClient = config.activeClient;
+			state.activeClients = config.activeClient ? [config.activeClient] : [];
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
+			}
+
+			// Refine the forked session's placeholder `Forked: …` title into one
+			// derived from the inherited conversation. Forks seed pre-existing
+			// turns, so the normal first-message/first-turn title generation
+			// never fires for them — this is the fork-time equivalent.
+			if (sourceTurns.length > 0) {
+				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
 			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
@@ -654,7 +662,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
 			state.config = sessionConfig;
-			state.activeClient = config?.activeClient;
+			state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
 			}
@@ -708,11 +716,59 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider.createChat) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
 		}
+
+		// When forking, resolve the source chat's turns up to the fork point and
+		// mint fresh turn IDs for the new chat. The agent uses the mapping to
+		// remap per-turn data in the forked conversation; the seeded turns make
+		// the new chat surface the forked history immediately.
+		let forkedTurns: Turn[] | undefined;
+		let forkedTitle: string | undefined;
+		let forkedSourceTitle: string | undefined;
+		let createOptions = options;
+		if (options?.fork) {
+			const sourceKey = options.fork.source.toString();
+			const sourceState = this._stateManager.getChatState(sourceKey)
+				?? this._stateManager.getDefaultChatState(sourceKey);
+			const sourceTurns = sourceState?.turns ?? [];
+			const forkIndex = sourceTurns.findIndex(t => t.id === options.fork!.turnId);
+			if (forkIndex < 0) {
+				// The fork point is unknown, so a fork is indistinguishable from a
+				// fresh chat. Drop the fork to avoid the provider inheriting the
+				// whole backend conversation while the UI is seeded with no turns.
+				createOptions = { ...options, fork: undefined };
+			} else {
+				const slice = sourceTurns.slice(0, forkIndex + 1);
+				const turnIdMapping = new Map<string, string>();
+				for (const t of slice) {
+					turnIdMapping.set(t.id, generateUuid());
+				}
+				forkedTurns = slice.map(t => ({ ...t, id: turnIdMapping.get(t.id) ?? generateUuid() }));
+
+				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
+				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sessionKey)?.summary.title;
+				forkedTitle = forkedSourceTitle
+					? (forkedSourceTitle.startsWith(forkedTitlePrefix) ? forkedSourceTitle : `${forkedTitlePrefix}${forkedSourceTitle}`)
+					: localize('agentHost.forkedChatFallback', "Forked Chat");
+				createOptions = { ...options, fork: { ...options.fork, turnIdMapping } };
+			}
+		}
+
 		// Spin up the backing conversation in the harness first, then register
 		// the chat in the catalog so a `session/chatAdded` only reaches
 		// subscribers once the chat can actually receive messages.
-		await provider.createChat(session, chat, options);
-		this._stateManager.addChat(sessionKey, chat.toString(), options?.title !== undefined ? { title: options.title } : undefined);
+		await provider.createChat(session, chat, createOptions);
+		this._stateManager.addChat(sessionKey, chat.toString(), {
+			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
+			...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
+		});
+
+		// Refine the forked chat's placeholder `Forked: …` title into one
+		// derived from the inherited conversation. Forks seed pre-existing
+		// turns, so the normal first-message/first-turn title generation never
+		// fires for them — this is the fork-time equivalent.
+		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
+			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
+		}
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
