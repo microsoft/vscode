@@ -37,6 +37,7 @@ import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaud
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
+import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
@@ -350,7 +351,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
-				this.toolDiff.model.state.get().clientId,
+				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {
 			dbRef.dispose();
@@ -742,12 +743,24 @@ export class ClaudeAgentSession extends Disposable {
 
 	// #region Phase 10 — client tools
 
-	/** Replace the registered client tools snapshot. */
-	setClientTools(tools: readonly ToolDefinition[], clientId?: string): void {
-		this.toolDiff.model.setTools(tools, clientId);
-		if (this._pipeline) {
-			this._pipeline.setClientId(this.toolDiff.model.state.get().clientId);
-		}
+	/** Replace a client's registered tools (full replacement). */
+	setClientTools(clientId: string, tools: readonly ToolDefinition[]): void {
+		this.toolDiff.model.setTools(clientId, tools);
+	}
+
+	/** This client's registered tools (empty when absent). */
+	getClientTools(clientId: string): readonly ToolDefinition[] {
+		return this.toolDiff.model.getTools(clientId);
+	}
+
+	/** Remove a client's tool contribution from this session. */
+	removeClientTools(clientId: string): void {
+		this.toolDiff.model.removeClient(clientId);
+	}
+
+	/** Remove a client's customization contribution from this session. */
+	removeClientCustomizations(clientId: string): void {
+		this.clientCustomizationsDiff.model.removeClient(clientId);
 	}
 
 	/**
@@ -804,8 +817,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * the resulting snapshot down here. Flips the client-side dirty bit
 	 * so the next {@link send} pre-flight reloads SDK plugins.
 	 */
-	adoptClientCustomizations(synced: readonly ISyncedCustomization[]): void {
-		this.clientCustomizationsDiff.model.setSyncedCustomizations(synced);
+	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
 	}
 
 	/** Toggle a **client-pushed** customization on/off for this session. */
@@ -838,11 +851,12 @@ export class ClaudeAgentSession extends Disposable {
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
 		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
-		const [discovered, rules, mcpServers, hooks] = await Promise.all([
+		const [discovered, rules, mcpServers, hooks, nativePlugins] = await Promise.all([
 			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
 			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
 			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
 			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+			scanClaudeNativePlugins(this.workingDirectory, userHome, this._fileService, this._logService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to
@@ -862,7 +876,7 @@ export class ClaudeAgentSession extends Disposable {
 		// `buildDiscoveredCustomizations` also folds in the read-only "Built-in"
 		// surfacing (curated pre-materialize, SDK-derived post-materialize) for
 		// both agents and skills, so the SDK-vs-curated decision lives in one place.
-		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, this.workingDirectory, userHome, sdk);
+		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, nativePlugins, this.workingDirectory, userHome, sdk);
 
 		// Final projection: the client-pushed tier (with the per-id enablement
 		// overlay) first, then the discovered tier appended verbatim — the

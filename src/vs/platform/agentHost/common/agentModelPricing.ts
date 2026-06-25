@@ -83,3 +83,79 @@ export function createAgentModelPricingMeta(pricing: IAgentModelPricingMeta): Re
 	const entries = Object.entries(pricing).filter(([, value]) => value !== undefined);
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
+
+/**
+ * Runtime shape of the CAPI model billing payload. The published SDK types (`CCAModelBilling`, `ModelBilling`) don't
+ * yet declare `tokenPrices`, `priceCategory`, or `discountPercent`, but the `/models` endpoint already carries them.
+ * Both Copilot and Claude agents narrow through this interface at the read boundary.
+ *
+ * Remove individual fields as the SDK catches up (tracked at microsoft/vscode-capi#85).
+ */
+export interface ICAPIModelBilling {
+	readonly multiplier?: number;
+	/** Coarse price bucket surfaced as a tag in the model picker hover. */
+	readonly priceCategory?: string;
+	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
+	readonly discountPercent?: number;
+	readonly tokenPrices?: {
+		readonly contextMax?: number;
+		readonly inputPrice?: number;
+		readonly cachePrice?: number;
+		readonly cacheWritePrice?: number;
+		readonly outputPrice?: number;
+		readonly longContext?: {
+			readonly contextMax?: number;
+			readonly inputPrice?: number;
+			readonly cachePrice?: number;
+			readonly cacheWritePrice?: number;
+			readonly outputPrice?: number;
+		};
+	};
+}
+
+/**
+ * Converts a CAPI model's billing payload into an {@link IAgentModelPricingMeta} `_meta` bag. Long-context costs are
+ * only emitted when they differ from the default tier so the model picker can tell them apart.
+ *
+ * @param billing - The model's billing info, narrowed through {@link ICAPIModelBilling}.
+ * @param priceCategory - An optional override for the price category (e.g. from `modelPickerPriceCategory` on the
+ *   model object itself). Falls back to `billing.priceCategory` when not provided.
+ */
+export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefined, priceCategory?: string): Record<string, unknown> | undefined {
+	const tokenPrices = billing?.tokenPrices;
+	const longContext = tokenPrices?.longContext;
+
+	const differsFromDefault = (longValue: number | undefined, defaultValue: number | undefined): number | undefined =>
+		longValue !== undefined && longValue !== defaultValue ? longValue : undefined;
+
+	return createAgentModelPricingMeta({
+		multiplierNumeric: typeof billing?.multiplier === 'number' ? billing.multiplier : undefined,
+		inputCost: tokenPrices?.inputPrice,
+		cacheCost: tokenPrices?.cachePrice,
+		cacheWriteCost: tokenPrices?.cacheWritePrice,
+		outputCost: tokenPrices?.outputPrice,
+		longContextInputCost: differsFromDefault(longContext?.inputPrice, tokenPrices?.inputPrice),
+		longContextCacheCost: differsFromDefault(longContext?.cachePrice, tokenPrices?.cachePrice),
+		longContextCacheWriteCost: differsFromDefault(longContext?.cacheWritePrice, tokenPrices?.cacheWritePrice),
+		longContextOutputCost: differsFromDefault(longContext?.outputPrice, tokenPrices?.outputPrice),
+		priceCategory: priceCategory ?? (typeof billing?.priceCategory === 'string' ? billing.priceCategory : undefined),
+		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
+	});
+}
+
+/**
+ * Whether the model's long-context tier has any cost that differs from its default tier.
+ * Used to decide whether to show a context-size picker (surcharge → user opts in) or to
+ * silently use the full context window for free.
+ */
+export function hasLongContextSurcharge(billing: ICAPIModelBilling | undefined): boolean {
+	const tokenPrices = billing?.tokenPrices;
+	const longContext = tokenPrices?.longContext;
+	if (!longContext) {
+		return false;
+	}
+	return (longContext.inputPrice !== undefined && longContext.inputPrice !== tokenPrices?.inputPrice)
+		|| (longContext.outputPrice !== undefined && longContext.outputPrice !== tokenPrices?.outputPrice)
+		|| (longContext.cachePrice !== undefined && longContext.cachePrice !== tokenPrices?.cachePrice)
+		|| (longContext.cacheWritePrice !== undefined && longContext.cacheWritePrice !== tokenPrices?.cacheWritePrice);
+}
