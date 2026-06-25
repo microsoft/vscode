@@ -169,7 +169,9 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
 
 - **Outgoing session** (skip untitled): `_saveWorkingSet` snapshots the currently open editors as a
   named working set (`session-working-set:<resource>`); sessions with no visible editors store nothing.
-  It also records whether the editor part is currently hidden in `_editorPartHiddenBySession`.
+  It also records whether the editor part is currently hidden in `_editorPartHiddenBySession`, but only
+  while a single session is visible — in multi-session mode the editor area is shared, so its visibility
+  is not captured as a per-session choice.
 - **Incoming session**: `_applyWorkingSet` restores its saved working set (or `'empty'`). All
   applies are serialized through a `Sequencer`. When not in modal mode, the working set is
   non-empty, **and the session did not leave the editor part hidden**, the editor part is revealed

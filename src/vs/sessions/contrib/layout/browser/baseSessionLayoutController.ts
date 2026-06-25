@@ -572,8 +572,12 @@ export abstract class BaseLayoutController extends Disposable {
 		this._deleteWorkingSet(sessionResource);
 
 		// Remember the editor part's hidden state so restoring the session does
-		// not force it back open (see _applyWorkingSet).
-		this._editorPartHiddenBySession.set(sessionResource, !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
+		// not force it back open (see _applyWorkingSet). Skipped while multiple
+		// sessions are visible: the editor area is shared across them, so its
+		// visibility is not a per-session choice.
+		if (this._sessionsService.visibleSessions.get().length <= 1) {
+			this._editorPartHiddenBySession.set(sessionResource, !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
+		}
 
 		if (this._editorService.visibleEditors.length > 0) {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;
