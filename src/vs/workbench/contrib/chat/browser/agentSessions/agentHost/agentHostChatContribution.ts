@@ -229,6 +229,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			requiresCopilotSignIn: true,
 			agentHostProviderId: agent.provider,
 			supportsDelegation: true,
 			capabilities: {
