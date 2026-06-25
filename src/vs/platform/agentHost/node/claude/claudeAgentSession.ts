@@ -611,7 +611,10 @@ export class ClaudeAgentSession extends Disposable {
 			return;
 		}
 		await this._claudeProxyService.whenSettled(this.sessionId);
-		if (this._store.isDisposed) {
+		// Bail if disposed, or if a new turn has since started (it now owns the
+		// shared credit accumulator, so the running total no longer belongs to
+		// the cancelled turn).
+		if (this._store.isDisposed || this._currentTurnId !== turnId) {
 			return;
 		}
 		this._logService.trace(`[Claude:${this.sessionId}] abort: emitting final ${this._currentTurnNanoAiu} nano-AIU for turn ${turnId}`);
