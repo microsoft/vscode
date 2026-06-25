@@ -48,7 +48,7 @@
 }
 
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
-	color: var(--vscode-descriptionForeground) !important;
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label:not(.codicon) {
@@ -56,7 +56,7 @@
 }
 
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked) .action-label:not(.codicon) {
-	background-color: var(--vscode-descriptionForeground) !important;
+	background-color: var(--vscode-icon-foreground) !important;
 }
 
 /*
@@ -77,6 +77,8 @@
 	position: absolute;
 	z-index: 0;
 	top: 0;
+	bottom: 0;
+	margin: auto;
 	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
 	width: calc(var(--activity-bar-action-height, 48px) - 8px);
 	height: calc(var(--activity-bar-action-height, 48px) - 8px);

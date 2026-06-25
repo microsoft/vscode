@@ -60,6 +60,8 @@ import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandComp
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
+const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
  * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
@@ -428,10 +430,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
-			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-			hasRuntimeSlashCommand: async (sessionId, command) => this._sessions.get(sessionId)?.hasRuntimeSlashCommand(command) ?? false,
-		})));
+			getRuntimeSlashCommands: async (sessionId, options) => this._sessions.get(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+		}, RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. Both session sync (a client

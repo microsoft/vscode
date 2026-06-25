@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ResponsePartKind, SESSION_META_GITHUB_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -189,6 +189,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
 
+	/**
+	 * Sequences git state updates by session resource.
+	 */
+	private readonly _gitStateSequencer = new SequencerByKey<string>();
+
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
@@ -310,7 +315,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			onTurnComplete: session => {
 				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
-				this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
+				void this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
 			},
 		}));
 
@@ -701,7 +706,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 			// Lazily compute git state for sessions with a working directory;
 			// attaches under `state._meta.git` once ready.
-			this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+			void this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
 		}
 
 		return session;
@@ -831,7 +836,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 
 		// Attach git state for the working directory (if present)
-		this._attachGitState(e.session, e.workingDirectory);
+		void this._attachGitState(e.session, e.workingDirectory);
 
 		// Initialize the session's changesets from the catalogue
 		const changesets = buildDefaultChangesetCatalogue(sessionKey);
@@ -861,19 +866,40 @@ export class AgentService extends Disposable implements IAgentService {
 	 * entries' counts remain unset until a real compute lands, so chip
 	 * rendering naturally skips them in the meantime.
 	 */
-	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
-		const sessionKey = session.toString();
-		this._gitStateService.refreshSessionGitState(sessionKey, workingDirectory).then(
-			gitState => {
-				if (!gitState) {
+	private async _attachGitState(sessionOrChat: URI, workingDirectory: URI | undefined): Promise<void> {
+		const sessionKey = sessionOrChat.toString();
+
+		// If this is a chat channel, we don't need to attach git state since
+		// the git state is being attached when this method is called for the
+		// session resource.
+		if (isAhpChatChannel(sessionKey)) {
+			return;
+		}
+
+		return this._gitStateSequencer.queue(sessionKey, async () => {
+			try {
+				const gitState = await this._gitStateService.refreshSessionGitState(sessionKey, workingDirectory);
+
+				if (gitState === null) {
+					// No git repository — nothing to
+					// attach and no PR to look for.
 					return;
 				}
-				this._changesetCoordinator.onSessionGitStateChanged(sessionKey, gitState);
-			},
-			e => {
-				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
-			},
-		);
+
+				if (gitState) {
+					// Git state has changed
+					this._changesetCoordinator.onSessionGitStateChanged(sessionKey, gitState);
+				}
+
+				// The git state was just (re)computed — covers a cold first subscribe
+				// (via restore) as well as turn completion (via `onTurnComplete`). With
+				// the repository coordinates now known, check whether a pull request is
+				// already associated with the session's branch and persist it.
+				await this._gitStateService.attachSessionGitHubPullRequest(sessionKey);
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to compute git state for ${sessionOrChat}`, error);
+			}
+		});
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -1039,7 +1065,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionState = this._stateManager.getSessionState(resourceStr);
 			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
 				const wd = sessionState.summary?.workingDirectory;
-				this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
+				void this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
 			}
 
 			return snapshot;
@@ -1534,6 +1560,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let persistedConfigValues: Record<string, string> | undefined;
 		let changes: ChangesSummary | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
+		let summaryMetadata: Record<string, unknown> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -1546,6 +1573,7 @@ export class AgentService extends Disposable implements IAgentService {
 							isArchived: true,
 							isDone: true,
 							configValues: true,
+							[META_GITHUB_STATE]: true,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
 						if (m.customTitle) {
@@ -1566,6 +1594,15 @@ export class AgentService extends Disposable implements IAgentService {
 								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
+						if (m[META_GITHUB_STATE]) {
+							try {
+								const githubState = JSON.parse(m[META_GITHUB_STATE]);
+								summaryMetadata = { [SESSION_META_GITHUB_KEY]: githubState };
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
 						}
 
@@ -1601,11 +1638,19 @@ export class AgentService extends Disposable implements IAgentService {
 			status,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
-			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			...(meta.project ?
+				{
+					project: {
+						uri: meta.project.uri.toString(),
+						displayName: meta.project.displayName
+					}
+				}
+				: {}),
 			model: meta.model,
 			agent: meta.agent,
 			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
+			_meta: summaryMetadata
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
@@ -1688,7 +1733,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
-		this._attachGitState(session, meta.workingDirectory);
+		void this._attachGitState(session, meta.workingDirectory);
 	}
 
 	/**

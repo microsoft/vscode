@@ -357,6 +357,27 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Resolves a model's context-window dimensions, or `undefined` when it has no usable window. A meta-model such as
+	 * "auto" advertises a zero-sized window, so it resolves to `undefined` and the caller falls back to the model that
+	 * actually served the request (see issue #321781).
+	 */
+	private resolveContextWindow(modelId: string | undefined): { maxOutputTokens: number | undefined; totalContextWindow: number } | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata?.configurationSchema, modelMetadata?.maxInputTokens);
+		const maxOutputTokens = modelMetadata?.maxOutputTokens;
+		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		if (totalContextWindow <= 0) {
+			return undefined;
+		}
+		return { maxOutputTokens, totalContextWindow };
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
 
@@ -364,23 +385,18 @@ export class ChatContextUsageWidget extends Disposable {
 		// usage reports the actual model that served the request.
 		const effectiveModelId = usage?.actualModelId ?? modelId;
 
-		// The denominator (context window) follows the currently selected model so
-		// switching models updates the widget immediately; the numerator (usage)
-		// still comes from the last response.
-		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
-		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
-		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata?.configurationSchema, modelMetadata?.maxInputTokens);
-		const maxOutputTokens = modelMetadata?.maxOutputTokens;
-
-		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
-		if (!usage || totalContextWindow <= 0) {
+		// The denominator (context window) follows the currently selected model so switching models updates the widget
+		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
+		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
+		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
+		if (!usage || !contextWindow) {
 			if (!this.currentData) {
 				this.hide();
 			}
 			return;
 		}
+
+		const { maxOutputTokens, totalContextWindow } = contextWindow;
 
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
