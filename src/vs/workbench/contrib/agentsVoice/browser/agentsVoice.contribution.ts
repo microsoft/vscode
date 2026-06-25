@@ -449,7 +449,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.sendKeyword': {
 			type: 'string',
-			description: nls.localize('agents.voice.sendKeyword', "A keyword phrase (e.g. \"send it\") that, when spoken at the end of an utterance, triggers sending the request. Only applies when agents.voice.autoSendDelay is -1. The keyword is stripped from the sent message. Leave empty to disable."),
+			description: nls.localize('agents.voice.sendKeyword', "A keyword phrase (e.g. \"send it\") that, when spoken at the end of an utterance in toggle mode, triggers sending the request immediately. The keyword is stripped from the sent message. Leave empty to disable."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
