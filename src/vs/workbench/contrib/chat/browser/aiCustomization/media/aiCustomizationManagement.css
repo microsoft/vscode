@@ -1147,6 +1147,13 @@
 	min-width: 0;
 }
 
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-heading {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-message {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-body1);

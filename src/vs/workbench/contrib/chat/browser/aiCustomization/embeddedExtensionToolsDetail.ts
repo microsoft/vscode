@@ -29,6 +29,7 @@ export class EmbeddedExtensionToolsDetail extends Disposable {
 	private readonly nameEl: HTMLElement;
 	private readonly publisherEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
+	private readonly toolsHeadingEl: HTMLElement;
 	private readonly toolsListEl: HTMLElement;
 	private readonly toolsMessageEl: HTMLElement;
 	private readonly emptyEl: HTMLElement;
@@ -55,6 +56,9 @@ export class EmbeddedExtensionToolsDetail extends Disposable {
 		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
 
 		const toolsEl = DOM.append(this.root, $('.embedded-detail-tools'));
+		this.toolsHeadingEl = DOM.append(toolsEl, $('h3.embedded-detail-tools-heading'));
+		this.toolsHeadingEl.setAttribute('role', 'heading');
+		this.toolsHeadingEl.textContent = localize('toolDetailIncludedTools', "Included Tools");
 		this.toolsMessageEl = DOM.append(toolsEl, $('.embedded-detail-tools-message'));
 		this.toolsListEl = DOM.append(toolsEl, $('.embedded-detail-tools-list'));
 		this.toolsListEl.setAttribute('role', 'list');
@@ -97,6 +101,7 @@ export class EmbeddedExtensionToolsDetail extends Disposable {
 		const hasItem = !!extension;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.toolsHeadingEl.style.display = hasItem ? '' : 'none';
 		if (!extension) {
 			this.nameEl.textContent = '';
 			this.publisherEl.textContent = '';
