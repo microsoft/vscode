@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@github/copilot": "^1.0.65",
-    "@github/copilot-sdk": "^1.0.3",
+    "@github/copilot-sdk": "^1.0.4",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/mxc-sdk": "0.6.0",
