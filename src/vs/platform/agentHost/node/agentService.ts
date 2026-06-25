@@ -1610,27 +1610,30 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
 		// so the client's per-subagent subscriptions resolve from in-memory
 		// state (hitting `restoreSubagent skipped existing`) instead of each
 		// re-fetching and re-reconstructing the full parent event log. The
 		// agent serves these from the same reconstruction it already produced
 		// for the parent turns above, so this adds no extra event-log reads.
-		if (agent.getSubagentSessions) {
-			try {
-				const children = await agent.getSubagentSessions(session);
-				for (const child of children) {
-					this._registerRestoredSubagent(child, summary);
+		promises.push((async () => {
+			if (agent.getSubagentSessions) {
+				try {
+					const children = await agent.getSubagentSessions(session);
+					for (const child of children) {
+						this._registerRestoredSubagent(child, summary);
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] restoreSession failed to eagerly register subagents session=${sessionStr}`, err);
 				}
-			} catch (err) {
-				this._logService.warn(`[AgentService] restoreSession failed to eagerly register subagents session=${sessionStr}`, err);
 			}
-		}
+		})());
 
 		// Restore any additional (non-default) peer chats the provider has
 		// persisted for this session, seeding each with its own history and
 		// persisted title so they reappear after a process restart.
-		await this._restorePeerChats(agent, session);
+		promises.push(this._restorePeerChats(agent, session));
 
 		const changesets = buildDefaultChangesetCatalogue(sessionStr);
 		this._stateManager.setSessionChangesets(sessionStr, changesets);
@@ -1669,6 +1672,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return undefined;
 				})
 				: Promise.resolve(undefined),
+			...promises
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
@@ -1708,16 +1712,18 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats.length === 0) {
 			return;
 		}
-		for (const chatUri of chats) {
-			let turns: readonly Turn[] = [];
-			try {
-				turns = await agent.getSessionMessages(chatUri);
-			} catch (err) {
-				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
+		await Promise.all(chats.map(async (chatUri) => {
+			for (const chatUri of chats) {
+				let turns: readonly Turn[] = [];
+				try {
+					turns = await agent.getSessionMessages(chatUri);
+				} catch (err) {
+					this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
+				}
+				const title = await this._readPersistedChatTitle(session, chatUri);
+				this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
 			}
-			const title = await this._readPersistedChatTitle(session, chatUri);
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
-		}
+		}));
 	}
 
 	/** Reads a peer chat's persisted custom title, if any. */
