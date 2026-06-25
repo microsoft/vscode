@@ -103,6 +103,38 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'low' });
 	});
 
+	test('a config write from another editor does not clobber an open editor via the model-change event', () => {
+		// `setModelConfiguration` mirrors to the global service, which re-emits
+		// `onDidChangeLanguageModels` to EVERY store sharing the service. An
+		// already-open editor must keep its own in-memory snapshot rather than
+		// adopt the writer's bucket value when that event fires.
+		const storage = store.add(new InMemoryStorageService());
+		const emitter = store.add(new Emitter<string>());
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: schema } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+
+		const editorA = store.add(new ChatModelConfigurationStore(() => KEY, service, storage));
+		const editorB = store.add(new ChatModelConfigurationStore(() => KEY, service, storage));
+
+		// Editor A captures 'high'; editor B reads it then picks 'low'.
+		editorA.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+		editorB.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+
+		// The mirrored global write re-emits the model-change event to all stores.
+		emitter.fire('copilot');
+
+		// Each editor keeps its own snapshot; neither adopts the other's value.
+		assert.deepStrictEqual(
+			{ a: editorA.getModelConfiguration(MODEL), b: editorB.getModelConfiguration(MODEL) },
+			{ a: { thinkingEffort: 'high' }, b: { thinkingEffort: 'low' } },
+		);
+	});
+
 	test('explicit reset-to-default does not revert to a stale global value (issue #320393)', () => {
 		const storage = store.add(new InMemoryStorageService());
 		// Profile-global is a non-default 'high'.
@@ -312,6 +344,114 @@ suite('ChatModelConfigurationStore', () => {
 			{ fired, configuration: editor.getModelConfiguration(MODEL) },
 			{ fired: [MODEL], configuration: { thinkingEffort: 'high', contextSize: 200_000 } }
 		);
+	});
+
+	// A stub service registering a multi-property schema (thinkingEffort +
+	// contextSize), so tests can exercise interactions between several config
+	// keys that the single-key stubs miss.
+	function createMultiKeyService(): ILanguageModelsService {
+		return {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+	}
+
+	test('changing one config key preserves the other key and its default (multi-key independence)', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createMultiKeyService());
+
+		// Choosing a non-default contextSize must not drop the thinkingEffort default.
+		editor.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 1_000_000 });
+
+		// Choosing a non-default thinkingEffort must not drop the chosen contextSize.
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high', contextSize: 1_000_000 });
+	});
+
+	test('a non-default contextSize round-trips to a new editor and reselecting the default clears it', () => {
+		const storage = store.add(new InMemoryStorageService());
+
+		const editorA = createStore(storage, createMultiKeyService());
+		editorA.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
+
+		// A newly opened editor inherits the persisted full-window choice, with the
+		// thinkingEffort default filled in.
+		const editorB = createStore(storage, createMultiKeyService());
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 1_000_000 });
+
+		// Reselecting the default 200K clears the override (empty marker persisted),
+		// so a later editor resolves cleanly to the default tier rather than getting
+		// "stuck" on the previously chosen full window.
+		editorB.setModelConfiguration(MODEL, { contextSize: 200_000 });
+		const editorC = createStore(storage, createMultiKeyService());
+		assert.deepStrictEqual(editorC.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 200_000 });
+	});
+
+	test('healing does not reset a user-chosen full-window contextSize back to the default', () => {
+		// The mirror image of the 200K regression: a user who explicitly picked the
+		// full 1M window must NOT have it silently reset to the default tier when the
+		// schema finishes loading and defaults are merged in.
+		const storage = store.add(new InMemoryStorageService());
+		storage.store(KEY, JSON.stringify({ [MODEL]: { contextSize: 1_000_000 } }), StorageScope.APPLICATION, StorageTarget.USER);
+
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata) : undefined,
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { contextSize: 1_000_000 });
+
+		registered = true;
+		emitter.fire('copilot');
+
+		// The explicit full-window choice survives; only the absent thinkingEffort
+		// default is filled in.
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 1_000_000 });
+	});
+
+	test('restoreModelConfiguration does not write the profile-global value', () => {
+		// Restoring a reopened session is not an intentional reconfiguration and
+		// runs on every input-state sync, so it must seed only the editor-scoped
+		// snapshot and never mirror to the profile-global value.
+		const storage = store.add(new InMemoryStorageService());
+		const controls = createControllableService();
+		const editor = createStore(storage, controls.service);
+
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+		assert.strictEqual(controls.setConfigCalls.length, 0);
+	});
+
+	test('a per-scope storage key change segregates buckets (issue #320393)', () => {
+		// The owner can swap the storage key when the editor's scope (e.g. session
+		// type) changes. After `clear()` the next read must resolve from the new
+		// key's bucket, not leak the previous scope's value.
+		const storage = store.add(new InMemoryStorageService());
+		let key = 'chat.modelConfiguration.scopeA';
+		const service = createStubService();
+		const editor = store.add(new ChatModelConfigurationStore(() => key, service, storage));
+
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		// Switch scope: a different key with no entry must resolve to the default,
+		// and switching back must restore scope A's value.
+		key = 'chat.modelConfiguration.scopeB';
+		editor.clear();
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
+
+		key = 'chat.modelConfiguration.scopeA';
+		editor.clear();
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 	});
 
 	test('reload: an empty pre-config-load snapshot resolves to the default contextSize once the schema loads', () => {

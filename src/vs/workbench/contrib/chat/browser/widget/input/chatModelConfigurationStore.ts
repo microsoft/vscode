@@ -42,21 +42,30 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 		// Model providers register asynchronously, so a snapshot can be seeded before
 		// schema defaults (for example the default contextSize) are available. When
-		// models change, merge newly available defaults into existing snapshots while
-		// preserving editor-scoped or already-captured values.
+		// models change, heal those pre-config-load snapshots while preserving every
+		// editor's own captured value.
+		//
+		// This event ALSO fires for global model-configuration writes (e.g. another
+		// editor calling `setModelConfiguration`, which mirrors to the global service
+		// and re-emits this event — see languageModels.ts). So we must NOT re-read
+		// the shared bucket into a snapshot that already holds a captured value, or an
+		// open editor would silently adopt a different editor's choice, breaking the
+		// per-editor isolation contract documented on this class. Two cases:
+		//   - Empty snapshot: a pre-config-load artifact with no captured value, so
+		//     re-resolve it from the now-available bucket/global/schema.
+		//   - Non-empty snapshot: this editor's captured value. Only fill in
+		//     newly-available schema defaults for keys it does not already set; the
+		//     existing override always wins and the bucket is never re-read.
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._overrides.size === 0) {
 				return;
 			}
 			const bucket = this._readBucket();
 			for (const [modelId, override] of [...this._overrides]) {
-				const bucketEntry = bucket[modelId];
 				const schemaDefaults = this._schemaDefaults(modelId);
-				const nextOverride = bucketEntry !== undefined
-					? { ...schemaDefaults, ...bucketEntry }
-					: Object.keys(override).length === 0
-						? resolveModelConfiguration(undefined, schemaDefaults, this.languageModelsService.getModelConfiguration(modelId))
-						: { ...schemaDefaults, ...override };
+				const nextOverride = Object.keys(override).length === 0
+					? resolveModelConfiguration(bucket[modelId], schemaDefaults, this.languageModelsService.getModelConfiguration(modelId))
+					: { ...schemaDefaults, ...override };
 				if (!equals(override, nextOverride)) {
 					this._overrides.set(modelId, nextOverride);
 					this._onDidChange.fire(modelId);
