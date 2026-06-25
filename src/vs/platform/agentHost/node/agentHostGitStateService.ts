@@ -49,7 +49,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 
 		// Git state
 		const gitState = readSessionGitState(state._meta);
-		if (!gitState?.branchName) {
+		if (!gitState?.branchName || (gitState.branchName === gitState.baseBranchName)) {
 			return;
 		}
 
