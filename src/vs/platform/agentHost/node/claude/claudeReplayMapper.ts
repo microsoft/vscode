@@ -112,7 +112,7 @@ interface AssistantBlock { readonly type: string; readonly text?: string; readon
 type ParsedSessionMessage =
 	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string }
 	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[] }
-	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[] }
+	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean }
 	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string };
 
 function parseSessionMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
@@ -150,7 +150,11 @@ function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | unde
 	if (blocks === undefined || blocks.length === 0) {
 		return undefined;
 	}
-	return { kind: 'assistant', uuid: msg.uuid, blocks };
+	// Subagent transcripts (from `getSubagentMessages`) carry a
+	// `parent_tool_use_id` on every envelope and have no synthetic spawning
+	// user prompt, so they legitimately open with an assistant message —
+	// `isInner` lets the builder synthesize a turn instead of dropping it.
+	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null };
 }
 
 function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
@@ -267,9 +271,25 @@ class ReplayBuilder {
 
 	private _consumeAssistant(msg: ParsedSessionMessage & { kind: 'assistant' }): void {
 		if (this._active === undefined) {
-			// Assistant message without a preceding user message — defensive: synthesize an empty user turn keyed on the assistant's parent uuid would be wrong; just drop with a warn.
-			this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
-			return;
+			if (!msg.isInner) {
+				// Top-level assistant envelope without a preceding user message —
+				// anomalous; synthesizing an empty user turn would be wrong, so
+				// drop with a warn.
+				this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
+				return;
+			}
+			// Subagent transcript: every envelope carries `parent_tool_use_id`
+			// and the SDK omits the synthetic spawning prompt, so the transcript
+			// legitimately opens with an assistant message. Synthesize an
+			// empty-prompt turn to hold the subagent's reply instead of dropping
+			// it (which would lose the entire subagent transcript on replay).
+			this._active = {
+				id: msg.uuid,
+				userText: '',
+				responseParts: [],
+				pendingToolUseIds: new Set(),
+				toolCallParts: new Map(),
+			};
 		}
 		let textPartCounter = 0;
 		let reasoningPartCounter = 0;
