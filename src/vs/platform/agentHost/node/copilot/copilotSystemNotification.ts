@@ -6,6 +6,9 @@
 import type { SessionEventPayload } from '@github/copilot-sdk';
 import { localize } from '../../../../nls.js';
 
+const systemNotificationTagPattern = /<\/?system_notification>/g;
+const systemNotificationBlockPattern = /<system_notification>[\s\S]*?<\/system_notification>/g;
+
 export interface ICopilotSystemNotification {
 	/** Body shown inside an active turn; cleaned from SDK `system.notification.data.content`. */
 	readonly content: string;
@@ -13,10 +16,20 @@ export interface ICopilotSystemNotification {
 	readonly messageText: string;
 }
 
+export function cleanCopilotSystemNotificationContent(content: string): string {
+	return content
+		.replace(systemNotificationTagPattern, '')
+		.trim();
+}
+
+export function stripCopilotSystemNotificationBlocks(content: string): string {
+	return content.replace(systemNotificationBlockPattern, '');
+}
+
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
 	const data = event.data;
 	const kind = data.kind;
-	const content = cleanSystemNotificationContent(data.content);
+	const content = cleanCopilotSystemNotificationContent(data.content);
 	if (!content) {
 		return undefined;
 	}
@@ -43,10 +56,4 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		default:
 			return undefined;
 	}
-}
-
-function cleanSystemNotificationContent(content: string): string {
-	const trimmed = content.trim();
-	const match = /^<system_notification>\s*([\s\S]*?)\s*<\/system_notification>$/.exec(trimmed);
-	return (match?.[1] ?? trimmed).trim();
 }

@@ -1643,6 +1643,17 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(buildCopilotSystemNotification({
 				...base,
 				data: {
+					content: '<system_notification>Background agent explore-ghost-text completed.</system_notification>\n\n<system_notification>Background agent explore-nes-streaming completed.</system_notification>',
+					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', status: 'completed' },
+				},
+			}), {
+				content: 'Background agent explore-ghost-text completed.\n\nBackground agent explore-nes-streaming completed.',
+				messageText: 'Background agent completed',
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
 					content: 'Detached done',
 					kind: { type: 'shell_detached_completed', shellId: 'detached-a' },
 				},
@@ -1702,6 +1713,35 @@ suite('CopilotAgentSession', () => {
 			const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown);
 			assert.ok(responsePart, 'expected response part for follow-up assistant delta');
 			assert.strictEqual((responsePart as ChatResponsePartAction).turnId, (turnStarted as { turnId: string }).turnId);
+		});
+
+		test('drops system notification blocks from assistant markdown deltas', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-active');
+
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'Before <system_not',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'ification>Background agent explore-ghost-text completed.</system_notification> after',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: ' and <system_notification>Background agent explore-nes-streaming completed.</system_not',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'ification> done',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const actions = getActions(signals);
+			const responsePart = actions.find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown) as ChatResponsePartAction | undefined;
+			const deltas = actions.filter(a => a.type === ActionType.ChatDelta).map(a => (a as ChatDeltaAction).content);
+			assert.deepStrictEqual({
+				responsePartContent: responsePart?.part.kind === ResponsePartKind.Markdown ? responsePart.part.content : undefined,
+				deltas,
+			}, {
+				responsePartContent: 'Before ',
+				deltas: [' after', ' and ', ' done'],
+			});
 		});
 
 		test('notification during an active turn appends a SystemNotification response part', async () => {

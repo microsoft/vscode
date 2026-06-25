@@ -45,7 +45,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildCopilotSystemNotification, stripCopilotSystemNotificationBlocks } from './copilotSystemNotification.js';
 import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
@@ -377,6 +377,9 @@ class CopilotTurn {
 
 	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
 	readonly reasoningPartIds = new Map<string, string>();
+
+	/** Per-scope state for stripping `<system_notification>` blocks from streaming markdown deltas. */
+	readonly markdownNotificationState = new Map<string, { pending: string; inNotification: boolean }>();
 
 	constructor(readonly id: string) { }
 
@@ -818,6 +821,10 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const markdownScope = parentToolCallId ?? '';
+		const visibleContent = this._stripStreamingSystemNotifications(content, markdownScope, turn.markdownNotificationState);
+		if (!visibleContent) {
+			return;
+		}
 		let partId = turn.markdownPartIds.get(markdownScope);
 		if (!partId) {
 			partId = generateUuid();
@@ -825,7 +832,7 @@ export class CopilotAgentSession extends Disposable {
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
 				turnId: turn.id,
-				part: { kind: ResponsePartKind.Markdown, id: partId, content },
+				part: { kind: ResponsePartKind.Markdown, id: partId, content: visibleContent },
 			}, parentToolCallId);
 			return;
 		}
@@ -833,8 +840,60 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatDelta,
 			turnId: turn.id,
 			partId,
-			content,
+			content: visibleContent,
 		}, parentToolCallId);
+	}
+
+	private _stripStreamingSystemNotifications(content: string, markdownScope: string, notificationStateMap: Map<string, { pending: string; inNotification: boolean }>): string {
+		const startTag = '<system_notification>';
+		const endTag = '</system_notification>';
+		let state = notificationStateMap.get(markdownScope);
+		if (!state) {
+			state = { pending: '', inNotification: false };
+			notificationStateMap.set(markdownScope, state);
+		}
+		let remaining = state.pending + content;
+		state.pending = '';
+		let visibleContent = '';
+
+		while (remaining) {
+			if (state.inNotification) {
+				const endIndex = remaining.indexOf(endTag);
+				if (endIndex === -1) {
+					for (let i = Math.min(endTag.length - 1, remaining.length); i > 0; i--) {
+						const suffix = remaining.slice(remaining.length - i);
+						if (endTag.startsWith(suffix)) {
+							state.pending = suffix;
+							break;
+						}
+					}
+					return visibleContent;
+				}
+				remaining = remaining.slice(endIndex + endTag.length);
+				state.inNotification = false;
+				continue;
+			}
+
+			const startIndex = remaining.indexOf(startTag);
+			if (startIndex !== -1) {
+				visibleContent += remaining.slice(0, startIndex);
+				remaining = remaining.slice(startIndex + startTag.length);
+				state.inNotification = true;
+				continue;
+			}
+
+			for (let i = Math.min(startTag.length - 1, remaining.length); i > 0; i--) {
+				const suffix = remaining.slice(remaining.length - i);
+				if (startTag.startsWith(suffix)) {
+					state.pending = suffix;
+					return visibleContent + remaining.slice(0, remaining.length - i);
+				}
+			}
+
+			return visibleContent + remaining;
+		}
+
+		return visibleContent;
 	}
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
@@ -2226,12 +2285,16 @@ export class CopilotAgentSession extends Disposable {
 			if (this._currentTurn?.markdownPartIds.has(markdownScope)) {
 				return;
 			}
+			const content = stripCopilotSystemNotificationBlocks(e.data.content);
+			if (!content.trim()) {
+				return;
+			}
 			const partId = generateUuid();
 			this._currentTurn?.markdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
 				turnId: this._turnId,
-				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
+				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
 		}));
 
