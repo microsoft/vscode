@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -134,6 +134,23 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			pluginUri: undefined,
 			userInvocable,
 		};
+	}
+
+	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const folders: ICustomizationSourceFolder[] = [];
+		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
+			if (!isDirectoryCustomization(customization) || !customization.writable) {
+				continue;
+			}
+			if (toPromptsType(customization.contents) !== type) {
+				continue;
+			}
+			folders.push({
+				uri: this.toRemoteUri(customization.uri),
+				label: customization.name,
+			});
+		}
+		return folders;
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {

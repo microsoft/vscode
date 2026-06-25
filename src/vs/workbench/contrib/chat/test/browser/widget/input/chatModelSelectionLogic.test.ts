@@ -16,7 +16,10 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
+	resolveConfiguredModel,
 	resolveModelFromSyncState,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
@@ -1730,6 +1733,108 @@ suite('ChatModelSelectionLogic', () => {
 				true,
 				'reset fallback should not be a BYOK model',
 			);
+		});
+	});
+
+	suite('resolveConfiguredModel', () => {
+
+		test('returns undefined for empty or whitespace configured value', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel(undefined, [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('', [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('   ', [gpt]), undefined);
+		});
+
+		test('resolves "auto" (case-insensitive) to the synthetic auto model', () => {
+			const auto = createModel('auto', 'Auto');
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt, auto])?.metadata.id, 'auto');
+			assert.strictEqual(resolveConfiguredModel('AUTO', [gpt, auto])?.metadata.id, 'auto');
+		});
+
+		test('returns undefined for "auto" when no auto model exists', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt]), undefined);
+		});
+
+		test('resolves a full model id (case-insensitive)', () => {
+			const gpt = createModel('gpt-5', 'GPT-5');
+			const claude = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus' });
+			assert.strictEqual(resolveConfiguredModel('claude-opus-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+			assert.strictEqual(resolveConfiguredModel('CLAUDE-OPUS-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+		});
+
+		test('resolves a family name to the highest-version model in that family', () => {
+			const opus45 = createModel('claude-opus-4.5', 'Claude Opus 4.5', { family: 'opus', version: '4.5' });
+			const opus46 = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			const opus410 = createModel('claude-opus-4.10', 'Claude Opus 4.10', { family: 'opus', version: '4.10' });
+			const gemini = createModel('gemini-2', 'Gemini 2', { family: 'gemini', version: '2.0' });
+			assert.strictEqual(resolveConfiguredModel('opus', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('OPUS', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('gemini', [opus45, opus46, opus410, gemini])?.metadata.id, 'gemini-2');
+		});
+
+		test('full id match takes precedence over family match', () => {
+			const opusLatest = createModel('opus', 'Opus alias', { family: 'opus', version: '1.0' });
+			const opusNewer = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			// The configured value "opus" matches the model whose id is exactly "opus"
+			// rather than being treated as a family lookup.
+			assert.strictEqual(resolveConfiguredModel('opus', [opusNewer, opusLatest])?.metadata.id, 'opus');
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
+			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
+		});
+	});
+
+	suite('getModelPickerUnavailableReason', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
+		});
+
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
+		});
+
+		test('a live, picker-offered model wins over any unavailable state (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		});
+
+		test('stale cached models that are not live do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: false, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });

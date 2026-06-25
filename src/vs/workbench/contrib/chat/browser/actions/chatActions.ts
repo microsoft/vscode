@@ -26,6 +26,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -56,7 +57,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatLastUsedEditorSessionTypeStorageKey, ChatModeKind, getDefaultNewChatSessionType, getNewChatEditorSessionResource } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -256,7 +257,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				throw new Error(`Language model not loaded: ${id}.`);
 			}
 
-			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id }, true);
 		}
 
 		if (opts?.toolsInclude || opts?.toolsExclude) {
@@ -578,7 +579,9 @@ export function registerChatActions() {
 	 * `local` or the chosen provider is unavailable.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService));
+		const storageService = accessor.get(IStorageService);
+		const lastUsedSessionType = storageService.get(ChatLastUsedEditorSessionTypeStorageKey, StorageScope.PROFILE);
+		return getNewChatEditorSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), lastUsedSessionType);
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);

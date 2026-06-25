@@ -159,8 +159,13 @@ jobs:
       # from a prior build.
       #
       # Fallback order:
-      #   1. Most recent successful run on the CURRENT branch
-      #   2. Most recent successful run on `main`
+      #   1. Most recent run on the CURRENT branch
+      #   2. Most recent run on `main`
+      #
+      # Carry-forward: the cache download reads only the SINGLE latest build, so a
+      # sustained CG outage (>1 build) breaks the chain unless every build keeps a
+      # copy. The "Upload CG NOTICE artifact" step below runs on the fallback path
+      # too, handing the last-good NOTICE forward. Ref: builds 450982->451029.
       #
       # TODO: consider enforcing a max-age check (~30 days) on cached NOTICEs.
       # Today the only signal is the warning emitted below.
@@ -190,7 +195,7 @@ jobs:
         displayName: "Cache: detect whether CG NOTICE needs fallback"
         continueOnError: true
 
-      - task: DownloadPipelineArtifact@2
+      - task: DownloadBuildArtifacts@1
         displayName: "Cache: download last good NOTICE (same branch)"
         inputs:
           buildType: specific
@@ -200,12 +205,20 @@ jobs:
           branchName: $(Build.SourceBranch)
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
-          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
-          targetPath: $(Pipeline.Workspace)/cached-notice-branch
+          # NB: one glob per line. DownloadBuildArtifacts@1 runs minimatch with
+          # brace expansion disabled, so a "**/{a,b}" pattern matches NOTHING and
+          # silently downloads 0 files (observed in build 450982, the first real
+          # CG outage post-cutover: the artifact downloaded but every file was
+          # excluded, so the apply-fallback step saw no cache). Multi-line plain
+          # globs are matched reliably.
+          itemPattern: |
+            **/ThirdPartyNotices.generated.txt
+            **/notice-meta.txt
+          downloadPath: $(Pipeline.Workspace)/cached-notice-branch
         continueOnError: true
         condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
-      - task: DownloadPipelineArtifact@2
+      - task: DownloadBuildArtifacts@1
         displayName: "Cache: download last good NOTICE (main fallback)"
         inputs:
           buildType: specific
@@ -215,18 +228,22 @@ jobs:
           branchName: refs/heads/main
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
-          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
-          targetPath: $(Pipeline.Workspace)/cached-notice-main
+          # See note on the same-branch download above: brace patterns match 0
+          # files in DownloadBuildArtifacts@1. Keep one plain glob per line.
+          itemPattern: |
+            **/ThirdPartyNotices.generated.txt
+            **/notice-meta.txt
+          downloadPath: $(Pipeline.Workspace)/cached-notice-main
         continueOnError: true
         condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
 
       - script: |
           set -u
           GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
-          BRANCH_CACHE="$(Pipeline.Workspace)/cached-notice-branch/ThirdPartyNotices.generated.txt"
-          BRANCH_META="$(Pipeline.Workspace)/cached-notice-branch/notice-meta.txt"
-          MAIN_CACHE="$(Pipeline.Workspace)/cached-notice-main/ThirdPartyNotices.generated.txt"
-          MAIN_META="$(Pipeline.Workspace)/cached-notice-main/notice-meta.txt"
+          BRANCH_CACHE="$(Pipeline.Workspace)/cached-notice-branch/notice_output/ThirdPartyNotices.generated.txt"
+          BRANCH_META="$(Pipeline.Workspace)/cached-notice-branch/notice_output/notice-meta.txt"
+          MAIN_CACHE="$(Pipeline.Workspace)/cached-notice-main/notice_output/ThirdPartyNotices.generated.txt"
+          MAIN_META="$(Pipeline.Workspace)/cached-notice-main/notice_output/notice-meta.txt"
 
           # Emit what a cached NOTICE was built from, if we have the sidecar.
           # The sidecar is written by the upload step on every successful run.
@@ -275,36 +292,55 @@ jobs:
         condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
 
       - script: |
+          set -u
+          GEN="$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt"
           echo "=== CG NOTICE artifact ==="
-          if [ -f "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" ]; then
-            SIZE=$(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt")
-            echo "Generated file size: $SIZE bytes (NOTICE_FROM_CACHE=$NOTICE_FROM_CACHE)"
-            cp "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
-            echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
 
-            # Write a sidecar so future runs (and humans) know what this NOTICE
-            # was built from. Consumed by the "Cache: apply NOTICE fallback" step
-            # of subsequent builds when they fall back to this artifact.
-            # Only meaningful when this run generated the NOTICE fresh; if we
-            # fell back to a cache, skip writing the sidecar so we don't
-            # mis-attribute someone else's NOTICE to this commit.
-            if [ "${NOTICE_FROM_CACHE:-false}" = "false" ]; then
-              {
-                echo "built_at:          $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-                echo "source_branch:     $(Build.SourceBranch)"
-                echo "source_commit:     $(Build.SourceVersion)"
-                echo "build_id:          $(Build.BuildId)"
-                echo "build_number:      $(Build.BuildNumber)"
-                echo "size_bytes:        $SIZE"
-              } > "$(Build.ArtifactStagingDirectory)/notice-meta.txt"
-              echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/notice-meta.txt"
-            else
-              echo "Skipping notice-meta.txt sidecar: NOTICE_FROM_CACHE=$NOTICE_FROM_CACHE (don't re-publish someone else's metadata as our own)"
-            fi
-          else
-            echo "ERROR: ThirdPartyNotices.generated.txt not found (CG failed AND no cache available)"
+          # Publish on both paths: fresh CG success AND carry-forward (re-publishing
+          # a cached NOTICE so the chain survives a multi-build outage; see above).
+          if [ ! -f "$GEN" ] || [ "$(wc -c < "$GEN")" -le 1024 ]; then
+            echo "No usable ThirdPartyNotices.generated.txt to publish; skipping (no CG output and no cached fallback)."
+            exit 0
           fi
-        displayName: "Upload CG NOTICE artifact"
+
+          SIZE=$(wc -c < "$GEN")
+          echo "Generated file size: $SIZE bytes (source: CG_NOTICE_OK=${CG_NOTICE_OK:-unset}, NOTICE_FROM_CACHE=${NOTICE_FROM_CACHE:-unset})"
+          cp "$GEN" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+
+          # Sidecar for the next build's fallback. Fresh run records this build's
+          # provenance; carry-forward preserves the original + appends a marker.
+          META_OUT="$(Build.ArtifactStagingDirectory)/notice-meta.txt"
+          if [ "${CG_NOTICE_OK:-}" = "true" ]; then
+            {
+              echo "built_at:          $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "source_branch:     $(Build.SourceBranch)"
+              echo "source_commit:     $(Build.SourceVersion)"
+              echo "build_id:          $(Build.BuildId)"
+              echo "build_number:      $(Build.BuildNumber)"
+              echo "size_bytes:        $SIZE"
+            } > "$META_OUT"
+          else
+            case "${NOTICE_FROM_CACHE:-}" in
+              branch) SRC_META="$(Pipeline.Workspace)/cached-notice-branch/notice_output/notice-meta.txt" ;;
+              main)   SRC_META="$(Pipeline.Workspace)/cached-notice-main/notice_output/notice-meta.txt" ;;
+              *)      SRC_META="" ;;
+            esac
+            if [ -n "$SRC_META" ] && [ -f "$SRC_META" ]; then
+              cp "$SRC_META" "$META_OUT"
+            else
+              echo "original_provenance: unavailable (cached NOTICE predates the notice-meta.txt sidecar)" > "$META_OUT"
+            fi
+            {
+              echo "carried_forward_by_build:    $(Build.BuildId)"
+              echo "carried_forward_by_number:   $(Build.BuildNumber)"
+              echo "carried_forward_at:          $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "carried_forward_reason:      CG NOTICE generation failed; re-published last-good NOTICE to keep the cache chain alive."
+            } >> "$META_OUT"
+          fi
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$META_OUT"
+        displayName: "Upload CG NOTICE artifact (fresh or carried-forward)"
+        condition: and(succeeded(), or(eq(variables.CG_NOTICE_OK, 'true'), in(variables.NOTICE_FROM_CACHE, 'branch', 'main')))
         continueOnError: true
 
       - script: |
