@@ -257,9 +257,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			return;
 		}
 		const sessionType = getChatSessionType(sessionResource);
-		// Only remember non-local agents. Local is the built-in default, and
-		// recording it (e.g. the panel's auto-opened default session on a fresh
-		// workspace) would clobber the user's remembered agent for new chat editors.
+		// Only remember non-local agents to avoid clobbering the user's last-used agent.
 		if (sessionType === localChatSessionType) {
 			return;
 		}
