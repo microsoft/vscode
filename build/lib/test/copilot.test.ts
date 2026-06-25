@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim, pruneCopilotStandaloneExecutable } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 suite('copilot', () => {
 	test('keeps the public copilot platform package include list scoped to the selected package', () => {
@@ -169,30 +169,6 @@ suite('copilot', () => {
 		assert(files.includes('**'));
 		assert(files.includes('!**/node_modules/@github/copilot-*/copilot'));
 		assert(files.includes('!**/node_modules/@github/copilot-*/copilot.exe'));
-	});
-
-	test('prunes only the standalone copilot executable from the selected platform package', () => {
-		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-prune-test-'));
-		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
-		const packageDir = path.join(nodeModulesRoot, '@github', 'copilot-linux-x64');
-		try {
-			fs.mkdirSync(path.join(packageDir, 'prebuilds', 'linux-x64'), { recursive: true });
-			fs.writeFileSync(path.join(packageDir, 'copilot'), '');
-			fs.writeFileSync(path.join(packageDir, 'copilot.exe'), '');
-			fs.writeFileSync(path.join(packageDir, 'index.js'), '');
-			fs.writeFileSync(path.join(packageDir, 'app.js'), '');
-			fs.writeFileSync(path.join(packageDir, 'prebuilds', 'linux-x64', 'runtime.node'), '');
-
-			pruneCopilotStandaloneExecutable('linux', 'x64', nodeModulesRoot);
-
-			assert(!fs.existsSync(path.join(packageDir, 'copilot')));
-			assert(!fs.existsSync(path.join(packageDir, 'copilot.exe')));
-			assert(fs.existsSync(path.join(packageDir, 'index.js')));
-			assert(fs.existsSync(path.join(packageDir, 'app.js')));
-			assert(fs.existsSync(path.join(packageDir, 'prebuilds', 'linux-x64', 'runtime.node')));
-		} finally {
-			fs.rmSync(repoRoot, { recursive: true, force: true });
-		}
 	});
 
 	test('materializes target Copilot SDK prebuilds and tgrep for the built-in extension', () => {
