@@ -129,6 +129,7 @@ export interface ISessionShowMore {
 	readonly showMore: true;
 	readonly kind: 'sessions' | 'folders';
 	readonly mode: 'more' | 'less';
+	readonly sectionId: string;
 	readonly sectionLabel: string;
 	readonly remainingCount: number;
 }
@@ -1339,7 +1340,7 @@ export interface ISessionsList {
 	reveal(sessionResource: URI): boolean;
 	/**
 	 * Returns the sessions currently visible in the list, in display order.
-	 * Sessions hidden by workspace group capping ("show more") are excluded.
+	 * Sessions hidden by section capping ("show more") are excluded.
 	 */
 	getVisibleSessions(): readonly ISession[];
 	clearFocus(): void;
@@ -1381,14 +1382,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
-	private static readonly DEFAULT_WORKSPACE_GROUP_LIMIT = 5;
+	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
 	/**
-	 * Experiment treatment that overrides how many sessions are shown per
-	 * workspace group before the "show more" affordance appears. Falls back to
-	 * {@link DEFAULT_WORKSPACE_GROUP_LIMIT} when the treatment is not set.
+	 * Experiment treatment that overrides how many sessions are shown per group
+	 * before the "show more" affordance appears.
 	 */
-	private static readonly WORKSPACE_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
+	private static readonly SESSION_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -1401,13 +1401,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private workspaceGroupCapped: boolean;
 
 	/**
-	 * Maximum number of sessions shown per workspace group before "show more"
-	 * is rendered. Backed by an experiment treatment (see
-	 * {@link WORKSPACE_GROUP_LIMIT_TREATMENT}) and refreshed whenever the
-	 * assignment service refetches its treatments.
+	 * Maximum number of sessions shown per workspace section or user group.
 	 */
-	private readonly workspaceGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT);
-	private readonly expandedWorkspaceGroups = new Set<string>();
+	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
+	private readonly expandedSessionGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
@@ -1538,7 +1535,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `section:${element.id}`;
 						}
 						if (isSessionShowMore(element)) {
-							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
+							return `show-more:${element.kind}:${element.mode}:${element.sectionId}`;
 						}
 						return element.resource.toString();
 					},
@@ -1600,9 +1597,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.expandedMoreFolders = element.mode === 'more';
 				} else {
 					if (element.mode === 'more') {
-						this.expandedWorkspaceGroups.add(element.sectionLabel);
+						this.expandedSessionGroups.add(element.sectionId);
 					} else {
-						this.expandedWorkspaceGroups.delete(element.sectionLabel);
+						this.expandedSessionGroups.delete(element.sectionId);
 					}
 				}
 				this.update();
@@ -1732,30 +1729,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		// Resolve the per-workspace session limit from the experiment service and
+		// Resolve the per-group session limit from the experiment service and
 		// keep it current when treatments are refetched. The async fetch is
-		// confined to `updateWorkspaceGroupLimit`; the rest of the list reads the
-		// resolved value synchronously off `workspaceGroupLimit`. The autorun runs
+		// confined to `updateSessionGroupLimit`; the rest of the list reads the
+		// resolved value synchronously off `sessionGroupLimit`. The autorun runs
 		// immediately for the initial fetch and again whenever treatments refetch.
 		const assignmentRefetchSignal = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
 		this._register(autorun(reader => {
 			assignmentRefetchSignal.read(reader);
-			this.updateWorkspaceGroupLimit();
+			this.updateSessionGroupLimit();
 		}));
 
 		this.refresh();
 	}
 
 	/**
-	 * Fetches the workspace group limit treatment and updates the backing
+	 * Fetches the session group limit treatment and updates the backing
 	 * observable. Invalid or unset treatments fall back to the default limit.
 	 */
-	private updateWorkspaceGroupLimit(): void {
-		this.assignmentService.getTreatment<number>(SessionsList.WORKSPACE_GROUP_LIMIT_TREATMENT).then(value => {
+	private updateSessionGroupLimit(): void {
+		this.assignmentService.getTreatment<number>(SessionsList.SESSION_GROUP_LIMIT_TREATMENT).then(value => {
 			const limit = typeof value === 'number' && Number.isInteger(value) && value > 0
 				? value
-				: SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT;
-			this.workspaceGroupLimit.set(limit, undefined);
+				: SessionsList.DEFAULT_SESSION_GROUP_LIMIT;
+			if (this.sessionGroupLimit.get() !== limit) {
+				this.sessionGroupLimit.set(limit, undefined);
+				if (this.visible) {
+					this.update();
+				}
+			}
 		});
 	}
 
@@ -1901,33 +1903,32 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
-		const workspaceGroupLimit = this.workspaceGroupLimit.get();
+		const sessionGroupLimit = this.sessionGroupLimit.get();
+
+		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
+			sessions.map(session => ({ element: session as SessionListItem }));
+
+		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
+			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
+				enabled,
+				expanded: this.expandedSessionGroups.has(sectionId),
+				sectionId,
+				sectionLabel,
+			});
+			const children = toSessionChildren(limited.sessions);
+			if (limited.showMore) {
+				children.push({ element: limited.showMore });
+			}
+			return children;
+		};
 
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
-			const exceedsLimit = isWorkspaceGroup
+			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
-				&& section.sessions.length > workspaceGroupLimit;
-			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
-			const isCapped = exceedsLimit && !isExpanded;
-
-			let sectionChildren: IObjectTreeElement<SessionListItem>[];
-			if (isCapped) {
-				const visible = section.sessions.slice(0, workspaceGroupLimit);
-				const remainingCount = section.sessions.length - workspaceGroupLimit;
-				sectionChildren = [
-					...visible.map(session => ({ element: session as SessionListItem })),
-					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
-				];
-			} else if (isExpanded && this.expandedWorkspaceGroups.has(section.label)) {
-				sectionChildren = [
-					...section.sessions.map(session => ({ element: session as SessionListItem })),
-					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'less' as const, sectionLabel: section.label, remainingCount: 0 } },
-				];
-			} else {
-				sectionChildren = section.sessions.map(session => ({ element: session as SessionListItem }));
-			}
+				&& this.workspaceGroupCapped;
+			const sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
@@ -1954,7 +1955,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				element: groupItem,
 				collapsible: true,
 				collapsed: this.getSavedCollapseState(`group:${groupItem.group.id}`) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: groupItem.sessions.map(session => ({ element: session as SessionListItem })),
+				children: renderSessionChildren(groupItem.sessions, `group:${groupItem.group.id}`, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped),
 			};
 		};
 
@@ -2023,11 +2024,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 						children.push(renderSection(section));
 					}
 					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 					});
 				} else {
 					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 					});
 				}
 			}
@@ -2601,18 +2602,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
 		this.workspaceGroupCapped = true;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		this.expandedWorkspaceGroups.clear();
+		this.expandedSessionGroups.clear();
 		this.expandedMoreFolders = false;
 		this.update();
 	}
 
-	// Workspace group capping
+	// Session group capping
 
 	setWorkspaceGroupCapped(capped: boolean): void {
 		this.workspaceGroupCapped = capped;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
 		if (capped) {
-			this.expandedWorkspaceGroups.clear();
+			this.expandedSessionGroups.clear();
 		}
 		this.update();
 	}
@@ -2727,6 +2728,47 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
 	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+export interface ISessionLimitResult {
+	readonly sessions: readonly ISession[];
+	readonly showMore: ISessionShowMore | undefined;
+}
+
+export function limitSessionsForList(
+	sessions: readonly ISession[],
+	limit: number,
+	options: { readonly enabled: boolean; readonly expanded: boolean; readonly sectionId: string; readonly sectionLabel: string },
+): ISessionLimitResult {
+	if (!options.enabled || sessions.length <= limit) {
+		return { sessions, showMore: undefined };
+	}
+
+	if (options.expanded) {
+		return {
+			sessions,
+			showMore: {
+				showMore: true,
+				kind: 'sessions',
+				mode: 'less',
+				sectionId: options.sectionId,
+				sectionLabel: options.sectionLabel,
+				remainingCount: 0,
+			},
+		};
+	}
+
+	return {
+		sessions: sessions.slice(0, limit),
+		showMore: {
+			showMore: true,
+			kind: 'sessions',
+			mode: 'more',
+			sectionId: options.sectionId,
+			sectionLabel: options.sectionLabel,
+			remainingCount: sessions.length - limit,
+		},
+	};
 }
 
 function defaultSortKey(session: ISession, sorting: SessionsSorting): number {
