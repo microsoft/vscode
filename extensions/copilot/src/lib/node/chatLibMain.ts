@@ -523,6 +523,7 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 	declare readonly _serviceBrand: undefined;
 
 	private readonly variables: Record<string, boolean | number | string> = {};
+	private readonly _emittedTreatments = new Map<string, boolean | number | string | undefined>();
 	private readonly _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
 
@@ -553,12 +554,17 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
 		const result = this.variables[name] as T | undefined;
-		this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
-			treatmentName: name,
-			valueKind: result === undefined ? 'undefined' : typeof result
-		}, {
-			hasValue: result === undefined ? 0 : 1
-		});
+		const isFirstRead = !this._emittedTreatments.has(name);
+		const previousValue = this._emittedTreatments.get(name);
+		if (isFirstRead || previousValue !== result) {
+			this._emittedTreatments.set(name, result);
+			this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
+				treatmentName: name,
+				valueKind: result === undefined ? 'undefined' : typeof result
+			}, {
+				hasValue: result === undefined ? 0 : 1
+			});
+		}
 		return result;
 	}
 

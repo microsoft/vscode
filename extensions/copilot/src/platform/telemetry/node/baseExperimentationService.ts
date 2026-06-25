@@ -190,13 +190,17 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
 		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
+		const isFirstRead = !this._previouslyReadTreatments.has(name);
+		const previousValue = this._previouslyReadTreatments.get(name);
 		this._previouslyReadTreatments.set(name, result);
-		this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
-			treatmentName: name,
-			valueKind: result === undefined ? 'undefined' : typeof result
-		}, {
-			hasValue: result === undefined ? 0 : 1
-		});
+		if (isFirstRead || previousValue !== result) {
+			this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
+				treatmentName: name,
+				valueKind: result === undefined ? 'undefined' : typeof result
+			}, {
+				hasValue: result === undefined ? 0 : 1
+			});
+		}
 		return result;
 	}
 
