@@ -124,6 +124,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	declare _serviceBrand: undefined;
 	private readonly _refreshTimer = this._register(new IntervalTimer());
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
+	private readonly _emittedTreatments = new Map<string, boolean | string | number | undefined>();
 
 	protected readonly _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
@@ -190,10 +191,11 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
 		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
-		const isFirstRead = !this._previouslyReadTreatments.has(name);
-		const previousValue = this._previouslyReadTreatments.get(name);
 		this._previouslyReadTreatments.set(name, result);
-		if (isFirstRead || previousValue !== result) {
+		const isFirstEmit = !this._emittedTreatments.has(name);
+		const previousEmitted = this._emittedTreatments.get(name);
+		if (isFirstEmit || previousEmitted !== result) {
+			this._emittedTreatments.set(name, result);
 			this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
 				treatmentName: name,
 				valueKind: result === undefined ? 'undefined' : typeof result
