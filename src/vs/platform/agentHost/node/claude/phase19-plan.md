@@ -30,11 +30,12 @@ unchanged default.
   data through `IMaterializeContext` → `buildOptions` / `buildSubprocessEnv`.
 - Mode-aware `authenticate`, `getProtectedResources`, `_ensureAuthenticated`,
   and credits-subscription gating.
-- The native model branch: a new `IClaudeAgentSdkService.supportedModels(...)`
-  that owns the enumeration-query lifecycle, plus a `fromSdkModelInfo(...)`
-  projection reusing the Phase 18 effort-schema helpers. Flip
-  `_isProxyEnabled()` to the real config read and replace the
-  `resolveClaudeModelList` native `throw`.
+- The native model branch: a 1:1 `IClaudeAgentSdkService.query(...)` passthrough
+  to the SDK's `query` export; `ClaudeAgent._fetchNativeModels` owns the
+  enumeration lifecycle (`query(neverYield) → Query.supportedModels() →
+  Query.close()`), plus a `fromSdkModelInfo(...)` projection reusing the Phase 18
+  effort-schema helpers. Flip `_isProxyEnabled()` to the real config read and
+  branch the native model source in `_refreshModels`.
 - Native usage path: credits enrichment no-ops; `ChatUsage` carries the SDK
   `result` usage/cost; surface `apiKeySource` from `system/init` for
   diagnostics.
@@ -358,11 +359,11 @@ commercial-metadata overlay.
 
 ### Files actually changed (production)
 - [common/agentHostCustomizationConfig.ts](../../common/agentHostCustomizationConfig.ts) — `ClaudeUseCopilotProxy` enum + boolean schema (`default: true`).
-- [claudeTransport.ts](./claudeTransport.ts) — **new** `ClaudeTransport` discriminated union.
-- [claudeSdkOptions.ts](./claudeSdkOptions.ts) — `buildOptions(transport)`, `buildSubprocessEnv(stripAnthropicApiKey = true)`, new `buildModelEnumerationOptions(configDir)`.
+- [claudeProxyService.ts](./claudeProxyService.ts) — **new** `ClaudeTransport` discriminated union (lives next to `IClaudeProxyHandle`, half of its union).
+- [claudeSdkOptions.ts](./claudeSdkOptions.ts) — `buildOptions(transport)`, `buildSubprocessEnv(proxied = true)`, new `buildModelEnumerationOptions()`.
 - [claudeAgentSession.ts](./claudeAgentSession.ts) — `IMaterializeContext.transport` replaces `.proxyHandle`; `_transportKind` gates `_enrichSignalWithCredits`; persists `claude.transport` overlay tag at materialize.
-- [claudeAgent.ts](./claudeAgent.ts) — `_transportMode` + `_resolveTransportMode` (reactive via `onDidRootConfigChange`); mode-aware `getProtectedResources`/`_ensureAuthenticated` (now returns `ClaudeTransport`)/`authenticate`; `fromSdkModelInfo`; `_fetchNativeModels`; 3-arg `resolveClaudeModelList`.
-- [claudeAgentSdkService.ts](./claudeAgentSdkService.ts) — `supportedModels(options)` enumeration lifecycle (`startup → warm.query(neverYield) → query.supportedModels() → teardown`); module-local `neverYieldingPrompt()`.
+- [claudeAgent.ts](./claudeAgent.ts) — `_transportMode` + `_resolveTransportMode` (reactive via `onDidRootConfigChange`); mode-aware `getProtectedResources`/`_ensureAuthenticated` (now returns `ClaudeTransport`)/`authenticate`; `fromSdkModelInfo`; `_fetchNativeModels` (owns the `query(neverYield) → supportedModels() → close()` enumeration lifecycle, with a module-local never-yielding prompt).
+- [claudeAgentSdkService.ts](./claudeAgentSdkService.ts) — 1:1 `query(params)` passthrough to the SDK's `query` export (no bespoke enumeration lifecycle).
 - [claudeSessionMetadataStore.ts](./claudeSessionMetadataStore.ts) — `claude.transport` overlay key (write + read).
 
 ### Tests written

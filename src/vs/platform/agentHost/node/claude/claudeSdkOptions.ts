@@ -166,8 +166,8 @@ export async function buildClientMcpServers(
  * proxy env, and the user's `ANTHROPIC_API_KEY` preserved so the SDK can
  * authenticate. Reads the user's real `~/.claude` config so subscription
  * models (e.g. Opus) surface; verified not to write any session transcript
- * because the enumeration never iterates a turn. The returned
- * `abortController` is aborted by the SDK service at teardown.
+ * because the enumeration never iterates a turn. The caller (`_fetchNativeModels`)
+ * aborts the returned `abortController` during teardown, alongside `query.close()`.
  */
 export function buildModelEnumerationOptions(): Options {
 	return {

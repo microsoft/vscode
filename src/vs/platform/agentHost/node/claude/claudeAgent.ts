@@ -491,15 +491,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const neverYieldingPrompt: AsyncIterable<SDKUserMessage> = {
 			[Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<SDKUserMessage>>(() => { /* never resolves */ }) }),
 		};
-		const query = await this._sdkService.query({
-			prompt: neverYieldingPrompt,
-			options: buildModelEnumerationOptions(),
-		});
+		const options = buildModelEnumerationOptions();
+		const query = await this._sdkService.query({ prompt: neverYieldingPrompt, options });
 		try {
 			const models = await query.supportedModels();
 			return models.map(m => fromSdkModelInfo(m, this.id));
 		} finally {
+			// `close()` terminates the subprocess; aborting the controller is a
+			// belt-and-suspenders teardown for anything `close()` leaves pending.
 			query.close();
+			options.abortController?.abort();
 		}
 	}
 
