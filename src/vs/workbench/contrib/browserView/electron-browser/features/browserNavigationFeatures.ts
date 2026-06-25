@@ -272,18 +272,27 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	override tryFocus(): boolean {
-		// A new tab (no URL loaded) auto-opens the picker so the user can
-		// immediately type / browse suggestions. For tabs that already have a
-		// URL (e.g. error or loading state — page-renderer focus didn't claim
-		// us, or input is still prerendering before the model attaches) we
-		// just focus the display so the URL stays visible.
 		const input = this.editor.input;
-		const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-		if (!url) {
-			this._navbar.openUrlPicker();
-		} else {
-			this._navbar.focusUrlInput();
-		}
+
+		// Defer one tick so editor-tab activation can focus the tab control first;
+		// then we move focus into the browser editor's URL flow.
+		setTimeout(() => {
+			if (this.editor.input !== input) {
+				return;
+			}
+
+			// A new tab (no URL loaded) auto-opens the picker so the user can
+			// immediately type / browse suggestions. For tabs that already have a
+			// URL (e.g. error or loading state — page-renderer focus didn't claim
+			// us, or input is still prerendering before the model attaches) we
+			// just focus the display so the URL stays visible.
+			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
+			if (!url) {
+				this._navbar.openUrlPicker();
+			} else {
+				this._navbar.focusUrlInput();
+			}
+		}, 0);
 		return true;
 	}
 
