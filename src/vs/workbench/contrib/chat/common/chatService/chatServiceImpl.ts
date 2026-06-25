@@ -1068,6 +1068,7 @@ export class ChatService extends Disposable implements IChatService {
 			// minting a second real session.
 			const realResource = await inFlight;
 			if (!realResource) {
+				this.trace('materializeUntitledSession', `In-flight materialization of ${untitledResource.toString()} produced no real session; keeping untitled`);
 				return undefined;
 			}
 			// The winner has already loaded the real model and retains a reference
@@ -1075,8 +1076,10 @@ export class ChatService extends Disposable implements IChatService {
 			// reference per concurrent send.
 			const realModel = this._sessionModels.get(realResource);
 			if (!realModel) {
+				this.info('materializeUntitledSession', `Joined in-flight materialization of ${untitledResource.toString()} but real model ${realResource.toString()} is missing; keeping untitled`);
 				return undefined;
 			}
+			this.trace('materializeUntitledSession', `Concurrent send joined in-flight materialization ${untitledResource.toString()} -> ${realResource.toString()}`);
 			return { model: realModel, sessionResource: realResource, newSessionResource: realResource };
 		}
 
@@ -1124,6 +1127,10 @@ export class ChatService extends Disposable implements IChatService {
 			// `setMaterializedSessionResource`).
 			this.chatSessionService.setMaterializedSessionResource(untitledResource, newItem.resource);
 			materialized.complete(newItem.resource);
+			// If this ever logs twice for the
+			// same untitled resource (different real resources), a single send
+			// produced duplicate sessions.
+			this.info('materializeUntitledSession', `Materialized untitled session ${untitledResource.toString()} into real session ${newItem.resource.toString()}`);
 			return { model: realModel, sessionResource: newItem.resource, newSessionResource: newItem.resource };
 		} catch (err) {
 			// Resolve (not reject) so a concurrent waiter degrades to the normal
