@@ -636,6 +636,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
 			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 

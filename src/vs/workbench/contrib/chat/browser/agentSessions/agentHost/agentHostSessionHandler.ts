@@ -3362,6 +3362,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._newSessionFolderService.getFolder(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
