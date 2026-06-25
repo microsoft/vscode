@@ -284,24 +284,12 @@ export function getDefaultNewChatSessionResource(
 }
 
 /**
- * Storage key for the last-used editor chat session type (agent). Persisted at
- * profile scope so a new chat editor can reopen with the agent the user last
- * worked with, across windows and workspaces. Written by the chat widget
- * service when the last-focused user-facing session changes.
+ * Storage key for the last-used non-local editor chat session type (agent), persisted at profile scope.
  */
 export const ChatLastUsedEditorSessionTypeStorageKey = 'chat.lastUsedEditorSessionType';
 
 /**
- * Resolves the session type (agent) for a brand-new chat editor, preferring the
- * user's last-used session type when the provider has not been explicitly
- * configured. Precedence:
- * 1. An explicit `chat.editor.defaultProvider` set via user/workspace/policy
- *    (detected with {@link IConfigurationService.inspect}, since the setting
- *    defaults to `'local'` and {@link IConfigurationService.getValue} cannot tell
- *    an explicit choice from the default).
- * 2. The last-used session type, when still visible — so a new editor reopens
- *    with the agent the user last worked with.
- * 3. The built-in default from {@link getDefaultNewChatSessionType} (local).
+ * Resolves the session type (agent) for a new chat editor, preferring the last-used visible non-local agent when `chat.editor.defaultProvider` isn't explicitly configured.
  */
 export function getNewChatEditorSessionType(
 	configurationService: IConfigurationService,
