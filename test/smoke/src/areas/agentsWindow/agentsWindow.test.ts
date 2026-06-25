@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -83,6 +84,65 @@ export function setup(logger: Logger) {
 
 		let mockServer: MockLlmServer;
 
+		// Shell-tool scenarios for each session type. Each entry carries
+		// everything the registration step and the corresponding test need —
+		// scenario id, expected echoed reply, and the mock-LLM scenario
+		// factory (different tool names per surface: `bash`/`pwsh`/
+		// `powershell` for SDK sessions vs `run_in_terminal` for the Local
+		// agent), plus optional per-session hooks for cold-start warm-up and
+		// extra assertions. Keeping the data here avoids drift between the
+		// scenario registration and the test that consumes it.
+		interface ShellSession {
+			readonly name: string;
+			readonly sessionType: string;
+			readonly scenarioId: string;
+			readonly reply: string;
+			readonly scenarioFactory: (reply: string) => unknown;
+			/** Optional cold-start warm-up (e.g. Claude SDK bundling). */
+			readonly warmUp?: (app: Application, label: string) => Promise<void>;
+			/** Optional extra assertion run after the chat reply lands. */
+			readonly extraAssertion?: (app: Application) => Promise<void>;
+		}
+
+		const SHELL_SESSIONS: readonly ShellSession[] = [
+			{
+				name: 'Copilot',
+				sessionType: 'Copilot',
+				scenarioId: 'smoke-hello-copilot-shell',
+				reply: 'MOCKED_COPILOT_SHELL_RESPONSE',
+				scenarioFactory: shellEchoScenario,
+				// Confirm the shell tool actually executed by checking the
+				// CopilotCLISession diagnostic log. We don't care whether
+				// the command was sandboxed for this test.
+				extraAssertion: async (app) => {
+					const chatLogPath = path.join(app.logsPath, 'window2', 'exthost', 'GitHub.copilot-chat', 'GitHub Copilot Chat.log');
+					const chatLog = await fs.promises.readFile(chatLogPath, 'utf8');
+					assert.match(
+						chatLog,
+						/\[CopilotCLISession\] tool\.execution_complete /,
+						`expected tool.execution_complete in ${chatLogPath}`
+					);
+				},
+			},
+			{
+				name: 'Claude',
+				sessionType: 'Claude',
+				scenarioId: 'smoke-hello-claude-shell',
+				reply: 'MOCKED_CLAUDE_SHELL_RESPONSE',
+				scenarioFactory: shellEchoScenario,
+				// Pre-pay the Claude cold-start cost so the real assertion
+				// below runs against a warm pipeline (see warmUpClaudeModel).
+				warmUp: (app, label) => warmUpClaudeModel(app, logger, label),
+			},
+			{
+				name: 'Local',
+				sessionType: 'Local',
+				scenarioId: 'smoke-hello-local-terminal',
+				reply: 'MOCKED_LOCAL_TERMINAL_RESPONSE',
+				scenarioFactory: runInTerminalScenario,
+			},
+		];
+
 		// Start the mock server BEFORE installAllHandlers' `before` runs so
 		// the mock URL is available when we configure the app's env vars via
 		// `optionsTransform`.
@@ -100,21 +160,14 @@ export function setup(logger: Logger) {
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
 
-			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, {
-				type: 'multi-turn',
-				turns: [
-					{
-						kind: 'tool-calls',
-						toolCalls: [
-							{
-								toolNamePattern: /^(bash|pwsh|powershell)$/i,
-								arguments: { command: `echo ${COPILOT_SANDBOX_REPLY}` },
-							},
-						],
-					},
-					{ kind: 'echo-last-message' },
-				],
-			});
+			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, shellEchoScenario(COPILOT_SANDBOX_REPLY));
+
+			// Shell-tool scenarios for the non-sandbox shell-tool tests
+			// (auto-approved by the default `chat.tools.terminal.autoApprove`
+			// entry for `echo`).
+			for (const shellSession of SHELL_SESSIONS) {
+				registerScenario(shellSession.scenarioId, shellSession.scenarioFactory(shellSession.reply));
+			}
 
 			registerScenario(CLAUDE_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_WARMUP_REPLY).build());
 
@@ -357,6 +410,49 @@ export function setup(logger: Logger) {
 				`expected tool.execution_complete with sandboxed=true in ${chatLogPath}`
 			);
 		});
+
+		// Shell-tool variants for each session type — exercise the
+		// model-driven shell tool (`bash` / `pwsh` / `powershell` for the SDK
+		// sessions, `run_in_terminal` for the Local session) on the first
+		// prompt and verify both that the command actually ran (the JSON tool
+		// result contains the echoed marker) and that the reply rendered in
+		// the chat. `echo` is in the default `chat.tools.terminal.autoApprove`
+		// list, so no extra settings are required to auto-approve the
+		// command — these tests are deliberately the "non-sandbox" path.
+		for (const shellSession of SHELL_SESSIONS) {
+			it(`Test ${shellSession.name} session run in terminal`, async function () {
+				const app = this.app as Application;
+				const label = `Agents Window/${shellSession.name} shell`;
+				try {
+					await app.workbench.agentsWindow.startNewSession();
+					await app.workbench.agentsWindow.waitForNewSessionView();
+					if (shellSession.warmUp) {
+						await shellSession.warmUp(app, label);
+					} else {
+						await app.workbench.agentsWindow.selectSessionType(shellSession.sessionType);
+					}
+
+					const requestsBefore = mockServer.requestCount();
+					await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${shellSession.scenarioId}]`);
+
+					const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(shellSession.reply), 120_000);
+					logger.log(`${label} response: ${text}`);
+
+					assert.ok(
+						mockServer.requestCount() > requestsBefore,
+						`expected the mock LLM server to have received a new request from the ${shellSession.name} shell session`
+					);
+
+					if (shellSession.extraAssertion) {
+						await shellSession.extraAssertion(app);
+					}
+				} catch (error) {
+					logger.log(`[${label}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					await dumpFailureDiagnostics(app, logger, label, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+					throw error;
+				}
+			});
+		}
 	});
 
 	describe('Agents Window (local AgentHost)', () => {
@@ -676,54 +772,6 @@ export function setup(logger: Logger) {
 			}
 		});
 	});
-}
-
-/**
- * Builds a two-turn mock scenario that exercises a sandboxed shell tool: the
- * model first runs `echo <reply>` via the bash/pwsh/powershell tool, then —
- * after the tool result round-trips — replays the last (tool-result) message
- * back as a ```json fenced block via `echo-last-message`.
- *
- * The reply text therefore appears in two kinds of `.rendered-markdown`
- * elements (both searched by {@link AgentsWindow.waitForAssistantText}):
- *   1. the terminal tool-call's command preview — rendered as `echo <reply>`
- *      (the bareword, no surrounding quotes), and
- *   2. the final assistant response — the JSON dump of the tool result, an
- *      object whose `output` field holds the echoed `<reply>` (possibly with
- *      a prefix, e.g. shell-integration noise, and an `<exited ...>` suffix).
- * To assert on the real response (2) and not the command preview (1), callers
- * match with {@link shellEchoResponseMatcher} — see the sandbox tests.
- */
-function shellEchoScenario(reply: string) {
-	return {
-		type: 'multi-turn',
-		turns: [
-			{
-				kind: 'tool-calls',
-				toolCalls: [
-					{
-						toolNamePattern: /^(bash|pwsh|powershell)$/i,
-						arguments: { command: `echo ${reply}` },
-					},
-				],
-			},
-			{ kind: 'echo-last-message' },
-		],
-	};
-}
-
-/**
- * Builds the {@link AgentsWindow.waitForAssistantText} matcher for a
- * {@link shellEchoScenario} reply. The final response renders the tool result
- * as a ```json block of the form
- * `{ ..., "output": "<reply>\n<exited with exit code 0>" }`, so anchoring on
- * `"output": ... <reply>` matches that JSON value specifically — not the
- * `echo <reply>` command preview (which has no `"output"` field) — while still
- * tolerating any prefix inside the captured output (e.g. shell-integration
- * noise). `<reply>` contains no regex metacharacters.
- */
-function shellEchoResponseMatcher(reply: string): RegExp {
-	return new RegExp(`"output":.*${reply}`);
 }
 
 /**
