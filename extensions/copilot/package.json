@@ -6681,6 +6681,7 @@
         "canDelegate": true,
         "requiresCustomModels": true,
         "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6741,6 +6742,7 @@
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
         "supportsAutoModel": true,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
@@ -6799,6 +6801,7 @@
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
         "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true
         },

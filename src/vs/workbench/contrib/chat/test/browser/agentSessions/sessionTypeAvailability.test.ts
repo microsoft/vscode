@@ -18,6 +18,8 @@ interface ITypeConfig {
 	readonly supportsAutoModel: boolean;
 	/** Whether the type requires its own (custom) models to produce a request. */
 	readonly requiresCustomModels: boolean;
+	/** Whether the type relies on a Copilot account (defaults to false). */
+	readonly requiresCopilotSignIn?: boolean;
 }
 
 const TYPE = 'agent-host-test';
@@ -29,6 +31,9 @@ function createChatSessionsService(config: ITypeConfig): IChatSessionsService {
 		}
 		override requiresCustomModelsForSessionType(type: string): boolean {
 			return type === TYPE ? config.requiresCustomModels : false;
+		}
+		override requiresCopilotSignInForSessionType(type: string): boolean {
+			return type === TYPE ? !!config.requiresCopilotSignIn : false;
 		}
 		override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
 			if (type === TYPE && config.registered) {
@@ -86,13 +91,13 @@ suite('getSessionTypeAvailability', () => {
 	test('signed-out user must sign in even when the type supports the Auto fallback', () => {
 		// Copilot CLI: supportsAutoModel=true. The Auto model needs a Copilot
 		// account and BYOK is not supported here, so a signed-out user can't use it.
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true };
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('signed-out user must sign in for a custom-model agent host type', () => {
 		// e.g. an agent host Claude harness: supportsAutoModel=false, requiresCustomModels=true.
-		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true };
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
 	});
 
@@ -100,8 +105,16 @@ suite('getSessionTypeAvailability', () => {
 		// The cloud agent delegates to a remote Copilot: supportsAutoModel=false,
 		// requiresCustomModels=false. It still needs a Copilot account, so a
 		// signed-out user is prompted to sign in rather than offered the type.
-		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: false };
+		const config: ITypeConfig = { registered: true, supportsAutoModel: false, requiresCustomModels: false, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.SignInRequired);
+	});
+
+	test('signed-out user can still use a non-Copilot third-party type', () => {
+		// A general contributed session type that doesn't rely on Copilot
+		// (requiresCopilotSignIn defaults to false) must not be gated behind
+		// sign-in: with an Auto fallback it stays available while signed out.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: false };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.Available);
 	});
 
 	test('available when a model targets the type, even without Auto', () => {
@@ -109,10 +122,10 @@ suite('getSessionTypeAvailability', () => {
 		assert.strictEqual(availability(config, ChatEntitlement.Pro, [TYPE]), SessionTypeAvailability.Available);
 	});
 
-	test('a targeting model does NOT override sign-in for a contributed type', () => {
+	test('a targeting model does NOT override sign-in for a Copilot-backed type', () => {
 		// BYOK is not supported in the agent host / Copilot CLI, so a stale/cached
 		// Copilot model still targeting the type must not unlock it when signed out.
-		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true };
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [TYPE]), SessionTypeAvailability.SignInRequired);
 	});
 

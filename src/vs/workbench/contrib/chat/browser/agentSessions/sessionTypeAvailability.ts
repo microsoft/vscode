@@ -38,10 +38,10 @@ export enum SessionTypeAvailability {
  * paid users whose type genuinely requires its own models but has none simply
  * have no models ({@link SessionTypeAvailability.NoModels}) and are shown an
  * explanation with no upgrade button. A signed-out user gets a Sign-in
- * affordance ({@link SessionTypeAvailability.SignInRequired}) for agent host /
- * Copilot CLI types, since those rely on a Copilot account and BYOK models are
- * not (yet) supported there. Unavailable types are greyed out in the picker
- * either way.
+ * affordance ({@link SessionTypeAvailability.SignInRequired}) for Copilot-backed
+ * types ({@link IChatSessionsService.requiresCopilotSignInForSessionType}); types
+ * that don't depend on Copilot stay usable while offline. Unavailable types are
+ * greyed out in the picker either way.
  *
  * While the type's contribution isn't registered yet (e.g. during a window
  * reload before the extension host re-registers), this returns
@@ -63,12 +63,11 @@ export function getSessionTypeAvailability(
 	if (!chatSessionsService.getChatSessionContribution(type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// Every contributed type (Copilot CLI, Claude, Cloud, …) is Copilot-backed and
-	// BYOK isn't supported here, so a signed-out user has nothing to run them with
-	// — not even a stale/cached model still targeting the type. Prompt to sign in.
-	// Built-in Local chat isn't a contributed type, so it never reaches here.
+	// Copilot-backed types need a Copilot account and BYOK isn't supported here, so a signed-out user can't run them —
+	// not even via a stale/cached model still targeting the type. Types that don't depend on Copilot (built-in Local
+	// chat, third-party sessions) don't set the flag and stay usable while offline.
 	const entitlement = chatEntitlementService.entitlement;
-	if (entitlement === ChatEntitlement.Unknown) {
+	if (entitlement === ChatEntitlement.Unknown && chatSessionsService.requiresCopilotSignInForSessionType(type)) {
 		return SessionTypeAvailability.SignInRequired;
 	}
 	// Signed in: a model targeting the type (e.g. BYOK) or an "Auto" fallback
