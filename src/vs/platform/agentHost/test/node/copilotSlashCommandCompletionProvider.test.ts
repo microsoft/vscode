@@ -16,100 +16,96 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 	suite('parseLeadingSlashCommand', () => {
 		test('matches lone /plan', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/plan'), { command: 'plan', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/plan'), { command: 'plan', rest: '', rawRest: '' });
 		});
 
 		test('matches lone /compact', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/compact'), { command: 'compact', rest: '', rawRest: '' });
 		});
 
 		test('matches lone /research', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/research'), { command: 'research', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research'), { command: 'research', rest: '', rawRest: '' });
 		});
 
 		test('captures trailing text after a space for /research', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?', rawRest: 'How does React work?' });
 		});
 
 		test('matches lone /rubber-duck', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '', rawRest: '' });
 		});
 
 		test('matches lone /env', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/env'), { command: 'env', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/env'), { command: 'env', rest: '', rawRest: '' });
 		});
 
 		test('matches lone /review', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/review'), { command: 'review', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/review'), { command: 'review', rest: '', rawRest: '' });
 		});
 
 		test('matches lone /security-review', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review'), { command: 'security-review', rest: '' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review'), { command: 'security-review', rest: '', rawRest: '' });
 		});
 
 		test('captures trailing text after a space for /rubber-duck', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach', rawRest: 'review my approach' });
 		});
 
 		test('captures trailing text after a space for /env', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/env ignored input'), { command: 'env', rest: 'ignored input' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/env ignored input'), { command: 'env', rest: 'ignored input', rawRest: 'ignored input' });
 		});
 
 		test('captures trailing text after a space for /review', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/review focus on tests'), { command: 'review', rest: 'focus on tests' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/review focus on tests'), { command: 'review', rest: 'focus on tests', rawRest: 'focus on tests' });
 		});
 
 		test('captures trailing text after a space for /security-review', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review focus on auth'), { command: 'security-review', rest: 'focus on auth' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/security-review focus on auth'), { command: 'security-review', rest: 'focus on auth', rawRest: 'focus on auth' });
 		});
 
-		test('rejects /rubber-duck-extra (no separator)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), undefined);
+		test('parses arbitrary slash command tokens', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), { command: 'rubber-duck-extra', rest: '', rawRest: '' });
 		});
 
-		test('rejects /env-extra (no separator)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/env-extra'), undefined);
+		test('preserves multiline command input as rawRest', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/foo first line\nsecond line'), { command: 'foo', rest: 'first line\nsecond line', rawRest: 'first line\nsecond line' });
 		});
 
-		test('rejects /review-extra (no separator)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/review-extra'), undefined);
-		});
-
-		test('rejects /security-review-extra (no separator)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/security-review-extra'), undefined);
-		});
-
-		test('rejects /rubber alone (incomplete command)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/rubber'), undefined);
+		test('trims rest while retaining rawRest', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/foo   padded  '), { command: 'foo', rest: 'padded', rawRest: 'padded  ' });
 		});
 
 		test('captures trailing text after a space', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/plan build a hello world'), { command: 'plan', rest: 'build a hello world' });
+			assert.deepStrictEqual(parseLeadingSlashCommand('/plan build a hello world'), { command: 'plan', rest: 'build a hello world', rawRest: 'build a hello world' });
 		});
 
 		test('captures trailing text after a space for /compact', () => {
-			assert.deepStrictEqual(parseLeadingSlashCommand('/compact some text'), { command: 'compact', rest: 'some text' });
-		});
-
-		test('rejects /compact-hello (no separator)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/compact-hello world'), undefined);
-		});
-
-		test('rejects /plans (longer command)', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/plans'), undefined);
+			assert.deepStrictEqual(parseLeadingSlashCommand('/compact some text'), { command: 'compact', rest: 'some text', rawRest: 'some text' });
 		});
 
 		test('rejects leading whitespace', () => {
 			assert.strictEqual(parseLeadingSlashCommand(' /compact'), undefined);
 		});
 
-		test('case-sensitive', () => {
-			assert.strictEqual(parseLeadingSlashCommand('/PLAN'), undefined);
+		test('accepts uppercase command tokens', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/PLAN'), { command: 'PLAN', rest: '', rawRest: '' });
 		});
 	});
 
 	suite('provideCompletionItems', () => {
-		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async () => true });
+		const runtimeCommands = [
+			{ name: 'plan', description: 'Runtime plan', kind: 'builtin' as const, allowDuringAgentExecution: true, input: { hint: 'task' } },
+			{ name: 'compact', description: 'Runtime compact', kind: 'builtin' as const, allowDuringAgentExecution: true },
+			{ name: 'research', description: 'Runtime research', kind: 'builtin' as const, allowDuringAgentExecution: true, input: { hint: 'query' } },
+			{ name: 'rubber-duck', description: 'Runtime rubber-duck', kind: 'builtin' as const, allowDuringAgentExecution: true, input: { hint: 'review prompt' } },
+			{ name: 'env', description: 'Runtime env', kind: 'builtin' as const, allowDuringAgentExecution: true },
+			{ name: 'review', description: 'Runtime review', kind: 'builtin' as const, allowDuringAgentExecution: true, input: { hint: 'scope' } },
+			{ name: 'security-review', description: 'Runtime security review', kind: 'builtin' as const, allowDuringAgentExecution: true, input: { hint: 'scope' } },
+		];
+		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+			isRubberDuckEnabled: () => true,
+			getRuntimeSlashCommands: async () => runtimeCommands,
+		});
 		const session = 'copilotcli:/abc';
 
 		async function run(text: string, offset = text.length) {
@@ -128,32 +124,40 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/plan task ', '/compact ', '/research ', '/research query ', '/rubber-duck ', '/env ', '/review ', '/security-review ', '/rubber-duck review prompt ', '/security-review scope ', '/review scope '].sort());
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
 			const items = await run('/p');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/plan task ']);
 		});
 
 		test('filters to /compact when "/c" typed', async () => {
 			const items = await run('/c');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact ']);
 		});
 
 		test('filters to /env when "/e" typed and runtime command exists', async () => {
 			const items = await run('/e');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/env']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/env ']);
 		});
 
 		test('filters to /research and /rubber-duck when "/r" typed', async () => {
 			const items = await run('/r');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ', '/review ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), [
+				'/research ',
+				'/research query ',
+				'/review ',
+				'/review scope ',
+				'/rubber-duck ',
+				'/rubber-duck review prompt '
+			].sort());
 		});
 
 		test('filters to /security-review when "/s" typed', async () => {
 			const items = await run('/s');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ',
+				'/security-review scope ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -174,7 +178,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('range covers only the leading slash word', async () => {
 			const items = await run('/p extra text', 2);
-			assert.strictEqual(items.length, 1);
+			assert.strictEqual(items.length, 2);
 			assert.strictEqual(items[0].rangeStart, 0);
 			assert.strictEqual(items[0].rangeEnd, 2);
 		});
@@ -183,111 +187,247 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await run('/');
 			assert.deepStrictEqual(items.map(item => ({ type: item.attachment?.type, meta: item.attachment?._meta })), [
 				{
+					type: 'simple',
+					meta: {
+						command: 'compact',
+						description: 'Runtime compact'
+					}
+				},
+				{
+					type: 'simple',
+					meta: {
+						command: 'env',
+						description: 'Runtime env'
+					}
+				},
+				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'plan',
-						description: 'Create an implementation plan before coding',
+						description: 'Runtime plan',
 					},
 				},
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
-						command: 'compact',
-						description: 'Free up context by compacting the conversation history',
+						command: 'plan',
+						description: 'Runtime plan',
 					},
 				},
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'research',
-						description: 'Run deep research on a topic using search and web sources',
+						description: 'Runtime research',
 					},
 				},
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
-						command: 'rubber-duck',
-						description: 'Get an independent critique of the current approach',
-					},
-				},
-				{
-					type: MessageAttachmentKind.Simple,
-					meta: {
-						command: 'env',
-						description: 'Show loaded environment details',
+						command: 'research',
+						description: 'Runtime research',
 					},
 				},
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'review',
-						description: 'Run code review agent to analyze changes',
+						description: 'Runtime review',
 					},
 				},
 				{
 					type: MessageAttachmentKind.Simple,
 					meta: {
+						command: 'review',
+						description: 'Runtime review',
+					},
+				},
+				{
+					type: 'simple',
+					meta: {
+						command: 'rubber-duck',
+						description: 'Runtime rubber-duck'
+					}
+				},
+				{
+					type: 'simple',
+					meta: {
+						command: 'rubber-duck',
+						description: 'Runtime rubber-duck'
+					}
+				},
+				{
+					type: 'simple',
+					meta: {
 						command: 'security-review',
-						description: 'Analyze staged and unstaged changes for security vulnerabilities',
+						description: 'Runtime security review'
+					}
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'security-review',
+						description: 'Runtime security review',
 					},
 				},
 			]);
 		});
 
-		test('omits /compact when session has no history', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async () => true });
-			const items = await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
-			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
-		});
-
 		test('omits /rubber-duck when not enabled', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => false, hasRuntimeSlashCommand: async () => true });
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => false,
+				getRuntimeSlashCommands: async () => runtimeCommands,
+			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/env', '/review ', '/security-review ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), [
+				'/compact ',
+				'/env ',
+				'/plan ',
+				'/plan task ',
+				'/research ',
+				'/research query ',
+				'/review ',
+				'/review scope ',
+				'/security-review ',
+				'/security-review scope '
+			].sort());
 		});
 
-		test('omits /env when runtime command is unavailable', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async (_id, command) => command !== 'env' });
+		test('returns no completion items when runtime command list is empty', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [],
+			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/review ', '/security-review ']);
+			assert.deepStrictEqual(items, []);
 		});
 
-		test('keeps prompt-invoked commands when runtime commands are unavailable', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true, hasRuntimeSlashCommand: async (_id, command) => command === 'env' });
+		test('filters out runtime commands omitted from the catalog', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => runtimeCommands.filter(command => command.name !== 'env'),
+			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ', '/env', '/review ', '/security-review ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), [
+				'/compact ',
+				'/plan ',
+				'/plan task ',
+				'/research ',
+				'/research query ',
+				'/review ',
+				'/review scope ',
+				'/rubber-duck ',
+				'/rubber-duck review prompt ',
+				'/security-review ',
+				'/security-review scope ',
+			].sort());
 		});
 
-		test('passes raw session id (no scheme/slash) to hasHistory', async () => {
+		test('includes runtime SDK commands in completion results', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [{
+					name: 'focus',
+					description: 'Focus on specific files',
+					kind: 'builtin',
+					allowDuringAgentExecution: true,
+					input: { hint: 'scope' },
+				}],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/f', offset: 2,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/focus ', '/focus scope ']);
+		});
+
+		test('keeps runtime commands that also have local send-time handling', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'plan', description: 'runtime plan', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'task' } },
+					{ name: 'compact', description: 'runtime compact', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'runtime-only', description: 'runtime only', kind: 'client', allowDuringAgentExecution: true },
+				],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/runtime-only ', '/plan task '].sort());
+		});
+
+		test('uses runtime input metadata to determine trailing space insertion', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'no-input', description: 'No input', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'needs-input', description: 'Needs input', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'value' } },
+				],
+			});
+			const withInput = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/n', offset: 2,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(withInput.map(i => i.insertText), ['/no-input ', '/needs-input ', '/needs-input value '].sort());
+		});
+
+		test('expands an enumerated hint into one item per option (with brackets)', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: '[on|off]' } },
+				],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
+			}, CancellationToken.None);
+			// An enumerated hint expands into the bare command plus one item per option.
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle on ', '/toggle off '].sort());
+		});
+
+		test('expands an enumerated hint into one item per option (without brackets)', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'on|off' } },
+				],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
+			}, CancellationToken.None);
+			// An enumerated hint expands into the bare command plus one item per option.
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle on ', '/toggle off '].sort());
+		});
+
+		test('expands an enumerated hint into one item per option (requires input)', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { required: true, hint: '[on|off]' } },
+				],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
+			}, CancellationToken.None);
+			// An enumerated hint expands into the bare command plus one item per option.
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle on ', '/toggle off '].sort());
+		});
+
+		test('passes raw session id to runtime command listing', async () => {
 			let seen: string | undefined;
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
-				hasHistory: (id: string) => { seen = id; return true; },
 				isRubberDuckEnabled: () => true,
-				hasRuntimeSlashCommand: async () => true,
+				getRuntimeSlashCommands: async (id: string) => {
+					seen = id;
+					return [{ name: 'focus', kind: 'builtin', description: 'Focus', allowDuringAgentExecution: true }];
+				},
 			});
 			await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/', offset: 1,
-			}, CancellationToken.None);
-			assert.strictEqual(seen, 'abc');
-		});
-
-		test('passes raw session id to runtime command availability', async () => {
-			let seen: string | undefined;
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
-				hasHistory: () => true,
-				isRubberDuckEnabled: () => true,
-				hasRuntimeSlashCommand: async (id: string) => { seen = id; return true; },
-			});
-			await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/e', offset: 2,
+				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/f', offset: 2,
 			}, CancellationToken.None);
 			assert.strictEqual(seen, 'abc');
 		});

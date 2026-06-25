@@ -53,7 +53,16 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
-	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandListResult: {
+		commands: Array<{
+			name: string;
+			kind: 'builtin' | 'skill' | 'client';
+			description: string;
+			allowDuringAgentExecution: boolean;
+			aliases?: string[];
+			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
+		}>;
+	} = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
@@ -804,7 +813,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
@@ -846,11 +855,87 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/env', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
+		});
+	});
+
+	test('`/env` forwards trailing text as runtime command input', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'done' };
+
+		await session.send('/env details please', undefined, 'turn-env-input');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
+			turnComplete: ['turn-env-input'],
+		});
+	});
+
+	test('invokes non-local runtime slash commands via commands API', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'focus',
+				aliases: ['f'],
+				kind: 'builtin',
+				description: 'Focus on a scope',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Focus done' };
+
+		await session.send('/f src/vs/platform', undefined, 'turn-focus');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
+			turnComplete: ['turn-focus'],
 		});
 	});
 
@@ -887,13 +972,23 @@ suite('CopilotAgentSession', () => {
 		}, {
 			env: true,
 			review: true,
-			skill: false,
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			skill: true,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 		});
 	});
 
-	test('`/review` forwards as a prompt-invoked command', async () => {
+	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'review',
+				kind: 'builtin',
+				description: 'Run code review agent to analyze changes',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Review done' };
 
 		await session.send('/review focus on tests', undefined, 'turn-review');
 
@@ -901,19 +996,27 @@ suite('CopilotAgentSession', () => {
 			commandListCalls: mockSession.commandListCalls,
 			commandInvokeCalls: mockSession.commandInvokeCalls,
 			sendRequests: mockSession.sendRequests,
-			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
-			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+			responseParts: getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: getActions(signals)
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [],
-			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
-			responseParts: [],
-			turnComplete: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
+			turnComplete: ['turn-review'],
 		});
 	});
 
-	test('`/security-review` forwards as a prompt-invoked command', async () => {
+	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
 
 		await session.send('/security-review', undefined, 'turn-security-review');
 
@@ -924,7 +1027,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
