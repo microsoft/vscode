@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ResponsePartKind, SESSION_META_GITHUB_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -1560,6 +1560,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let persistedConfigValues: Record<string, string> | undefined;
 		let changes: ChangesSummary | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
+		let summaryMetadata: Record<string, unknown> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -1572,6 +1573,7 @@ export class AgentService extends Disposable implements IAgentService {
 							isArchived: true,
 							isDone: true,
 							configValues: true,
+							[META_GITHUB_STATE]: true,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
 						if (m.customTitle) {
@@ -1592,6 +1594,15 @@ export class AgentService extends Disposable implements IAgentService {
 								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
+						if (m[META_GITHUB_STATE]) {
+							try {
+								const githubState = JSON.parse(m[META_GITHUB_STATE]);
+								summaryMetadata = { [SESSION_META_GITHUB_KEY]: githubState };
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
 						}
 
@@ -1627,11 +1638,19 @@ export class AgentService extends Disposable implements IAgentService {
 			status,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
-			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			...(meta.project ?
+				{
+					project: {
+						uri: meta.project.uri.toString(),
+						displayName: meta.project.displayName
+					}
+				}
+				: {}),
 			model: meta.model,
 			agent: meta.agent,
 			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
+			_meta: summaryMetadata
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
