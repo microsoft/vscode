@@ -53,3 +53,8 @@
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding: 0 4px;
 }
+
+/* Inset the part title label (e.g. "Explorer") to align with the content below. */
+.style-override.monaco-workbench .part > .title > .title-label {
+	padding-left: var(--vscode-spacing-size80, 8px);
+}

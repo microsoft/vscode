@@ -161,7 +161,7 @@ export class ChatCompositeBar extends Disposable {
 		this._setVisible(false);
 		let shown = false;
 		store.add(autorun(reader => {
-			const chats = session.chats.read(reader);
+			const chats = session.openChats.read(reader);
 			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = mainChat.resource.toString();
@@ -280,7 +280,9 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible
+		// Close action — only for non-main chats, always visible. Closing hides the
+		// chat from the tab strip (reopenable from the chats dropdown in the
+		// session header); use Delete to remove it permanently.
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -289,7 +291,7 @@ export class ChatCompositeBar extends Disposable {
 				true,
 				async () => {
 					if (this._session) {
-						await this._sessionsManagementService.deleteChat(this._session, chat.resource);
+						await this._sessionsService.closeChat(this._session, chat);
 					}
 				},
 			));
@@ -319,6 +321,14 @@ export class ChatCompositeBar extends Disposable {
 			this._startTabEditing(chatTab);
 		}));
 
+		// Delete permanently removes the chat (destructive). Only non-main chats
+		// can be deleted; the main chat lives and dies with its session.
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
+			if (this._session) {
+				await this._sessionsManagementService.deleteChat(this._session, chat.resource);
+			}
+		}));
+
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			if (chat.status.get() === SessionStatus.Untitled) {
@@ -340,9 +350,9 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => [
-					renameAction,
-				]
+				getActions: () => isMainChat
+					? [renameAction]
+					: [renameAction, deleteAction]
 			});
 		}));
 

@@ -476,6 +476,35 @@
 			}
 		},
 		{
+			"label": "Run VS Code (Web)",
+			"detail": "Run the Agents window as a web client.",
+			"type": "shell",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": [
+				"--connection-token",
+				"dev-token",
+				"--port",
+				"8080"
+			],
+			"inAgents": true,
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
 			"type": "npm",
 			"script": "eslint",
 			"problemMatcher": {

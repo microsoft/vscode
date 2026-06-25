@@ -81,17 +81,17 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { Action } from '../../../../../base/common/actions.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 
 const $ = DOM.$;
 
@@ -331,11 +331,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private _editorContentChanged = false;
 	private _previousActiveHarnessId: string | undefined;
 
-	// Harness dropdown
-	private harnessDropdownContainer: HTMLElement | undefined;
-	private harnessDropdownButton: HTMLElement | undefined;
-	private harnessDropdownIcon: HTMLElement | undefined;
-	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
 	private homeButtonIcon: HTMLElement | undefined;
@@ -363,7 +358,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -516,14 +510,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	/**
-	 * Whether the harness selector UI is enabled.
-	 * When disabled, the editor behaves as if "Local" is always selected.
-	 */
-	private get isHarnessSelectorEnabled(): boolean {
-		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
-	}
-
 	private getActiveHarnessLabel(): string {
 		return this.harnessService.getActiveDescriptor().label || localize('localHarnessLabel', "Local");
 	}
@@ -570,7 +556,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createSidebar(): void {
 		const sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
 
-		// Header row with home button and optional harness dropdown
 		this.createSidebarHeader(sidebarContent);
 
 		// Main sections list container (takes remaining space)
@@ -620,8 +605,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessContextKey.set(activeId);
 			this.updateHomeButtonHarnessPresentation();
 			this.rebuildVisibleSections();
-			this.ensureHarnessDropdown();
-			this.updateHarnessDropdown();
 			// Reset counts to zero immediately on harness switch to prevent
 			// stale counts from the previous harness flashing before the async
 			// count refresh completes. Only reset when the active harness
@@ -660,67 +643,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 		this.updateHomeButtonHarnessPresentation();
 
-		// Harness dropdown (shown when multiple harnesses available)
-		//this.createHarnessDropdown(headerRow);
 		this.updateHomeButtonStyle();
-	}
-
-	private createHarnessDropdown(parent: HTMLElement): void {
-		if (!this.isHarnessSelectorEnabled) {
-			return;
-		}
-
-		const container = this.harnessDropdownContainer = DOM.append(parent, $('.sidebar-harness-dropdown'));
-
-		this.harnessDropdownButton = DOM.append(container, $('button.harness-dropdown-button'));
-		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
-		this.harnessDropdownButton.setAttribute('aria-haspopup', 'listbox');
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.harnessDropdownButton, () => {
-			const descriptor = this.harnessService.findHarnessById(this.harnessService.activeHarness.get());
-			return descriptor?.label ?? '';
-		}));
-
-		this.harnessDropdownIcon = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-icon'));
-		this.harnessDropdownLabel = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-label'));
-		DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-chevron.codicon.codicon-chevron-down'));
-
-		this.updateHarnessDropdown();
-
-		this.editorDisposables.add(DOM.addDisposableListener(this.harnessDropdownButton, 'click', () => {
-			this.showHarnessMenu();
-		}));
-	}
-
-	/**
-	 * Lazily creates the harness dropdown if it doesn't exist but
-	 * multiple harnesses are now available, or hides it if only one
-	 * harness remains (e.g. after an extension-contributed harness is
-	 * unregistered).
-	 */
-	private ensureHarnessDropdown(): void {
-		if (!this.isHarnessSelectorEnabled && this.harnessDropdownContainer) {
-			// Setting is off — remove the dropdown entirely
-			this.harnessDropdownContainer.remove();
-			this.harnessDropdownContainer = undefined;
-			this.harnessDropdownButton = undefined;
-			this.harnessDropdownIcon = undefined;
-			this.harnessDropdownLabel = undefined;
-			this.updateHomeButtonStyle();
-		} else if (this.isHarnessSelectorEnabled && !this.harnessDropdownContainer && this.sidebarHeaderContainer) {
-			this.createHarnessDropdown(this.sidebarHeaderContainer);
-			this.updateHomeButtonStyle();
-		}
-		// Visibility is handled by updateHarnessDropdown based on harness count
 	}
 
 	private updateHomeButtonStyle(): void {
 		if (!this.homeButtonLabel || !this.homeButton) {
 			return;
 		}
-		// Show full label when harness dropdown is hidden, icon-only when visible
-		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
-		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
-		this.homeButton.style.flex = harnessVisible ? '' : '1';
+		this.homeButtonLabel.style.display = '';
+		this.homeButton.style.flex = '1';
 	}
 
 	private updateHomeButtonHarnessPresentation(): void {
@@ -735,46 +666,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
-	}
-
-	private updateHarnessDropdown(): void {
-		if (!this.harnessDropdownContainer || !this.harnessDropdownIcon || !this.harnessDropdownLabel) {
-			return;
-		}
-		const harnesses = this.harnessService.availableHarnesses.get();
-		// Hide dropdown when only one harness is available
-		this.harnessDropdownContainer.style.display = harnesses.length <= 1 ? 'none' : '';
-		this.updateHomeButtonStyle();
-
-		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = harnesses.find(h => h.id === activeId);
-		if (descriptor) {
-			this.harnessDropdownIcon.className = 'harness-dropdown-icon';
-			this.harnessDropdownIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
-			this.harnessDropdownLabel.textContent = descriptor.label;
-		}
-	}
-
-	private showHarnessMenu(): void {
-		if (!this.harnessDropdownButton) {
-			return;
-		}
-		const harnesses = this.harnessService.availableHarnesses.get();
-		const activeId = this.harnessService.activeHarness.get();
-
-		const actions = harnesses.map(h => {
-			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
-				this.harnessService.setActiveSession(this.harnessService.getSessionResourceForHarness(h.id));
-			});
-			action.checked = h.id === activeId;
-			return action;
-		});
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.harnessDropdownButton!,
-			getActions: () => actions,
-			getCheckedActionsRepresentation: () => 'radio',
-		});
 	}
 
 	private createWelcomePage(parent: HTMLElement): void {
@@ -1304,62 +1195,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Partition folders by whether they're under the active project root.
-		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
-		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
-		let matchingFolders;
-		if (target === 'workspace') {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
-						return false;
-					}
-					// When the active harness specifies workspaceSubpaths, only offer
-					// directories whose path includes one of those sub-paths.
-					if (subpaths) {
-						return matchesWorkspaceSubpath(f.uri.path, subpaths);
-					}
-					return true;
-				})
-				: [];
-		} else {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
-				: allFolders;
-
-			// When the active harness restricts user roots, only offer
-			// directories under the harness-accessible user roots
-			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
-			const filter = this.harnessService.getStorageSourceFilter(type);
-			if (filter.includedUserFileRoots) {
-				const roots = filter.includedUserFileRoots;
-				matchingFolders = matchingFolders.filter(f =>
-					roots.some(root => isEqualOrParent(f.uri, root))
-				);
-			}
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
 		}
 
-		// Deduplicate by URI (getSourceFolders may return the same path
-		// from both config-based discovery and the AgenticPromptsService override)
-		const seen = new Set<string>();
-		matchingFolders = matchingFolders.filter(f => {
-			const key = f.uri.toString();
-			if (seen.has(key)) {
-				return false;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (target === 'workspace') {
+				if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
+			} else {
+				if ((!projectRoot || !isEqualOrParent(f.uri, projectRoot)) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
 			}
-			seen.add(key);
-			return true;
-		});
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
@@ -1373,7 +1244,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));
