@@ -343,11 +343,15 @@ export class LayoutController extends BaseLayoutController {
 			return false;
 		}
 
-		this._viewStateBySession.set(sessionResource, { ...savedState, auxiliaryBarVisible: true });
 		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
 		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
+			this._viewStateBySession.set(sessionResource, { ...savedState, auxiliaryBarVisible: true });
 			void this._viewsService.openViewContainer(savedContainerId, false);
 		} else {
+			this._viewStateBySession.set(sessionResource, {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			});
 			void this._openDefaultAuxiliaryBarContainer(true);
 		}
 		return true;

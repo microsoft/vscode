@@ -23,9 +23,15 @@ suite('LayoutController (desktop)', () => {
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
 
-	function createController(options: ICreateOptions = {}): LayoutController {
+	class TestLayoutController extends LayoutController {
+		getViewState(sessionResource: URI) {
+			return this._viewStateBySession.get(sessionResource);
+		}
+	}
+
+	function createController(options: ICreateOptions = {}): TestLayoutController {
 		harness = createTestHarness(store, options);
-		return store.add(harness.instaService.createInstance(LayoutController));
+		return store.add(harness.instaService.createInstance(TestLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -249,6 +255,35 @@ suite('LayoutController (desktop)', () => {
 			harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID),
 			'Changes should be the active view when the side pane is opened later'
 		);
+	});
+
+	test('[D4] records Changes when a hidden side pane falls back from an invalid saved container', () => {
+		const session = makeSession(URI.parse('session:1'));
+		const controller = createController({
+			layoutState: [{
+				sessionResource: session.resource.toString(),
+				viewState: {
+					auxiliaryBarVisible: false,
+					auxiliaryBarActiveViewContainerId: 'missing.view',
+				},
+			}],
+		});
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+			viewState: controller.getViewState(session.resource),
+		}, {
+			openedChanges: true,
+			viewState: {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			},
+		});
 	});
 
 	test('[D4] remembers Files when the user chooses it after the session is submitted', () => {
