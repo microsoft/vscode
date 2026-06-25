@@ -325,8 +325,8 @@
 	padding: 0;
 	width: 26px;
 	height: 16px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-checkbox-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-checkbox-border);
 	background-color: var(--vscode-checkbox-background);
 	overflow: visible;
 	transition: background-color 0.1s ease, border-color 0.1s ease;
