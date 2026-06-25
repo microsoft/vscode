@@ -939,8 +939,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			let text = e.text;
 
-			// Check for send keyword trigger (when auto-send is disabled).
-			if (this._pttToggleMode && this._pttHeld && !this._isAutoSendEnabled()) {
+			// Check for send keyword trigger in toggle mode.
+			if (this._pttToggleMode && this._pttHeld) {
 				const strippedText = this._checkSendKeyword(text);
 				if (strippedText !== undefined) {
 					text = strippedText;
@@ -1332,10 +1332,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!keyword) {
 			return undefined;
 		}
-		const trimmed = text.trimEnd();
+		// Strip trailing punctuation that speech recognizers often append
+		const trimmed = text.trimEnd().replace(/[.,!?;:]+$/, '').trimEnd();
 		const keywordLower = keyword.toLowerCase();
 		if (trimmed.toLowerCase().endsWith(keywordLower)) {
-			// Strip the keyword from the end
 			const stripped = trimmed.slice(0, trimmed.length - keyword.length).trimEnd();
 			return stripped || undefined; // return undefined if nothing left (don't send empty)
 		}
