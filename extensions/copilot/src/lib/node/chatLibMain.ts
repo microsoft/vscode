@@ -532,6 +532,7 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 	constructor(
 		waitForTreatmentVariables: boolean | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		if (waitForTreatmentVariables) {
@@ -551,7 +552,14 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		return this.variables[name] as T | undefined;
+		const result = this.variables[name] as T | undefined;
+		this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
+			treatmentName: name,
+			valueKind: result === undefined ? 'undefined' : typeof result
+		}, {
+			hasValue: result === undefined ? 0 : 1
+		});
+		return result;
 	}
 
 	async setCompletionsFilters(_filters: Map<string, string>): Promise<void> { }

@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../configuration/common/configurationS
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../common/nullExperimentationService';
+import { ITelemetryService } from '../common/telemetry';
 
 export class UserInfoStore extends Disposable {
 	private _internalOrg: string | undefined;
@@ -135,6 +136,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 		@IVSCodeExtensionContext context: IVSCodeExtensionContext,
 		@ICopilotTokenStore copilotTokenStore: ICopilotTokenStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -189,6 +191,12 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
 		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
 		this._previouslyReadTreatments.set(name, result);
+		this._telemetryService.sendMSFTTelemetryEvent('copilot.experimentEvaluated', {
+			treatmentName: name,
+			valueKind: result === undefined ? 'undefined' : typeof result
+		}, {
+			hasValue: result === undefined ? 0 : 1
+		});
 		return result;
 	}
 

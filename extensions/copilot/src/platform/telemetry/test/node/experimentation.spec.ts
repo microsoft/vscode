@@ -13,7 +13,9 @@ import { IVSCodeExtensionContext } from '../../../extContext/common/extensionCon
 import { ILogService } from '../../../log/common/logService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
+import { ITelemetryService } from '../../common/telemetry';
 import { BaseExperimentationService, TASClientDelegateFn, UserInfoStore } from '../../node/baseExperimentationService';
+import { SpyingTelemetryService } from '../../node/spyingTelemetryService';
 
 
 function toExpectedTreatment(name: string, org: string | undefined, sku: string | undefined): string | undefined {
@@ -27,13 +29,14 @@ class TestExperimentationService extends BaseExperimentationService {
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
 		@ICopilotTokenStore tokenStore: ICopilotTokenStore,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService
 	) {
 		const delegateFn: TASClientDelegateFn = (globalState: any, userInfoStore: UserInfoStore) => {
 			return new MockTASExperimentationService(userInfoStore);
 		};
 
-		super(delegateFn, extensionContext, tokenStore, configurationService, logService);
+		super(delegateFn, extensionContext, tokenStore, configurationService, telemetryService, logService);
 		this._mockTasService = this._delegate as MockTASExperimentationService;
 	}
 
@@ -134,6 +137,7 @@ describe('ExP Service Tests', () => {
 	let expService: TestExperimentationService;
 	let copilotTokenService: ICopilotTokenStore;
 	let extensionContext: IVSCodeExtensionContext;
+	let telemetryService: SpyingTelemetryService;
 
 	const GitHubProToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token-gh-pro', username: 'fake', sku: 'pro', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'] }));
 	const GitHubAndMicrosoftEnterpriseToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token-gh-msft-enterprise', username: 'fake', sku: 'enterprise', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a', 'a5db0bcaae94032fe715fb34a5e4bce2'] }));
@@ -146,6 +150,8 @@ describe('ExP Service Tests', () => {
 
 	beforeAll(() => {
 		const testingServiceCollection = createPlatformServices();
+		telemetryService = new SpyingTelemetryService();
+		testingServiceCollection.define(ITelemetryService, telemetryService);
 		accessor = testingServiceCollection.createTestingAccessor();
 		extensionContext = accessor.get(IVSCodeExtensionContext);
 		copilotTokenService = accessor.get(ICopilotTokenStore);
@@ -155,6 +161,7 @@ describe('ExP Service Tests', () => {
 	beforeEach(() => {
 		// Reset the mock service before each test
 		expService.mockTasService.reset();
+		telemetryService.reset();
 		// Clear any existing tokens
 		copilotTokenService.copilotToken = undefined;
 	});
@@ -222,6 +229,26 @@ describe('ExP Service Tests', () => {
 		expectedTreatment = toExpectedTreatment('a', undefined, undefined);
 		treatment = expService.getTreatmentVariable<string>('a');
 		expect(treatment).toBe(expectedTreatment);
+	});
+
+	it('should emit telemetry when a treatment variable is evaluated', async () => {
+		await expService.hasTreatments();
+
+		const treatment = expService.getTreatmentVariable<string>('copilotchat.configService.lazyCohortEvaluation');
+		expect(treatment).toBe(toExpectedTreatment('copilotchat.configService.lazyCohortEvaluation', undefined, undefined));
+
+		const events = telemetryService.getFilteredEvents({ 'copilot.experimentEvaluated': true });
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			eventName: 'copilot.experimentEvaluated',
+			properties: {
+				treatmentName: 'copilotchat.configService.lazyCohortEvaluation',
+				valueKind: 'string'
+			},
+			measurements: {
+				hasValue: 1
+			}
+		});
 	});
 
 	it('should trigger treatments refresh when user info changes', async () => {

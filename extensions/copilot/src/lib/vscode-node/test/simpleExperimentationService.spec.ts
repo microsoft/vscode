@@ -5,11 +5,18 @@
 
 import { describe, expect, it } from 'vitest';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { NullTelemetryService } from '../../../platform/telemetry/common/nullTelemetryService';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { SpyingTelemetryService } from '../../../platform/telemetry/node/spyingTelemetryService';
 import { SimpleExperimentationService } from '../../node/chatLibMain';
 
 describe('SimpleExperimentationService', () => {
+	function createService(waitForTreatmentVariables = false, telemetryService: ITelemetryService = new NullTelemetryService()): SimpleExperimentationService {
+		return new SimpleExperimentationService(waitForTreatmentVariables, new DefaultsOnlyConfigurationService(), telemetryService);
+	}
+
 	it('should initialize with no treatment variables', async () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 		await service.hasTreatments();
 
 		expect(service.getTreatmentVariable('nonexistent')).toBeUndefined();
@@ -18,7 +25,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should update multiple treatment variables at once', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 		const variables: Record<string, boolean | number | string> = {
 			'feature-a': true,
 			'feature-b': false,
@@ -37,7 +44,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should fire onDidTreatmentsChange event with all changed variables', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 		const events: string[][] = [];
 
 		service.onDidTreatmentsChange((event) => {
@@ -61,7 +68,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should not fire onDidTreatmentsChange event when no variables change', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 		const events: string[][] = [];
 
 		// Set initial value
@@ -86,7 +93,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should fire onDidTreatmentsChange event only for changed variables', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 
 		// Set initial values
 		const variables1: Record<string, boolean | number | string> = {
@@ -114,7 +121,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should overwrite existing treatment variables', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 
 		const variables1: Record<string, boolean | number | string> = {
 			'feature-flag': true
@@ -134,7 +141,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should wait for treatment variables when waitForTreatmentVariables = true', async () => {
-		const service = new SimpleExperimentationService(true, new DefaultsOnlyConfigurationService());
+		const service = createService(true);
 
 		// hasTreatments() should not resolve until updateTreatmentVariables() is called
 		let hasTreatmentsResolved = false;
@@ -161,7 +168,7 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should remove treatment variable when omitted from update', () => {
-		const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService());
+		const service = createService();
 
 		// Set initial variables
 		const variables1: Record<string, boolean | number | string> = {
@@ -193,6 +200,29 @@ describe('SimpleExperimentationService', () => {
 
 		expect(events).toHaveLength(1);
 		expect(events[0]).toEqual(['feature-b']);
+
+		service.dispose();
+	});
+
+	it('should emit telemetry when a treatment variable is evaluated', () => {
+		const telemetryService = new SpyingTelemetryService();
+		const service = createService(false, telemetryService);
+		service.updateTreatmentVariables({ 'feature-flag': true });
+
+		expect(service.getTreatmentVariable<boolean>('feature-flag')).toBe(true);
+
+		const events = telemetryService.getFilteredEvents({ 'copilot.experimentEvaluated': true });
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			eventName: 'copilot.experimentEvaluated',
+			properties: {
+				treatmentName: 'feature-flag',
+				valueKind: 'boolean'
+			},
+			measurements: {
+				hasValue: 1
+			}
+		});
 
 		service.dispose();
 	});

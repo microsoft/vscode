@@ -249,7 +249,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 			);
 		};
 
-		super(delegateFn, context, copilotTokenStore, configurationService, logService);
+		super(delegateFn, context, copilotTokenStore, configurationService, telemetryService, logService);
 
 		self = this; // This is now fully initialized.
 
