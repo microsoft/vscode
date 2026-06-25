@@ -56,6 +56,18 @@ export interface ISessionModelPickerOptions {
 }
 
 /**
+ * Options controlling how a chat is deleted via {@link ISessionsProvider.deleteChat}.
+ */
+export interface IDeleteChatOptions {
+	/**
+	 * Skip the "Are you sure?" confirmation dialog and delete immediately.
+	 * Used when the chat is a transient draft (e.g. an untitled in-composer
+	 * chat) where there is nothing to lose.
+	 */
+	readonly skipConfirmation?: boolean;
+}
+
+/**
  * A sessions provider encapsulates a compute environment.
  * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
@@ -243,8 +255,9 @@ export interface ISessionsProvider {
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
+	 * @param options Optional behavior, e.g. skipping the confirmation dialog.
 	 */
-	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
+	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/**
 	 * Create a new chat in the given session and return it.

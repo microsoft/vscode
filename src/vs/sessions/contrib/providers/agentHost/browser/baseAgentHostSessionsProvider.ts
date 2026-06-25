@@ -46,7 +46,7 @@ import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessio
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -2451,7 +2451,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
 		const chatId = chatUri.fragment;
 		if (!chatId) {
 			// The default chat lives and dies with its session and cannot be
@@ -2467,13 +2467,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
 
-		const confirmed = await this._dialogService.confirm({
-			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
-			detail: localize('deleteChat.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteChat.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
+		if (!options?.skipConfirmation) {
+			const confirmed = await this._dialogService.confirm({
+				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+				detail: localize('deleteChat.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteChat.delete', "Delete")
+			});
+			if (!confirmed.confirmed) {
+				return;
+			}
 		}
 
 		// Keep the session-state subscription alive so the `chatRemoved` the
