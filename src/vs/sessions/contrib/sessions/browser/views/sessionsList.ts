@@ -2280,7 +2280,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	getGroupsInDisplayOrder(): ISessionGroup[] {
 		const groups = this._sessionGroupsService.getGroups();
-		const byId = new Map(groups.map(g => [`group:${g.id}`, g] as const));
+		const byId = new Map<string, ISessionGroup>(groups.map(g => [`group:${g.id}`, g]));
 		const defaultIds = [...groups]
 			.sort((a, b) => b.createdAt - a.createdAt)
 			.map(g => `group:${g.id}`);
