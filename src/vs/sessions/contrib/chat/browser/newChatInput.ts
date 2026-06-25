@@ -70,6 +70,7 @@ import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
+import { IAgentSessionsDraftService } from '../../../services/sessions/common/sessionsDraftService.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -265,6 +266,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _scopedInstantiationService: IInstantiationService;
 
 	// Input state
+	private _currentSessionId: string | undefined;
 	private _draftState: IDraftState | undefined = {
 		inputText: '',
 		attachments: [],
@@ -297,6 +299,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IAgentSessionsDraftService private readonly draftService: IAgentSessionsDraftService,
 	) {
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
@@ -322,6 +325,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
+			if (this._currentSessionId) {
+				this._saveDraftForSession(this._currentSessionId);
+			}
 			this.focus();
 		}));
 		this._register(autorun(reader => {
@@ -329,6 +335,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const isLoading = this.options.loading.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
+		}));
+		this._register(autorun(reader => {
+			const activeSession = this.options.session.read(reader);
+			this._transitionSession(activeSession);
 		}));
 	}
 
@@ -583,6 +593,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
+			if (this._currentSessionId) {
+				this._saveDraftForSession(this._currentSessionId);
+			}
 		}));
 	}
 
@@ -766,7 +779,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _restoreState(): void {
-		const draft = this._getDraftState();
+		const sessionId = this._currentSessionId ?? 'sessions.globalNewSessionCompose';
+		const draft = this.draftService.getDraft(sessionId) ?? this._getDraftState();
 		if (draft) {
 			this._editor?.getModel()?.setValue(draft.inputText);
 			if (draft.attachments?.length) {
@@ -789,6 +803,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
+		if (this._currentSessionId) {
+			this.draftService.clearDraft(this._currentSessionId);
+		}
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -800,6 +817,43 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			};
 			this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+	}
+
+	private _transitionSession(newSession: IActiveSession | undefined): void {
+		const newSessionId = newSession?.sessionId ?? 'sessions.globalNewSessionCompose';
+		if (this._currentSessionId === newSessionId) {
+			return;
+		}
+
+		if (this._currentSessionId) {
+			this._saveDraftForSession(this._currentSessionId);
+		}
+
+		this._currentSessionId = newSessionId;
+		this._restoreDraftForSession(newSessionId);
+	}
+
+	private _saveDraftForSession(sessionId: string): void {
+		const model = this._editor?.getModel();
+		const inputText = model?.getValue() ?? '';
+		const attachments = [...this._contextAttachments.attachments];
+
+		this.draftService.setDraft(sessionId, { inputText, attachments });
+	}
+
+	private _restoreDraftForSession(sessionId: string): void {
+		const draft = this.draftService.getDraft(sessionId);
+		if (this._editor) {
+			this._editor.getModel()?.setValue(draft?.inputText ?? '');
+			this._contextAttachments.setAttachments(draft?.attachments ? draft.attachments.map(IChatRequestVariableEntry.fromExport) : []);
+		}
+	}
+
+	override dispose(): void {
+		if (this._currentSessionId) {
+			this._saveDraftForSession(this._currentSessionId);
+		}
+		super.dispose();
 	}
 
 	layout(_height: number, _width: number): void {
