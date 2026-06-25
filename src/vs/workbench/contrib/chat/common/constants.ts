@@ -297,11 +297,13 @@ export function getNewChatEditorSessionType(
 	lastUsedSessionType: string | undefined,
 ): string {
 	const inspected = configurationService.inspect<string>(ChatConfiguration.EditorDefaultProvider);
-	const explicitlyConfigured = inspected.userValue !== undefined
+	const explicitlyConfigured = inspected.applicationValue !== undefined
+		|| inspected.userValue !== undefined
 		|| inspected.userLocalValue !== undefined
 		|| inspected.userRemoteValue !== undefined
 		|| inspected.workspaceValue !== undefined
 		|| inspected.workspaceFolderValue !== undefined
+		|| inspected.memoryValue !== undefined
 		|| inspected.policyValue !== undefined;
 
 	if (!explicitlyConfigured
