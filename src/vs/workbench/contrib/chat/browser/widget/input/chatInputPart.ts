@@ -1001,6 +1001,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
+	/**
+	 * Returns true if a model with the given identifier is available to switch
+	 * to, without actually switching.
+	 */
 	public canSwitchModelByIdentifier(identifier: string): boolean {
 		return this.getModels().some(m => m.identifier === identifier);
 	}
