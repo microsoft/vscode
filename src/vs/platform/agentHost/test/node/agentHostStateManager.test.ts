@@ -1105,6 +1105,91 @@ suite('AgentHostStateManager', () => {
 				},
 			);
 		});
+
+		test('removeChat clears a peer chat that is removed mid-turn', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const turnEvents: boolean[] = [];
+			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
+
+			// Both the default chat and the peer chat start a concurrent turn.
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-default',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const activeWhileBothRun = manager.hasActiveTurn(sessionUri);
+
+			// Removing the peer mid-turn must not strand it in the active set:
+			// the session stays active because the default chat still streams.
+			manager.removeChat(sessionUri, peerChat);
+			const activeAfterPeerRemoved = manager.hasActiveTurn(sessionUri);
+
+			// Completing the default chat is now enough to flip the session idle.
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-default',
+			});
+
+			assert.deepStrictEqual(
+				{
+					turnEvents,
+					activeWhileBothRun,
+					activeAfterPeerRemoved,
+					activeAfterDefaultComplete: manager.hasActiveTurn(sessionUri),
+					activeSessions: manager.rootState.activeSessions,
+				},
+				{
+					turnEvents: [true, false],
+					activeWhileBothRun: true,
+					activeAfterPeerRemoved: true,
+					activeAfterDefaultComplete: false,
+					activeSessions: 0,
+				},
+			);
+		});
+
+		test('removeChat flips the session idle when the removed peer held the last active turn', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const turnEvents: boolean[] = [];
+			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
+
+			// Only the peer chat has an active turn.
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const activeWhilePeerRuns = manager.hasActiveTurn(sessionUri);
+
+			// Removing that peer is the last active chat, so the session must
+			// flip back to idle instead of staying permanently active.
+			manager.removeChat(sessionUri, peerChat);
+
+			assert.deepStrictEqual(
+				{
+					turnEvents,
+					activeWhilePeerRuns,
+					activeAfterPeerRemoved: manager.hasActiveTurn(sessionUri),
+					activeSessions: manager.rootState.activeSessions,
+				},
+				{
+					turnEvents: [true, false],
+					activeWhilePeerRuns: true,
+					activeAfterPeerRemoved: false,
+					activeSessions: 0,
+				},
+			);
+		});
 	});
 });
 
