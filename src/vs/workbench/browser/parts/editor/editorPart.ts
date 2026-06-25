@@ -37,6 +37,15 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
+/**
+ * The width (in pixels) of the editor card border drawn on every side when the
+ * Modern UI Update experiment is enabled (`styleOverrides/media/editorBorder.css`).
+ * The editor reserves this thickness when laying out its contents so they sit
+ * inside the frame instead of overflowing (and being clipped by) the border.
+ * Keep in sync with the `--vscode-strokeThickness` (1px) token used there.
+ */
+const EDITOR_FRAME_BORDER_WIDTH = 1;
+
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
 	readonly activeGroup: GroupIdentifier;
@@ -1384,6 +1393,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
+
+			// In modern UI the editor area is framed as a card with a 1px border on every
+			// side (see `styleOverrides/media/editorBorder.css`). That border uses
+			// `box-sizing: border-box` so it paints inside the part without forcing a
+			// relayout, but the editor contents (grid, tabs and any webview overlays
+			// anchored to the editor) are laid out at the full part size and would
+			// otherwise overflow — and be clipped by — the right and bottom border,
+			// leaving an inconsistent gap around the content. Reserve the border
+			// thickness on each axis so the contents sit inside the frame symmetrically.
+			width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
+			height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
