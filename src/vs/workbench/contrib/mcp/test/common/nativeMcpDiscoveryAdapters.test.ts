@@ -52,4 +52,20 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		const stdio = defs.find(d => d.label === 'stdio')!;
 		assert.strictEqual(stdio.launch.type, McpServerTransportType.Stdio);
 	});
+
+	test('claudeConfigToServerDefinition does not bake in a client-side cwd (#320167)', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				'echo': { type: 'stdio', command: '/bin/echo', args: ['hello'] },
+			},
+		}));
+
+		const defs = await claudeConfigToServerDefinition('prefix', contents);
+		assert.ok(defs);
+		assert.strictEqual(defs.length, 1);
+
+		const launch = defs[0].launch as { type: McpServerTransportType; cwd: string | undefined };
+		assert.strictEqual(launch.type, McpServerTransportType.Stdio);
+		assert.strictEqual(launch.cwd, undefined);
+	});
 });
