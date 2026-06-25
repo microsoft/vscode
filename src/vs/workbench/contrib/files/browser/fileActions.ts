@@ -1052,14 +1052,12 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 };
 
 let pasteShouldMove = false;
-let clipboardUpdatedInternally = false;
 export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
-		clipboardUpdatedInternally = true;
 	}
 };
 
@@ -1069,7 +1067,6 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
-		clipboardUpdatedInternally = true;
 	}
 };
 
@@ -1135,7 +1132,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const hostService = accessor.get(IHostService);
 
 	const context = explorerService.getContext(false);
-	const hasNativeFilesToPaste = fileList ? fileList.length > 0 : !clipboardUpdatedInternally;
+	const hasNativeFilesToPaste = fileList !== undefined && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);
