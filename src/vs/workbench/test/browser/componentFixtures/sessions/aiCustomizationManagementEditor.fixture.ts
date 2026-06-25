@@ -36,7 +36,7 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
-import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -552,8 +552,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Plugins,
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
-		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
-		createVSCodeHarnessDescriptor([]),
+		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE])
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
@@ -1235,7 +1234,6 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 // ============================================================================
 
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
-const cliSessionResource = URI.parse(`${SessionType.CopilotCLI}:///session1`);
 
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
@@ -1254,19 +1252,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
-	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
-	// root files and instruction filtering under .github/.copilot paths.
-	CliHarness: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { sessionResource: cliSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
-	}),
-
 	// Sessions-window variant of the full editor with workspace override UX
 	// and sessions section ordering.
 	Sessions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			sessionResource: cliSessionResource,
+			sessionResource: localSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
@@ -1288,7 +1279,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			sessionResource: cliSessionResource,
+			sessionResource: localSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
