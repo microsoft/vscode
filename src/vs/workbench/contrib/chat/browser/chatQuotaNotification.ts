@@ -168,12 +168,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}
 		this._trajectoryTreatment = treatment;
 		if (treatment !== undefined) {
-			this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
-				treatment,
-				entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
-				averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
-				percentUsed: Math.round(warning.percentUsed * 100) / 100,
-			});
+			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
 		}
 		if (treatment === true) {
 			this._update();
@@ -298,7 +293,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number } | undefined {
+	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -308,7 +303,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
 		if (crossed !== undefined) {
-			return { percentUsed: Math.floor(percentUsed) };
+			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
 	}
@@ -384,6 +379,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
+			telemetryId: 'quotaTrajectoryNudge',
 			severity: ChatInputNotificationSeverity.Info,
 			message: new MarkdownString(message, { isTrusted: { enabledCommands: shouldShowTryAuto ? [TRAJECTORY_NUDGE_SPEC.tryAutoCommandId, TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] : [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
 			description: undefined,
@@ -495,7 +491,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
 
 		const entitlement = this._chatEntitlementService.entitlement;
