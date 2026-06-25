@@ -399,16 +399,13 @@ const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
  * Core passes `[PromptsStorage.extension]`; sessions passes its
  * BUILTIN_STORAGE constant.
  */
-function buildAllSources(extras: readonly AICustomizationSource[]): readonly AICustomizationSource[] {
-	return [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, ...extras];
-}
 
 /**
  * Creates a "VS Code" harness descriptor that shows all storage sources
  * with no user-root restrictions.
  */
-export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationSource[]): IHarnessDescriptor {
-	const filter: IStorageSourceFilter = { sources: buildAllSources(sources) };
+export function createVSCodeHarnessDescriptor(): IHarnessDescriptor {
+	const filter: IStorageSourceFilter = { sources: AICustomizationSources.all };
 	return {
 		id: SessionType.Local,
 		label: localize('harness.local', "Local"),

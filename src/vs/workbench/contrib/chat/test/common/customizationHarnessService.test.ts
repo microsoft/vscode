@@ -21,7 +21,7 @@ suite('CustomizationHarnessService', () => {
 
 	function createService(...harnesses: IHarnessDescriptor[]): CustomizationHarnessServiceBase {
 		if (harnesses.length === 0) {
-			harnesses = [createVSCodeHarnessDescriptor([PromptsStorage.extension])];
+			harnesses = [createVSCodeHarnessDescriptor()];
 		}
 		const promptsService: IPromptsService = new MockPromptsService();
 		const service = new CustomizationHarnessServiceBase(harnesses, harnesses[0].id, promptsService);
@@ -249,7 +249,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
+				createVSCodeHarnessDescriptor(),
 				staticDescriptor,
 			);
 			assert.strictEqual(service.availableHarnesses.get().length, 2);
@@ -284,7 +284,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
+				createVSCodeHarnessDescriptor(),
 				staticDescriptor,
 			);
 
@@ -318,7 +318,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
-				createVSCodeHarnessDescriptor([AICustomizationSources.extension]),
+				createVSCodeHarnessDescriptor(),
 				staticDescriptor,
 			);
 
@@ -419,7 +419,7 @@ suite('CustomizationHarnessService', () => {
 				}
 				override isValidSlashCommandName() { return true; }
 			};
-			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
+			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor()], SessionType.Local, promptsService);
 			store.add(service);
 			{
 				const commands = await service.getSlashCommands(testSessionResource, CancellationToken.None);
@@ -460,7 +460,7 @@ suite('CustomizationHarnessService', () => {
 				createAgent('global', 'file:///workspace/.github/agents/global.agent.md', undefined, true),
 				createAgent('other', 'file:///workspace/.github/agents/other.agent.md', ['other-session'], true),
 			]);
-			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService);
+			const service = new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor()], SessionType.Local, promptsService);
 			store.add(service);
 
 			const agents = await service.getCustomAgents(testSessionResource1, CancellationToken.None);

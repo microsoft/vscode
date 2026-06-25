@@ -113,7 +113,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 }
 
 function createMockHarnessService(): ICustomizationHarnessService {
-	const descriptor = createVSCodeHarnessDescriptor([PromptsStorage.extension]);
+	const descriptor = createVSCodeHarnessDescriptor();
 	const activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
