@@ -44,10 +44,13 @@ function createChatSessionsService(config: ITypeConfig): IChatSessionsService {
 	}();
 }
 
-function createEntitlementService(entitlement: ChatEntitlement): IChatEntitlementService {
+function createEntitlementService(entitlement: ChatEntitlement, anonymous = false): IChatEntitlementService {
 	return new class extends mock<IChatEntitlementService>() {
 		override get entitlement(): ChatEntitlement {
 			return entitlement;
+		}
+		override get anonymous(): boolean {
+			return anonymous;
 		}
 	}();
 }
@@ -73,10 +76,10 @@ suite('getSessionTypeAvailability', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function availability(config: ITypeConfig, entitlement: ChatEntitlement, modelTargets: readonly (string | undefined)[] = []): SessionTypeAvailability {
+	function availability(config: ITypeConfig, entitlement: ChatEntitlement, modelTargets: readonly (string | undefined)[] = [], anonymous = false): SessionTypeAvailability {
 		return getSessionTypeAvailability(
 			createChatSessionsService(config),
-			createEntitlementService(entitlement),
+			createEntitlementService(entitlement, anonymous),
 			createLanguageModelsService(modelTargets),
 			TYPE,
 		);
@@ -115,6 +118,14 @@ suite('getSessionTypeAvailability', () => {
 		// sign-in: with an Auto fallback it stays available while signed out.
 		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: false };
 		assert.strictEqual(availability(config, ChatEntitlement.Unknown), SessionTypeAvailability.Available);
+	});
+
+	test('anonymous access lets a signed-out user use a Copilot-backed type', () => {
+		// With chat.allowAnonymousAccess enabled, a signed-out user is granted
+		// access without signing in, so a Copilot-backed type (e.g. the local
+		// agent host) stays available rather than prompting to sign in.
+		const config: ITypeConfig = { registered: true, supportsAutoModel: true, requiresCustomModels: true, requiresCopilotSignIn: true };
+		assert.strictEqual(availability(config, ChatEntitlement.Unknown, [], true), SessionTypeAvailability.Available);
 	});
 
 	test('available when a model targets the type, even without Auto', () => {
