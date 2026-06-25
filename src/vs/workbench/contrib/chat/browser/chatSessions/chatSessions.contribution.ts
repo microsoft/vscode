@@ -539,6 +539,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint, extensionDescription: IRelaxedExtensionDescription): IDisposable {
+		const disposables = new DisposableStore();
+
+		// For a non-delegating contribution (e.g. an extension-contributed
+		// editor session such as Codex), the session type picker creates a new
+		// session by invoking `openNewChatSessionExternal.<type>`. Register that
+		// command unconditionally and resolve the underlying create-submenu
+		// command lazily at execution time. Registering it eagerly (only when
+		// the create submenu already has an entry) races extension menu/command
+		// registration: if the submenu is still empty at enable time, the
+		// command is never registered and the picker click silently fails with
+		// "command not found".
+		if (!contribution.canDelegate) {
+			disposables.add(registerNewSessionExternalAction(
+				contribution.type,
+				contribution.displayName,
+				() => this._resolveCreateSubMenuCommandId(contribution.type),
+			));
+		}
+
 		// If provider registers anything for the create submenu, let it fully control the creation
 		const contextKeyService = this._contextKeyService.createOverlay([
 			['chatSessionType', contribution.type]
@@ -547,26 +566,45 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		const disposables = new DisposableStore();
-
-		// Mirror all create submenu actions into the global Chat New menu
+		// Mirror create submenu actions into the global Chat New menu. The first
+		// action of a non-delegating contribution is the "primary" create
+		// command surfaced through the external action above, so it is not
+		// mirrored here.
 		for (let i = 0; i < menuActions.length; i++) {
 			const action = menuActions[i];
 			if (action instanceof MenuItemAction) {
-				// TODO: This is an odd way to do this, but the best we can do currently
 				if (i === 0 && !contribution.canDelegate) {
-					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
-				} else {
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-						command: action.item,
-						group: '4_externally_contributed',
-					}));
+					continue;
 				}
+				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+					command: action.item,
+					group: '4_externally_contributed',
+				}));
 			}
 		}
 		return {
 			dispose: () => disposables.dispose()
 		};
+	}
+
+	/**
+	 * Resolves the command id of the primary create action contributed to
+	 * {@link MenuId.AgentSessionsCreateSubMenu} for the given session type, or
+	 * `undefined` when no such action is contributed (yet). Read at execution
+	 * time so it is unaffected by the ordering of extension menu registration.
+	 */
+	private _resolveCreateSubMenuCommandId(type: string): string | undefined {
+		const contextKeyService = this._contextKeyService.createOverlay([
+			['chatSessionType', type]
+		]);
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
+		const menuActions = rawMenuActions.map(value => value[1]).flat();
+		for (const action of menuActions) {
+			if (action instanceof MenuItemAction) {
+				return action.item.id;
+			}
+		}
+		return undefined;
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -1422,7 +1460,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 	});
 }
 
-function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+function registerNewSessionExternalAction(type: string, displayName: string, resolveCommandId: () => string | undefined): IDisposable {
 	return registerAction2(class NewChatSessionExternalAction extends Action2 {
 		constructor() {
 			super({
@@ -1435,6 +1473,10 @@ function registerNewSessionExternalAction(type: string, displayName: string, com
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
+			const commandId = resolveCommandId();
+			if (!commandId) {
+				return;
+			}
 			await commandService.executeCommand(commandId);
 		}
 	});
