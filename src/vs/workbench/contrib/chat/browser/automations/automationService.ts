@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -23,22 +24,14 @@ import {
 } from '../../common/automations/automationService.js';
 import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../common/automations/schedule.js';
+import { ChatPermissionLevel, isChatPermissionLevel } from '../../common/constants.js';
 
-/**
- * Storage key under which the entire automations ledger (definitions + run
- * history) is persisted. Lives at `StorageScope.APPLICATION` so it is
- * shared across all windows on the machine but does not roam with the user.
- */
+// APPLICATION scope, non-roaming.
 const STORAGE_KEY = 'chat.automations.ledger';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
-/**
- * Maximum number of run-history records retained per automation. Older runs
- * are evicted when this cap is exceeded so the single-blob ledger does not
- * grow unbounded (e.g. an hourly schedule running for a year would otherwise
- * produce 8,760+ records). The UI also clamps the displayed history.
- */
+// Cap run history to prevent unbounded growth.
 const MAX_RUNS_PER_AUTOMATION = 50;
 
 interface ISerializedAutomation {
@@ -61,13 +54,7 @@ interface ISerializedAutomation {
 
 interface ISerializedLedger {
 	readonly schemaVersion: number;
-	/**
-	 * Monotonic counter incremented on every write. Used for optimistic
-	 * concurrency: `persist()` re-reads storage before writing and warns
-	 * (and bumps from the on-disk revision) when another window has written
-	 * since this window's last `readLedger`. Defaults to 0 for forward-
-	 * compatibility with older serialized blobs that pre-date this field.
-	 */
+	// Optimistic-concurrency counter; 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
 	readonly runs: readonly IAutomationRun[];
@@ -80,16 +67,6 @@ interface ILedger {
 
 const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
 
-/**
- * Outcome of attempting to read the persisted ledger.
- *
- * - `{ kind: 'ledger', ... }`: parse succeeded and the schema is compatible.
- * - `{ kind: 'unsupportedSchema' }`: the on-disk ledger has a `schemaVersion`
- *   greater than what this build understands. The service must NOT write
- *   under this state — a newer build wrote the data and we would silently
- *   destroy it. The in-memory observables are also frozen at their last
- *   known state to avoid clearing the UI to empty.
- */
 type ReadLedgerResult =
 	| { kind: 'ledger'; ledger: ILedger; revision: number }
 	| { kind: 'unsupportedSchema' };
@@ -102,20 +79,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
 	private readonly _now: () => Date;
 
-	/**
-	 * Set to `true` when {@link readLedger} encounters a newer
-	 * `schemaVersion` than this build knows. Once set, the service refuses
-	 * to write to storage and stops mutating observables in
-	 * {@link refreshFromStorage}, so an older window cannot destroy data
-	 * written by a newer build.
-	 */
+	// Set when on-disk schema is newer than this build; prevents writes that would destroy data.
 	private _unsupportedSchema = false;
 
-	/**
-	 * Monotonic revision of the last ledger this window observed (either
-	 * read from storage or written by this window). Used by {@link persist}
-	 * for optimistic-concurrency detection across windows.
-	 */
 	private _lastSeenRevision = 0;
 
 	readonly automations: IObservable<readonly IAutomation[]>;
@@ -128,8 +94,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 	) {
 		super();
 
-		// Test seam: production always uses the system clock. Tests can
-		// override after construction via `setClockForTesting`.
 		this._now = () => new Date();
 
 		const result = this.readLedger();
@@ -147,8 +111,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 		}));
 
 		this._register(this.storageService.onWillSaveState(() => {
-			// Force a synchronous flush so an immediate window-close persists
-			// the latest in-memory ledger.
 			this.persist(this._automations.get(), this._runs.get());
 		}));
 	}
@@ -207,8 +169,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 		const updated: IAutomation = Object.freeze({
 			...merged,
 			updatedAt: this._now().toISOString(),
-			// Recompute next-run whenever the schedule changes, or when an
-			// automation is re-enabled (so we don't sit on a stale value).
 			nextRunAt: (scheduleChanged || (enabledChanged && merged.enabled))
 				? computeNextRunAt(merged.schedule, this._now())?.toISOString()
 				: merged.nextRunAt,
@@ -317,17 +277,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	private persist(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): void {
 		if (this._unsupportedSchema) {
-			// A newer build wrote this storage key; refuse to overwrite.
 			return;
 		}
 
-		// Re-read on-disk state immediately before writing to detect (a) a
-		// schema upgrade that happened while we were running and (b) a
-		// concurrent write from another window. This is a best-effort
-		// mitigation, not a true CAS: another window could still write
-		// between our `get` and our `store`. The `revision` field is
-		// persisted so a future change can build full retry-on-conflict
-		// semantics on top without a storage migration.
+		// Best-effort optimistic concurrency: re-read before writing to detect schema upgrades
+		// and concurrent writes from other windows.
 		let baseRevision = this._lastSeenRevision;
 		const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
 		if (raw) {
@@ -343,9 +297,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 					this.logService.warn(`[AutomationService] Concurrent write detected (on-disk revision ${onDiskRevision} > local ${this._lastSeenRevision}); overwriting. Recent changes from another window may be lost.`);
 				}
 				baseRevision = Math.max(onDiskRevision, this._lastSeenRevision);
-			} catch {
-				// Unparseable existing blob — treat as if absent.
-			}
+			} catch { }
 		}
 
 		const nextRevision = baseRevision + 1;
@@ -362,9 +314,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private refreshFromStorage(): void {
 		const result = this.readLedger();
 		if (result.kind === 'unsupportedSchema') {
-			// Freeze observables at their last-known-good state so the UI
-			// keeps showing the user's automations and we don't write
-			// anything that would clobber the newer schema.
 			return;
 		}
 		this._unsupportedSchema = false;
@@ -388,7 +337,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 				return { kind: 'unsupportedSchema' };
 			}
 			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-				// Older schema with no migration available — treat as empty.
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
 				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 			}
@@ -436,17 +384,26 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 }
 
 function deserializeAutomation(s: ISerializedAutomation): IAutomation {
+	// Validate and sanitize folderUri - only allow file:// scheme
+	const revivedUri = URI.revive(s.folderUri);
+	const folderUri = revivedUri.scheme === Schemas.file ? revivedUri : URI.file('');
+
+	// Validate permissionLevel - default to most restrictive if invalid
+	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
+		? s.permissionLevel
+		: ChatPermissionLevel.Default;
+
 	return Object.freeze({
 		id: s.id,
 		name: s.name,
 		prompt: s.prompt,
 		schedule: s.schedule,
-		folderUri: URI.revive(s.folderUri),
+		folderUri,
 		providerId: s.providerId,
 		sessionTypeId: s.sessionTypeId,
 		modelId: s.modelId,
 		mode: s.mode,
-		permissionLevel: s.permissionLevel,
+		permissionLevel,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
@@ -471,11 +428,6 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 	};
 }
 
-/**
- * Caps the number of runs retained per `automationId` at `max`, preserving
- * input order (which the service maintains as newest-first via prepend in
- * `recordRunStart`). Older runs beyond the cap are dropped.
- */
 function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {
 	const counts = new Map<string, number>();
 	const out: IAutomationRun[] = [];

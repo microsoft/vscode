@@ -5,30 +5,17 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AutomationRunTrigger, IAutomation } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 
-/**
- * Placeholder runner used by the plain workbench build. It records a
- * `pending` run, marks it `running`, then marks it `completed` after a
- * short delay. It does not create a real chat session.
- *
- * The Agents window registers {@link SessionsAutomationRunner} (in
- * `vs/sessions`) for the same {@link IAutomationRunner} decorator
- * later in the singleton chain, so the placeholder only ever runs in
- * builds that do not load the sessions layer.
- */
+// Placeholder runner for builds without the sessions layer. Records a run lifecycle without creating a real chat session.
 export class PlaceholderAutomationRunner implements IAutomationRunner {
 
 	declare readonly _serviceBrand: undefined;
 
-	/**
-	 * Delay between recording the run as `running` and completing it.
-	 * Exposed as a setter so tests can drive it to 0 without going
-	 * through the DI registration.
-	 */
 	private _runDurationMs = 1_000;
 
 	constructor(
@@ -47,9 +34,7 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 		leaderWindowId: number,
 		token: CancellationToken = CancellationToken.None,
 	): Promise<void> {
-		// Per-automation idempotency: if another run is already in
-		// flight, do not start a second one. This handles the case
-		// where two leader-claim ticks race for the same due automation.
+		// Skip if another run is already in flight (race between leader ticks).
 		if (this.automationService.getActiveRunFor(automation.id)) {
 			this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
 			return;
@@ -69,7 +54,7 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 				await this.automationService.updateRun(runId, {
 					status: 'failed',
 					completedAt: new Date().toISOString(),
-					errorMessage: 'Cancelled',
+					errorMessage: localize('automation.cancelled', "Cancelled"),
 				});
 				return;
 			}

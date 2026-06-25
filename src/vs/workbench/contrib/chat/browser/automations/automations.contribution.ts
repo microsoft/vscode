@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -42,6 +42,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CHAT_AUTOMATIONS_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: false,
+			scope: ConfigurationScope.MACHINE,
 			tags: ['preview'],
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 		},
@@ -55,11 +56,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-/**
- * Mirrors {@link CHAT_AUTOMATIONS_ENABLED_SETTING} into the
- * {@link ChatAutomationsEnabledContext} context key so menu `when`
- * clauses can react to it without subscribing to configuration directly.
- */
+// Mirrors the setting into a context key for menu `when` clauses.
 class ChatAutomationsEnabledContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatAutomationsEnabledContext';
 

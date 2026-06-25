@@ -10,37 +10,17 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
-/**
- * Storage key under which the current leader for the automations scheduler
- * is advertised. APPLICATION/MACHINE scope so all VS Code windows on the
- * same machine race for the same key.
- */
 const LEADER_KEY = 'chat.automations.leader';
 
-/**
- * How often the leader writes a fresh heartbeat.
- */
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 
-/**
- * Maximum age before a heartbeat is considered stale and the leader slot
- * is up for grabs. Three times the heartbeat interval gives us tolerance
- * for one missed write (e.g. main thread stall) before failover.
- */
+// 3× heartbeat interval — tolerates one missed write before failover.
 export const DEFAULT_STALE_AFTER_MS = 90_000;
 
 interface ILeaderRecord {
 	readonly instanceId: string;
 	readonly heartbeatAt: number;
-	/**
-	 * Random per-write nonce used to break the leader-election TOCTOU
-	 * race. After `writeLeader`, the evaluator re-reads storage and only
-	 * promotes itself to leader if the on-disk nonce matches what it
-	 * just wrote — i.e., no other window clobbered the slot between
-	 * read and write. Older persisted records without a nonce are
-	 * treated as nonce `''` (still works because we only compare for
-	 * equality after our own write).
-	 */
+	// Per-write nonce to detect TOCTOU races during leader claims.
 	readonly nonce: string;
 }
 
@@ -48,19 +28,9 @@ export interface IAutomationLeaderElectionOptions {
 	readonly heartbeatIntervalMs?: number;
 	readonly staleAfterMs?: number;
 	readonly now?: () => number;
-	/** Stable id for this window/instance. Defaults to a fresh UUID. */
 	readonly instanceId?: string;
 }
 
-/**
- * Cooperative leader election across all VS Code windows that share the
- * application storage. A single leader window owns the scheduler tick;
- * the rest stand down. If the leader's heartbeat goes stale the next
- * window to evaluate claims the slot.
- *
- * Test seam: call `evaluateForTesting()` to advance the algorithm
- * without waiting for the real interval timer.
- */
 export class AutomationLeaderElection extends Disposable {
 
 	private readonly _isLeader: ISettableObservable<boolean>;
@@ -90,13 +60,8 @@ export class AutomationLeaderElection extends Disposable {
 
 		this._register(toDisposable(() => this.releaseIfLeader()));
 
-		// Try to claim immediately on construction so a single-window
-		// startup does not have to wait one heartbeat to start ticking.
 		this.evaluate();
 
-		// Re-evaluate on every heartbeat. Whether we're the leader or not
-		// we want to (a) refresh our heartbeat if we hold the slot, or
-		// (b) take over if the current leader's heartbeat went stale.
 		this._timer.cancelAndSet(() => this.evaluate(), this._heartbeatIntervalMs);
 	}
 
@@ -127,11 +92,8 @@ export class AutomationLeaderElection extends Disposable {
 			return;
 		}
 
-		// Generate a fresh nonce for this write attempt and confirm we
-		// won the slot by reading our own nonce back. This narrows the
-		// dual-leader window: if another window wrote between our read
-		// and write, the readback will see their nonce instead and we
-		// stand down.
+		// TODO(review): Nonce verification narrows dual-leader window but adds complexity — heartbeat alone provides eventual consistency. Worth the trade-off?
+		// Write a nonce and verify we won by reading it back (narrows dual-leader window).
 		const nonce = generateUuid();
 		const writeOk = this.writeLeader({ instanceId: this._instanceId, heartbeatAt: now, nonce });
 		if (!writeOk) {
@@ -186,14 +148,7 @@ export class AutomationLeaderElection extends Disposable {
 		}
 	}
 
-	/**
-	 * Best-effort: if we're the leader, write a tombstone so the next
-	 * window doesn't have to wait `staleAfterMs` to take over after a
-	 * clean shutdown. We write a tombstone (empty instanceId) rather
-	 * than removing the key so a concurrent successor's record is less
-	 * likely to be silently deleted by our stale read — and so any
-	 * window that sees the tombstone treats it as immediately claimable.
-	 */
+	// Write a tombstone on clean shutdown so the next window can claim immediately.
 	private releaseIfLeader(): void {
 		const current = this.readLeader();
 		if (current?.instanceId !== this._instanceId) {
@@ -203,11 +158,6 @@ export class AutomationLeaderElection extends Disposable {
 	}
 }
 
-/**
- * Lightweight subset of {@link IDisposable} we export here so the
- * scheduler can hold the leader election without re-exporting the
- * concrete class for tests.
- */
 export interface IAutomationLeaderElection extends IDisposable {
 	readonly isLeader: IObservable<boolean>;
 	readonly instanceId: string;
