@@ -357,6 +357,36 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Resolves a model's context-window dimensions, or `undefined` when it has no usable window. A meta-model such as
+	 * "auto" advertises a zero-sized window, so it resolves to `undefined` and the caller falls back to the model that
+	 * actually served the request (see issue #321781).
+	 */
+	private resolveContextWindow(modelId: string | undefined): { maxOutputTokens: number | undefined; totalContextWindow: number } | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		// Computing the total context window needs the model's metadata, notably its output-token budget
+		// (`maxOutputTokens`), which — unlike the input window — has no configuration fallback. Right after a reload the
+		// model provider may not have registered the selected model yet while a persisted `contextSize` is already
+		// resolvable, so the window would be computed input-only (e.g. 272K instead of 272K + 128K for GPT-5). Bail out
+		// until metadata is available rather than render a misleading partial value; the widget re-renders on model
+		// registration (`onDidChangeLanguageModels`) and on model selection.
+		if (!modelMetadata) {
+			return undefined;
+		}
+		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
+		const maxOutputTokens = modelMetadata.maxOutputTokens;
+		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		if (totalContextWindow <= 0) {
+			return undefined;
+		}
+		return { maxOutputTokens, totalContextWindow };
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
 
@@ -364,38 +394,18 @@ export class ChatContextUsageWidget extends Disposable {
 		// usage reports the actual model that served the request.
 		const effectiveModelId = usage?.actualModelId ?? modelId;
 
-		// The denominator (context window) follows the currently selected model so
-		// switching models updates the widget immediately; the numerator (usage)
-		// still comes from the last response.
-		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
-		// Computing the total context window needs the model's metadata, notably
-		// its output-token budget (`maxOutputTokens`), which — unlike the input
-		// window — has no configuration fallback. Right after a reload the model
-		// provider may not have registered the selected model yet while a persisted
-		// `contextSize` is already resolvable, so the window would be computed
-		// input-only (e.g. 272K instead of 272K + 128K for GPT-5). Skip the update
-		// until metadata is available rather than render a misleading partial value;
-		// the widget re-renders on model registration (`onDidChangeLanguageModels`)
-		// and on model selection.
-		if (!modelMetadata) {
+		// The denominator (context window) follows the currently selected model so switching models updates the widget
+		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
+		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
+		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
+		if (!usage || !contextWindow) {
 			if (!this.currentData) {
 				this.hide();
 			}
 			return;
 		}
-		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
-		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
-		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
-		const maxOutputTokens = modelMetadata.maxOutputTokens;
 
-		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
-		if (!usage || totalContextWindow <= 0) {
-			if (!this.currentData) {
-				this.hide();
-			}
-			return;
-		}
+		const { maxOutputTokens, totalContextWindow } = contextWindow;
 
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
