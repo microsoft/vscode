@@ -18,7 +18,7 @@
 
 .style-override .part.editor .title.tabs {
 	background-color: transparent !important;
-	--editor-group-tab-height: 26px !important;
+	--editor-group-tab-height: 24px !important;
 }
 
 .style-override .part.editor .tabs-container > .tab {
