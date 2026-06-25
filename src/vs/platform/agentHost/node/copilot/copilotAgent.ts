@@ -697,7 +697,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._byokModels = models.map((m): IAgentModelInfo => ({
 				provider: this.id,
 				id: `${m.vendor}/${m.id}`,
-				name: (m.name ?? m.id) + ' [BYOK]',
+				name: m.name ?? m.id,
 				maxContextWindow: m.maxContextWindowTokens,
 				supportsVision: false,
 			}));

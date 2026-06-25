@@ -87,7 +87,7 @@ export interface IByokLmModelInfo {
 	readonly id: string;
 	/** Display name, when the provider supplies one. */
 	readonly name?: string;
-	/** Maximum context window tokens, when known. */
+	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
 }
 

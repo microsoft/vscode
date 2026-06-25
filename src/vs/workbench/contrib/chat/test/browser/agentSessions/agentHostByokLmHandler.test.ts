@@ -101,7 +101,7 @@ suite('AgentHostByokLmHandler', () => {
 		const models = await handler.listModels(CancellationToken.None);
 
 		assert.deepStrictEqual(models, [
-			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 1000 },
+			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 2000 },
 		]);
 	});
 

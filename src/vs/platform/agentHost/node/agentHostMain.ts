@@ -133,10 +133,12 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
-	// Gate all BYOK agent-host additions (proxy, bridge registry, reverse-RPC
-	// bridge) behind the opt-in `chat.agentHost.byokModels.enabled` setting,
-	// forwarded from the renderer as an env var. When off, none of the BYOK
-	// wiring is created here and the renderer skips the BYOK server channel.
+	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
+	// setting, forwarded from the renderer as an env var. The proxy and bridge
+	// registry are always constructed below (so the session launcher can inject
+	// them), but when off they stay inert: the per-connection bridge and the
+	// renderer's BYOK server channel are not wired, so the registry stays empty
+	// and the proxy never binds.
 	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], false);
 	try {
 		// Build the DI container early so the git service can be created via

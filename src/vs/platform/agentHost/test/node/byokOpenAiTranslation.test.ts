@@ -57,6 +57,13 @@ suite('byokOpenAiTranslation', () => {
 			assert.throws(() => openAiRequestToBridge('acme', { messages: [] }), OpenAiTranslationError);
 		});
 
+		test('throws when an assistant tool call is missing its function name', () => {
+			assert.throws(() => openAiRequestToBridge('acme', {
+				model: 'm',
+				messages: [{ role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { arguments: '{}' } }] }],
+			}), OpenAiTranslationError);
+		});
+
 		test('omits tools and options when absent', () => {
 			const result = openAiRequestToBridge('acme', { model: 'm', messages: [{ role: 'user', content: 'hello' }] });
 			assert.strictEqual(result.tools, undefined);

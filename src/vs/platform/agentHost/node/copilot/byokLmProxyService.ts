@@ -167,14 +167,22 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return undefined;
 		}
 		const vendorSegment = pathname.slice(VENDOR_PATH_PREFIX.length, pathname.length - CHAT_COMPLETIONS_SUFFIX.length);
-		if (!vendorSegment || vendorSegment.includes('/')) {
+		if (!vendorSegment) {
 			return undefined;
 		}
+		let vendor: string;
 		try {
-			return decodeURIComponent(vendorSegment);
+			vendor = decodeURIComponent(vendorSegment);
 		} catch {
 			return undefined;
 		}
+		// Re-check for a path separator *after* decoding: a `%2F` survives the
+		// pre-decode prefix/suffix checks but would decode into a second path
+		// segment, breaking the single-segment `vendor/id` selection-id convention.
+		if (!vendor || vendor.includes('/')) {
+			return undefined;
+		}
+		return vendor;
 	}
 
 	private async _handleChatCompletions(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {

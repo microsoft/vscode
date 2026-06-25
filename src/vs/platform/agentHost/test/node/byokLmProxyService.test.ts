@@ -144,6 +144,22 @@ suite('ByokLmProxyService', () => {
 		assert.strictEqual(captured?.vendor, 'acme corp');
 	});
 
+	test('rejects a vendor that decodes to a multi-segment path (%2F)', async () => {
+		await withProxy(
+			async () => ({ content: 'unused' }),
+			async (handle) => {
+				// `encodeURIComponent('a/b')` → `a%2Fb`, which survives the
+				// pre-decode segment check but decodes back into `a/b`.
+				const response = await fetch(chatUrl(handle, 'a/b'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', messages: [] }),
+				});
+				assert.strictEqual(response.status, 404);
+			},
+		);
+	});
+
 	test('streams assistant tool calls as OpenAI tool_call deltas', async () => {
 		await withProxy(
 			async () => ({ content: '', toolCalls: [{ id: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' }] }),

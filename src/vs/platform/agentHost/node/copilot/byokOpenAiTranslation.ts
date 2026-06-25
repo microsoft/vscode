@@ -104,9 +104,16 @@ function toBridgeToolCalls(toolCalls: IOpenAiToolCall[] | undefined): IByokLmToo
 	const mapped: IByokLmToolCall[] = [];
 	for (let i = 0; i < toolCalls.length; i++) {
 		const call = toolCalls[i];
+		const name = call.function?.name;
+		if (!name) {
+			// A tool call without a function name is malformed: reject at the
+			// boundary (→ 400) rather than forwarding an invalid `tool_use` part
+			// that would fail later, deeper in the renderer.
+			throw new OpenAiTranslationError(`tool_calls[${i}].function.name is required`);
+		}
 		mapped.push({
 			id: call.id ?? `call_${i}`,
-			name: call.function?.name ?? '',
+			name,
 			argumentsJson: call.function?.arguments ?? '{}',
 		});
 	}
