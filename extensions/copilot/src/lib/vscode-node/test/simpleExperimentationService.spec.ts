@@ -6,9 +6,16 @@
 import { describe, expect, it } from 'vitest';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { NullTelemetryService } from '../../../platform/telemetry/common/nullTelemetryService';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { SpyingTelemetryService } from '../../../platform/telemetry/node/spyingTelemetryService';
+import { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../platform/telemetry/common/telemetry';
 import { SimpleExperimentationService } from '../../node/chatLibMain';
+
+class TestTelemetryService extends NullTelemetryService {
+	public readonly events: { eventName: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
+
+	override sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.events.push({ eventName, properties, measurements });
+	}
+}
 
 describe('SimpleExperimentationService', () => {
 	function createService(waitForTreatmentVariables = false, telemetryService: ITelemetryService = new NullTelemetryService()): SimpleExperimentationService {
@@ -205,13 +212,13 @@ describe('SimpleExperimentationService', () => {
 	});
 
 	it('should emit telemetry when a treatment variable is evaluated', () => {
-		const telemetryService = new SpyingTelemetryService();
+		const telemetryService = new TestTelemetryService();
 		const service = createService(false, telemetryService);
 		service.updateTreatmentVariables({ 'feature-flag': true });
 
 		expect(service.getTreatmentVariable<boolean>('feature-flag')).toBe(true);
 
-		const events = telemetryService.getFilteredEvents({ 'copilot.experimentEvaluated': true });
+		const events = telemetryService.events.filter(event => event.eventName === 'copilot.experimentEvaluated');
 		expect(events).toHaveLength(1);
 		expect(events[0]).toMatchObject({
 			eventName: 'copilot.experimentEvaluated',
