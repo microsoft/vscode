@@ -541,15 +541,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint, extensionDescription: IRelaxedExtensionDescription): IDisposable {
 		const disposables = new DisposableStore();
 
-		// For a non-delegating contribution (e.g. an extension-contributed
-		// editor session such as Codex), the session type picker creates a new
-		// session by invoking `openNewChatSessionExternal.<type>`. Register that
-		// command unconditionally and resolve the underlying create-submenu
-		// command lazily at execution time. Registering it eagerly (only when
-		// the create submenu already has an entry) races extension menu/command
-		// registration: if the submenu is still empty at enable time, the
-		// command is never registered and the picker click silently fails with
-		// "command not found".
+		// A non-delegating contribution (e.g. the Codex editor session) creates
+		// a new session via `openNewChatSessionExternal.<type>`. Register it
+		// eagerly and resolve the create command lazily, so it survives the race
+		// where the extension's create-submenu entry isn't registered yet at
+		// enable time.
 		if (!contribution.canDelegate) {
 			disposables.add(registerNewSessionExternalAction(
 				contribution.type,
@@ -566,21 +562,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		// Mirror create submenu actions into the global Chat New menu. The first
-		// action of a non-delegating contribution is the "primary" create
-		// command surfaced through the external action above, so it is not
-		// mirrored here.
-		for (let i = 0; i < menuActions.length; i++) {
-			const action = menuActions[i];
-			if (action instanceof MenuItemAction) {
-				if (i === 0 && !contribution.canDelegate) {
-					continue;
-				}
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-					command: action.item,
-					group: '4_externally_contributed',
-				}));
-			}
+		// Mirror create submenu actions into the global Chat New menu. For a
+		// non-delegating contribution the first action is the primary create
+		// command, already surfaced through the external action above, so skip it.
+		const menuItemActions = menuActions.filter((action): action is MenuItemAction => action instanceof MenuItemAction);
+		const actionsToMirror = contribution.canDelegate ? menuItemActions : menuItemActions.slice(1);
+		for (const action of actionsToMirror) {
+			disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+				command: action.item,
+				group: '4_externally_contributed',
+			}));
 		}
 		return {
 			dispose: () => disposables.dispose()
@@ -1473,8 +1464,10 @@ function registerNewSessionExternalAction(type: string, displayName: string, res
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
+			const logService = accessor.get(ILogService);
 			const commandId = resolveCommandId();
 			if (!commandId) {
+				logService.warn(`[ChatSessionsService] No create command contributed to '${MenuId.AgentSessionsCreateSubMenu.id}' for chat session type '${type}'; cannot open a new session.`);
 				return;
 			}
 			await commandService.executeCommand(commandId);
