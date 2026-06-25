@@ -88,11 +88,33 @@ export class Application {
 	private async _start(workspaceOrFolder = this._workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
-		// Launch Code...
-		const code = await this.startApplication(extraArgs);
+		// The Electron process can intermittently crash during startup on Linux CI
+		// (a native SIGSEGV in the system fontconfig/pango font-initialization path,
+		// unrelated to VS Code, that fails the launch). This is a rare,
+		// nondeterministic startup race, so retry the launch a few times before
+		// giving up — a fresh relaunch almost always succeeds.
+		const maxAttempts = 3;
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
 
-		// ...and make sure the window is ready to interact
-		await measureAndLog(() => this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
+				// Launch Code...
+				const code = await this.startApplication(extraArgs);
+
+				// ...and make sure the window is ready to interact
+				await measureAndLog(() => this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
+
+				return;
+			} catch (error) {
+				this.logger.log(`Application#start(): attempt ${attempt} of ${maxAttempts} to launch the application failed: ${error}`);
+
+				// Tear down the crashed/half-started instance before retrying
+				await this.stop();
+
+				if (attempt === maxAttempts) {
+					throw error;
+				}
+			}
+		}
 	}
 
 	async stop(): Promise<void> {

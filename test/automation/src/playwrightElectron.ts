@@ -60,6 +60,9 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		try {
 			window = await measureAndLog(() => electron.waitForEvent('window', { timeout: LAUNCH_TIMEOUT }), 'playwright-electron#firstWindow', logger);
 		} catch (error) {
+			// The process may still be alive (e.g. hung) but produced no window;
+			// close it so a retried launch does not leave a stray Electron behind.
+			await electron.close().catch(() => { /* best effort */ });
 			throw enrichLaunchError(error, options);
 		}
 	}

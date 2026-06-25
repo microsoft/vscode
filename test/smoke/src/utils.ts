@@ -88,6 +88,10 @@ export function suiteCrashPath(options: ApplicationOptions, suiteName: string): 
 
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
+		// Allow enough time for the application launch to be retried a few times in
+		// case of an intermittent Electron startup crash (see Application#start()).
+		this.timeout(5 * 60 * 1000);
+
 		const suiteName = this.test?.parent?.title ?? 'unknown';
 
 		this.app = createApp({
