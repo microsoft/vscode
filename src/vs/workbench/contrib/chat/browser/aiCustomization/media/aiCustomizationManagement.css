@@ -819,7 +819,7 @@
 }
 
 /* Shared gallery row used by the tools, MCP server and plugin marketplace lists. See galleryItemRenderer.ts */
-.gallery-item {
+.ai-customization-management-editor .gallery-item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -829,11 +829,11 @@
 	cursor: default;
 }
 
-.gallery-item:hover {
+.ai-customization-management-editor .gallery-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.gallery-item-details {
+.ai-customization-management-editor .gallery-item-details {
 	display: flex;
 	flex-direction: column;
 	flex: 1;
@@ -841,7 +841,7 @@
 	overflow: hidden;
 }
 
-.gallery-item-name {
+.ai-customization-management-editor .gallery-item-name {
 	font-size: var(--vscode-agents-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
@@ -850,8 +850,8 @@
 	white-space: nowrap;
 }
 
-.gallery-item-description,
-.gallery-item-publisher {
+.ai-customization-management-editor .gallery-item-description,
+.ai-customization-management-editor .gallery-item-publisher {
 	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
@@ -860,17 +860,17 @@
 	white-space: nowrap;
 }
 
-.gallery-item-action {
+.ai-customization-management-editor .gallery-item-action {
 	flex-shrink: 0;
 }
 
-.gallery-item-action .monaco-button {
+.ai-customization-management-editor .gallery-item-action .monaco-button {
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 2px 10px;
 }
 
-.gallery-item-action .monaco-button:focus-visible {
+.ai-customization-management-editor .gallery-item-action .monaco-button:focus-visible {
 	outline-offset: -1px;
 }
 
@@ -1155,7 +1155,7 @@
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-list {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: 16px;
 	min-width: 0;
 }
 
