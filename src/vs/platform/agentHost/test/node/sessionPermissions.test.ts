@@ -179,6 +179,19 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
+	test('auto-approves shell commands when global auto-approve is enabled, even with terminal auto-approve disabled', async () => {
+		configService.updateRootConfig({
+			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,
+		});
+
+		// A command that would otherwise require confirmation (terminal
+		// auto-approve disabled) is approved because global auto-approve is a
+		// superset that short-circuits before the per-kind checks.
+		const result = await permissions.getAutoApproval(shellEvent('rm -rf /tmp/whatever'), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
 	test('global auto-approve is reported independently of the session permission picker', () => {
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), false);
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
