@@ -132,7 +132,7 @@ declare namespace monaco.languages {
 
 #include(vs/editor/common/textModelEditSource.js): EditDeltaInfo
 #include(vs/base/common/glob.js): IRelativePattern
-#include(vs/editor/common/languageSelector.js): LanguageSelector, LanguageFilter
+#include(vs/editor/common/languageSelector.js): LanguageSelector, LanguageFilter, score
 #includeAll(vs/editor/standalone/browser/standaloneLanguages.js;languages.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/languages/languageConfiguration.js):
 #includeAll(vs/editor/common/languages.js;IMarkerData=>editor.IMarkerData;ISingleEditOperation=>editor.ISingleEditOperation;model.=>editor.;ThemeIcon=>editor.ThemeIcon): Token
