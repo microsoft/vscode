@@ -47,6 +47,7 @@ import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/ag
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
@@ -1013,7 +1014,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!livePR) {
 				return base;
 			}
-			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computeLivePullRequestIcon(reader, this._gitHubService, base.owner, base.repo, livePR) } };
 		});
 
 		this._workspace = observableValue(this, this._buildWorkspace(session));
@@ -1816,22 +1817,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 
-		// Confirm deletion
-		const confirmed = await this.dialogService.confirm({
-			message: localize('deleteSession.confirm', "Are you sure you want to delete this session?"),
-			detail: agentSessions.length > 1
-				? localize('deleteSession.detailMultiple', "This will delete all {0} chats in this session. This action cannot be undone.", agentSessions.length)
-				: localize('deleteSession.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteSession.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
-		}
-
 		await this._deleteAgentSessions(agentSessions);
 
 		this._sessionGroupCache.delete(sessionId);
 		this._refreshSessionCache();
+	}
+
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
 	}
 
 	async renameChat(sessionId: string, chatUri: URI, title: string): Promise<void> {
@@ -1931,6 +1926,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (cliSessionItems.length > 0) {
 			await this.commandService.executeCommand('agents.github.copilot.cli.deleteSessions', cliSessionItems, { skipConfirmation: true });
 		}
+	}
+
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
 	}
 
 	async createNewChat(sessionId: string, prompt?: string): Promise<IChat> {
@@ -2938,6 +2937,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			capabilities: {
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
 				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
+				supportsDelete: this._sessionTypeSupportsDelete(primaryChat.sessionType),
 				// Cloud-agent sessions run worktreeCreated tasks server-side during
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
@@ -2978,6 +2978,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			capabilities: {
 				supportsMultipleChats: false,
 				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
+				supportsDelete: this._sessionTypeSupportsDelete(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
 			},
 		};
@@ -2989,6 +2990,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private _sessionTypeSupportsRename(sessionType: string): boolean {
 		return sessionType === CopilotCLISessionType.id || sessionType === AgentSessionProviders.Claude;
+	}
+
+	private _sessionTypeSupportsDelete(sessionType: string): boolean {
+		return sessionType === CopilotCLISessionType.id;
 	}
 
 	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {

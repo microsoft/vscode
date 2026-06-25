@@ -153,6 +153,11 @@ export interface IPromptPathBase {
 	readonly pluginUri?: URI;
 
 	/**
+	 * Human-readable name of the contributing plugin, used for plugin-scoped slash command names.
+	 */
+	readonly pluginLabel?: string;
+
+	/**
 	 * The source that produced this prompt path.
 	 */
 	readonly source?: PromptFileSource;
@@ -351,6 +356,7 @@ export interface IChatPromptSlashCommand {
 	readonly userInvocable: boolean;
 	readonly extension?: IExtensionDescription;
 	readonly pluginUri?: URI;
+	readonly pluginLabel?: string;
 	/**
 	 * Optional session types that describe when this slash command should be offered.
 	 */
@@ -430,6 +436,10 @@ export interface IAgentSkill {
 	 * Optional plugin URI describing where this skill originated.
 	 */
 	readonly pluginUri?: URI;
+	/**
+	 * Optional plugin display name describing where this skill originated.
+	 */
+	readonly pluginLabel?: string;
 	/**
 	 * Optional extension metadata describing where this skill originated.
 	 */

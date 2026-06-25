@@ -163,6 +163,7 @@ export interface IExtensionsWorkbenchService {
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	isAutoUpdateDelayed(extension: IExtension): boolean;
 	getAutoUpdateDelayRemaining(extension: IExtension): number;
+	getAutoUpdateDelay(): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;

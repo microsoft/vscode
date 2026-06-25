@@ -17,6 +17,7 @@ jobs:
         value: true
     steps:
       - checkout: self
+        path: s
         lfs: true
         fetchDepth: 1
         fetchTags: false

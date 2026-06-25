@@ -91,6 +91,13 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 
 const $ = dom.$;
 
+/**
+ * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
+ */
+const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
 	readonly resultEditorBackground: string;
@@ -761,7 +768,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
-		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
+		this.createList(this.listContainer, {
+			editable: !isInlineChat(this) && !isQuickChat(this),
+			contentHorizontalPadding: this.viewOptions.isSessionsWindow ? SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING : undefined,
+			...this.viewOptions.rendererOptions,
+			renderStyle
+		});
 
 		// Forward wheel events that target the chat container itself (the margins
 		// around the list and input) to the chat list.
@@ -2426,9 +2438,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The advanced autopilot goal banner is only supported in the local chat
+		// harness. Agent-host backed sessions (Copilot CLI, Claude, Codex and the
+		// local/remote agent hosts) must never render it.
+		const sessionResource = this.viewModel?.model.sessionResource;
+		const isLocalHarness = !!sessionResource && getChatSessionType(sessionResource) === localChatSessionType;
 		const permissionLevel = inputPart.currentModeInfo?.permissionLevel;
 		const goalModeOn = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) === true;
-		if (permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
+		if (!isLocalHarness || permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
 			this._cancelGoalSummary();
 			inputPart.clearGoalBanner();
 			return;

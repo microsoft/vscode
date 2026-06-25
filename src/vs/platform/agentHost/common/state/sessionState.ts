@@ -11,7 +11,7 @@
 // helpers and re-exports.
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import {
@@ -40,6 +40,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type UsageInfo,
 	type Message,
 } from './protocol/state.js';
 
@@ -101,7 +102,76 @@ export interface UsageInfoMeta {
 		totalNanoAiu?: number;
 		[key: string]: unknown;
 	};
+	/**
+	 * Per-category account quota snapshots reported by the backend on the
+	 * model-call usage event, keyed by quota type (e.g. `chat`,
+	 * `premium_interactions`). Clients MAY use these to keep the account quota
+	 * UI current without a separate quota fetch.
+	 */
+	quotaSnapshots?: {
+		[quotaType: string]: {
+			readonly isUnlimitedEntitlement?: boolean;
+			readonly entitlementRequests?: number;
+			readonly usedRequests?: number;
+			readonly remainingPercentage?: number;
+			readonly overage?: number;
+			readonly overageAllowedWithExhaustedQuota?: boolean;
+			/** ISO 8601 date when the quota resets, if applicable. */
+			readonly resetDate?: string;
+		} | undefined;
+	};
 	[key: string]: unknown;
+}
+
+type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
+
+function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const snapshot: Mutable<AccountQuotaSnapshot> = {};
+	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
+	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
+	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
+	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
+	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
+	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
+	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	return snapshot;
+}
+
+/**
+ * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
+ * `_meta` bag, ignoring unrelated provider-specific keys and validating each
+ * field's type. Always read {@link UsageInfo._meta} through this helper rather
+ * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
+ * degrades to absent fields instead of producing values of the wrong runtime
+ * type. Returns an empty object when the bag is absent.
+ */
+export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
+	const meta = usage?._meta;
+	if (!meta) {
+		return {};
+	}
+	const result: Mutable<UsageInfoMeta> = {};
+	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
+	const copilotUsage = meta['copilotUsage'];
+	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
+		const rawUsage = copilotUsage as Record<string, unknown>;
+		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
+		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
+		result.copilotUsage = usage;
+	}
+	const quotaSnapshots = meta['quotaSnapshots'];
+	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
+		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
+		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
+			snapshots[quotaType] = readAccountQuotaSnapshot(value);
+		}
+		result.quotaSnapshots = snapshots;
+	}
+	return result;
 }
 
 export {
@@ -405,6 +475,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	return {
 		summary,
 		lifecycle: SessionLifecycle.Creating,
+		activeClients: [],
 		chats: [],
 		defaultChat: undefined,
 	};
@@ -658,6 +729,13 @@ export function getDefaultChat(session: SessionState): ChatSummary | undefined {
 export type SessionMeta = Record<string, unknown>;
 
 /**
+ * VS Code-side alias for the protocol's open `_meta` property bag on
+ * {@link SessionSummary}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
+ * to avoid collisions; values MUST be JSON-serializable.
+ */
+export type SessionSummaryMeta = Record<string, unknown>;
+
+/**
  * Reserved key under {@link SessionMeta} for the well-known git-state
  * payload. Value at this key, when present, MUST be shaped like
  * {@link ISessionGitState}. This is a VS Code-specific convention layered
@@ -665,6 +743,15 @@ export type SessionMeta = Record<string, unknown>;
  * not know about git state.
  */
 export const SESSION_META_GIT_KEY = 'git';
+
+/**
+ * Reserved key under {@link SessionMeta} for the well-known GitHub-state
+ * payload. Value at this key, when present, MUST be shaped like
+ * {@link ISessionGitHubState}. This is a VS Code-specific convention layered
+ * on top of the protocol's generic `_meta` bag — the protocol itself does
+ * not know about GitHub state.
+ */
+export const SESSION_META_GITHUB_KEY = 'github';
 
 /**
  * Git state of a session's working directory, carried under
@@ -698,11 +785,33 @@ export interface ISessionGitState {
 }
 
 /**
+ * GitHub state of a session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_GITHUB_KEY}. Used by clients to drive GitHub-specific
+ * affordances (e.g. PR/merge buttons in the Agents app).
+ *
+ * All fields are optional — agents that do not track a particular field
+ * should omit it rather than send a placeholder, so clients can distinguish
+ * "unknown" from "known to be zero".
+ */
+export interface ISessionGitHubState {
+	/** The owner of the GitHub repository. */
+	readonly owner?: string;
+	/** The name of the GitHub repository. */
+	readonly repo?: string;
+	/** The URL of the GitHub pull request. */
+	readonly pullRequestUrl?: string;
+}
+
+/**
  * Reads the well-known git-state payload from {@link SessionMeta}, if
  * present. Returns `undefined` when the meta bag is absent or the value at
  * the git key is not a plain object (e.g. an array or a primitive).
  * Individual fields with wrong types are silently dropped so partial state
  * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
+ * rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
  */
 export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
 	const value = meta?.[SESSION_META_GIT_KEY];
@@ -744,6 +853,50 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 		next[SESSION_META_GIT_KEY] = gitState;
 	} else {
 		delete next[SESSION_META_GIT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
+ * present. Returns `undefined` when the meta bag is absent or the value at the
+ * GitHub key is not a plain object (e.g. an array or a primitive).
+ * Individual fields with wrong types are silently dropped so partial state
+ * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
+ */
+export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
+	const value = meta?.[SESSION_META_GITHUB_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const result: {
+		owner?: string;
+		repo?: string;
+		pullRequestUrl?: string;
+	} = {};
+
+	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
+	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
+	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	return result;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
+ * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (gitHubState !== undefined) {
+		next[SESSION_META_GITHUB_KEY] = gitHubState;
+	} else {
+		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -803,7 +956,8 @@ export function hostBuildInfoFromProduct(productService: IProductService): IHost
  * key is not a plain object with a string `version`. Optional fields with wrong
  * types are silently dropped.
  */
-export function readHostBuildInfo(meta: RootMeta | undefined): IHostBuildInfo | undefined {
+export function readHostBuildInfo(state: RootState | undefined): IHostBuildInfo | undefined {
+	const meta = state?._meta;
 	const value = meta?.[ROOT_META_HOST_BUILD_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;

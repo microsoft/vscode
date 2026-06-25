@@ -73,11 +73,11 @@ suite('AgentHostStateManager', () => {
 	test('seeds host build info into root state _meta when provided', () => {
 		const buildInfo = { version: '1.96.0', commit: 'abc1234', date: '2024-01-02T03:04:05Z', quality: 'insider' };
 		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
-		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState._meta), buildInfo);
+		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState), buildInfo);
 	});
 
 	test('omits host build info from root state _meta when not provided', () => {
-		assert.strictEqual(readHostBuildInfo(manager.rootState._meta), undefined);
+		assert.strictEqual(readHostBuildInfo(manager.rootState), undefined);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {
@@ -961,6 +961,147 @@ suite('AgentHostStateManager', () => {
 				{
 					removed: [peerChat],
 					chatState: undefined,
+				},
+			);
+		});
+
+		test('hasActiveTurn reflects a chat turn lifecycle', () => {
+			manager.createSession(makeSessionSummary());
+
+			const idle = manager.hasActiveTurn(sessionUri);
+
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			const afterStart = manager.hasActiveTurn(sessionUri);
+
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+			});
+			const afterComplete = manager.hasActiveTurn(sessionUri);
+
+			assert.deepStrictEqual(
+				{ idle, afterStart, afterComplete },
+				{ idle: false, afterStart: true, afterComplete: false },
+			);
+		});
+
+		test('active-turn event observers see the updated active-turn state', () => {
+			// Operations are recomputed synchronously from the active-turn event,
+			// so hasActiveTurn must already reflect the lifecycle change when that
+			// event fires — otherwise operations would stay disabled at turn end.
+			manager.createSession(makeSessionSummary());
+
+			const observed: { active: boolean; hasActiveTurn: boolean }[] = [];
+			disposables.add(manager.onDidChangeSessionActiveTurn(e => {
+				observed.push({ active: e.active, hasActiveTurn: manager.hasActiveTurn(sessionUri) });
+			}));
+
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(sessionUri, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+			});
+
+			assert.deepStrictEqual(observed, [
+				{ active: true, hasActiveTurn: true },
+				{ active: false, hasActiveTurn: false },
+			]);
+		});
+
+		test('hasActiveTurn stays true until all concurrent chat turns finish', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const idle = manager.hasActiveTurn(sessionUri);
+
+			// Start a turn on the default chat, then a concurrent turn on the peer.
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-default',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			const afterDefaultStart = manager.hasActiveTurn(sessionUri);
+
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const afterBothStart = manager.hasActiveTurn(sessionUri);
+
+			// Completing the default chat must NOT clear while the peer streams.
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-default',
+			});
+			const afterDefaultComplete = manager.hasActiveTurn(sessionUri);
+
+			// Only once the peer finishes too does the session go idle.
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-peer',
+			});
+			const afterBothComplete = manager.hasActiveTurn(sessionUri);
+
+			assert.deepStrictEqual(
+				{ idle, afterDefaultStart, afterBothStart, afterDefaultComplete, afterBothComplete },
+				{ idle: false, afterDefaultStart: true, afterBothStart: true, afterDefaultComplete: true, afterBothComplete: false },
+			);
+		});
+
+		test('active-turn event and active-session count flip once per session across concurrent chats', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const turnEvents: boolean[] = [];
+			disposables.add(manager.onDidChangeSessionActiveTurn(e => turnEvents.push(e.active)));
+
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-default',
+				message: { text: 'a', origin: { kind: MessageKind.User } },
+			});
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const activeWhileBothRun = manager.rootState.activeSessions;
+
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-default',
+			});
+			const activeAfterFirstCompletes = manager.rootState.activeSessions;
+
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-peer',
+			});
+
+			assert.deepStrictEqual(
+				{
+					turnEvents,
+					activeWhileBothRun,
+					activeAfterFirstCompletes,
+					activeAfterBothComplete: manager.rootState.activeSessions,
+				},
+				{
+					// Exactly one true (first chat starts) and one false (last chat ends).
+					turnEvents: [true, false],
+					activeWhileBothRun: 1,
+					activeAfterFirstCompletes: 1,
+					activeAfterBothComplete: 0,
 				},
 			);
 		});

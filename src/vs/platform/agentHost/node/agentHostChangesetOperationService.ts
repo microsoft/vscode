@@ -10,7 +10,7 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ISessionGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import type { IChangesetOperationContribution, IAgentHostChangesetOperationService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
+import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -43,6 +44,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
+		this._register(this.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 	}
 
@@ -57,13 +59,18 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void {
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
 			if (!gitState) {
 				return;
 			}
+		}
+
+		if (!gitHubState) {
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			gitHubState = readSessionGitHubState(sessionState?.summary._meta);
 		}
 
 		const changesets = changeset
@@ -80,7 +87,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				sessionKey,
 				changesetUri: changeset,
 				changesetKind: parsed.kind,
-				gitState
+				gitState,
+				gitHubState
 			});
 
 			this._stateManager.dispatchServerAction(changeset, {
@@ -98,7 +106,20 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations.push(...contributed);
 			}
 		}
-		return operations.length > 0 ? operations : undefined;
+		if (operations.length === 0) {
+			return undefined;
+		}
+
+		// Operations are disabled while a turn is active so the working tree /
+		// branch state can't be mutated mid-request.
+		if (this._stateManager.hasActiveTurn(context.sessionKey)) {
+			return operations.map(operation => ({
+				...operation,
+				status: ChangesetOperationStatus.Disabled
+			}));
+		}
+
+		return operations;
 	}
 
 	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {

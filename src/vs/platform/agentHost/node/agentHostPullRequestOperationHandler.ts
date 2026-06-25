@@ -9,16 +9,16 @@ import { localize } from '../../../nls.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
+import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
-	readonly branchName: string;
+	readonly pullRequestUrl: string;
 }
 
 /**
@@ -85,29 +85,33 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-		const workingDirectory = URI.parse(workingDirectoryStr);
 
-		const gitState = readSessionGitState(sessionState._meta);
-		if (!gitState?.hasGitHubRemote || !gitState.githubOwner || !gitState.githubRepo) {
+		const gitHubState = readSessionGitHubState(sessionState.summary._meta);
+		if (!gitHubState?.owner || !gitHubState?.repo) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
 				`Session's working directory is not a GitHub-backed git repo: ${sessionUri}`,
 			);
 		}
 
-		const branchName = gitState.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
+		const workingDirectory = URI.parse(workingDirectoryStr);
+		const gitState = readSessionGitState(sessionState._meta);
+		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 
-		const baseBranchName = gitState.baseBranchName ?? await this._gitService.getDefaultBranch(workingDirectory);
+		const baseBranchName = gitState?.baseBranchName ?? await this._gitService.getDefaultBranch(workingDirectory);
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
 		// `getDefaultBranch` may return `origin/<branch>` — `pulls` API wants the bare name.
 		const base = baseBranchName.startsWith('origin/') ? baseBranchName.substring('origin/'.length) : baseBranchName;
 
-		const authToken = this._agentService.getAuthToken(GITHUB_REPO_PROTECTED_RESOURCE);
+		const authToken = this._agentService.getAuthToken({
+			resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
+			scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+		});
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
@@ -142,7 +146,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const upstreamPresent = await this._gitService.hasUpstream(workingDirectory, branchName);
 		this._throwIfCancelled(token);
 		try {
-			await this._gitService.pushBranch(workingDirectory, branchName, !upstreamPresent);
+			await this._gitService.push(workingDirectory, { ref: branchName, setUpstream: !upstreamPresent });
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to push branch '${branchName}': ${err instanceof Error ? err.message : String(err)}`);
@@ -152,20 +156,20 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const title = this._formatTitle(branchName);
 		const body = this._formatBody(branchName, base);
 
-		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitState.githubOwner, gitState.githubRepo, branchName, authToken, signal);
+		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
 		if (existing) {
 			this._throwIfCancelled(token);
-			this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
+			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: existing.url });
 			return this._createResult(existing, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", existing.number, existing.url));
 		}
 		this._throwIfCancelled(token);
 
-		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitState.githubOwner}/${gitState.githubRepo} ${branchName} -> ${base}`);
+		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${branchName} -> ${base}`);
 		let created: { readonly url: string; readonly number: number };
 		try {
 			created = await this._octoKitService.createPullRequest(
-				gitState.githubOwner,
-				gitState.githubRepo,
+				gitHubState.owner,
+				gitHubState.repo,
 				title,
 				body,
 				branchName,
@@ -178,14 +182,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._throwIfCancelled(token);
 			let foundAfterFailure: { readonly url: string; readonly number: number } | undefined;
 			try {
-				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitState.githubOwner, gitState.githubRepo, branchName, authToken, signal);
+				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
+				this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: foundAfterFailure.url });
 				return this._createResult(foundAfterFailure, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", foundAfterFailure.number, foundAfterFailure.url));
 			}
 			throw err;
@@ -195,7 +199,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			? localize('agentHost.changeset.pr.createdDraft', "Created draft pull request [#{0}]({1}).", created.number, created.url)
 			: localize('agentHost.changeset.pr.created', "Created pull request [#{0}]({1}).", created.number, created.url);
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, branchName });
+		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: created.url });
 		return this._createResult(created, message);
 	}
 

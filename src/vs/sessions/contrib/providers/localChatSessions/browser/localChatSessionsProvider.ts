@@ -805,6 +805,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
 
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
@@ -843,6 +849,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 		this._onDidChangeGroupMembership.fire({ groupKey: primary.sessionId });
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
+	}
+
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
 	}
 
 	async renameChat(_sessionId: string, chatUri: URI, title: string): Promise<void> {
@@ -1203,6 +1213,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			capabilities: {
 				supportsMultipleChats: true,
 				supportsRename: true,
+				supportsDelete: true,
 			},
 		};
 	}

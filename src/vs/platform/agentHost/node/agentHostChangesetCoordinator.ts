@@ -14,7 +14,7 @@ import { ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -139,6 +139,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
+
+		// Advertised operations are disabled while a turn is active so the
+		// working tree / branch state can't be mutated mid-request; recompute
+		// them whenever the active-turn state flips.
+		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -185,7 +190,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
@@ -289,6 +293,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track

@@ -232,6 +232,14 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Delete multiple sessions at once. Implementations may delete the
+	 * sessions more efficiently in a batch, or simply delegate to
+	 * {@link deleteSession} for each id.
+	 * @param sessionIds The IDs of the sessions to delete.
+	 */
+	deleteSessions(sessionIds: readonly string[]): Promise<void>;
+
+	/**
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
@@ -245,6 +253,15 @@ export interface ISessionsProvider {
 	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

@@ -151,6 +151,14 @@ export interface ISessionChangesSummary {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+/**
+ * Well-known id of the changeset that holds the diff between a session's branch
+ * and its base (e.g. `main...feature`). Shared so that consumers which always
+ * want the branch diff — regardless of the changeset currently selected in the
+ * Changes view — can locate it in {@link ISession.changesets} by id.
+ */
+export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
@@ -223,6 +231,8 @@ export interface ISessionChangesetOperation {
 	readonly description?: string;
 	/** Optional icon for the operation. */
 	readonly icon?: ThemeIcon;
+	/** Optional group identifier, used to group related operations together. */
+	readonly group?: string;
 	/** The scopes to which this operation applies. */
 	readonly scopes: SessionChangesetOperationScope[];
 	/** Current execution status for this operation. */
@@ -379,6 +389,13 @@ export interface ISessionCapabilities {
 	 * Defaults to falsy (not renameable) when omitted.
 	 */
 	readonly supportsRename?: boolean;
+	/**
+	 * Whether this session can be deleted. The agents-window sessions-list
+	 * `Delete...` action gates on this flag rather than on the provider id,
+	 * so delete is offered exactly where the backing provider supports it.
+	 * Defaults to falsy (not deletable) when omitted.
+	 */
+	readonly supportsDelete?: boolean;
 	/**
 	 * Whether the session's underlying runtime (e.g. a cloud agent host)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during

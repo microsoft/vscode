@@ -1086,6 +1086,24 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 }
 
+/** Returns whether an action envelope targets one of the subscribed channel URIs. */
+export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvelope, subscribedUris: Iterable<string>): boolean {
+	if (isAhpRootChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	for (const uri of subscribedUris) {
+		if (uri === envelope.channel) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // --- Observable Adapter ------------------------------------------------------
 
 /**

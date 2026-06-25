@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -21,13 +21,14 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
-import { AgentFeedbackAttachmentDisplayKind } from '../../common/agentFeedbackAttachments.js';
+import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import { ActiveClientState } from '../../node/activeClientState.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
@@ -57,14 +58,23 @@ class MockCopilotSession {
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
+	private readonly _allHandlers = new Set<SessionEventHandler>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 
-	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void {
+	on(handler: SessionEventHandler): () => void;
+	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void;
+	on<K extends SessionEventType>(eventTypeOrHandler: K | SessionEventHandler, handler?: TypedSessionEventHandler<K>): () => void {
+		if (typeof eventTypeOrHandler === 'function') {
+			this._allHandlers.add(eventTypeOrHandler);
+			return () => { this._allHandlers.delete(eventTypeOrHandler); };
+		}
+		const eventType = eventTypeOrHandler;
 		let set = this._handlers.get(eventType);
 		if (!set) {
 			set = new Set();
 			this._handlers.set(eventType, set);
 		}
+		assert.ok(handler);
 		set.add(handler as (event: SessionEvent) => void);
 		return () => { set.delete(handler as (event: SessionEvent) => void); };
 	}
@@ -77,6 +87,9 @@ class MockCopilotSession {
 			for (const handler of set) {
 				handler(event);
 			}
+		}
+		for (const handler of this._allHandlers) {
+			handler(event);
 		}
 	}
 
@@ -140,6 +153,12 @@ class MockCopilotSession {
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
 	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
+	readonly traces: Array<{ message: string; args: unknown[] }> = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push({ message, args });
+		super.trace(message, ...args);
+	}
 
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push({ first: message, args });
@@ -227,7 +246,7 @@ function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
-	activeClientState?: ActiveClientState;
+	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
@@ -284,11 +303,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
-		activeClientState: new ActiveClientState(),
+		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
-		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [] },
+		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: undefined,
 		model: undefined,
@@ -357,7 +376,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
-			activeClientState: options?.activeClientState,
+			activeClientToolSet: options?.activeClientToolSet,
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
@@ -378,6 +397,49 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('CopilotSessionWrapper', () => {
+		test('fires unhandled events when no wrapped listener is registered', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+
+		test('tracks wrapped listener registrations dynamically', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+			const handledListener = wrapper.onSessionCompactionStart(() => { });
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+			handledListener.dispose();
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+	});
+
+	test('logs SDK events without wrapped handlers', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.title_changed', { title: 'A new title' } as SessionEventPayload<'session.title_changed'>['data'], {
+			ephemeral: true,
+			id: 'evt-title',
+			timestamp: '2026-06-24T00:00:00.000Z',
+		});
+
+		assert.deepStrictEqual(
+			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
+		);
+	});
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
 		const fileUri = URI.file('/workspace/file.ts');
@@ -463,6 +525,25 @@ suite('CopilotAgentSession', () => {
 				},
 			],
 		}]);
+	});
+
+	test('memoizes the event reconstruction across getMessages/getSubagentMessages and invalidates on log changes', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let getEventsCalls = 0;
+		mockSession.getEvents = async () => { getEventsCalls++; return mockSession.messages; };
+
+		// A single resume wave reads + reconstructs the event log once, shared
+		// by the parent turns and every subagent lookup.
+		await session.getMessages();
+		await session.getSubagentMessages('tc-x');
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 1, 'event log should be read once for the whole resume wave');
+
+		// A log-mutating event drops the memo so a later read rebuilds from
+		// fresh events instead of serving stale turns.
+		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -896,6 +977,49 @@ suite('CopilotAgentSession', () => {
 				_meta: {
 					cost: 2,
 					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
+				},
+			},
+		]);
+	});
+
+	test('forwards account quota snapshots on usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-quota');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			// `quotaSnapshots` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
+			quotaSnapshots: {
+				premium_interactions: {
+					isUnlimitedEntitlement: false,
+					entitlementRequests: 300,
+					usedRequests: 75,
+					usageAllowedWithExhaustedQuota: true,
+					remainingPercentage: 75,
+					overage: 1.5,
+					overageAllowedWithExhaustedQuota: true,
+					resetDate: '2026-07-01T00:00:00.000Z',
+				},
+			},
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = signals
+			.filter((s): s is IAgentActionSignal => s.kind === 'action')
+			.map(s => s.action)
+			.filter(a => a.type === ActionType.ChatUsage);
+
+		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.quotaSnapshots), [
+			{
+				premium_interactions: {
+					isUnlimitedEntitlement: false,
+					entitlementRequests: 300,
+					usedRequests: 75,
+					remainingPercentage: 75,
+					overage: 1.5,
+					overageAllowedWithExhaustedQuota: true,
+					resetDate: '2026-07-01T00:00:00.000Z',
 				},
 			},
 		]);
@@ -1450,6 +1574,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
+		test('an abort during a steering turn tears it down without completing it', async () => {
+			// A steering turn is promoted mid-loop while the SDK is actively
+			// producing its response, so it must be `running` (not `pending`).
+			// Otherwise an abort's terminal idle would treat it as a not-yet-
+			// started queued turn and leave it open, and a later idle would
+			// orphan-complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const steeringTurnId = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)?.turnId;
+			assert.ok(steeringTurnId && steeringTurnId !== 'turn-original', 'steering should start its own turn');
+
+			// Abort: the running steering turn is finalized by the client's
+			// ChatTurnCancelled, so its terminal idle must tear it down rather
+			// than complete it — and a subsequent stray idle must find no turn.
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const steeringCompletions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete && a.turnId === steeringTurnId);
+			assert.strictEqual(steeringCompletions.length, 0, 'an aborted steering turn must not be completed');
+		});
+
 		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -1585,8 +1738,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((turnComplete as { turnId: string }).turnId, turnStarted.turnId);
 		});
 
-		test('events after a completed turn do not target the stale previous turn id', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
+		test('a late event after a completed turn is dropped and logged (never targets the stale turn id)', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
 			session.resetTurnState('turn-old');
 
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -1594,12 +1748,13 @@ suite('CopilotAgentSession', () => {
 				deltaContent: 'late text',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
 
-			const lateMarkdownActions = getActions(signals)
-				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown)
-				.map(a => a as ChatResponsePartAction);
-			const lateMarkdown = lateMarkdownActions[lateMarkdownActions.length - 1];
-			assert.ok(lateMarkdown, 'late event still emits a no-op action for the reducer');
-			assert.notStrictEqual(lateMarkdown.turnId, 'turn-old');
+			// With no active turn, the late delta is dropped (not emitted even as a
+			// no-op), so it can never be attributed to the stale 'turn-old', and the
+			// unexpected state is surfaced via an error log.
+			const markdownActions = getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(markdownActions.length, 0, 'the late delta must be dropped, not emitted');
+			assert.ok(logService.errors.some(e => /no active turn/i.test(String(e.first))), 'the dropped delta should be logged');
 		});
 	});
 
@@ -1756,15 +1911,16 @@ suite('CopilotAgentSession', () => {
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
 			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('test-client', tools);
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
 					tools,
 					plugins: [],
+					mcpServers: {},
 				},
-				activeClientState,
+				activeClientToolSet,
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -1823,7 +1979,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(responsePart.part, {
 				kind: ResponsePartKind.Markdown,
 				id: responsePart.part.id,
-				content: 'Completed the requested work.',
+				content: '\n\n**Task completed:** Completed the requested work.',
 			});
 		});
 
@@ -2031,6 +2187,94 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
+		test('drops and logs a markdown delta emitted with no active turn', async () => {
+			// A delta should only arrive while a turn is active. With none, we
+			// can't persist the part id (so every delta would allocate a fresh
+			// part) and the action would carry an empty turnId — drop it and log.
+			const logService = new CapturingLogService();
+			const { mockSession, signals } = await createAgentSession(disposables, { logService });
+
+			// No resetTurnState → no active turn.
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'orphan text',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const parts = getActions(signals).filter(a => a.type === ActionType.ChatResponsePart || a.type === ActionType.ChatDelta);
+			assert.strictEqual(parts.length, 0, 'no response part/delta should be emitted without an active turn');
+			assert.strictEqual(logService.errors.length, 1, 'should log an error');
+			assert.match(String(logService.errors[0].first), /no active turn/i);
+		});
+
+		test('abort-induced idle does not complete a pending queued turn', async () => {
+			// Repro for the blank-response-after-abort race: a running turn is
+			// aborted while a queued message exists. The queued message's
+			// `send()` creates a fresh (pending) turn before the abort's
+			// terminal `session.idle` is delivered. That idle must not complete
+			// the queued turn — structurally, because it has not started running
+			// yet, and because the idle carries `aborted: true`.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			// The queued message has started its (pending) turn by the time the
+			// abort's terminal idle arrives — no SDK event has run it yet.
+			session.resetTurnState('turn-queued');
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the pending queued turn',
+			);
+
+			// The queued turn now actually runs (first SDK event) and then
+			// completes on its own (non-abort) idle.
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1, 'the queued turn should complete on its real idle');
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-queued');
+		});
+
+		test('abort-induced idle tears down a running turn without completing it', async () => {
+			// Plain abort (no queued message): the running turn is finalized by
+			// the client-dispatched ChatTurnCancelled, so the abort's idle must
+			// not also emit a ChatTurnComplete. The turn handle is dropped so a
+			// later stray idle cannot complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the running aborted turn',
+			);
+
+			// A subsequent stray idle has no turn to act on.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+		});
+
+		test('a running turn after a prior abort still completes on its idle', async () => {
+			// No lingering state across turns: the next turn completes normally.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+
+			session.resetTurnState('turn-next');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-next');
+		});
+
 		test('error event is forwarded', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('session.error', {
@@ -2049,7 +2293,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('message delta is forwarded', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 			mockSession.fire('assistant.message_delta', {
 				messageId: 'msg-1',
 				deltaContent: 'Hello ',
@@ -2294,7 +2539,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 
 			// First reasoning delta — allocates a fresh reasoning response part.
 			mockSession.fire('assistant.reasoning_delta', {
@@ -2580,7 +2826,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleUserInputRequest(
@@ -2596,11 +2842,11 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
-		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
-			// Sanity check: with autoApprove=default the question must
+		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
+			// Sanity check: with mode=interactive the question must
 			// still be surfaced as a progress event (the existing behavior).
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
 			});
 
 			runtime.handleUserInputRequest(
@@ -2775,7 +3021,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleElicitationRequest({
@@ -2896,13 +3142,14 @@ suite('CopilotAgentSession', () => {
 				inputSchema: { type: 'object', properties: {} },
 			}],
 			plugins: [],
+			mcpServers: {},
 		};
 
-		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */
-		const activeClientStateWith = (clientId: string): ActiveClientState => {
-			const state = new ActiveClientState();
-			state.update(clientId, snapshot.tools);
-			return state;
+		/** Builds a live ActiveClientToolSet seeded with the given owning clientId and the snapshot's tools. */
+		const activeClientToolSetWith = (clientId: string): ActiveClientToolSet => {
+			const toolSet = new ActiveClientToolSet();
+			toolSet.set(clientId, snapshot.tools);
+			return toolSet;
 		};
 
 		test('client tool started with no connected client fails immediately', async () => {
@@ -2937,7 +3184,7 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
 
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2975,9 +3222,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-perm', snapshot.tools);
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -3034,7 +3281,7 @@ suite('CopilotAgentSession', () => {
 			// ChatToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
 			// ChatToolCallStart).
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',
@@ -3282,10 +3529,10 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-A', snapshot.tools);
-			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+		test('client tool start stamps the owning clientId from the shared ActiveClientToolSet', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-A', snapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-1',
@@ -3293,8 +3540,10 @@ suite('CopilotAgentSession', () => {
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
-			// A window reload re-pushes the same tools under a new clientId.
-			activeClientState.update('client-B', snapshot.tools);
+			// A window reload removes the old client and re-pushes the same
+			// tools under a new clientId.
+			activeClientToolSet.delete('client-A');
+			activeClientToolSet.set('client-B', snapshot.tools);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-2',
 				toolName: 'my_tool',
@@ -3455,8 +3704,9 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
-		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
+		test('handleExitPlanModeRequest produces a plan-review input request with fallback question', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
 
@@ -3465,9 +3715,37 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 
-			// The plan summary and "View full plan" link are emitted as a
-			// markdown response part before the input request, so the
-			// client renders them inline above the question.
+			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
+			assert.deepStrictEqual(planReview, {
+				title: 'Review Plan',
+				content: '## Plan summary',
+				canProvideFeedback: true,
+				answerQuestionId: request.questions?.[0].id,
+				planUri: URI.file('/sessions/abc/plan.md').toString(),
+				actions: [
+					{
+						id: 'autopilot',
+						label: 'Implement with Autopilot',
+						description: 'Auto-approve all tool calls and continue until done.',
+						default: true,
+						permissionLevel: 'autopilot',
+					},
+					{
+						id: 'interactive',
+						label: 'Implement Plan',
+						description: 'Implement the plan, asking for input and approval for each action.',
+					},
+					{
+						id: 'exit_only',
+						label: 'Approve Plan Only',
+						description: 'Approve the plan without executing it. I will implement it myself.',
+					},
+				],
+			});
+
+			// The summary is now carried by the plan-review payload so the
+			// renderer can dock the richer plan review widget without duplicating
+			// the content as a separate markdown response part.
 			const deltaContent = signals.flatMap(s => {
 				if (s.kind !== 'action') { return []; }
 				if (s.action.type === ActionType.ChatResponsePart) {
@@ -3479,8 +3757,7 @@ suite('CopilotAgentSession', () => {
 				}
 				return [];
 			}).join('');
-			assert.ok(deltaContent.includes('Plan summary'), `expected delta to include plan summary; got: ${deltaContent}`);
-			assert.ok(deltaContent.includes('plan.md'), 'delta should include a link to the plan file');
+			assert.strictEqual(deltaContent, '');
 
 			const question = request.questions?.[0];
 			assert.strictEqual(question?.kind, ChatInputQuestionKind.SingleSelect);
@@ -3496,8 +3773,8 @@ suite('CopilotAgentSession', () => {
 			await responsePromise;
 		});
 
-		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits and syncs mode=autopilot', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3513,10 +3790,14 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// Picking "Implement with Autopilot" flips the AHP mode immediately.
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
 		});
 
-		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -3532,6 +3813,9 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
 		});
 
 		test('declining the input request resolves with approved=false', async () => {
@@ -3706,16 +3990,16 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('session.mode_changed → autopilot translates to mode=interactive + autoApprove=autopilot', async () => {
-			// The SDK has a first-class `autopilot` mode but AHP exposes it
-			// as the `autopilot` value on the orthogonal `autoApprove` axis.
-			// The translation is contained in the Copilot agent.
+		test('session.mode_changed → autopilot maps directly to mode=autopilot', async () => {
+			// The SDK and AHP share the same three-mode space; autopilot now
+			// lives on the `mode` axis and the `autoApprove` axis is left
+			// untouched. The translation is contained in the Copilot agent.
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'autopilot' } as SessionEventPayload<'session.mode_changed'>['data']);
 
 			assert.deepStrictEqual(sessionConfigUpdates, [
-				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive', autoApprove: 'autopilot' } },
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
 			]);
 		});
 
@@ -3727,37 +4011,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
-		// ---- autopilot fast-path -------------------------------------------
+		test('session.mode_changed from a subagent does not update the session config', async () => {
+			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
+			// emit `session.mode_changed` carrying an `agentId`. These reflect
+			// the sub-agent's internal mode, not the root session's, and must
+			// not flip the shared session mode picker (e.g. to Plan) mid-turn.
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
-		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
-			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'plan' } as SessionEventPayload<'session.mode_changed'>['data'], { agentId: 'subagent-1' });
+
+			assert.strictEqual(sessionConfigUpdates.length, 0);
+		});
+
+		// ---- no automatic plan → implementation handoff -------------------
+
+		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
 
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatInputRequested)).length, 0);
-		});
-
-		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { runtime } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
-			});
-
-			// SDK proposes a recommended action that's NOT in the offered set —
-			// fall back to the priority order (autopilot > autopilot_fleet >
-			// interactive > exit_only).
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
-				actions: ['interactive', 'exit_only'],
-				recommendedAction: 'autopilot_fleet',
-			}), { sessionId: 'test-session-1' });
-
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+			// There is no automatic handoff from plan into implementation: the
+			// user must explicitly choose an action regardless of mode.
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
+			await responsePromise;
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {
