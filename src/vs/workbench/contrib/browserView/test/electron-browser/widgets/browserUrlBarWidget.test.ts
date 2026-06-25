@@ -239,7 +239,7 @@ suite('BrowserUrlBarWidget', () => {
 
 	test('first click after mouse focus opens the picker', () => {
 		const { picker, display } = makeHarness();
-		display.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
 		display.focus();
 		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		assert.strictEqual(picker.visible, true);

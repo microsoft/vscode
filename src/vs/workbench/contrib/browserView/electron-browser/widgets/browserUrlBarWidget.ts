@@ -219,13 +219,13 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, (event: FocusEvent) => {
-			// Only open the picker if focus is already within the workbench, and not being transferred from a quick input.
-			if (!(event.relatedTarget instanceof Element) || event.relatedTarget.closest('.quick-input-widget')) {
-				return;
-			}
 			if (this._suppressFocusOpen) {
 				this._suppressFocusOpen = false;
 				pendingMouseFocus = false;
+				return;
+			}
+			// Only open the picker if focus is already within the workbench, and not being transferred from a quick input.
+			if (!(event.relatedTarget instanceof Element) || event.relatedTarget.closest('.quick-input-widget')) {
 				return;
 			}
 			if (pendingMouseFocus) {
