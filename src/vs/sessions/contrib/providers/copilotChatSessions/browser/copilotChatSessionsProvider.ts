@@ -1849,7 +1849,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const session = this._findSession(sessionId);
 
 		if (!session?.capabilities.supportsMultipleChats) {
@@ -1867,12 +1867,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return chat && chat.resource.toString() === chatUri.toString();
 		});
 		if (!chatId) {
-			return;
+			return false;
 		}
 
 		if (chatIds.length <= 1) {
 			// This is the only chat in the session — delete the entire session
-			return this.deleteSession(sessionId);
+			await this.deleteSession(sessionId);
+			return true;
 		}
 
 		// Delete the underlying agent session first.
@@ -1890,7 +1891,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					primaryButton: localize('deleteChat.delete', "Delete")
 				});
 				if (!confirmed.confirmed) {
-					return;
+					return false;
 				}
 			}
 
@@ -1915,6 +1916,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(primaryChat)] });
 			}
 		}
+		return true;
 	}
 
 	private async _deleteAgentSessions(agentSessions: IAgentSession[]): Promise<void> {

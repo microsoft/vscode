@@ -811,10 +811,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
-			return;
+			return false;
 		}
 
 		const group = this._getGroupChats(primary);
@@ -823,13 +823,14 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Unknown chat (e.g. a stale or incorrect URI): do nothing rather than
 		// risk wiping the whole session.
 		if (!target) {
-			return;
+			return false;
 		}
 
 		// Deleting the only chat or the primary chat removes the whole session
 		// (and any children).
 		if (group.length <= 1 || isEqual(target.resource, primary.resource)) {
-			return this.deleteSession(sessionId);
+			await this.deleteSession(sessionId);
+			return true;
 		}
 
 		// Confirm before deleting a sub chat from a multi-chat session, unless the
@@ -841,7 +842,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				primaryButton: localize('deleteChat.delete', "Delete")
 			});
 			if (!confirmed.confirmed) {
-				return;
+				return false;
 			}
 		}
 
@@ -852,6 +853,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 		this._onDidChangeGroupMembership.fire({ groupKey: primary.sessionId });
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
+		return true;
 	}
 
 	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {

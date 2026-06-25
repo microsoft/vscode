@@ -256,8 +256,11 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
 	 * @param options Optional behavior, e.g. skipping the confirmation dialog.
+	 * @returns `true` if a chat was deleted, `false` if the deletion was a no-op
+	 * (e.g. the chat was unknown, undeletable, or the user cancelled the
+	 * confirmation dialog).
 	 */
-	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
+	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/**
 	 * Create a new chat in the given session and return it.

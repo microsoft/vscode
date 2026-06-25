@@ -59,6 +59,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _editingTab: IChatTab | undefined;
 	private _session: IActiveSession | undefined;
+	private readonly _newChatAction: Action;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -112,14 +113,14 @@ export class ChatCompositeBar extends Disposable {
 		// tab). Starting a new chat is offered here while the tabs are shown; when
 		// the session has a single chat the session header toolbar offers it
 		// instead.
-		const newChatAction = this._register(new Action(
+		const newChatAction = this._newChatAction = this._register(new Action(
 			'chatCompositeBar.addChat',
 			localize('chatCompositeBar.addChat', "New Chat"),
 			ThemeIcon.asClassName(Codicon.add),
 			true,
 			async () => {
 				const session = this._session;
-				if (session) {
+				if (session && !session.isArchived.get()) {
 					await this._sessionsService.openNewChatInSession(session);
 					this._sessionsPartService.focusSession(session);
 				}
@@ -199,6 +200,10 @@ export class ChatCompositeBar extends Disposable {
 			}
 			const orderedChats = untitledOpen.length === 0 ? openChats : [...committedOpen, ...untitledOpen];
 			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
+
+			// Archived sessions are read-only, so disable the trailing New Chat
+			// action (mirrors the header action's SessionIsArchivedContext gating).
+			this._newChatAction.enabled = !session.isArchived.read(reader);
 
 			this._setVisible(session.isCreated.read(reader) && openChats.length > 1);
 		}));
@@ -294,12 +299,14 @@ export class ChatCompositeBar extends Disposable {
 		// chat, closing hides it from the tab strip (reopenable from the chats
 		// dropdown in the session header); use Delete to remove it permanently. For
 		// an untitled (in-composer) draft chat there is nothing to reopen, so the
-		// close button deletes the draft outright (no confirmation).
+		// action deletes the draft outright (no confirmation) and is labelled
+		// accordingly so keyboard/screen-reader users know it is destructive.
 		if (!isMainChat) {
+			const isDraft = chat.status.get() === SessionStatus.Untitled;
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
-				localize('closeChat', "Close"),
-				ThemeIcon.asClassName(Codicon.close),
+				isDraft ? localize('deleteDraftChat', "Delete Chat") : localize('closeChat', "Close"),
+				ThemeIcon.asClassName(isDraft ? Codicon.trash : Codicon.close),
 				true,
 				async () => {
 					if (!this._session) {

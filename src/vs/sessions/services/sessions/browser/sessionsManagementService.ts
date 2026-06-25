@@ -582,8 +582,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
-		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
-		this._onDidDeleteChat.fire(session);
+		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
+		if (deleted) {
+			this._onDidDeleteChat.fire(session);
+		}
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {

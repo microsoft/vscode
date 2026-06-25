@@ -284,6 +284,11 @@
 	color: var(--chat-tab-active-foreground);
 }
 
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-composite-bar-toolbar {
 	display: flex;
 	align-items: center;

@@ -2451,18 +2451,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const chatId = chatUri.fragment;
 		if (!chatId) {
 			// The default chat lives and dies with its session and cannot be
 			// deleted in isolation.
-			return;
+			return false;
 		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (!rawId || !cached || !connection) {
-			return;
+			return false;
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
@@ -2474,7 +2474,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				primaryButton: localize('deleteChat.delete', "Delete")
 			});
 			if (!confirmed.confirmed) {
-				return;
+				return false;
 			}
 		}
 
@@ -2483,6 +2483,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.disposeChat(ahpChatUri);
+		return true;
 	}
 
 	async createNewChat(chatId: string): Promise<IChat> {
