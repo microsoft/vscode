@@ -906,7 +906,7 @@
 	background: var(--vscode-list-hoverBackground);
 }
 
-/* Match the other customization lists' focus indicator: :focus-within for the inner checkbox/chevron, :focus for a row click. */
+/* Match the other customization lists' focus ring: :focus-within for inner checkbox/chevron, :focus for a row click. */
 .ai-customization-management-editor .tools-list-setrow:focus,
 .ai-customization-management-editor .tools-list-setrow:focus-within,
 .ai-customization-management-editor .tools-list-toolrow:focus,
