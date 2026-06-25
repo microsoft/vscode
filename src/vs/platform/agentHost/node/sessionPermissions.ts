@@ -243,10 +243,7 @@ export class SessionPermissionManager extends Disposable {
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
-		// 1. Global auto-approve setting. VS Code's `chat.tools.global.autoApprove`
-		// setting is a superset of every individual auto-approve setting: when
-		// enabled, all tool calls are auto-approved regardless of the session's
-		// own approval level or the per-kind settings checked below.
+		// 1. Global auto-approve setting
 		if (this.isGlobalAutoApproveEnabled()) {
 			return ToolCallConfirmationReason.Setting;
 		}
