@@ -9,7 +9,7 @@ import { localize } from '../../../nls.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
+import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -63,7 +63,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	constructor(
 		private readonly _draft: boolean,
-		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -258,7 +258,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	 * fail just because the model is unavailable.
 	 */
 	private async _generateTitleAndDescription(
-		sessionState: SessionState,
+		sessionState: ISessionWithDefaultChat,
 		branchName: string,
 		base: string,
 		branchChanges: readonly ISessionFileDiff[],
@@ -325,6 +325,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[]): string {
 		const lines: string[] = [];
+		let length = 0;
 		for (const diff of diffs) {
 			const before = diff.before?.uri;
 			const after = diff.after?.uri;
@@ -337,8 +338,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			} else if (before && after && before !== after) {
 				kind = 'Rename';
 			}
-			lines.push(`- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`);
-			if (lines.join('\n').length > MAX_PR_CHANGE_SUMMARY_CHARS) {
+			const line = `- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`;
+			lines.push(line);
+			// `+ 1` accounts for the newline that joins this line to the previous one.
+			length += line.length + (lines.length > 1 ? 1 : 0);
+			if (length > MAX_PR_CHANGE_SUMMARY_CHARS) {
 				lines.push('[file list truncated]');
 				break;
 			}
