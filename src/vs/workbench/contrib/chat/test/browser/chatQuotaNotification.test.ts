@@ -222,7 +222,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	function createContribution(
 		entitlementOpts?: Parameters<typeof createMockEntitlementService>[0],
-		modelOpts?: { vendor?: string; selectedModelId?: string; autoModelAvailable?: boolean; currentWidgetSupportsAuto?: boolean; trajectoryTreatment?: boolean | Promise<boolean | undefined>; telemetryService?: ITelemetryService },
+		modelOpts?: { vendor?: string; selectedModelId?: string; trajectoryTreatment?: boolean | Promise<boolean | undefined>; telemetryService?: ITelemetryService },
 		sharedStorageService?: InMemoryStorageService,
 	) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
@@ -234,8 +234,7 @@ suite('ChatQuotaNotificationContribution', () => {
 		const selectedModelId = modelOpts?.selectedModelId ?? `${vendor}/test-model`;
 		// Persist model selection in storage (used by getSelectedModelVendor)
 		storageService.store('chat.currentLanguageModel.panel', selectedModelId, StorageScope.APPLICATION, StorageTarget.USER);
-		const autoModelAvailable = modelOpts?.autoModelAvailable ?? true;
-		const modelIds = [...(autoModelAvailable ? ['copilot/auto'] : []), selectedModelId];
+		const modelIds = ['copilot/auto', selectedModelId];
 		const languageModelsService = {
 			_serviceBrand: undefined,
 			onDidChangeLanguageModelVendors: Event.None,
@@ -252,14 +251,10 @@ suite('ChatQuotaNotificationContribution', () => {
 			lookupLanguageModelByQualifiedName: () => undefined,
 		} as unknown as ILanguageModelsService;
 		const switchedModels: string[] = [];
-		const currentWidgetSupportsAuto = modelOpts?.currentWidgetSupportsAuto ?? true;
 		const chatWidget = {
 			input: {
-				canSwitchModelByIdentifier(identifier: string) {
-					return currentWidgetSupportsAuto && identifier === 'copilot/auto';
-				},
 				switchModelByIdentifier(identifier: string) {
-					if (!currentWidgetSupportsAuto || identifier !== 'copilot/auto') {
+					if (identifier !== 'copilot/auto') {
 						return false;
 					}
 					switchedModels.push(identifier);
@@ -805,38 +800,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				enrollmentTelemetry: {
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
 					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'alreadyAuto' },
-				},
-			});
-		});
-
-		test('omits Try auto link when current widget cannot switch to Auto', async () => {
-			const telemetryService = new TestTelemetryService();
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { currentWidgetSupportsAuto: false, trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-
-			const notification = notificationMock.getNotification();
-			assert.ok(notification);
-			const message = notification.message;
-			assert.deepStrictEqual({
-				message: typeof message === 'string' ? message : message.value,
-				enrollmentTelemetry: telemetryService.events[0],
-			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${createMarkdownCommandLink({
-					text: 'Learn about optimizing usage',
-					id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
-					tooltip: 'Learn about optimizing usage',
-				})}.`,
-				enrollmentTelemetry: {
-					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'autoIneligible' },
 				},
 			});
 		});

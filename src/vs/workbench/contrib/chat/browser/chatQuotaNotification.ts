@@ -25,6 +25,7 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+const COPILOT_AUTO_MODEL_IDENTIFIER = `${COPILOT_VENDOR_ID}/auto`;
 const TRAJECTORY_NUDGE_SPEC = {
 	treatmentName: 'config.chatQuotaTrajectoryNudge',
 	shownStorageKey: 'chat.quotaTrajectory.shownPeriod',
@@ -53,7 +54,7 @@ type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
 	entitlement: string;
 	averageDailyUsage: number;
 	percentUsed: number;
-	linkToAuto: 'enabled' | 'alreadyAuto' | 'autoIneligible';
+	linkToAuto: 'enabled' | 'alreadyAuto';
 };
 
 type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
@@ -394,11 +395,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _handleTryAutoCommand(): void {
 		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeTryAutoClickedClassification>('chatQuotaTrajectoryNudgeTryAutoClicked');
-		const autoModelIdentifier = this._getAutoModelIdentifier();
-		const widget = this._chatWidgetService.lastFocusedWidget;
-		if (autoModelIdentifier && widget?.input.canSwitchModelByIdentifier(autoModelIdentifier)) {
-			widget.input.switchModelByIdentifier(autoModelIdentifier);
-		}
+		this._chatWidgetService.lastFocusedWidget?.input.switchModelByIdentifier(COPILOT_AUTO_MODEL_IDENTIFIER);
 		queueMicrotask(() => this._hideNotification());
 	}
 
@@ -594,13 +591,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
 	}
 
-	private _getLinkToAutoDecision(): 'enabled' | 'alreadyAuto' | 'autoIneligible' {
+	private _getLinkToAutoDecision(): 'enabled' | 'alreadyAuto' {
 		if (this._isAutoModelSelected()) {
 			return 'alreadyAuto';
-		}
-		const autoModelIdentifier = this._getAutoModelIdentifier();
-		if (!autoModelIdentifier || this._chatWidgetService.lastFocusedWidget?.input.canSwitchModelByIdentifier(autoModelIdentifier) !== true) {
-			return 'autoIneligible';
 		}
 		return 'enabled';
 	}
@@ -612,13 +605,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}
 		const identifier = getSelectedModelIdentifier(this._contextKeyService, this._storageService);
 		return identifier === 'auto' || identifier?.endsWith('/auto') === true;
-	}
-
-	private _getAutoModelIdentifier(): string | undefined {
-		return this._languageModelsService.getLanguageModelIds().find(identifier => {
-			const metadata = this._languageModelsService.lookupLanguageModel(identifier);
-			return !!metadata && this._isAutoModel(metadata.id, metadata.vendor);
-		});
 	}
 
 	private _isAutoModel(id: string, vendor: string): boolean {
