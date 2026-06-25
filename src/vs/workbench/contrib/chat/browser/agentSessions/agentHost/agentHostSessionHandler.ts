@@ -140,17 +140,22 @@ interface IObserveTurnOptions {
 	 * the session cost still includes them.
 	 */
 	readonly subAgentCreditsAccumulator?: ISettableObservable<number>;
+	/**
+	 * When set on a subagent turn observer, an observable that receives the
+	 * display name of the language model this subagent's turns ran on. Used to
+	 * surface the model on the subagent tool's hover (mirrors the local
+	 * subagent path, which sets `modelName` directly).
+	 */
+	readonly subAgentModelObservable?: ISettableObservable<string | undefined>;
 }
 
 /**
- * Shared context for subagent observation within a parent turn. Bundles the
- * dedup set with the credits accumulator so they travel together.
+ * Shared context for subagent observation within a parent turn. Tracks which
+ * subagent tool calls already have observers so they aren't double-subscribed.
  */
 interface ISubagentContext {
 	/** Tool call IDs already subscribed — prevents duplicate observers. */
 	readonly observedToolIds: Set<string>;
-	/** Accumulates copilot credits from all subagents for inclusion in the parent's usage. */
-	readonly creditsAccumulator: ISettableObservable<number> | undefined;
 }
 
 interface IStartServerRequestOptions {
@@ -812,7 +817,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						// Enrich history with inner tool calls from subagent
 						// child sessions. Subscribes to each child session so
 						// its tool calls appear grouped under the parent widget.
-						await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource);
 
 						// Store historical turns so the editing session can seed a
 						// request-level checkpoint for each turn (with file edits
@@ -1687,15 +1692,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const inputRequests$ = derived(reader => mergedState$.read(reader)?.inputRequests ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
 
-		// Subagent observation context: dedup set + credits accumulator.
-		// Parent observers create the accumulator; subagent observers write
-		// into the parent's accumulator so the emitted usage includes the
-		// full session cost.
+		// Subagent observation context: dedups subagent tool calls so each is
+		// observed once.
 		const subagentContext: ISubagentContext = {
 			observedToolIds: new Set<string>(),
-			creditsAccumulator: opts.subAgentInvocationId === undefined
-				? observableValue<number>('subagentCredits', 0)
-				: undefined,
 		};
 
 		// Per response part. Markdown / reasoning / tool calls each get a
@@ -1744,22 +1744,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
-				const subagentCredits = subagentContext.creditsAccumulator?.read(reader) ?? 0;
-				let usage = usageInfoToChatUsage(rawUsage);
-				if (!usage && subagentCredits <= 0) {
-					return;
-				}
-				// Synthesize a minimal usage object when only subagent credits
-				// are available (parent turn hasn't reported usage yet).
+				// The parent turn's usage already aggregates the parent agent's
+				// calls plus every subagent's calls (the agent host folds
+				// subagent usage into the parent turn under scope `''`), so it is
+				// emitted as-is — no separate re-aggregation of subagent credits.
+				const usage = usageInfoToChatUsage(rawUsage);
 				if (!usage) {
-					usage = { kind: 'usage', promptTokens: 0, completionTokens: 0, copilotCredits: subagentCredits };
-				} else {
-					// Include accumulated subagent credits in the reported cost
-					if (subagentCredits > 0 && typeof usage.copilotCredits === 'number') {
-						usage.copilotCredits += subagentCredits;
-					} else if (subagentCredits > 0) {
-						usage.copilotCredits = subagentCredits;
-					}
+					return;
 				}
 				// Carry through the actual model so the context-usage widget
 				// can look up context window metadata when the request-level
@@ -1816,7 +1807,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// For subagent observers: accumulate copilot credits from child turns
-		// into the parent's accumulator so the session cost includes them.
+		// into the parent's accumulator so the session cost includes them, and
+		// surface the per-subagent total on its tool hover.
+		//
+		// NOTE: this depends on the agent host reporting usage on the subagent's
+		// own child turns. Some hosts (e.g. copilotcli) instead bundle a
+		// subagent's model-call cost into the *parent* turn's usage and leave the
+		// child turn's usage empty; for those this observer stays inert and the
+		// subagent's cost is still reflected in the overall session cost via the
+		// parent turn. The wiring lights up automatically for hosts that do
+		// report child-turn usage.
 		if (opts.subAgentInvocationId !== undefined && opts.subAgentCreditsAccumulator) {
 			const accumulator = opts.subAgentCreditsAccumulator;
 			let lastCredits = 0;
@@ -1831,6 +1831,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							accumulator.set(accumulator.read(undefined) + delta, tx);
 						});
 					}
+				}
+			}));
+		}
+
+		// For subagent observers: surface the language model this subagent ran
+		// on so it can be shown on the subagent tool's hover. Like the credits
+		// observer above, this depends on the host reporting the model on the
+		// subagent's own child turns (hosts that bundle into the parent turn
+		// leave this empty).
+		if (opts.subAgentInvocationId !== undefined && opts.subAgentModelObservable) {
+			const modelObservable = opts.subAgentModelObservable;
+			store.add(autorun(reader => {
+				const rawUsage = usage$.read(reader);
+				const modelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
+				const modelName = modelId ? this._languageModelsService.lookupLanguageModel(modelId)?.name : undefined;
+				if (modelName && modelName !== modelObservable.read(undefined)) {
+					transaction(tx => modelObservable.set(modelName, tx));
 				}
 			}));
 		}
@@ -2005,30 +2022,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			subagentContext.observedToolIds.add(toolCallId);
 
-			// Track this subagent's own credits (AIC) separately from the
-			// turn-wide accumulator so they can be surfaced on the subagent
-			// tool's hover and persisted via its `toolSpecificData`. The
-			// per-invocation total is also forwarded into the shared
-			// accumulator that feeds the parent turn's reported cost.
+			// Track this subagent's own running credit (AIC) total so it can be
+			// surfaced on the subagent tool's hover and persisted via its
+			// `toolSpecificData`. The parent turn's reported cost already
+			// includes this subagent (the agent host folds subagent usage into
+			// the parent turn), so it is NOT re-added to the parent here.
 			const perInvocationCredits = observableValue<number>('subagentInvocationCredits', 0);
-			let forwardedCredits = 0;
 			store.add(autorun(reader => {
 				const total = perInvocationCredits.read(reader);
-				const delta = total - forwardedCredits;
-				if (delta !== 0) {
-					forwardedCredits = total;
-					const shared = subagentContext.creditsAccumulator;
-					if (shared) {
-						transaction(tx => shared.set(shared.read(undefined) + delta, tx));
-					}
-				}
 				if (total > 0 && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.credits !== total) {
 					invocation.toolSpecificData.credits = total;
 					invocation.notifyToolSpecificDataChanged();
 				}
 			}));
 
-			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, subagentContext, perInvocationCredits);
+			// Track the model this subagent ran on so it can be surfaced on
+			// the subagent tool's hover (mirrors the local subagent path).
+			const perInvocationModel = observableValue<string | undefined>('subagentInvocationModel', undefined);
+			store.add(autorun(reader => {
+				const modelName = perInvocationModel.read(reader);
+				if (modelName && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelName !== modelName) {
+					invocation.toolSpecificData.modelName = modelName;
+					invocation.notifyToolSpecificDataChanged();
+				}
+			}));
+
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -2731,6 +2750,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _enrichHistoryWithSubagentCalls(
 		history: IChatSessionHistoryItem[],
 		parentSession: URI,
+		sessionResource: URI,
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
 
@@ -2771,10 +2791,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (childState) {
 						const innerParts: IChatProgress[] = [];
 						let subagentCredits = 0;
+						let subagentModelName: string | undefined;
 						for (const turn of childState.turns) {
 							const turnCredits = usageInfoToChatUsage(turn.usage)?.copilotCredits;
 							if (typeof turnCredits === 'number') {
 								subagentCredits += turnCredits;
+							}
+							const turnModelId = this._toLanguageModelId(sessionResource, turn.usage?.model);
+							const turnModelName = turnModelId ? this._languageModelsService.lookupLanguageModel(turnModelId)?.name : undefined;
+							if (turnModelName) {
+								subagentModelName = turnModelName;
 							}
 							for (const rp of turn.responseParts) {
 								if (rp.kind === ResponsePartKind.ToolCall) {
@@ -2799,6 +2825,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							const subagentPart = item.parts[index];
 							if (subagentPart.kind === 'toolInvocationSerialized' && subagentPart.toolSpecificData?.kind === 'subagent') {
 								subagentPart.toolSpecificData.credits = subagentCredits;
+							}
+						}
+						// Surface the model this subagent ran on after a reload.
+						if (subagentModelName) {
+							const subagentPart = item.parts[index];
+							if (subagentPart.kind === 'toolInvocationSerialized' && subagentPart.toolSpecificData?.kind === 'subagent' && !subagentPart.toolSpecificData.modelName) {
+								subagentPart.toolSpecificData.modelName = subagentModelName;
 							}
 						}
 						if (innerParts.length > 0) {
@@ -2837,6 +2870,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables: DisposableStore,
 		subagentContext: ISubagentContext,
 		perInvocationCreditsAccumulator: ISettableObservable<number>,
+		perInvocationModel: ISettableObservable<string | undefined>,
 	): void {
 		const childSessionUri = buildSubagentSessionUri(parentSession.toString(), parentToolCallId);
 		const childUri = URI.parse(childSessionUri);
@@ -2889,6 +2923,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						cancellationToken: cts.token,
 						subAgentInvocationId: parentToolCallId,
 						subAgentCreditsAccumulator: perInvocationCreditsAccumulator,
+						subAgentModelObservable: perInvocationModel,
 					}));
 				},
 			));

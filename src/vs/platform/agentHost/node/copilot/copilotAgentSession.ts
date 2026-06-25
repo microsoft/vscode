@@ -362,8 +362,14 @@ class CopilotTurn {
 
 	private _state: CopilotTurnState = 'pending';
 
-	/** Accumulated Copilot usage for this turn, in nano-AIU. */
-	copilotUsageTotalNanoAiu = 0;
+	/**
+	 * Accumulated Copilot usage for this turn, in nano-AIU, keyed by scope.
+	 * Scope `''` is the parent turn aggregate (parent agent calls plus every
+	 * subagent call), so the parent turn's reported cost is the full turn
+	 * total. Each subagent additionally accumulates under its `parentToolCallId`
+	 * so its own component cost can be reported on the subagent's child session.
+	 */
+	readonly copilotUsageTotalNanoAiuByScope = new Map<string, number>();
 
 	/**
 	 * Current markdown response part IDs for this turn, keyed by
@@ -2526,43 +2532,73 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			const metadata: UsageInfoMeta = {};
-			if (typeof e.data.cost === 'number') {
-				metadata.cost = e.data.cost;
-			}
+			// Usage events for a subagent's model calls carry the subagent's
+			// `agentId`. Such an event is reported twice:
+			//  1. Folded into the parent turn (scope `''`) so the parent turn's
+			//     reported cost stays the full turn aggregate (parent + every
+			//     subagent), and
+			//  2. Emitted to the subagent's own child session (via
+			//     `parentToolCallId`) carrying just that subagent's running
+			//     component total, so the subagent tool can show its own cost.
+			// Main-agent (or unmapped subagent) events only contribute to the
+			// parent aggregate.
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
 			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
 			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
-			const turn = this._currentTurn;
-			if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
-				turn.copilotUsageTotalNanoAiu += copilotUsage.totalNanoAiu;
-				metadata.copilotUsage = {
-					...copilotUsage,
-					totalNanoAiu: turn.copilotUsageTotalNanoAiu,
-				};
-			}
 			// `quotaSnapshots` is likewise `asInternal` in the SDK schema (not on the generated type) but is
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
 			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
-			if (quotaSnapshots) {
-				metadata.quotaSnapshots = quotaSnapshots;
-			}
+			const turn = this._currentTurn;
+
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
 			}
-			const usage: UsageInfo = {
-				inputTokens: e.data.inputTokens,
-				outputTokens: e.data.outputTokens,
-				model: e.data.model,
-				cacheReadTokens: e.data.cacheReadTokens,
-				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+
+			// Builds a usage object carrying this event's tokens/model and the
+			// running credit total for the given scope.
+			const buildUsage = (scope: string): UsageInfo => {
+				const metadata: UsageInfoMeta = {};
+				if (typeof e.data.cost === 'number') {
+					metadata.cost = e.data.cost;
+				}
+				if (turn && typeof copilotUsage?.totalNanoAiu === 'number') {
+					const scopedTotal = (turn.copilotUsageTotalNanoAiuByScope.get(scope) ?? 0) + copilotUsage.totalNanoAiu;
+					turn.copilotUsageTotalNanoAiuByScope.set(scope, scopedTotal);
+					metadata.copilotUsage = {
+						...copilotUsage,
+						totalNanoAiu: scopedTotal,
+					};
+				}
+				if (quotaSnapshots) {
+					metadata.quotaSnapshots = quotaSnapshots;
+				}
+				return {
+					inputTokens: e.data.inputTokens,
+					outputTokens: e.data.outputTokens,
+					model: e.data.model,
+					cacheReadTokens: e.data.cacheReadTokens,
+					...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+				};
 			};
+
+			// Parent turn aggregate (scope `''`): every model call contributes.
 			this._emitAction({
 				type: ActionType.ChatUsage,
 				turnId: this._turnId,
-				usage,
+				usage: buildUsage(''),
 			});
+
+			// Subagent component: additionally report the subagent's own running
+			// total to its child session.
+			if (parentToolCallId) {
+				this._emitAction({
+					type: ActionType.ChatUsage,
+					turnId: this._turnId,
+					usage: buildUsage(parentToolCallId),
+				}, parentToolCallId);
+			}
 		}));
 
 		this._register(wrapper.onReasoningDelta(e => {

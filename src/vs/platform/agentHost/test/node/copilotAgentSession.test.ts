@@ -963,6 +963,66 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+
+		// Map the subagent's agentId to its parent tool call id.
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// Parent agent usage (no agentId) only contributes to the parent aggregate.
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// Subagent usage (its agentId) is reported twice: folded into the parent
+		// aggregate AND emitted to the subagent's child session as its component.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const usageSignals = signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
+				return [];
+			}
+			return [{
+				parentToolCallId: signal.parentToolCallId,
+				model: signal.action.usage.model,
+				totalNanoAiu: signal.action.usage._meta?.copilotUsage?.totalNanoAiu,
+			}];
+		});
+
+		assert.deepStrictEqual(usageSignals, [
+			// Parent-only call → parent aggregate.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', totalNanoAiu: 500_000_000 },
+			// First subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 700_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 200_000_000 },
+			// Second subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 500_000_000 },
+		]);
+	});
+
 	test('forwards account quota snapshots on usage metadata', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 

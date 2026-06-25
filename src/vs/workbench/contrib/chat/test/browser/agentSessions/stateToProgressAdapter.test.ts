@@ -1491,6 +1491,39 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
+		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's model.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+			}
+		});
+
 		test('does not notify when no subagent content is present', () => {
 			const tc = createToolCallState({});
 			const invocation = toolCallStateToInvocation(tc);

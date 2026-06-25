@@ -593,6 +593,22 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	/**
+	 * Re-reads the subagent's model name from `toolSpecificData` and refreshes
+	 * the hover when it changes. The model can arrive incrementally (e.g. agent
+	 * host subagents report it via their child turns' usage events).
+	 */
+	private refreshModelFromToolData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind !== 'subagent') {
+			return;
+		}
+		const modelName = toolInvocation.toolSpecificData.modelName;
+		if (modelName && modelName !== this.modelName) {
+			this.modelName = modelName;
+			this.updateHover();
+		}
+	}
+
+	/**
 	 * Tracks a tool invocation's state for:
 	 * 1. Updating the title with the current tool message (persists even after completion)
 	 * 2. Auto-expanding when a tool is waiting for confirmation
@@ -810,6 +826,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						this.updateTitle();
 					}
 					this.refreshCreditsFromToolData(toolInvocation);
+					this.refreshModelFromToolData(toolInvocation);
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {
