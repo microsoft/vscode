@@ -644,7 +644,14 @@ export class ChatService extends Disposable implements IChatService {
 		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
 			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
-			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata } : undefined;
+			// The session request history only tells us which model id was last used, not the
+			// user's per-model configuration (e.g. thinking effort, context window). Preserve that
+			// configuration from the persisted draft when it refers to the same model, so reopening
+			// the session restores the full model config and not just the bare model id.
+			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
+				? storedInputState.selectedModel.modelConfiguration
+				: undefined;
+			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata, modelConfiguration } : undefined;
 			historySelectedModel = selectedModel?.identifier;
 			historyDerivedModel = selectedModel;
 			// This is used to initialize the state of the chat input box, with the selected model, mode, etc
@@ -677,10 +684,12 @@ export class ChatService extends Disposable implements IChatService {
 		// Prefer (in order): a transferred draft, the persisted draft from metadata,
 		// otherwise let the constructor fall back to initialData.value.inputState.
 		// When restoring the persisted draft we keep the unsent text/selections/mode but
-		// deliberately drop its persisted selectedModel (it can be stale or belong to a
-		// different model pool) in favour of the model derived from the session's request
-		// history. When no history model is available the model is left undefined so the
-		// input part resolves it via its own selection logic.
+		// deliberately drop its persisted selectedModel identifier (it can be stale or belong
+		// to a different model pool) in favour of the model derived from the session's request
+		// history. The user's per-model configuration (thinking effort, context window) is
+		// carried over onto that history-derived model above when the ids match. When no
+		// history model is available the model is left undefined so the input part resolves
+		// it via its own selection logic.
 		const restoredDraft: ISerializableChatModelInputState | undefined = storedInputState
 			? { ...storedInputState, selectedModel: historyDerivedModel }
 			: undefined;
