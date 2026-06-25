@@ -280,6 +280,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return;
 		}
 
+		// TODO(review): Optimistic concurrency detects conflicts but overwrites anyway. Consider removing revision field (YAGNI) or adding real conflict resolution.
 		// Best-effort optimistic concurrency: re-read before writing to detect schema upgrades
 		// and concurrent writes from other windows.
 		let baseRevision = this._lastSeenRevision;
