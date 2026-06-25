@@ -155,14 +155,42 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
+		// Tab-strip visibility is sticky per opened session: once shown it stays
+		// shown for the session's lifetime. We never hide it again when chats are
+		// later removed or renamed, so the experience stays consistent.
+		this._setVisible(false);
+		let shown = false;
 		store.add(autorun(reader => {
-			const chats = session.chats.read(reader);
+			const chats = session.openChats.read(reader);
+			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = session.mainChat.read(reader).resource.toString();
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+			const mainChatUri = mainChat.resource.toString();
+			// Keep the provider's order, but move untitled (in-composer) chats
+			// to the end so a just-completed background chat never jumps last.
+			// Partition so each chat's status is read exactly once (tracked) and
+			// relative order is preserved by construction.
+			const committed: IChat[] = [];
+			const untitled: IChat[] = [];
+			for (const chat of chats) {
+				(chat.status.read(reader) === SessionStatus.Untitled ? untitled : committed).push(chat);
+			}
+			const orderedChats = untitled.length === 0 ? chats : [...committed, ...untitled];
+			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
 
-			// Only show the tab strip once the session is created and has multiple chats.
-			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
+			if (shown) {
+				return;
+			}
+			// Show once the session is created and either has multiple chats, or
+			// its single (default) chat carries a title that differs from the
+			// session title (both independent titles must stay visible).
+			const mainChatTitle = mainChat.title.read(reader);
+			const defaultChatDiverged = chats.length === 1
+				&& !!mainChatTitle
+				&& mainChatTitle !== session.title.read(reader);
+			if (session.isCreated.read(reader) && (chats.length > 1 || defaultChatDiverged)) {
+				shown = true;
+				this._setVisible(true);
+			}
 		}));
 	}
 
@@ -252,7 +280,9 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible
+		// Close action — only for non-main chats, always visible. Closing hides the
+		// chat from the tab strip (reopenable from the chats dropdown in the
+		// session header); use Delete to remove it permanently.
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -261,7 +291,7 @@ export class ChatCompositeBar extends Disposable {
 				true,
 				async () => {
 					if (this._session) {
-						await this._sessionsManagementService.deleteChat(this._session, chat.resource);
+						await this._sessionsService.closeChat(this._session, chat);
 					}
 				},
 			));
@@ -291,6 +321,14 @@ export class ChatCompositeBar extends Disposable {
 			this._startTabEditing(chatTab);
 		}));
 
+		// Delete permanently removes the chat (destructive). Only non-main chats
+		// can be deleted; the main chat lives and dies with its session.
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
+			if (this._session) {
+				await this._sessionsManagementService.deleteChat(this._session, chat.resource);
+			}
+		}));
+
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
 			if (chat.status.get() === SessionStatus.Untitled) {
@@ -312,9 +350,9 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => [
-					renameAction,
-				]
+				getActions: () => isMainChat
+					? [renameAction]
+					: [renameAction, deleteAction]
 			});
 		}));
 

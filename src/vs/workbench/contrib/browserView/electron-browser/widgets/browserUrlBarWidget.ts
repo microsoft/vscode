@@ -501,6 +501,8 @@ export class BrowserUrlBarWidget extends Disposable {
 		picker.matchOnDescription = true;
 		picker.anchor = this.element;
 		picker.anchorPosition = 'overlay';
+		// Put a cap on the string length used for filtering to avoid performance issues.
+		picker.filterValue = (filter) => filter.substring(0, 1000);
 		if (initial !== undefined) {
 			picker.value = initial.value;
 			picker.valueSelection = initial.selection;

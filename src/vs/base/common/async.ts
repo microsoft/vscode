@@ -593,6 +593,52 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 }
 
 /**
+ * The largest delay (in milliseconds) a single `setTimeout` can represent.
+ * Larger values overflow its internal 32-bit signed integer and fire (almost)
+ * immediately instead of waiting.
+ */
+export const MAX_TIMEOUT_DELAY = 2 ** 31 - 1; // ~24.8 days
+
+/**
+ * Like {@link disposableTimeout}, but supports delays larger than
+ * {@link MAX_TIMEOUT_DELAY} (~24.8 days), which a single `setTimeout` cannot
+ * represent. The wait is split into chunks and re-armed until the target time is
+ * reached, so the handler fires at approximately `Date.now() + timeout`.
+ *
+ * Note: like `setTimeout`, firing is best-effort and may drift across system
+ * sleep or wall-clock changes; do not rely on it for precise scheduling.
+ *
+ * @param handler The timeout handler.
+ * @param timeout The timeout in milliseconds. May exceed {@link MAX_TIMEOUT_DELAY}.
+ * @param store An optional {@link DisposableStore} that will have the timeout disposable managed automatically.
+ */
+export function disposableLongTimeout(handler: () => void, timeout: number, store?: DisposableStore): IDisposable {
+	const target = Date.now() + timeout;
+	let timer: Timeout;
+
+	const arm = () => {
+		const remaining = target - Date.now();
+		if (remaining <= 0) {
+			handler();
+			if (store) {
+				disposable.dispose();
+			}
+			return;
+		}
+		timer = setTimeout(arm, Math.min(remaining, MAX_TIMEOUT_DELAY));
+	};
+
+	const disposable = toDisposable(() => {
+		clearTimeout(timer);
+		store?.delete(disposable);
+	});
+
+	timer = setTimeout(arm, Math.min(Math.max(0, timeout), MAX_TIMEOUT_DELAY));
+	store?.add(disposable);
+	return disposable;
+}
+
+/**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
@@ -2050,9 +2096,11 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 			} catch (err) {
 				this.reject(err);
 			} finally {
-				writer.emitOne = undefined!;
-				writer.emitMany = undefined!;
-				writer.reject = undefined!;
+				// The executor has settled; emitting afterwards must be a no-op per the
+				// documented "no effect after resolve()/reject()" contract (see emitOne).
+				writer.emitOne = () => { };
+				writer.emitMany = () => { };
+				writer.reject = () => { };
 			}
 		});
 	}

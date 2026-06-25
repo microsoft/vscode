@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -47,7 +47,7 @@ export interface IClaudeAgentSdkService {
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
-
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -83,6 +83,7 @@ export interface IClaudeSdkBindings {
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -146,6 +147,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSubagentMessages(sessionId, agentId, options);
+	}
+
+	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
+		const sdk = await this._getSdk();
+		return sdk.forkSession(sessionId, options);
 	}
 
 	async createSdkMcpServer(options: {

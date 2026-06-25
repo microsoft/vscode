@@ -10,11 +10,11 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionActiveClientToolsChangedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
 import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction } from '../channels-chat/actions.js';
 
-import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
+import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
 import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemovedAction, AnnotationsEntrySetAction, AnnotationsEntryRemovedAction } from '../channels-annotations/actions.js';
 
@@ -57,7 +57,8 @@ export const enum ActionType {
 	SessionModelChanged = 'session/modelChanged',
 	SessionAgentChanged = 'session/agentChanged',
 	SessionServerToolsChanged = 'session/serverToolsChanged',
-	SessionActiveClientChanged = 'session/activeClientChanged',
+	SessionActiveClientSet = 'session/activeClientSet',
+	SessionActiveClientRemoved = 'session/activeClientRemoved',
 	SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
 	ChatPendingMessageSet = 'chat/pendingMessageSet',
 	ChatPendingMessageRemoved = 'chat/pendingMessageRemoved',
@@ -80,6 +81,7 @@ export const enum ActionType {
 	ChangesetStatusChanged = 'changeset/statusChanged',
 	ChangesetFileSet = 'changeset/fileSet',
 	ChangesetFileRemoved = 'changeset/fileRemoved',
+	ChangesetContentChanged = 'changeset/contentChanged',
 	ChangesetOperationsChanged = 'changeset/operationsChanged',
 	ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
 	ChangesetCleared = 'changeset/cleared',
@@ -152,7 +154,8 @@ export type StateAction =
 	| SessionModelChangedAction
 	| SessionAgentChangedAction
 	| SessionServerToolsChangedAction
-	| SessionActiveClientChangedAction
+	| SessionActiveClientSetAction
+	| SessionActiveClientRemovedAction
 	| SessionActiveClientToolsChangedAction
 	| SessionCustomizationsChangedAction
 	| SessionCustomizationToggledAction
@@ -190,6 +193,7 @@ export type StateAction =
 	| ChangesetStatusChangedAction
 	| ChangesetFileSetAction
 	| ChangesetFileRemovedAction
+	| ChangesetContentChangedAction
 	| ChangesetOperationsChangedAction
 	| ChangesetOperationStatusChangedAction
 	| ChangesetClearedAction

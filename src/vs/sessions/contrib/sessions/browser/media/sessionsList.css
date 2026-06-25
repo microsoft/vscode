@@ -437,6 +437,36 @@
 	}
 }
 
+/* Session groups render like sections, with an inline name editor. */
+.session-group {
+	.session-group-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: none;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 20px;
+			line-height: 18px;
+		}
+
+		.monaco-inputbox .input {
+			padding: 0 4px;
+			font-size: var(--vscode-agents-fontSize-label2, 11px);
+		}
+	}
+}
+
+.session-group.session-group-editing .session-group-input {
+	display: block;
+}
+
+/* Header-only feedback while dragging sessions into a group or Pinned. */
+.sessions-list-control .monaco-list-row.drop-target:has(.session-section),
+.sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
+	background-color: var(--vscode-list-dropBackground) !important;
+}
+
 @keyframes session-needs-input-pulse {
 
 	0%,

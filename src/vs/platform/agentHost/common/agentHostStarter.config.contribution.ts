@@ -5,7 +5,7 @@
 
 import * as nls from '../../../nls.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -59,6 +59,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			// Allow the default to be overridden by an experiment. Uses `startup`
+			// (matching the sibling agent-host settings) since the agent host
+			// process must be restarted for a change to take effect anyway.
+			experiment: { mode: 'startup' },
 			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
 				name: 'Codex3PIntegration',
@@ -97,45 +101,45 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostOTelEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
+			markdownDescription: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Configurable in user settings only. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
 			default: false,
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelExporterTypeSettingId]: {
 			type: 'string',
 			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
-			markdownDescription: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
+			markdownDescription: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. Configurable in user settings only. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
 			default: 'otlp-http',
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOtlpEndpointSettingId]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
+			markdownDescription: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Configurable in user settings only. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
 			default: '',
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelCaptureContentSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
+			markdownDescription: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Configurable in user settings only. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
 			default: false,
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOutfileSettingId]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
+			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Configurable in user settings only. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
 			default: '',
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
+			markdownDescription: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Configurable in user settings only. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
 			default: false,
-			restricted: true,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 	}

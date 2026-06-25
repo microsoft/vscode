@@ -151,6 +151,14 @@ export interface ISessionChangesSummary {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+/**
+ * Well-known id of the changeset that holds the diff between a session's branch
+ * and its base (e.g. `main...feature`). Shared so that consumers which always
+ * want the branch diff — regardless of the changeset currently selected in the
+ * Changes view — can locate it in {@link ISession.changesets} by id.
+ */
+export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
@@ -223,6 +231,8 @@ export interface ISessionChangesetOperation {
 	readonly description?: string;
 	/** Optional icon for the operation. */
 	readonly icon?: ThemeIcon;
+	/** Optional group identifier, used to group related operations together. */
+	readonly group?: string;
 	/** The scopes to which this operation applies. */
 	readonly scopes: SessionChangesetOperationScope[];
 	/** Current execution status for this operation. */
@@ -372,6 +382,21 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
+	 * Whether this session's title can be renamed. The agents-window UI
+	 * (session header inline edit, sessions-list `Rename...` action) gates
+	 * editing on this flag rather than on the provider id, so that rename is
+	 * offered exactly where the backing provider actually supports it.
+	 * Defaults to falsy (not renameable) when omitted.
+	 */
+	readonly supportsRename?: boolean;
+	/**
+	 * Whether this session can be deleted. The agents-window sessions-list
+	 * `Delete...` action gates on this flag rather than on the provider id,
+	 * so delete is offered exactly where the backing provider supports it.
+	 * Defaults to falsy (not deletable) when omitted.
+	 */
+	readonly supportsDelete?: boolean;
+	/**
 	 * Whether the session's underlying runtime (e.g. a cloud agent host)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during
 	 * environment provisioning. When `true`, the agents-window
@@ -499,4 +524,65 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+}
+
+/**
+ * Structural equality for {@link ISessionWorkspace}.
+ */
+export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISessionWorkspace | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b
+		|| !isEqual(a.uri, b.uri)
+		|| a.label !== b.label
+		|| a.description !== b.description
+		|| a.group !== b.group
+		|| !ThemeIcon.isEqual(a.icon, b.icon)
+		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
+		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
+		|| a.folders.length !== b.folders.length) {
+		return false;
+	}
+	for (let i = 0; i < a.folders.length; i++) {
+		if (!sessionFolderEqual(a.folders[i], b.folders[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Structural equality for {@link ISessionFolder}.
+ */
+export function sessionFolderEqual(a: ISessionFolder, b: ISessionFolder): boolean {
+	return isEqual(a.root, b.root)
+		&& isEqual(a.workingDirectory, b.workingDirectory)
+		&& a.name === b.name
+		&& a.description === b.description
+		&& sessionGitRepositoryEqual(a.gitRepository, b.gitRepository);
+}
+
+/**
+ * Structural equality for {@link ISessionGitRepository}.
+ */
+export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, b: ISessionGitRepository | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return isEqual(a.uri, b.uri)
+		&& isEqual(a.workTreeUri, b.workTreeUri)
+		&& a.branchName === b.branchName
+		&& a.baseBranchName === b.baseBranchName
+		&& a.baseBranchProtected === b.baseBranchProtected
+		&& a.hasGitHubRemote === b.hasGitHubRemote
+		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.incomingChanges === b.incomingChanges
+		&& a.outgoingChanges === b.outgoingChanges
+		&& a.uncommittedChanges === b.uncommittedChanges
+		&& a.hasGitOperationInProgress === b.hasGitOperationInProgress
+		&& gitHubInfoEqual(a.gitHubInfo.get(), b.gitHubInfo.get());
 }
