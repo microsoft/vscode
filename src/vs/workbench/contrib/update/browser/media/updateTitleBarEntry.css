@@ -24,6 +24,17 @@
 	position: relative;
 }
 
+.monaco-action-bar .update-indicator.icon-only {
+	justify-content: center;
+	min-width: 22px;
+	padding: 0 6px;
+}
+
+.monaco-action-bar .update-indicator.icon-only .indicator-label {
+	font-size: 16px;
+	line-height: 1;
+}
+
 /* Prominent state (action required) — primary button style */
 .monaco-action-bar .update-indicator.prominent {
 	background-color: var(--vscode-button-background);
