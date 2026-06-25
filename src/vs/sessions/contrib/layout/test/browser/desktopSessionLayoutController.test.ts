@@ -23,9 +23,15 @@ suite('LayoutController (desktop)', () => {
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
 
-	function createController(options: ICreateOptions = {}): LayoutController {
+	class TestLayoutController extends LayoutController {
+		getViewState(sessionResource: URI) {
+			return this._viewStateBySession.get(sessionResource);
+		}
+	}
+
+	function createController(options: ICreateOptions = {}): TestLayoutController {
 		harness = createTestHarness(store, options);
-		return store.add(harness.instaService.createInstance(LayoutController));
+		return store.add(harness.instaService.createInstance(TestLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -67,7 +73,7 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
 	});
 
-	test('[D3d] shows changes for untitled session with changes', () => {
+	test('[D3d] keeps Files as the default for an uncreated session with changes', () => {
 		createController();
 		const session = makeSession(URI.parse('session:1'), {
 			status: SessionStatus.Untitled,
@@ -75,7 +81,13 @@ suite('LayoutController (desktop)', () => {
 		});
 		harness.activeSessionObs.set(session, undefined);
 
-		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID));
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
 	});
 
 	test('[D3d] does not force-open Files when the Files pane is hidden', () => {
@@ -180,7 +192,7 @@ suite('LayoutController (desktop)', () => {
 
 	test('[D4] keeps the open side pane and shows Changes when a new session is submitted', () => {
 		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
@@ -189,7 +201,7 @@ suite('LayoutController (desktop)', () => {
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
 		harness.openedViews = [];
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
@@ -203,7 +215,7 @@ suite('LayoutController (desktop)', () => {
 
 	test('[D4] keeps the side pane closed when a new session is submitted with the aux bar hidden', () => {
 		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 
 		// User hides the aux bar on the new-session view.
@@ -212,7 +224,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViews = [];
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
@@ -222,6 +234,80 @@ suite('LayoutController (desktop)', () => {
 			!harness.openedViews.includes(CHANGES_VIEW_ID),
 			'Changes view should not be shown when the aux bar is hidden'
 		);
+	});
+
+	test('[D4] shows Changes when a hidden side pane is opened after the session is submitted', () => {
+		createController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+
+		harness.openedViewContainers = [];
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.ok(
+			harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID),
+			'Changes should be the active view when the side pane is opened later'
+		);
+	});
+
+	test('[D4] records Changes when a hidden side pane falls back from an invalid saved container', () => {
+		const session = makeSession(URI.parse('session:1'));
+		const controller = createController({
+			layoutState: [{
+				sessionResource: session.resource.toString(),
+				viewState: {
+					auxiliaryBarVisible: false,
+					auxiliaryBarActiveViewContainerId: 'missing.view',
+				},
+			}],
+		});
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+			viewState: controller.getViewState(session.resource),
+		}, {
+			openedChanges: true,
+			viewState: {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			},
+		});
+	});
+
+	test('[D4] remembers Files when the user chooses it after the session is submitted', () => {
+		createController();
+		const session1 = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
+		const session2 = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(session1, undefined);
+
+		(session1.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+
+		harness.activeSessionObs.set(session2, undefined);
+
+		harness.openedViews = [];
+		harness.openedViewContainers = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
 	});
 
 	// --- [D2] Live visibility tracking (new-session shared state) ---

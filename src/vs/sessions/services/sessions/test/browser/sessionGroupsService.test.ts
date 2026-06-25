@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { groupSortKey, SessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
 function createSession(id: string): ISession {
 	return {
@@ -159,15 +159,6 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroups().filter(g => service.getSessionIdsInGroup(g.id).length === 0).length, 3);
 	});
 
-	test('setGroupSortKey overrides placement and persists', () => {
-		const a = service.createGroup('A', ['s1']);
-		service.setGroupSortKey(a.id, 12345);
-		assert.strictEqual(service.getGroup(a.id)?.sortKeyOverride, 12345);
-
-		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
-		assert.strictEqual(reloaded.getGroup(a.id)?.sortKeyOverride, 12345);
-	});
-
 	test('state persists across reload', () => {
 		const a = service.createGroup('Persisted', ['s1', 's2']);
 
@@ -250,10 +241,5 @@ suite('SessionGroupsService', () => {
 
 		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), []);
-	});
-
-	test('groupSortKey returns the highest member key', () => {
-		assert.strictEqual(groupSortKey([10, 50, 30]), 50);
-		assert.strictEqual(groupSortKey([]), undefined);
 	});
 });

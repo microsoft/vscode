@@ -13,6 +13,8 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { chartsOrange } from '../../../../platform/theme/common/colors/chartsColors.js';
 
 export interface ISessionInputBannerAction {
 	readonly label: string;
@@ -68,6 +70,11 @@ export class SessionInputBannerWidget extends Disposable {
 			// styles apply), mirroring the chat input notification widget.
 			const button = this._register(new Button(actions, {
 				...defaultButtonStyles,
+				...(action.primary && banner.accent ? {
+					// Match the orange accent (border + icon) of the CI banner.
+					buttonBackground: asCssVariable(chartsOrange),
+					buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+				} : {}),
 				...(action.primary ? {} : {
 					buttonBackground: undefined,
 					buttonHoverBackground: undefined,

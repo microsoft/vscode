@@ -15,7 +15,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+import { GitHubCheckStatus } from '../../github/common/types.js';
 import { FIX_CI_CHECKS_COMMAND_ID, getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
@@ -38,7 +40,10 @@ const REVIEWABLE_KINDS: ReadonlySet<AgentFeedbackKind> = new Set([AgentFeedbackK
 interface ICIBannerState {
 	readonly sessionId: string;
 	readonly failed: number;
-	readonly total: number;
+	/** Number of checks that have completed (succeeded or failed). */
+	readonly completed: number;
+	/** Number of checks still running or queued. */
+	readonly pending: number;
 }
 
 interface ICommentsBannerState {
@@ -76,8 +81,21 @@ export class SessionInputBanners extends Disposable {
 
 	private _feedbackChanged!: IObservable<void>;
 
-	/** The session whose banners should be shown, or undefined when inactive. */
-	private readonly _session = derived(this, reader => this._active.read(reader) ? this.sessionsService.activeSession.read(reader) : undefined);
+	/**
+	 * The session whose banners should be shown, or undefined when inactive or
+	 * while the session/chat is still in progress. Banners only surface once the
+	 * session has completed so they don't distract from a running agent.
+	 */
+	private readonly _session = derived(this, reader => {
+		if (!this._active.read(reader)) {
+			return undefined;
+		}
+		const session = this.sessionsService.activeSession.read(reader);
+		if (!session || session.status.read(reader) !== SessionStatus.Completed) {
+			return undefined;
+		}
+		return session;
+	});
 
 	private readonly _ciState: IObservable<ICIBannerState | undefined> = derived(this, reader => {
 		const session = this._session.read(reader);
@@ -93,7 +111,9 @@ export class SessionInputBanners extends Disposable {
 		if (failed === 0) {
 			return undefined;
 		}
-		return { sessionId: session.sessionId, failed, total: checks.length };
+		const completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
+		const pending = checks.length - completed;
+		return { sessionId: session.sessionId, failed, completed, pending };
 	});
 
 	private readonly _commentsState: IObservable<ICommentsBannerState | undefined> = derived(this, reader => {
@@ -157,9 +177,12 @@ export class SessionInputBanners extends Disposable {
 			return;
 		}
 
-		const text = state.total === 1
+		const failedText = state.completed === 1
 			? localize('ci.oneCheckFailed', "1 check failed")
-			: localize('ci.checksFailed', "{0} of {1} checks failed", state.failed, state.total);
+			: localize('ci.checksFailed', "{0} out of {1} checks failed", state.failed, state.completed);
+		const text = state.pending > 0
+			? localize('ci.checksFailedPending', "{0}, {1} pending", failedText, state.pending)
+			: failedText;
 
 		this._renderBanner(this._ciSlot, store, {
 			icon: Codicon.warning,
