@@ -5,6 +5,7 @@
 
 import { IntervalTimer, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { stringHash } from '../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
@@ -95,6 +96,9 @@ export class AutomationSchedulerCore extends Disposable {
 	}
 
 	private kickoffPendingRuns(task: () => Promise<void>): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._pendingRuns = this._pendingRuns.then(task).catch(err => {
 			this.logService.error('[AutomationScheduler] tick failed', err);
 		});
@@ -128,7 +132,7 @@ export class AutomationSchedulerCore extends Disposable {
 			return;
 		}
 
-		const leaderWindowId = hashStringToInt(this._leader.instanceId);
+		const leaderWindowId = stringHash(this._leader.instanceId, 0);
 		for (const automation of due) {
 			// Advance schedule first so a concurrent tick doesn't re-pick this row.
 			await this.automationService.advanceNextRunAt(automation.id, now);
@@ -219,15 +223,5 @@ function isDue(automation: IAutomation, now: Date): boolean {
 		return false;
 	}
 	return next <= now.getTime();
-}
-
-// Stable 32-bit hash for human-readable leaderWindowId on run rows.
-function hashStringToInt(str: string): number {
-	let h = 0;
-	for (let i = 0; i < str.length; i++) {
-		h = ((h << 5) - h) + str.charCodeAt(i);
-		h |= 0;
-	}
-	return Math.abs(h);
 }
 

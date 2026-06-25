@@ -13,6 +13,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -35,6 +36,7 @@ import { IAutomationRunner } from '../../common/automations/automationRunner.js'
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
+import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
 import { showAutomationDialog } from '../automations/automationDialog.js';
 
 const $ = DOM.$;
@@ -46,8 +48,6 @@ const HISTORY_EMPTY_HEIGHT = 28;
 const HISTORY_MORE_HEIGHT = 22;
 const MAX_VISIBLE_RUNS = 20;
 
-// --- List entry types ---
-
 interface IAutomationItemEntry {
 	readonly type: 'automation-item';
 	readonly automation: IAutomation;
@@ -57,8 +57,6 @@ interface IAutomationItemEntry {
 }
 
 type IAutomationListEntry = IAutomationItemEntry;
-
-// --- Template data ---
 
 interface IAutomationRowTemplateData {
 	readonly container: HTMLElement;
@@ -77,8 +75,6 @@ interface IAutomationRowTemplateData {
 	readonly historyPanel: HTMLElement;
 	readonly disposables: DisposableStore;
 }
-
-// --- Delegate ---
 
 class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntry> {
 	getHeight(element: IAutomationListEntry): number {
@@ -101,8 +97,6 @@ class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntr
 		return 'automationItem';
 	}
 }
-
-// --- Renderer ---
 
 class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAutomationRowTemplateData> {
 	readonly templateId = 'automationItem';
@@ -324,6 +318,7 @@ export class AutomationsListWidget extends Disposable {
 
 	private readonly newButtonHover = this._register(new MutableDisposable());
 	private readonly newEmptyStateButtonHover = this._register(new MutableDisposable());
+	private readonly _emptyStateStore = this._register(new DisposableStore());
 
 	private readonly runInFlight = new Set<string>();
 	private readonly expandedRows = new Set<string>();
@@ -440,6 +435,7 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private renderEmptyState(): void {
+		this._emptyStateStore.clear();
 		DOM.clearNode(this.emptyContainer);
 		this.emptyContainer.setAttribute('role', 'listitem');
 		const title = DOM.append(this.emptyContainer, $('h3.automations-empty-title'));
@@ -447,15 +443,13 @@ export class AutomationsListWidget extends Disposable {
 		const message = DOM.append(this.emptyContainer, $('p.automations-empty-message'));
 		message.textContent = localize('automationsEmptyMessage', "Create an automation to schedule an agent session to run on a cadence you choose.");
 
-		const ctaButton = this._register(new Button(this.emptyContainer, { ...defaultButtonStyles }));
+		const ctaButton = this._emptyStateStore.add(new Button(this.emptyContainer, { ...defaultButtonStyles }));
 		ctaButton.label = localize('automationsEmptyCta', "Create automation");
 		ctaButton.element.classList.add('automations-empty-cta');
-		this._register(ctaButton.onDidClick(() => this.openCreateDialog()));
+		this._emptyStateStore.add(ctaButton.onDidClick(() => this.openCreateDialog()));
 		this.newEmptyStateButton = ctaButton;
 		this.newEmptyStateButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), ctaButton.element, localize('newAutomationTooltip', "Create a new automation"));
 	}
-
-	// --- Public action methods (called by the renderer) ---
 
 	toggleExpanded(automationId: string): void {
 		if (this.expandedRows.has(automationId)) {
@@ -567,8 +561,6 @@ export class AutomationsListWidget extends Disposable {
 		return segments[segments.length - 1] ?? folderUri.toString();
 	}
 
-	// --- Private helpers ---
-
 	private _isEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 	}
@@ -605,8 +597,6 @@ export class AutomationsListWidget extends Disposable {
 		}
 	}
 
-	// --- Public API consumed by the management editor ---
-
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.automationService.automations.get().length);
 	}
@@ -615,10 +605,6 @@ export class AutomationsListWidget extends Disposable {
 		this.newEmptyStateButton?.focus();
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
 
 function formatSchedule(a: IAutomation): string {
 	switch (a.schedule.interval) {
@@ -642,17 +628,8 @@ function formatHourMinute(hour: number, minute: number): string {
 }
 
 function dayName(day: number): string {
-	const names = [
-		localize('automation.day.sun', "Sunday"),
-		localize('automation.day.mon', "Monday"),
-		localize('automation.day.tue', "Tuesday"),
-		localize('automation.day.wed', "Wednesday"),
-		localize('automation.day.thu', "Thursday"),
-		localize('automation.day.fri', "Friday"),
-		localize('automation.day.sat', "Saturday"),
-	];
 	const idx = ((day % 7) + 7) % 7;
-	return names[idx];
+	return DAYS_OF_WEEK[idx];
 }
 
 function formatNextRun(a: IAutomation): string {
@@ -668,32 +645,7 @@ function formatRelativeTimeOrIso(iso: string): string {
 		return iso;
 	}
 	const date = new Date(t);
-	const diffMs = t - Date.now();
-	const absMs = Math.abs(diffMs);
-	const minute = 60_000;
-	const hour = 60 * minute;
-	const day = 24 * hour;
-
-	let rel: string;
-	if (absMs < minute) {
-		rel = diffMs >= 0 ? localize('inMomentaryFuture', "in a moment") : localize('justNow', "just now");
-	} else if (absMs < hour) {
-		const mins = Math.round(absMs / minute);
-		rel = diffMs >= 0
-			? localize('inMinutes', "in {0} min", mins)
-			: localize('agoMinutes', "{0} min ago", mins);
-	} else if (absMs < day) {
-		const hrs = Math.round(absMs / hour);
-		rel = diffMs >= 0
-			? localize('inHours', "in {0} hr", hrs)
-			: localize('agoHours', "{0} hr ago", hrs);
-	} else {
-		const days = Math.round(absMs / day);
-		rel = diffMs >= 0
-			? localize('inDays', "in {0} day(s)", days)
-			: localize('agoDays', "{0} day(s) ago", days);
-	}
-
+	const rel = fromNow(date, true);
 	const absolute = date.toLocaleString();
 	return `${rel} (${absolute})`;
 }
@@ -741,15 +693,7 @@ function formatRunDuration(run: IAutomationRun): string | undefined {
 	if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
 		return undefined;
 	}
-	const ms = Math.max(0, endMs - startMs);
-	if (ms < 1000) {
-		return localize('runDurationMs', "{0} ms", ms);
-	}
-	if (ms < 60_000) {
-		return localize('runDurationSec', "{0} s", (ms / 1000).toFixed(1));
-	}
-	const mins = Math.floor(ms / 60_000);
-	const secs = Math.floor((ms % 60_000) / 1000);
-	return localize('runDurationMinSec', "{0} min {1} s", mins, secs);
+	const durationMs = Math.max(0, endMs - startMs);
+	return getDurationString(durationMs);
 }
 
