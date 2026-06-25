@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import {
 	IAgentHostByokLmHandler,
@@ -33,10 +34,16 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
  * the buffered completion the renderer produced from the LM API.
  */
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
+	// Reach for `channel.listen` lazily — only when a consumer actually
+	// subscribes to `onDidChangeModels` — mirroring the deferred `channel.call`
+	// usage below (and the reverse FS bridge). Touching the channel eagerly at
+	// construction would force every connection to register an IPC event handler
+	// up front, even when nothing listens.
+	const onDidChangeModels = new Lazy(() => channel.listen<void>('onDidChangeModels'));
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
 		listModels: () => channel.call('listModels') as Promise<IByokLmModelInfo[]>,
-		onDidChangeModels: channel.listen('onDidChangeModels'),
+		onDidChangeModels: (listener, thisArgs, disposables) => onDidChangeModels.value(listener, thisArgs, disposables),
 	};
 }
 
