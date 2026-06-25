@@ -15,7 +15,7 @@
 	}
 
 	/* Suppressed while selected so the selection highlight is not overpainted. */
-	.monaco-list-row:not(.selected):has(.session-item.needs-input) {
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
 		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
 	}
 
