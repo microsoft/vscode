@@ -110,15 +110,6 @@ interface IObserveTurnOptions {
 	readonly chatChannel: string;
 	readonly turnId: string;
 	readonly sink: (parts: IChatProgress[]) => void;
-	/**
-	 * When set, the per-turn usage autorun is registered here instead of the
-	 * observer's own store, so usage keeps flowing to {@link sink} after the
-	 * turn finishes and the observer is disposed. Used by the live-turn path so
-	 * a cancelled turn's billed credits — which settle a beat after the response
-	 * is (eagerly) completed — still update the cost footer. The caller owns the
-	 * store and replaces it when the next turn starts.
-	 */
-	readonly lateUsageStore?: DisposableStore;
 	readonly cancellationToken: CancellationToken;
 	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
@@ -1432,12 +1423,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		return new Promise<Turn | undefined>(resolve => {
 			const store = new DisposableStore();
-			// Keep this turn's usage flowing after it finishes: a cancelled turn's
-			// billed credits settle a beat after the response is eagerly completed,
-			// and the footer updates reactively as they land. Replacing the map
-			// entry disposes the previous turn's forwarder.
+			// A cancelled turn's billed credits settle a beat after the response
+			// is eagerly completed, but the live progress reporter is gated on the
+			// cancellation token (and the response is already complete). Forward
+			// the turn's usage straight onto the response model instead, on a
+			// session-scoped store that outlives the turn; replacing the map entry
+			// disposes the previous turn's forwarder.
 			const lateUsageStore = new DisposableStore();
 			this._lateUsageStores.set(request.sessionResource, lateUsageStore);
+			this._forwardTurnUsage(lateUsageStore, request.sessionResource, session, chatKey, turnId);
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -1453,7 +1447,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				chatChannel: chatKey,
 				turnId,
 				sink: progress,
-				lateUsageStore,
 				cancellationToken,
 				suppressErrorMarkdown: true,
 				onTurnEnded: (lastTurn) => {
@@ -1626,10 +1619,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			// Register on `lateUsageStore` when provided so usage keeps flowing
-			// after the turn finishes (a cancelled turn's credits settle just
-			// after the response completes — see {@link IObserveTurnOptions.lateUsageStore}).
-			(opts.lateUsageStore ?? store).add(autorun(reader => {
+			store.add(autorun(reader => {
 				const usage = usageInfoToChatUsage(usage$.read(reader));
 				if (!usage) {
 					return;
@@ -1744,6 +1734,42 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		return store;
+	}
+
+	/**
+	 * Forward a turn's usage onto its chat response's {@link IChatResponseModel.setUsage}
+	 * as it changes, on a `store` that outlives the turn. This is how a
+	 * cancelled turn's billed credits — which settle a beat after the response
+	 * is eagerly completed — reach the cost footer: the live progress reporter
+	 * is gated on the cancellation token (and the response is already complete),
+	 * but `setUsage` is an idempotent observable update with no such gate.
+	 * `turnId` equals the chat request id, so the matching response is found
+	 * directly; redundant updates while the turn is live are deduped by
+	 * `setUsage` itself.
+	 */
+	private _forwardTurnUsage(store: DisposableStore, sessionResource: URI, backendSession: URI, chatChannel: string, turnId: string): void {
+		const sessionKey = backendSession.toString();
+		const sessionState$ = observableFromSubscription(this, this._ensureSessionSubscription(sessionKey));
+		const chatState$ = observableFromSubscription(this, this._ensureChatSubscription(sessionKey, chatChannel));
+		const usage$ = derived(reader => {
+			const session = sessionState$.read(reader);
+			if (!session) {
+				return undefined;
+			}
+			const merged = mergeSessionWithDefaultChat(session, chatState$.read(reader));
+			const turn = merged.activeTurn?.id === turnId
+				? merged.activeTurn
+				: merged.turns.find(t => t.id === turnId);
+			return turn?.usage;
+		});
+		store.add(autorun(reader => {
+			const usage = usageInfoToChatUsage(usage$.read(reader));
+			if (!usage) {
+				return;
+			}
+			const response = this._chatService.getSession(sessionResource)?.getRequests().find(r => r.id === turnId)?.response;
+			response?.setUsage(usage);
+		}));
 	}
 
 	private _setupMarkdownPart(

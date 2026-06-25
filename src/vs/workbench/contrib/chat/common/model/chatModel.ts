@@ -2883,21 +2883,13 @@ export class ChatModel extends Disposable implements IChatModel {
 			});
 		}
 
-		// Usage is an idempotent observable update (`setUsage`), not streamed
-		// content, so it may legitimately arrive AFTER the response completes —
-		// e.g. billed credits that settle once a cancelled turn's in-flight
-		// requests drain. Reconcile it instead of dropping it (which would
-		// undercount the cost footer); the footer re-renders reactively.
-		if (progress.kind === 'usage') {
-			request.response.setUsage(progress);
-			return;
-		}
-
 		if (request.response.isComplete) {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'usedContext' || progress.kind === 'reference') {
+		if (progress.kind === 'usage') {
+			request.response.setUsage(progress);
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
