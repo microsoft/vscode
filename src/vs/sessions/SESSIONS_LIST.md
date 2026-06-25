@@ -144,6 +144,12 @@ The sessions list defines menu IDs that contributions can target to add actions.
 |------|----------|------------------|---------|
 | `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace" and "Mark All as Done". The Done section restores sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
+### Group Header Menu
+
+| Menu | Constant | Where it appears | Use for |
+|------|----------|------------------|---------|
+| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "New Session" (opens the new-session composer and joins the started session to the group), "Rename", and "Delete Group". The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
+
 ### View Title Menus
 
 | Menu | Constant | Where it appears | Use for |
