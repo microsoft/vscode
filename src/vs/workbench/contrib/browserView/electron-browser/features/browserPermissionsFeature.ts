@@ -281,7 +281,7 @@ class ManageBrowserPermissionsAction extends Action2 {
 		const when = ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL);
 		super({
 			id: ManageBrowserPermissionsAction.ID,
-			title: localize2('browser.managePermissions', 'Manage Permissions'),
+			title: localize2('browser.managePermissions', 'Site Permissions'),
 			category: BrowserActionCategory,
 			icon: Codicon.shield,
 			f1: true,
@@ -289,7 +289,7 @@ class ManageBrowserPermissionsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
-				order: 2,
+				order: 10,
 				when,
 				isHiddenByDefault: true,
 			},
