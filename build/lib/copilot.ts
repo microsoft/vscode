@@ -236,6 +236,18 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 	}
 }
 
+export function pruneCopilotStandaloneExecutable(platform: string, arch: string, nodeModulesRoot = 'node_modules'): void {
+	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
+	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
+		return;
+	}
+
+	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
+	for (const executable of ['copilot', 'copilot.exe']) {
+		fs.rmSync(path.join(packageDir, executable), { force: true });
+	}
+}
+
 function packCopilotPlatformPackage(packageName: string, version: string, tempDir: string): string {
 	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
 
