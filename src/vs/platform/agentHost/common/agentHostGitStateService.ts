@@ -33,4 +33,10 @@ export interface IAgentHostGitStateService {
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;
+
+	/**
+	 * Find a GitHub pull request for the given session and save it to the session state.
+	 * @param sessionKey The key of the session for which to check the GitHub pull request.
+	 */
+	attachSessionGitHubPullRequest(sessionKey: string): Promise<void>;
 }
