@@ -35,15 +35,17 @@ export function makeChange(filePath: string): ISessionFileChange {
 
 export function makeSession(resource: URI, opts?: {
 	status?: SessionStatus;
+	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
 }): IActiveSession {
+	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
-		status: observableValue('status', opts?.status ?? SessionStatus.Completed),
+		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
@@ -91,7 +93,9 @@ export function makeSession(resource: URI, opts?: {
 		activeChat: observableValue('activeChat', chat),
 		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
-		isCreated: observableValue('isCreated', true),
+		isCreated: opts?.isCreated === undefined
+			? status.map(status => status !== SessionStatus.Untitled)
+			: observableValue('isCreated', opts.isCreated),
 		sticky: observableValue('sticky', false),
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),
