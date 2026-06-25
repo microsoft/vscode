@@ -68,6 +68,11 @@ export class SessionInputBannerWidget extends Disposable {
 			// styles apply), mirroring the chat input notification widget.
 			const button = this._register(new Button(actions, {
 				...defaultButtonStyles,
+				...(action.primary && banner.accent ? {
+					// Match the orange accent (border + icon) of the CI banner.
+					buttonBackground: 'var(--vscode-charts-orange)',
+					buttonHoverBackground: 'color-mix(in srgb, var(--vscode-charts-orange) 88%, black)',
+				} : {}),
 				...(action.primary ? {} : {
 					buttonBackground: undefined,
 					buttonHoverBackground: undefined,
