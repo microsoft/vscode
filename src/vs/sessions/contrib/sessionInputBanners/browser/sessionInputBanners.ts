@@ -15,6 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCheckStatus } from '../../github/common/types.js';
 import { FIX_CI_CHECKS_COMMAND_ID, getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID } from '../../changes/browser/checksActions.js';
@@ -80,8 +81,21 @@ export class SessionInputBanners extends Disposable {
 
 	private _feedbackChanged!: IObservable<void>;
 
-	/** The session whose banners should be shown, or undefined when inactive. */
-	private readonly _session = derived(this, reader => this._active.read(reader) ? this.sessionsService.activeSession.read(reader) : undefined);
+	/**
+	 * The session whose banners should be shown, or undefined when inactive or
+	 * while the session/chat is still in progress. Banners only surface once the
+	 * session has completed so they don't distract from a running agent.
+	 */
+	private readonly _session = derived(this, reader => {
+		if (!this._active.read(reader)) {
+			return undefined;
+		}
+		const session = this.sessionsService.activeSession.read(reader);
+		if (!session || session.status.read(reader) !== SessionStatus.Completed) {
+			return undefined;
+		}
+		return session;
+	});
 
 	private readonly _ciState: IObservable<ICIBannerState | undefined> = derived(this, reader => {
 		const session = this._session.read(reader);
