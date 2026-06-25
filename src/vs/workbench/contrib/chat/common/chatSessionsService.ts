@@ -768,7 +768,7 @@ export interface IChatSessionsService {
 
 	/**
 	 * Whether the session type needs a Copilot account and so is unusable until the user signs in (BYOK isn't
-	 * supported). Defaults to false, so third-party types stay usable offline.
+	 * supported). Defaults to false, so third-party types stay usable while signed out.
 	 */
 	requiresCopilotSignInForSessionType(chatSessionType: string): boolean;
 

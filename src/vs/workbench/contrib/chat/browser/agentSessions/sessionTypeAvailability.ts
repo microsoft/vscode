@@ -40,8 +40,8 @@ export enum SessionTypeAvailability {
  * explanation with no upgrade button. A signed-out user gets a Sign-in
  * affordance ({@link SessionTypeAvailability.SignInRequired}) for Copilot-backed
  * types ({@link IChatSessionsService.requiresCopilotSignInForSessionType}); types
- * that don't depend on Copilot stay usable while offline. Unavailable types are
- * greyed out in the picker either way.
+ * that don't depend on Copilot stay usable while signed out. Unavailable types
+ * are greyed out in the picker either way.
  *
  * While the type's contribution isn't registered yet (e.g. during a window
  * reload before the extension host re-registers), this returns
@@ -63,9 +63,7 @@ export function getSessionTypeAvailability(
 	if (!chatSessionsService.getChatSessionContribution(type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// Copilot-backed types need a Copilot account and BYOK isn't supported here, so a signed-out user can't run them —
-	// not even via a stale/cached model still targeting the type. Types that don't depend on Copilot (built-in Local
-	// chat, third-party sessions) don't set the flag and stay usable while offline.
+	// Copilot-backed types need a Copilot account (BYOK isn't supported here), so a signed-out user can't use them.
 	const entitlement = chatEntitlementService.entitlement;
 	if (entitlement === ChatEntitlement.Unknown && chatSessionsService.requiresCopilotSignInForSessionType(type)) {
 		return SessionTypeAvailability.SignInRequired;
