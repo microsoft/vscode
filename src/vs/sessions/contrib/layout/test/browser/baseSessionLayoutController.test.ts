@@ -98,6 +98,35 @@ suite('BaseLayoutController', () => {
 		);
 	});
 
+	test('[B2] does not reveal the editor part on switch when the session left it hidden', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Session 1 keeps editors open but the user hid the editor part (e.g. by
+		// closing the Side Panel).
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+
+		// Switch away (captures session 1's working set + hidden editor part)…
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		// …and back: the working set is restored but the editor part stays hidden.
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should stay hidden when the session left it hidden'
+		);
+	});
+
 	// --- [B3] Persistence & migration / [B4] Save ---
 
 	test('[B3] migrates legacy sessions.workingSets key and [B4] persists to sessions.layoutState', () => {
