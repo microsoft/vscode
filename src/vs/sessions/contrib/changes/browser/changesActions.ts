@@ -26,7 +26,6 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../common/changes.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
-import { IChangesViewService } from './changesViewService.js';
 
 // --- View All Changes action
 
@@ -220,11 +219,10 @@ class ChangesMultiDiffSourceResolverContribution extends Disposable implements I
 	static readonly ID = 'workbench.contrib.sessions.changesMultiDiffSourceResolver';
 
 	constructor(
-		@IChangesViewService changesViewService: IChangesViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver, changesViewService.viewModel));
+		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 	}
 }
 

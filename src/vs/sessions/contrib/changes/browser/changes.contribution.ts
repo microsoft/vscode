@@ -15,9 +15,11 @@ import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import './changesActions.js';
 import './changesViewActions.js';
 import './checksActions.js';
-import './changesViewService.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ChangesViewService } from './changesViewService.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
 
@@ -71,3 +73,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
+registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
