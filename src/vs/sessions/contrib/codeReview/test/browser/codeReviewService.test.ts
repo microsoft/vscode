@@ -258,6 +258,25 @@ suite('CodeReviewService', () => {
 		}
 	});
 
+	test('resolvePRReviewThread uses dedicated review threads model', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+
+		await service.resolvePRReviewThread(session, 'thread-100');
+
+		assert.deepStrictEqual({
+			getPullRequestCalls: gitHubService.getPullRequestCalls,
+			getPullRequestReviewThreadsCalls: gitHubService.getPullRequestReviewThreadsCalls,
+			legacyResolveThreadCalls: gitHubService.legacyFetcher.resolveThreadCalls,
+			reviewResolveThreadCalls: gitHubService.reviewThreadsFetcher.resolveThreadCalls,
+		}, {
+			getPullRequestCalls: 0,
+			getPullRequestReviewThreadsCalls: 1,
+			legacyResolveThreadCalls: [],
+			reviewResolveThreadCalls: [{ threadId: 'thread-100' }],
+		});
+	});
+
 	test('dismissPRReviewComment filters the comment from the loaded review state', async () => {
 		sessionsManagement.addSession(session);
 		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());

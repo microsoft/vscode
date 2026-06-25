@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -22,7 +21,7 @@ import { AgentFeedbackPRReviewSeederContribution } from '../../browser/agentFeed
 
 suite('AgentFeedbackPRReviewSeederContribution', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('local-agent-host:/session-1');
 	const fileA = URI.file('/workspace/a.ts');
 
@@ -62,8 +61,8 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override onDidChangeFeedback = onDidChangeFeedback.event;
-			override hasLoadedFeedback(): boolean { return loaded; }
-			override getFeedback(): readonly IAgentFeedback[] { return feedbackItems; }
+			override hasLoadedFeedback(_sessionResource: URI): boolean { return loaded; }
+			override getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return feedbackItems; }
 			override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
 				const feedback: IAgentFeedback = { id: generateUuid(), text, resourceUri, range, sessionResource, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId, state };
 				feedbackItems.push(feedback);
@@ -86,7 +85,7 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 			}
 		};
 		const codeReviewService = new class extends mock<ICodeReviewService>() {
-			override getPRReviewState() { return prReviewState; }
+			override getPRReviewState(_sessionResource: URI) { return prReviewState; }
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override activeSession = activeSession;
@@ -94,9 +93,6 @@ suite('AgentFeedbackPRReviewSeederContribution', () => {
 
 		store.add(new AgentFeedbackPRReviewSeederContribution(feedbackService, codeReviewService, sessionsService));
 	});
-
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('seeds a created PR-review mirror for each un-accepted PR comment', () => {
 		setComments(prComment('thread-1', 5, 'Fix this'), prComment('thread-2', 9, 'And this'));
