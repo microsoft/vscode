@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -135,6 +134,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		if (!options.folderUri) {
 			throw new Error('Automation requires a folderUri.');
 		}
@@ -165,6 +167,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		const current = this.getAutomation(id);
 		if (!current) {
 			throw new Error(`Automation not found: ${id}`);
@@ -186,12 +191,16 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async deleteAutomation(id: string): Promise<void> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		const existing = this.getAutomation(id);
 		const next = this._automations.get().filter(a => a.id !== id);
 		if (next.length === this._automations.get().length) {
 			return;
 		}
 		this.commit(next, this._runs.get());
+		this._runsForCache.delete(id);
 		if (existing) {
 			publishAutomationDeleted(this.telemetryService, existing);
 		}
@@ -391,9 +400,8 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 }
 
 function deserializeAutomation(s: ISerializedAutomation): IAutomation {
-	// Validate and sanitize folderUri - only allow file:// scheme
 	const revivedUri = URI.revive(s.folderUri);
-	const folderUri = revivedUri.scheme === Schemas.file ? revivedUri : URI.file('');
+	const folderUri = revivedUri;
 
 	// Validate permissionLevel - default to most restrictive if invalid
 	const permissionLevel = isChatPermissionLevel(s.permissionLevel)

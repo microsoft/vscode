@@ -210,6 +210,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		const histTooltip = expanded ? localize('hideHistory', "Hide history") : localize('showHistory', "Show history");
 		const histBtn = this.createIconButton(actions, histIcon, histTooltip, false, disposables);
 		histBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+		histBtn.setAttribute('aria-controls', `automation-history-${automation.id}`);
 		disposables.add(DOM.addStandardDisposableListener(histBtn, 'click', () => {
 			this.widget.toggleExpanded(automation.id);
 		}));
@@ -437,7 +438,7 @@ export class AutomationsListWidget extends Disposable {
 	private renderEmptyState(): void {
 		this._emptyStateStore.clear();
 		DOM.clearNode(this.emptyContainer);
-		this.emptyContainer.setAttribute('role', 'listitem');
+		this.emptyContainer.setAttribute('role', 'status');
 		const title = DOM.append(this.emptyContainer, $('h3.automations-empty-title'));
 		title.textContent = localize('automationsEmptyTitle', "No automations yet");
 		const message = DOM.append(this.emptyContainer, $('p.automations-empty-message'));
@@ -622,9 +623,10 @@ function formatSchedule(a: IAutomation): string {
 }
 
 function formatHourMinute(hour: number, minute: number): string {
-	const h = String(Math.max(0, Math.min(23, hour | 0))).padStart(2, '0');
-	const m = String(Math.max(0, Math.min(59, minute | 0))).padStart(2, '0');
-	return `${h}:${m}`;
+	const period = hour >= 12 ? 'PM' : 'AM';
+	const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+	const minuteStr = String(Math.max(0, Math.min(59, minute | 0))).padStart(2, '0');
+	return `${hour12}:${minuteStr} ${period}`;
 }
 
 function dayName(day: number): string {

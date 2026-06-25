@@ -471,13 +471,18 @@ function renderForm(
 	};
 	renderBranchLabel(localize('automation.form.branch.unknown', "—"), true);
 
+	let branchRequestId = 0;
 	const updateBranchForFolder = async (folder: URI | undefined) => {
+		const myRequestId = ++branchRequestId;
 		branchRepoDisposable.clear();
 		if (!folder) {
 			renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
 			return;
 		}
 		const repo = await gitService.openRepository(folder);
+		if (myRequestId !== branchRequestId) {
+			return;
+		}
 		if (!repo) {
 			renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
 			return;
