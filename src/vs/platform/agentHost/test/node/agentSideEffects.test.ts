@@ -149,8 +149,8 @@ suite('AgentSideEffects', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
 		});
@@ -393,7 +393,7 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
 			const state = stateManager.getSessionState(sessionUri.toString());
-			assert.strictEqual(state?.summary.title, 'Renamed Session');
+			assert.strictEqual(state?.title, 'Renamed Session');
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 			const part = state?.turns.at(-1)?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.Markdown);
@@ -414,7 +414,7 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.sendMessageCalls, []);
 			const state = stateManager.getSessionState(sessionUri.toString());
-			assert.strictEqual(state?.summary.title, 'Test');
+			assert.strictEqual(state?.title, 'Test');
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 		});
 
@@ -444,8 +444,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				title: '',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
@@ -539,8 +539,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				title: 'User Renamed',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			});
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
@@ -574,15 +574,16 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/modelChanged -----------------------------
+	// ---- handleAction: chat/turnStarted model selection --------------------
 
-	suite('handleAction — session/modelChanged', () => {
+	suite('handleAction — chat/turnStarted model selection', () => {
 
-		test('calls changeModel on the agent', async () => {
+		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionModelChanged,
-				model: { id: 'gpt-5' },
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
 			});
 
 			await new Promise(r => setTimeout(r, 10));
@@ -594,8 +595,9 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			const chatChannel = `${sessionUri.toString()}#peer-1`;
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionModelChanged,
-				model: { id: 'gpt-5' },
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
 			}, chatChannel);
 
 			await new Promise(r => setTimeout(r, 10));
@@ -604,15 +606,16 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/agentChanged -----------------------------
+	// ---- handleAction: chat/turnStarted agent selection --------------------
 
-	suite('handleAction — session/agentChanged', () => {
+	suite('handleAction — chat/turnStarted agent selection', () => {
 
-		test('calls changeAgent on the agent for the session default chat', async () => {
+		test('calls changeAgent on the agent for the session default chat before sending the message', async () => {
 			setupSession();
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionAgentChanged,
-				agent: { uri: 'file:///agents/reviewer.md' },
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, agent: { uri: 'file:///agents/reviewer.md' } },
 			});
 
 			await new Promise(r => setTimeout(r, 10));
@@ -624,8 +627,9 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			const chatChannel = `${sessionUri.toString()}#peer-1`;
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionAgentChanged,
-				agent: { uri: 'file:///agents/reviewer.md' },
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, agent: { uri: 'file:///agents/reviewer.md' } },
 			}, chatChannel);
 
 			await new Promise(r => setTimeout(r, 10));
@@ -1027,7 +1031,7 @@ suite('AgentSideEffects', () => {
 			// Both queued messages should be drained from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
-			assert.strictEqual(state?.summary.title, 'Queued Title');
+			assert.strictEqual(state?.title, 'Queued Title');
 		});
 
 		test('drains a peer chat queued message to the owning session with the chat arg', () => {
@@ -2294,8 +2298,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				title: 'Initial',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			});
 
@@ -2355,7 +2359,7 @@ suite('AgentSideEffects', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			assert.strictEqual(state!.summary.title, 'Restored Title');
+			assert.strictEqual(state!.title, 'Restored Title');
 		});
 
 		test('SessionConfigChanged persists merged config values to the database', async () => {
@@ -2375,8 +2379,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				title: 'Initial',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 				project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			});
 			session.config = { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } };
@@ -2439,7 +2443,7 @@ suite('AgentSideEffects', () => {
 			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
 			const subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState, 'subagent session should exist');
-			assert.strictEqual(subState!.summary.title, 'Code Reviewer');
+			assert.strictEqual(subState!.title, 'Code Reviewer');
 			assert.ok(subState!.activeTurn, 'subagent should have an active turn');
 
 			// Verify content was dispatched on the parent tool call

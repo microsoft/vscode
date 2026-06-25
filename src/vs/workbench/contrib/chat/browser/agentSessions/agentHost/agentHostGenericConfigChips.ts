@@ -140,7 +140,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.summary.workingDirectory;
+			const cwd = state.workingDirectory;
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;

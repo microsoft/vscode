@@ -27,8 +27,8 @@ suite('AgentHostStateManager', () => {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}
@@ -50,7 +50,7 @@ suite('AgentHostStateManager', () => {
 		const chatState = manager.getDefaultChatState(sessionUri);
 		assert.strictEqual(chatState?.turns.length, 0);
 		assert.strictEqual(chatState?.activeTurn, undefined);
-		assert.strictEqual(state.summary.resource.toString(), sessionUri.toString());
+		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
 	});
 
 	test('getSnapshot returns undefined for unknown session', () => {
@@ -820,7 +820,7 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual(
 				{
 					afterAdd,
-					sessionTitle: state?.summary.title,
+					sessionTitle: state?.title,
 					defaultChatTitle: state?.chats.find(c => c.resource === defaultChat)?.title,
 				},
 				{
@@ -908,7 +908,7 @@ suite('AgentHostStateManager', () => {
 			const state = manager.getSessionState(sessionUri);
 			assert.deepStrictEqual(
 				{
-					sessionTitle: state?.summary.title,
+					sessionTitle: state?.title,
 					defaultChatTitle: state?.chats.find(c => c.resource === defaultChat)?.title,
 					peerTitle: state?.chats.find(c => c.resource === peerChat)?.title,
 					peerStateTitle: manager.getChatState(peerChat)?.title,

@@ -306,7 +306,7 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 1,
 			);
 
-			await waitForCondition(() => svc.stateManager.getSessionState(session.toString())?.summary.title === 'Fix TypeScript compile errors', 'generated title should be applied');
+			await waitForCondition(() => svc.stateManager.getSessionState(session.toString())?.title === 'Fix TypeScript compile errors', 'generated title should be applied');
 			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
 
 			assert.deepStrictEqual({
@@ -337,7 +337,7 @@ suite('AgentService (node dispatcher)', () => {
 			await Promise.resolve();
 
 			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(session.toString())?.summary.title,
+				title: svc.stateManager.getSessionState(session.toString())?.title,
 				persistedTitle: await db.getMetadata('customTitle'),
 			}, {
 				title: 'Explain workspace search indexing',
@@ -367,7 +367,7 @@ suite('AgentService (node dispatcher)', () => {
 			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Manual title', 'manual title should be persisted');
 
 			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(session.toString())?.summary.title,
+				title: svc.stateManager.getSessionState(session.toString())?.title,
 				persistedTitle: await db.getMetadata('customTitle'),
 			}, {
 				title: 'Manual title',
@@ -413,7 +413,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
-			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.summary.title === 'Source generated title', 'source generated title should be applied');
+			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
 				sourceSession.toString(),
 				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
@@ -432,12 +432,12 @@ suite('AgentService (node dispatcher)', () => {
 					turnId: 'source-turn',
 				},
 			});
-			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.summary.title === 'Forked branch title', 'forked session should get a content-generated title');
+			await waitForCondition(() => svc.stateManager.getSessionState(forkedSession.toString())?.title === 'Forked branch title', 'forked session should get a content-generated title');
 
 			const forkedCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
 			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
 			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(forkedSession.toString())?.summary.title,
+				title: svc.stateManager.getSessionState(forkedSession.toString())?.title,
 				utilityCalls: copilotApiService.utilityCalls.length,
 				includesForkedConversation: userMessage.includes('Seed fork title'),
 			}, {
@@ -824,8 +824,8 @@ suite('AgentService (node dispatcher)', () => {
 					provider: 'subagent',
 					title: 'Explore',
 					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				},
 				[],
 			);
@@ -3186,7 +3186,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// The state manager should have the worktree path, not the source path
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
 		});
 
 		test('createSession falls back to config working directory when agent does not resolve', async () => {
@@ -3198,7 +3198,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.summary.workingDirectory, sourceDir.toString());
+			assert.strictEqual(state?.workingDirectory, sourceDir.toString());
 		});
 
 		test('restoreSession uses agent working directory in state', async () => {
@@ -3217,7 +3217,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
 		});
 	});
 
@@ -3345,7 +3345,7 @@ suite('AgentService (node dispatcher)', () => {
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 
 			// `markSessionPersisted` (called from `_onDidMaterializeSession`)
-			// re-spreads `state.summary`. A future change to that spread
+			// re-spreads flattened session metadata. A future change to that spread
 			// could drop the catalogue or invalidate the backing snapshots;
 			// the post-materialization re-assertion is what catches it.
 			provisionalAgent.materialize(session, URI.file('/wd'));

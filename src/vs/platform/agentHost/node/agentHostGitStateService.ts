@@ -42,7 +42,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 
 		// GitHub state
-		const gitHubState = readSessionGitHubState(state.summary._meta);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo || gitHubState?.pullRequestUrl) {
 			return;
 		}
@@ -81,7 +81,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined | null> {
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -121,7 +121,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 
 	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		// Attempt to load the GitHub state from the state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const currentGitHubState = readSessionGitHubState(currentMeta);
 		if (currentGitHubState) {
 			return currentGitHubState;
@@ -140,7 +140,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
 			if (githubStateStr) {
 				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
-				this._stateManager.setSessionSummaryMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
+				this._stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
 
 				return githubState;
 			}
@@ -162,9 +162,9 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 
 		// Update session state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextMeta = withSessionGitHubState(currentMeta, next);
-		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
 		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(next));

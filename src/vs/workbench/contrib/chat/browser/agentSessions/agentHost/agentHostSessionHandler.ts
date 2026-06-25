@@ -163,6 +163,17 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 }
 
 /**
+ * Resolves a session's last-used model selection from its live turns. Model
+ * selection moved off the session/chat summary and onto each {@link Message};
+ * the value to default to is the one carried by the most recent turn (the
+ * active turn if one is running, else the last completed turn).
+ */
+function lastTurnModelSelection(state: ISessionWithDefaultChat | undefined): ModelSelection | undefined {
+	const message = state?.activeTurn?.message ?? (state && state.turns.length ? state.turns[state.turns.length - 1].message : undefined);
+	return message?.model;
+}
+
+/**
  * Map a local {@link ConfirmedReason} (how the {@link ChatToolInvocation}
  * resolved its confirmation gate) to the protocol's
  * {@link ToolCallConfirmationReason}. Only called for approved reasons
@@ -384,17 +395,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly forkSession: IChatSession['forkSession'];
 	readonly renameSession: IChatSession['renameSession'];
 
-	/**
-	 * Last model/agent selection dispatched for this chat. Peer chats have no
-	 * server-confirmed session `summary` to diff against (the protocol tracks
-	 * `summary.model`/`summary.agent` for the default chat only), so these
-	 * locally-tracked values let {@link AgentHostSessionHandler._handleTurn}
-	 * dispatch a model/agent change only when the selection actually changes —
-	 * including a transition back to "no agent" (`undefined`).
-	 */
-	lastDispatchedModel: ModelSelection | undefined;
-	lastDispatchedAgentUri: string | undefined;
-
 	constructor(
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
@@ -605,11 +605,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			for (const [sessionResource] of this._activeSessions) {
 				const backendSession = this._resolveSessionUri(sessionResource);
 				const state = this._getSessionState(backendSession.toString());
-				if (state?.activeClients.some(c => c.clientId === clientId)) {
+				const existing = state?.activeClients.find(c => c.clientId === clientId);
+				if (existing) {
 					this._dispatchAction(backendSession, {
-						type: ActionType.SessionActiveClientToolsChanged,
-						clientId,
-						tools: [...defs],
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { ...existing, tools: [...defs] },
 					});
 				}
 			}
@@ -803,8 +803,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					]);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatKey);
 					if (sessionState) {
-						sessionTitle = sessionState.summary.title;
-						const fallbackRawModelId = sessionState.summary.model?.id;
+						sessionTitle = sessionState.title;
+						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
 						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
 						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
 
@@ -1316,7 +1316,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
-		let previousTitle: string | undefined = currentState?.summary.title;
+		let previousTitle: string | undefined = currentState?.title;
 
 		const disposables = new DisposableStore();
 
@@ -1346,7 +1346,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			previousSteeringId = currentSteeringId;
 
-			const currentTitle = e.state.summary.title;
+			const currentTitle = e.state.title;
 			if (currentTitle && currentTitle !== previousTitle) {
 				this._chatService.setChatSessionTitle(sessionResource, currentTitle);
 			}
@@ -1455,49 +1455,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// another client is in the middle of a turn.
 		this._ensureActiveClientForMessage(session);
 
-		// Model and agent selections are dispatched to the per-chat turn
-		// channel, not the session URI: for an additional (peer) chat the
-		// `turnChannel` carries a chatId fragment so the host applies the
-		// change to that chat's own conversation rather than the session's
-		// default chat. The default chat diffs against the server-confirmed
-		// session `summary`; peer chats have no such summary, so they diff
-		// against the last selection dispatched for that chat (tracked on the
-		// `AgentHostChatSession`) to avoid re-dispatching every turn.
-		const isPeerChat = !!request.sessionResource.fragment;
-		const peerChatSession = isPeerChat ? this._activeSessions.get(request.sessionResource) : undefined;
-
-		// If the user selected a different model since the session was created
-		// (or since the last turn), dispatch a model change action first so the
-		// agent backend picks up the new model before processing the turn.
+		// Model and agent selection now travel on the turn message itself rather
+		// than via the removed `session/modelChanged` / `session/agentChanged`
+		// actions. The host applies the selection carried by the message before
+		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		if (selectedModel) {
-			const currentModel = isPeerChat ? peerChatSession?.lastDispatchedModel : this._getSessionState(session.toString())?.summary.model;
-			if (!this._modelSelectionsEqual(currentModel, selectedModel)) {
-				this._config.connection.dispatch(turnChannel, {
-					type: ActionType.SessionModelChanged,
-					model: selectedModel,
-				});
-				if (peerChatSession) {
-					peerChatSession.lastDispatchedModel = selectedModel;
-				}
-			}
-		}
-
-		// Mirror of the model dispatch above for the custom agent selection.
-		// The sessions provider sets `modeInfo.modeInstructions.uri` from the
-		// new-session picker so a graduating session's `summary.agent` reflects
-		// the user's choice; on subsequent turns this also handles a swap.
 		const requestedAgentUri = request.modeInstructions?.uri?.toString();
-		const currentAgentUri = isPeerChat ? peerChatSession?.lastDispatchedAgentUri : this._getSessionState(session.toString())?.summary.agent?.uri.toString();
-		if (requestedAgentUri !== currentAgentUri) {
-			this._config.connection.dispatch(turnChannel, {
-				type: ActionType.SessionAgentChanged,
-				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
-			});
-			if (peerChatSession) {
-				peerChatSession.lastDispatchedAgentUri = requestedAgentUri;
-			}
-		}
 
 		// If the chat model has fewer previous requests than the protocol has
 		// turns, a checkpoint was restored or a message was edited. Dispatch
@@ -1530,7 +1493,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnAction: ChatTurnStartedAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			message: userOriginMessage(request.message, messageAttachments),
+			message: {
+				...userOriginMessage(request.message, messageAttachments),
+				...(selectedModel ? { model: selectedModel } : {}),
+				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
+			},
 		};
 		this._config.connection.dispatch(turnChannel, turnAction);
 
@@ -3115,7 +3082,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnId = protocolState!.turns[turnIndex].id;
 		const chatModel = this._chatService.getSession(sessionResource);
 
-		const forkedSession = await this._createAndSubscribe(sessionResource, protocolState?.summary.model, {
+		const forkedSession = await this._createAndSubscribe(sessionResource, lastTurnModelSelection(protocolState), {
 			session: backendSession,
 			turnIndex,
 			turnId,
@@ -3125,7 +3092,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const forkedResource = URI.from({ scheme: this._config.sessionType, path: `/${forkedRawId}` });
 		const now = Date.now();
 
-		const forkedTitle = this._getSessionState(forkedSession.toString())?.summary.title;
+		const forkedTitle = this._getSessionState(forkedSession.toString())?.title;
 		const forkedLabel = forkedTitle || chatModel?.title || localize('agentHost.forkedSessionLabel', "Forked Session");
 
 		return {
@@ -3288,18 +3255,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
 	}
 
-	private _modelSelectionsEqual(a: ModelSelection | undefined, b: ModelSelection | undefined): boolean {
-		if (a?.id !== b?.id) {
-			return false;
-		}
-
-		const aConfig = a?.config ?? {};
-		const bConfig = b?.config ?? {};
-		const aKeys = Object.keys(aConfig);
-		const bKeys = Object.keys(bConfig);
-		return aKeys.length === bKeys.length && aKeys.every(key => aConfig[key] === bConfig[key]);
-	}
-
 	/**
 	 * Extracts the raw model id from a language-model service identifier.
 	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
@@ -3330,7 +3285,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
-		const fallbackRawModelId = this._getSessionState(backendSession.toString())?.summary.model?.id;
+		const fallbackRawModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
 		return this._createTurnModelLookup(sessionResource, fallbackRawModelId).toResponseDetails(turn?.usage?.model, turn?.usage);
 	}
 
@@ -3652,7 +3607,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return uri;
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
-		const rawResolvedDir = this._getSessionState(backendSession.toString())?.summary.workingDirectory;
+		const rawResolvedDir = this._getSessionState(backendSession.toString())?.workingDirectory;
 		const resolvedDir = typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir;
 		if (!resolvedDir || resolvedDir.scheme !== 'file') {
 			return uri;

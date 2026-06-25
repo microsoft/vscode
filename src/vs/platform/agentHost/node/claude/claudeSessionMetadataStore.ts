@@ -139,8 +139,6 @@ export class ClaudeSessionMetadataStore {
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
 			customizationDirectory: overlay.customizationDirectory,
-			model: overlay.model,
-			agent: overlay.agent,
 		};
 	}
 }

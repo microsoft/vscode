@@ -1335,14 +1335,15 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.sendMessage(created.session, 'turn 2', undefined, 'turn-2');
 
-		// Phase 4: confirm the overlay still carries the updated model from
-		// Phase 2. If materialize wrote unconditionally on resume, the
-		// overlay would carry whatever model the resume path passed in
-		// (typically the initial materialize-time model).
-		const metadataAfterResume = await agent.getSessionMetadata(created.session);
+		// Phase 4: confirm the resume started the SDK with the updated model
+		// from Phase 2. Model selection is no longer surfaced on
+		// `IAgentSessionMetadata`; the observable effect of the overlay is the
+		// model the resume query is started with. If materialize wrote
+		// unconditionally on resume, the SDK would start with the initial
+		// materialize-time model instead.
 		assert.deepStrictEqual(
-			metadataAfterResume?.model,
-			updatedModel,
+			{ model: sdk.capturedStartupOptions.at(-1)?.model, effort: sdk.capturedStartupOptions.at(-1)?.effort },
+			{ model: 'claude-opus-4-6', effort: 'medium' },
 			'resume must not clobber the overlay model',
 		);
 	});
@@ -1484,8 +1485,14 @@ suite('ClaudeAgent', () => {
 			model: { id: 'claude-opus-4.6' },
 		});
 
-		const meta = await agent.getSessionMetadata(result.session);
-		assert.strictEqual(meta?.model?.id, 'claude-opus-4.6');
+		// The fork's model override is no longer surfaced on metadata; its
+		// observable effect is the model the forked session's SDK query is
+		// started with on its first send.
+		const forkedId = AgentSession.id(result.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(forkedId), makeResultSuccess(forkedId)];
+		await agent.sendMessage(result.session, 'hi', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.model, 'claude-opus-4-6');
 	});
 
 	test('createSession({ fork }) rejects when the turnId is not in the transcript', async () => {
@@ -3075,48 +3082,6 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('createSession.model round-trips through the per-session DB to listSessions[].model (Phase 6.1 I8 + I7 + C2)', async () => {
-		// Phase 6.1 Cycle E (drift I8). Closes the missing-metadata leak:
-		// `IAgentCreateSessionConfig.model` is supposed to be persisted
-		// per-session and surface back via `listSessions(): IAgentSessionMetadata.model`.
-		// Pre-fix, only `customizationDirectory` was overlayed; `model`
-		// was silently dropped. The CopilotAgent reference path
-		// (`copilotAgent.ts:1483-1564`, `_META_MODEL`/`_serializeModelSelection`/
-		// `_storeSessionMetadata`/`_readSessionMetadata`) shows the
-		// canonical shape: a JSON-serialised `ModelSelection` keyed by
-		// a provider-private metadata constant.
-		// Round-trip: createSession({ model }) → sendMessage materializes
-		// (writes sidecar) → SDK reports the session in its listing →
-		// listSessions surfaces the persisted `model`.
-		const { agent, sdk } = createTestContext(disposables);
-		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-
-		const created = await agent.createSession({
-			workingDirectory: URI.file('/work'),
-			model: { id: 'claude-opus-4.6', config: { thinking: 'extended' } },
-		});
-		const sessionId = AgentSession.id(created.session);
-
-		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
-		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
-
-		sdk.sessionList = [{
-			sessionId,
-			summary: 'Round trip',
-			lastModified: 1234,
-		}];
-		const list = await agent.listSessions();
-		const entry = list.find(r => AgentSession.id(r.session) === sessionId);
-
-		assert.deepStrictEqual({
-			model: entry?.model,
-			summary: entry?.summary,
-		}, {
-			model: { id: 'claude-opus-4.6', config: { thinking: 'extended' } },
-			summary: 'Round trip',
-		});
-	});
-
 	test('listSessions returns an empty list (does not reject) when the SDK fails to load', async () => {
 		// Copilot-reviewer comment: `AgentService.listSessions` fans out
 		// across providers via `Promise.all` (agentService.ts:202-204).
@@ -3203,7 +3168,6 @@ suite('ClaudeAgent', () => {
 				modifiedTime: sidecar?.modifiedTime,
 				workingDirectory: sidecar?.workingDirectory?.toString(),
 				customizationDirectory: sidecar?.customizationDirectory?.toString(),
-				model: sidecar?.model,
 			},
 			external: {
 				session: external?.session.toString(),
@@ -3212,7 +3176,6 @@ suite('ClaudeAgent', () => {
 				modifiedTime: external?.modifiedTime,
 				workingDirectory: external?.workingDirectory?.toString(),
 				customizationDirectory: external?.customizationDirectory,
-				model: external?.model,
 			},
 			unknown,
 			sdkLookups: sdk.getSessionInfoCalls.slice().sort(),
@@ -3224,7 +3187,6 @@ suite('ClaudeAgent', () => {
 				modifiedTime: 5000,
 				workingDirectory: URI.file('/work').toString(),
 				customizationDirectory: URI.file('/cust').toString(),
-				model: { id: 'claude-opus-4.6', config: { thinkingLevel: 'high' } },
 			},
 			external: {
 				session: externalUri.toString(),
@@ -3233,7 +3195,6 @@ suite('ClaudeAgent', () => {
 				modifiedTime: 6000,
 				workingDirectory: URI.file('/raw-cli').toString(),
 				customizationDirectory: undefined,
-				model: undefined,
 			},
 			unknown: undefined,
 			sdkLookups: ['external', 'sidecar', 'unknown'],
@@ -3982,8 +3943,8 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			provider: 'claude',
 			title: 't',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		});
 		// Seed an initial `config` object directly: the
 		// `SessionConfigChanged` reducer no-ops when `state.config` is
@@ -4257,8 +4218,8 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			provider: 'claude',
 			title: 't',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		});
 		// Seed `state.config` so `updateSessionConfig` writes propagate
 		// (the `SessionConfigChanged` reducer no-ops when `state.config`
@@ -4465,8 +4426,8 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			provider: 'claude',
 			title: 't',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -4526,8 +4487,8 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			provider: 'claude',
 			title: 't',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },

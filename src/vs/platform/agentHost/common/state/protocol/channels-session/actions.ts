@@ -8,8 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, Customization, McpServerState, AgentSelection } from './state.js';
-import type { ModelSelection } from '../channels-root/state.js';
+import type { ToolDefinition, SessionActiveClient, Customization, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -120,42 +119,6 @@ export interface SessionTitleChangedAction {
 }
 
 /**
- * Model changed for this session.
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionModelChangedAction {
-	type: ActionType.SessionModelChanged;
-	/** New model selection */
-	model: ModelSelection;
-}
-
-/**
- * Custom agent selection changed for this session.
- *
- * Omitting `agent` (or setting it to `undefined`) clears the selection and
- * resets the session to no selected custom agent (provider default behavior).
- *
- * When a turn is currently active, the server MUST defer the change until
- * the active turn completes, then apply it for the next turn (same rule as
- * {@link SessionModelChangedAction | `session/modelChanged`}).
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionAgentChangedAction {
-	type: ActionType.SessionAgentChanged;
-	/**
-	 * New agent selection, or `undefined` to clear the selection and reset the
-	 * session to no selected custom agent.
-	 */
-	agent?: AgentSelection;
-}
-
-/**
  * The read state of the session changed.
  *
  * Dispatched by a client to mark a session as read (e.g. after viewing it)
@@ -241,12 +204,14 @@ export interface SessionServerToolsChangedAction {
  * An active client for this session was added or updated.
  *
  * Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
- * a client dispatches this action with its own `SessionActiveClient` to claim
- * the active role or refresh its entry, replacing any existing entry that has
- * the same `clientId`. Multiple clients may be active at once. Use
+ * a client dispatches this action with its own `SessionActiveClient` to join
+ * the session's active clients or refresh its entry, replacing any existing
+ * entry that has the same `clientId`. Multiple clients may be active at once.
+ * This is also how a client updates its published tools or customizations —
+ * re-dispatch with the full, updated entry. Use
  * {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
- * release the role. The server SHOULD automatically dispatch that removal when
- * an active client disconnects.
+ * leave. The server SHOULD automatically dispatch that removal when an active
+ * client disconnects.
  *
  * @category Session Actions
  * @version 1
@@ -261,9 +226,19 @@ export interface SessionActiveClientSetAction {
 /**
  * An active client was removed from this session.
  *
- * Releases the active role for the client identified by `clientId`. No-op when
- * no active client matches. The server SHOULD dispatch this automatically when
- * an active client disconnects.
+ * Removes the entry for the client identified by `clientId` from
+ * {@link SessionState.activeClients}; a no-op when no entry matches.
+ *
+ * The host SHOULD dispatch this automatically when a client stops participating
+ * in the session — for example when it unsubscribes from the session channel,
+ * when it disconnects and does not reconnect within a host-defined grace
+ * period, or when a `reconnect` command's `subscriptions` omit a session the
+ * client was still active in. When removing a client, the host SHOULD also
+ * cancel that client's in-flight tool calls — those whose tool call state
+ * carries a client `ToolCallContributor` with the matching `clientId` — by
+ * dispatching `chat/toolCallComplete` with `result.success = false`. (There is
+ * no per-tool-call server cancel; a failed completion is the cancellation
+ * mechanism, and the call ends in `completed` status with a failed result.)
  *
  * @category Session Actions
  * @version 1
@@ -273,26 +248,6 @@ export interface SessionActiveClientRemovedAction {
 	type: ActionType.SessionActiveClientRemoved;
 	/** The `clientId` of the active client to remove. */
 	clientId: string;
-}
-
-/**
- * An active client's tool list has changed.
- *
- * Full-replacement semantics: the `tools` array replaces the named active
- * client's previous tools entirely. The active client is identified by
- * `clientId`; the action is a no-op when no active client matches. The server
- * SHOULD reject if the dispatching client is not the named active client.
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionActiveClientToolsChangedAction {
-	type: ActionType.SessionActiveClientToolsChanged;
-	/** The `clientId` of the active client whose tools changed. */
-	clientId: string;
-	/** Updated client tools list (full replacement) */
-	tools: ToolDefinition[];
 }
 
 // ─── Customization Actions ───────────────────────────────────────────────────

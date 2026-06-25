@@ -23,7 +23,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -149,8 +149,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 				workingDirectory: (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state: SessionState = {
@@ -200,8 +200,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		};
 		return {
 			resource: resourceStr,
@@ -285,8 +285,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					provider: 'copilot',
 					title: 'Test',
 					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				};
 				initialState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
 			}
@@ -347,7 +347,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (isSessionAction(action) && (
 			action.type === 'session/activeClientSet'
 			|| action.type === 'session/activeClientRemoved'
-			|| action.type === 'session/activeClientToolsChanged'
 		)) {
 			const entry = this._liveSubscriptions.get(channel.toString());
 			if (entry) {
@@ -394,13 +393,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 */
 	private _buildDefaultChatState(sessionUriStr: string, chatUriStr: string): ChatState {
 		const seeded = this.sessionStates.get(sessionUriStr);
-		const sessionSummary: SessionSummary = seeded?.summary ?? {
+		const sessionSummary: SessionSummary = {
 			resource: sessionUriStr,
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			provider: seeded?.provider ?? 'copilot',
+			title: seeded?.title ?? 'Test',
+			status: seeded?.status ?? SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectory: seeded?.workingDirectory,
+			project: seeded?.project,
 		};
 		const chatSummary = createDefaultChatSummary(sessionSummary, chatUriStr);
 		return {
@@ -1430,25 +1431,27 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.fireNotification({
 				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
 				summary: {
 					resource: AgentSession.uri('other', 'notify').toString(),
 					provider: 'other',
 					title: 'Other notification',
 					status: SessionStatus.Idle,
-					createdAt: 1000,
-					modifiedAt: 2000,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
 				},
 			} as INotification);
 
 			agentHostService.fireNotification({
 				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
 				summary: {
 					resource: AgentSession.uri('copilot', 'notify').toString(),
 					provider: 'copilot',
 					title: 'Copilot notification',
 					status: SessionStatus.Idle,
-					createdAt: 3000,
-					modifiedAt: 4000,
+					createdAt: new Date(3000).toISOString(),
+					modifiedAt: new Date(4000).toISOString(),
 				},
 			} as INotification);
 
@@ -1737,13 +1740,14 @@ suite('AgentHostChatContribution', () => {
 			// Simulate a remote session being added in another workspace.
 			agentHostService.fireNotification({
 				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
 				summary: {
 					resource: AgentSession.uri('copilot', 'foreign').toString(),
 					provider: 'copilot',
 					title: 'Foreign workspace session',
 					status: SessionStatus.Idle,
-					createdAt: 1000,
-					modifiedAt: 2000,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
 					workingDirectory: URI.file('/other/workspace').toString(),
 				},
 			} as INotification);
@@ -1753,13 +1757,14 @@ suite('AgentHostChatContribution', () => {
 			// And one in our workspace should be included.
 			agentHostService.fireNotification({
 				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
 				summary: {
 					resource: AgentSession.uri('copilot', 'local').toString(),
 					provider: 'copilot',
 					title: 'Local session',
 					status: SessionStatus.Idle,
-					createdAt: 1000,
-					modifiedAt: 2000,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
 					workingDirectory: URI.file('/workspace/root/sub').toString(),
 				},
 			} as INotification);
@@ -3455,7 +3460,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'sess-1');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -3492,7 +3497,7 @@ suite('AgentHostChatContribution', () => {
 			const feedbackFile = URI.file('/workspace/foo.ts');
 			const sessionUri = AgentSession.uri('copilot', 'feedback-history');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -3600,7 +3605,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -3675,7 +3680,7 @@ suite('AgentHostChatContribution', () => {
 			};
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -3732,7 +3737,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.history.length, 0);
 		});
 
-		test('history requests get per-turn modelId from usage, with active turn falling back to session model', async () => {
+		test('history requests get per-turn modelId from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
@@ -3743,8 +3748,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.sessionStates.set(sessionUri.toString(), {
 				...createSessionState({
 					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
-					status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now(),
-					model: { id: 'sonnet-4.6' },
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [
@@ -3757,7 +3761,7 @@ suite('AgentHostChatContribution', () => {
 					},
 					{
 						id: 'turn-2',
-						message: { text: 'Q2', origin: { kind: MessageKind.User } },
+						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
 						usage: undefined,
 						state: TurnState.Complete,
@@ -3765,7 +3769,7 @@ suite('AgentHostChatContribution', () => {
 				],
 				activeTurn: {
 					id: 'turn-active',
-					message: { text: 'Q3', origin: { kind: MessageKind.User } },
+					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
 				},
@@ -3958,7 +3962,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'tool-hist');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -4003,7 +4007,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'orphan-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -4034,7 +4038,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionUri = AgentSession.uri('copilot', 'generic-tool');
 
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-1',
@@ -4064,7 +4068,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'empty-sess');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			} as SessionState);
@@ -4889,7 +4893,7 @@ suite('AgentHostChatContribution', () => {
 			// `createSession` with the config inline).
 			const sessionUri = AgentSession.uri('copilot', 'eager-config');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			});
@@ -4932,7 +4936,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'eager-picker');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 				config: {
@@ -4985,7 +4989,7 @@ suite('AgentHostChatContribution', () => {
 			// Seed the state the eager-created session will hydrate to once its subscription opens. This is what
 			// the IIFE will surface via `getSubscription` in step (3) below.
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			});
@@ -5168,8 +5172,8 @@ suite('AgentHostChatContribution', () => {
 				provider: 'copilot',
 				title: 'Active Session',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 			const activeTurnParts = [];
 			const reasoningText = overrides?.reasoning ?? '';
@@ -5396,7 +5400,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'no-active-turn');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Done', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Done', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [{
 					id: 'turn-done',
@@ -5463,8 +5467,8 @@ suite('AgentHostChatContribution', () => {
 					provider: 'copilot',
 					title: 'Test',
 					status: SessionStatus.InProgress,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
 				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }),
@@ -5504,8 +5508,8 @@ suite('AgentHostChatContribution', () => {
 					provider: 'copilot',
 					title: 'Test',
 					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
 				queuedMessages: [{ id: 'queued-request-1', message: { text: 'old queued text', origin: { kind: MessageKind.User } } }],
@@ -6002,8 +6006,8 @@ suite('AgentHostChatContribution', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
@@ -6042,8 +6046,8 @@ suite('AgentHostChatContribution', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
@@ -6098,8 +6102,8 @@ suite('AgentHostChatContribution', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 			agentHostService.sessionStates.set(sessionResource.toString(), {
 				...createSessionState(summary),
@@ -6158,8 +6162,8 @@ suite('AgentHostChatContribution', () => {
 				provider: 'copilot',
 				title: 'Subagent',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 			const innerTool: ToolCallState = {
 				toolCallId: innerToolCallId,

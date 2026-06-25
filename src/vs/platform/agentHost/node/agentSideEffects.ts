@@ -38,6 +38,7 @@ import {
 	type URI as ProtocolURI,
 	type ISessionWithDefaultChat,
 	type ErrorInfo,
+	type Message,
 	type SessionState,
 	type ToolResultContent
 } from '../common/state/sessionState.js';
@@ -573,15 +574,16 @@ export class AgentSideEffects extends Disposable {
 		const parentState = this._stateManager.getSessionState(parentSession);
 
 		// Create the subagent session silently (restoreSession skips notification)
+		const now = new Date().toISOString();
 		this._stateManager.restoreSession(
 			{
 				resource: subagentSessionUri,
 				provider: 'subagent',
 				title: agentDisplayName,
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
+				createdAt: now,
+				modifiedAt: now,
+				...(parentState?.project ? { project: parentState.project } : {}),
 			},
 			[],
 		);
@@ -824,17 +826,16 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
-				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					const errCode = (err as { code?: number })?.code;
-					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
-					this._stateManager.dispatchServerAction(channel, {
-						type: ActionType.ChatError,
-						turnId: action.turnId,
-						error: buildSendFailedError(err),
-					});
-					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
+
+				this._sendTurnMessage({
+					agent,
+					sessionChannel: channel,
+					turnChannel: channel,
+					chat: chatChannel,
+					message: action.message,
+					turnId: action.turnId,
 				});
 				break;
 			}
@@ -874,20 +875,6 @@ export class AgentSideEffects extends Disposable {
 				// user to dequeue/run manually. (A message the user sends *after*
 				// the abort is still consumed via the ChatPendingMessageSet path
 				// once cancellation has cleared the active turn.)
-				break;
-			}
-			case ActionType.SessionModelChanged: {
-				const agent = this._options.getAgent(channel);
-				agent?.changeModel?.(URI.parse(channel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					this._logService.error('[AgentSideEffects] changeModel failed', err);
-				});
-				break;
-			}
-			case ActionType.SessionAgentChanged: {
-				const agent = this._options.getAgent(channel);
-				agent?.changeAgent?.(URI.parse(channel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					this._logService.error('[AgentSideEffects] changeAgent failed', err);
-				});
 				break;
 			}
 			case ActionType.SessionTitleChanged: {
@@ -943,17 +930,6 @@ export class AgentSideEffects extends Disposable {
 				// (e.g. permissions) and session customizations as a catchall.
 				this._publishAgentInfos(this._options.agents.get());
 				this._publishAllSessionCustomizations();
-				break;
-			}
-			case ActionType.SessionActiveClientToolsChanged: {
-				const agent = this._options.getAgent(channel);
-				if (agent) {
-					const sessionState = this._stateManager.getSessionState(channel);
-					const isActiveClient = sessionState?.activeClients.some(c => c.clientId === action.clientId);
-					if (isActiveClient) {
-						agent.getOrCreateActiveClient(URI.parse(channel), { clientId: action.clientId }).tools = action.tools;
-					}
-				}
 				break;
 			}
 			case ActionType.SessionCustomizationToggled: {
@@ -1168,25 +1144,67 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
-		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState);
+		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
-		agent.sendMessage(URI.parse(sessionChannel), msg.message.text, attachments, turnId, chatTarget ? URI.parse(chatTarget) : undefined).catch(err => {
-			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
-			this._stateManager.dispatchServerAction(session, {
-				type: ActionType.ChatError,
-				turnId,
-				error: buildSendFailedError(err),
-			});
-			this._turnTracker.turnCompleted(session, turnId, 'error');
+		// Selection travels on the queued message; it is applied before sending.
+		this._sendTurnMessage({
+			agent,
+			sessionChannel,
+			turnChannel: session,
+			chat: chatTarget,
+			message: msg.message,
+			turnId,
 		});
 	}
 
 
-	private _getTurnTelemetryContext(state: SessionState | undefined): { model: string | undefined; permissionLevel: string | undefined } {
-		const model = state?.summary.model?.id;
+	private _getTurnTelemetryContext(state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
-		return { model, permissionLevel };
+		return { model: modelId, permissionLevel };
+	}
+
+	/**
+	 * Applies a turn message's model/agent selection (see
+	 * {@link _applyMessageSelection}) and forwards it to the agent's
+	 * `sendMessage`. A rejected send is wired to fail the turn: it logs,
+	 * dispatches {@link ActionType.ChatError} on the turn channel, and marks the
+	 * turn errored.
+	 */
+	private _sendTurnMessage(options: {
+		agent: IAgent;
+		/** The agent/session URI the conversation lives on (the send target). */
+		sessionChannel: ProtocolURI;
+		/** The channel the turn runs on — where `ChatError` / turn completion are reported. */
+		turnChannel: ProtocolURI;
+		/** Peer-chat channel URI to route to, when the turn targets a non-default chat. */
+		chat: ProtocolURI | undefined;
+		message: Message;
+		turnId: string;
+	}): void {
+		const { agent, sessionChannel, turnChannel, chat, message, turnId } = options;
+
+		const sessionUri = URI.parse(sessionChannel);
+		const chatUri = chat ? URI.parse(chat) : undefined;
+		if (message.model) {
+			agent.changeModel?.(sessionUri, message.model, chatUri)?.catch(err => {
+				this._logService.error('[AgentSideEffects] changeModel failed', err);
+			});
+		}
+		agent.changeAgent?.(sessionUri, message.agent, chatUri)?.catch(err => {
+			this._logService.error('[AgentSideEffects] changeAgent failed', err);
+		});
+
+		agent.sendMessage(URI.parse(sessionChannel), message.text, message.attachments, turnId, chatUri).catch(err => {
+			const errCode = (err as { code?: number })?.code;
+			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				error: buildSendFailedError(err),
+			});
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+		});
 	}
 
 

@@ -780,7 +780,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
-			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
@@ -859,7 +858,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('createChat', {
 			channel: session.toString(),
 			chat: chat.toString(),
-			model: options?.model,
 			...(options?.fork ? { source: { chat: options.fork.source.toString(), turnId: options.fork.turnId } } : {}),
 		});
 	}
@@ -901,8 +899,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
 		return result.items.map((s: SessionSummary) => ({
 			session: URI.parse(s.resource),
-			startTime: s.createdAt,
-			modifiedTime: s.modifiedAt,
+			startTime: Date.parse(s.createdAt),
+			modifiedTime: Date.parse(s.modifiedAt),
 			...(s.project ? {
 				project: {
 					uri: this._toLocalProjectUri(URI.parse(s.project.uri)),

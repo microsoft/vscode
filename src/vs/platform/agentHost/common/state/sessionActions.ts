@@ -26,7 +26,6 @@ export {
 	type SessionDefaultChatChangedAction,
 	type ChatDeltaAction,
 	type ChatErrorAction,
-	type SessionModelChangedAction,
 	type SessionReadyAction,
 	type ChatReasoningAction,
 	type ChatResponsePartAction,
@@ -43,11 +42,9 @@ export {
 	type ChatTurnCompleteAction,
 	type ChatTurnStartedAction,
 	type ChatUsageAction,
-	type SessionAgentChangedAction,
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientSetAction,
 	type SessionActiveClientRemovedAction,
-	type SessionActiveClientToolsChangedAction,
 	type SessionCustomizationsChangedAction,
 	type SessionCustomizationToggledAction,
 	type ChatPendingMessageSetAction,
@@ -103,8 +100,6 @@ import type {
 	RootAgentsChangedAction,
 	RootActiveSessionsChangedAction,
 	ChatDeltaAction,
-	SessionModelChangedAction,
-	SessionAgentChangedAction,
 	ChatReasoningAction,
 	ChatResponsePartAction,
 	ChatToolCallApprovedAction,
@@ -183,8 +178,6 @@ export type IUsageAction = ChatUsageAction;
 export type IReasoningAction = ChatReasoningAction;
 export type IErrorAction = ChatErrorAction;
 export type IToolCallContentChangedAction = ChatToolCallContentChangedAction;
-export type IModelChangedAction = SessionModelChangedAction;
-export type IAgentChangedAction = SessionAgentChangedAction;
 export type ICustomizationsChangedAction = import('./protocol/actions.js').SessionCustomizationsChangedAction;
 export type ICustomizationToggledAction = import('./protocol/actions.js').SessionCustomizationToggledAction;
 
