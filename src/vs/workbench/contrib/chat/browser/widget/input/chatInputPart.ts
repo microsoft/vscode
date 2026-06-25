@@ -907,6 +907,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			|| hasModelsTargetingSession(this.getAllMergedModels(), sessionType);
 	}
 
+	/**
+	 * The model remembered for the current session type (persisted per location +
+	 * session type), if it is currently available in the session's model pool.
+	 * Used to restore the last-used model when a fresh session of a remembered
+	 * agent is opened (e.g. via "New Chat Editor"). Returns `undefined` for session
+	 * types without their own model pool (e.g. local), whose model is already
+	 * restored from the general key by {@link initSelectedModel}.
+	 */
+	private _getRememberedSessionTypeModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const sessionType = this._currentSessionType;
+		if (!sessionType || !this.sessionTypeHasOwnModelPool(sessionType)) {
+			return undefined;
+		}
+		const persisted = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		if (!persisted) {
+			return undefined;
+		}
+		return this.getModels().find(m => m.identifier === persisted);
+	}
+
 	private initSelectedModel() {
 		// initSelectedModel is scoped to the current storage key/session type.
 		// Do not let a delayed restore from a previous session type apply later.
@@ -1324,6 +1344,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!state && this._chatSessionIsEmpty) {
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
+				// For a fresh session, prefer this agent's last-used model and its
+				// configuration (e.g. context size, thinking effort), both persisted in
+				// the same (location, sessionType)-scoped buckets, so a new chat editor
+				// opened with a remembered agent restores the user's last selection.
+				// Draft text/attachments are untouched (this only seeds the model +
+				// configuration for `_syncFromModel`, mirroring the reopened-session
+				// restore from #321672). The configured default below still wins.
+				const rememberedSessionTypeModel = this._getRememberedSessionTypeModel();
+				if (rememberedSessionTypeModel) {
+					const base = state ?? this.getCurrentInputState();
+					const rememberedModelConfiguration = this._modelConfigStore.getModelConfiguration(rememberedSessionTypeModel.identifier);
+					state = { ...base, selectedModel: rememberedSessionTypeModel, modelConfiguration: rememberedModelConfiguration };
+				}
 				// A configured default model (e.g. set by enterprise policy via
 				// `chat.defaultModel`) starts every NEW conversation and
 				// must win over the remembered empty-input draft model. `initSelectedModel`

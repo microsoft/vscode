@@ -283,6 +283,64 @@ export function getDefaultNewChatSessionResource(
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
 }
 
+/**
+ * Storage key for the last-used editor chat session type (agent). Persisted at
+ * profile scope so a new chat editor can reopen with the agent the user last
+ * worked with, across windows and workspaces. Written by the chat widget
+ * service when the last-focused user-facing session changes.
+ */
+export const ChatLastUsedEditorSessionTypeStorageKey = 'chat.lastUsedEditorSessionType';
+
+/**
+ * Resolves the session type (agent) for a brand-new chat editor, preferring the
+ * user's last-used session type when the provider has not been explicitly
+ * configured. Precedence:
+ * 1. An explicit `chat.editor.defaultProvider` set via user/workspace/policy
+ *    (detected with {@link IConfigurationService.inspect}, since the setting
+ *    defaults to `'local'` and {@link IConfigurationService.getValue} cannot tell
+ *    an explicit choice from the default).
+ * 2. The last-used session type, when still visible — so a new editor reopens
+ *    with the agent the user last worked with.
+ * 3. The built-in default from {@link getDefaultNewChatSessionType} (local).
+ */
+export function getNewChatEditorSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): string {
+	const inspected = configurationService.inspect<string>(ChatConfiguration.EditorDefaultProvider);
+	const explicitlyConfigured = inspected.userValue !== undefined
+		|| inspected.userLocalValue !== undefined
+		|| inspected.userRemoteValue !== undefined
+		|| inspected.workspaceValue !== undefined
+		|| inspected.workspaceFolderValue !== undefined
+		|| inspected.policyValue !== undefined;
+
+	if (!explicitlyConfigured
+		&& lastUsedSessionType
+		&& lastUsedSessionType !== localChatSessionType
+		&& isVisibleEditorChatSessionType(lastUsedSessionType, configurationService, chatSessionsService)) {
+		return lastUsedSessionType;
+	}
+
+	return getDefaultNewChatSessionType(configurationService, chatSessionsService);
+}
+
+/**
+ * Like {@link getDefaultNewChatSessionResource}, but prefers the user's
+ * last-used session type via {@link getNewChatEditorSessionType}.
+ */
+export function getNewChatEditorSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): URI {
+	const sessionType = getNewChatEditorSessionType(configurationService, chatSessionsService, lastUsedSessionType);
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
+}
+
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
 }
