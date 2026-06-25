@@ -975,6 +975,118 @@ suite('ChatService', () => {
 		assert.ok(invokedMessages[1].includes('queued request'));
 	});
 
+	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const secondInvoked = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				} else {
+					secondInvoked.complete();
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+		await firstStarted.p;
+
+		const queued = await testService.sendRequest(model.sessionResource, 'queued message', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		const pendingId = model.getPendingRequests()[0].request.id;
+		await testService.sendPendingRequestImmediately(model.sessionResource, pendingId);
+		await secondInvoked.p;
+
+		assert.strictEqual(invokedMessages.length, 2);
+		assert.ok(invokedMessages[1].includes('queued message'));
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('sendPendingRequestImmediately re-sends a steering message as a turn on agent host sessions', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const firstStarted = new DeferredPromise<void>();
+		const secondInvoked = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				} else {
+					secondInvoked.complete();
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, slowAgent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const response = await testService.sendRequest(sessionResource, 'first request', { agentId: sessionType });
+		ChatSendResult.assertSent(response);
+		await firstStarted.p;
+
+		// Steering stays pending here since agent host queues are server-managed.
+		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentId: sessionType, queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		const pendingId = model.getPendingRequests()[0].request.id;
+
+		// Must cancel the current turn AND send the steering message (was dropped before).
+		await testService.sendPendingRequestImmediately(sessionResource, pendingId);
+		await secondInvoked.p;
+
+		assert.strictEqual(invokedMessages.length, 2);
+		assert.ok(invokedMessages[1].includes('steering message'));
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
 	test('race condition: processNextPendingRequest dequeues before commit handler runs', async () => {
 		// This reproduces the race where:
 		// 1. Request 1 completes → .finally() calls processNextPendingRequest immediately
@@ -1199,13 +1311,13 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestAgentPart', text: undefined },
-			{ type: 'ChatRequestTextPart', text: undefined },
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'agent', text: undefined },
+			{ kind: 'text', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 
@@ -1294,11 +1406,11 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 
@@ -1337,11 +1449,11 @@ suite('ChatService', () => {
 		testDisposables.add(ref);
 
 		assert.deepStrictEqual(ref.object.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 

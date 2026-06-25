@@ -49,6 +49,8 @@ if (shouldSpawnCli) {
 		mod.spawnCli();
 	});
 } else {
+	installServerProcessExitDiagnostics();
+
 	let _remoteExtensionHostAgentServer: IServerAPI | null = null;
 	let _remoteExtensionHostAgentServerPromise: Promise<IServerAPI> | null = null;
 	const getRemoteExtensionHostAgentServer = () => {
@@ -156,6 +158,68 @@ function sanitizeStringArg(val: unknown): string | undefined {
 		val = val.pop(); // take the last item
 	}
 	return typeof val === 'string' ? val : undefined;
+}
+
+/**
+ * Records why/when the remote server process exits, to help debug unexpected
+ * server exits in the remote smoke tests (which surface to the client as
+ * `Unknown reconnection token` reconnection failures). The handlers tell apart a
+ * self-exit (`beforeExit`), an external kill (`signal`) and a crash
+ * (`uncaughtExceptionMonitor`). Gated behind the `VSCODE_SERVER_EXIT_DIAGNOSTICS`
+ * env var (set by the smoke tests) so it adds no product noise.
+ */
+function installServerProcessExitDiagnostics(): void {
+	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
+		return;
+	}
+
+	const startTime = Date.now();
+	const log = (message: string) => {
+		// Use `console.error` so the line survives even if stdout is in a
+		// broken-pipe state. The test resolver forwards the server's stdio into
+		// its own output channel, so this ends up in the captured smoke logs.
+		try {
+			console.error(`[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`);
+		} catch {
+			// ignore logging failures while the process is tearing down
+		}
+	};
+
+	const describeState = (): string => {
+		try {
+			const processWithResources = process as NodeJS.Process & { getActiveResourcesInfo?(): string[] };
+			const activeResources = processWithResources.getActiveResourcesInfo?.() ?? [];
+			const memory = process.memoryUsage();
+			return `uptime=${process.uptime().toFixed(3)}s rss=${Math.round(memory.rss / 1024 / 1024)}MB activeResources=[${activeResources.join(', ')}]`;
+		} catch (err) {
+			return `(failed to collect process state: ${err})`;
+		}
+	};
+
+	log(`installed. ppid=${process.ppid} platform=${process.platform} node=${process.version} argv=${JSON.stringify(process.argv.slice(2))}`);
+
+	process.on('beforeExit', code => log(`'beforeExit' (code: ${code}) — event loop drained, process will exit on its own. ${describeState()}`));
+	process.on('exit', code => log(`'exit' (code: ${code}). ${describeState()}`));
+
+	// `uncaughtExceptionMonitor` is observational: it runs before the process
+	// crashes but does NOT prevent the default crash, so the real failure mode
+	// is preserved. It also fires for unhandled rejections that get promoted to
+	// uncaught exceptions by Node's default policy.
+	process.on('uncaughtExceptionMonitor', (err, origin) => log(`'uncaughtExceptionMonitor' (origin: ${origin}): ${err?.stack || err}`));
+
+	const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK', 'SIGQUIT'];
+	for (const signal of signals) {
+		try {
+			process.on(signal, () => {
+				log(`received signal '${signal}' — terminating. ${describeState()}`);
+				// Preserve default termination semantics after logging.
+				const signalNumber = (os.constants.signals as Record<string, number>)[signal];
+				process.exit(typeof signalNumber === 'number' ? 128 + signalNumber : 1);
+			});
+		} catch {
+			// Not all signals can be listened to on all platforms (e.g. SIGBREAK).
+		}
+	}
 }
 
 /**

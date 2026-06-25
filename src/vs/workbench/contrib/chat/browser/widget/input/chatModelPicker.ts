@@ -1674,5 +1674,5 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 
 function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');
+	return model.metadata.id === 'auto';
 }

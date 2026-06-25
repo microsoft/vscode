@@ -14,9 +14,9 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { NewSessionActionViewItemContribution } from './newSessionActionViewItem.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
+import { SessionConversationsMenuContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './views/sessionsViewActions.js';
-import './sessionsActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -57,3 +57,4 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionConversationsMenuContribution.ID, SessionConversationsMenuContribution, WorkbenchPhase.AfterRestored);
