@@ -43,8 +43,6 @@ const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 
 const debugContextKey = 'github.copilot.chat.debug';
 
-export const getChatQuotaTrajectoryNudgeEnabledCommand = '_github.copilot.chat.getQuotaTrajectoryNudgeEnabled';
-
 const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiveSession';
 
 export const prExtensionInstalledContextKey = 'github.copilot.prExtensionInstalled';
@@ -78,15 +76,6 @@ export class ContextKeysContribution extends Disposable {
 			this._showLogView = true;
 			await commands.executeCommand('setContext', showLogViewContextKey, true);
 			await commands.executeCommand('copilot-chat.focus');
-		}));
-		this._register(commands.registerCommand(getChatQuotaTrajectoryNudgeEnabledCommand, async () => {
-			await this._expService.hasTreatments();
-			const config = ConfigKey.Advanced.ChatQuotaTrajectoryNudge;
-			const configured = this._configService.isConfigured(config);
-			const assigned = this._expService.getTreatmentVariable<boolean>(config.experimentName ?? '');
-			return assigned !== undefined || configured
-				? this._configService.getExperimentBasedConfig(config, this._expService)
-				: undefined;
 		}));
 		this._register({ dispose: () => this._cancelPendingOfflineCheck() });
 		this._register(window.onDidChangeWindowState(() => this._runOfflineCheck('Window state change')));
