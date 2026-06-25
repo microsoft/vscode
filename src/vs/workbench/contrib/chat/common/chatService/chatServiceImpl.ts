@@ -649,7 +649,7 @@ export class ChatService extends Disposable implements IChatService {
 			// configuration from the persisted draft when it refers to the same model, so reopening
 			// the session restores the full model config and not just the bare model id.
 			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
-				? storedInputState.selectedModel.modelConfiguration
+				? storedInputState?.selectedModel?.modelConfiguration
 				: undefined;
 			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata, modelConfiguration } : undefined;
 			historySelectedModel = selectedModel?.identifier;
