@@ -68,6 +68,7 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
@@ -767,9 +768,13 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
-				// Open a single file diff editor when configured to do so
-				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
-					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
+				// Holding Alt inverts the configured single/multi file diff behavior.
+				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
+				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
+				if (openSingleFileDiff) {
+					// Alt here only switches the diff mode, not the target group.
+					const sideBySide = e.sideBySide && !altKey;
+					void this._openSingleFileDiffEditor(e.element, sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
 					return;
 				}
 
@@ -1123,6 +1128,18 @@ export class ChangesViewPane extends ViewPane {
 
 		// Open multi-file diff editor
 		await this._openMultiFileDiffEditor(resource);
+	}
+
+	/**
+	 * Reveal the CI checks section: expand it if collapsed and move keyboard
+	 * focus into it. No-op when there are no checks to show.
+	 */
+	revealChecks(): void {
+		if (!this.ciStatusWidget || !this.ciStatusWidget.visible) {
+			return;
+		}
+		this.ciStatusWidget.expand();
+		this.ciStatusWidget.focus();
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
@@ -1496,6 +1513,30 @@ class ChangesDiffStatsAction extends Action2 {
 	}
 }
 registerAction2(ChangesDiffStatsAction);
+
+/**
+ * Opens the Changes view and reveals (expands + focuses) the CI checks section.
+ * Used by the CI failures banner above the chat input.
+ */
+class RevealCIChecksAction extends Action2 {
+	static readonly ID = REVEAL_CI_CHECKS_COMMAND_ID;
+
+	constructor() {
+		super({
+			id: RevealCIChecksAction.ID,
+			title: localize2('revealChecks', 'Reveal Checks'),
+			category: CHAT_CATEGORY,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView<ChangesViewPane>(CHANGES_VIEW_ID, true);
+		view?.revealChecks();
+	}
+}
+registerAction2(RevealCIChecksAction);
 
 class ChangesDiffStatsActionItem extends ActionViewItem {
 	private readonly diffStatsObs: IObservable<{ files: number; insertions: number; deletions: number } | undefined>;

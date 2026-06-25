@@ -103,6 +103,13 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
 	private _currentModelId: string | undefined;
+	/**
+	 * The model the user currently has selected in the picker. When set it
+	 * overrides the last request's model for computing the context-window
+	 * denominator, so switching models updates the widget before the next
+	 * request is sent. The usage numerator still comes from the last response.
+	 */
+	private _selectedModelId: string | undefined;
 	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
@@ -299,16 +306,42 @@ export class ChatContextUsageWidget extends Disposable {
 	): void {
 		this._modelConfigurationResolver = resolver;
 		this._modelConfigurationListener.value = onDidChange(modelId => {
-			if (this._currentResponse && this._currentModelId === modelId) {
-				this.updateFromResponse(this._currentResponse, modelId);
+			const affectsDisplayedModel = this._currentModelId === modelId || this._selectedModelId === modelId;
+			if (this._currentResponse && this._currentModelId && affectsDisplayedModel) {
+				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}
 		});
 	}
 
+	/**
+	 * Sets the model the user currently has selected in the picker. The
+	 * context-window denominator then reflects this model immediately, even
+	 * before a request is sent with it. The usage numerator still comes from the
+	 * last completed response.
+	 */
+	setSelectedModel(modelId: string | undefined): void {
+		if (this._selectedModelId === modelId) {
+			return;
+		}
+		this._selectedModelId = modelId;
+		if (this._currentResponse && this._currentModelId) {
+			this.updateFromResponse(this._currentResponse, this._currentModelId);
+		}
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+
+		// When a meta-model (e.g. "auto") routes to a concrete model, the
+		// usage reports the actual model that served the request.
+		const effectiveModelId = usage?.actualModelId ?? modelId;
+
+		// The denominator (context window) follows the currently selected model so
+		// switching models updates the widget immediately; the numerator (usage)
+		// still comes from the last response.
+		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
+		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
@@ -324,14 +357,17 @@ export class ChatContextUsageWidget extends Disposable {
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const outputBuffer = usage.outputBuffer;
 		const usedTokens = promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
-		// Remaining reserve = whatever the model reserved minus what completions
-		// have already consumed. Once completions exceed the reserve, it drops to 0.
-		const outputBufferPercentage = outputBuffer !== undefined
-			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
+		// The reserve band is a property of the model the user currently has
+		// selected (how much of its window is set aside for output), not of the
+		// past response, so it is derived from the selected model's max output
+		// tokens rather than `usage`. Remaining reserve = that reserve minus what
+		// completions have already consumed; once completions exceed it, it drops
+		// to 0.
+		const outputBufferPercentage = maxOutputTokens !== undefined
+			? (Math.max(0, maxOutputTokens - completionTokens) / totalContextWindow) * 100
 			: undefined;
 
 		this.render({

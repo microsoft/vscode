@@ -253,7 +253,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		const headers = buildOutboundHeaders(req.headers);
 		let models: CCAModel[];
 		try {
-			models = await this._copilotApiService.models(runtime.state.githubToken, { headers });
+			models = await this._copilotApiService.models(runtime.state.githubToken, { headers, suppressIntegrationId: true });
 		} catch (err) {
 			this._writeUpstreamErrorResponse(res, err);
 			return;
@@ -391,7 +391,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		originalSdkModelId: string,
 		sessionId: string | undefined,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let message: Anthropic.Message;
 		try {
 			message = await this._copilotApiService.messages(runtime.state.githubToken, body, options);
@@ -427,7 +427,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		_originalSdkModelId: string,
 		sessionId: string | undefined,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
 		try {
 			stream = this._copilotApiService.messages(runtime.state.githubToken, body, options);

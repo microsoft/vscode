@@ -20,9 +20,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionSupportsDeleteContext, ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -540,6 +541,52 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 	}
 });
 
+//  Group Header Actions
+
+registerAction2(class RenameGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.renameGroup',
+			title: localize2('renameGroup', "Rename"),
+			icon: Codicon.edit,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
+		}
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.sessionsControl?.beginRenameGroup(context.group.id);
+	}
+});
+
+registerAction2(class DeleteGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.deleteGroup',
+			title: localize2('deleteGroup', "Delete Group"),
+			icon: Codicon.trash,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 1,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
+		}
+		accessor.get(ISessionGroupsService).deleteGroup(context.group.id);
+	}
+});
+
 //  Session Item Actions
 
 registerAction2(class PinSessionAction extends Action2 {
@@ -704,7 +751,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ChatSessionSupportsRenameContext,
+				when: SessionSupportsRenameContext,
 			}]
 		});
 	}
@@ -743,7 +790,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 4,
-				when: ChatSessionSupportsDeleteContext,
+				when: SessionSupportsDeleteContext,
 			}]
 		});
 	}
@@ -928,7 +975,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext.negate(),
+					SessionIsArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
 					hasActiveSessionFailedCIChecks.negate(),
@@ -980,7 +1027,7 @@ registerAction2(class RestoreSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext
+					SessionIsArchivedContext
 				)
 			}]
 		});
