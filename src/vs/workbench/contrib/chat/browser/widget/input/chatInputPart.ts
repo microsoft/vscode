@@ -1832,7 +1832,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	public resetLanguageModelToDefault(storeSelection: boolean = true): void {
 		this._waitForPersistedLanguageModel.clear();
-		this.setCurrentLanguageModelToDefault(storeSelection);
+		this.setCurrentLanguageModelToDefault(undefined, storeSelection);
 	}
 
 	/**

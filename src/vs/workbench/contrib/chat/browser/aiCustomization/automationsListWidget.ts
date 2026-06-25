@@ -56,7 +56,7 @@ interface IAutomationItemEntry {
 	readonly inFlight: boolean;
 }
 
-type IAutomationListEntry = IAutomationItemEntry;
+export type IAutomationListEntry = IAutomationItemEntry;
 
 interface IAutomationRowTemplateData {
 	readonly container: HTMLElement;
@@ -325,6 +325,10 @@ export class AutomationsListWidget extends Disposable {
 	private readonly expandedRows = new Set<string>();
 	private displayEntries: IAutomationListEntry[] = [];
 
+	private lastHeight = 0;
+	private lastWidth = 0;
+	private _layoutDeferred = false;
+
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
@@ -414,6 +418,7 @@ export class AutomationsListWidget extends Disposable {
 			this.emptyContainer.style.display = '';
 			this.listContainer.style.display = 'none';
 			this.renderEmptyState();
+			this.displayEntries = [];
 			this.list.splice(0, this.list.length, []);
 			return;
 		}
@@ -556,7 +561,7 @@ export class AutomationsListWidget extends Disposable {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 		const match = folders.find(f => f.uri.toString() === folderUri.toString());
 		if (match) {
-			return match.name || URI.from(match.uri).toString();
+			return match.name || match.uri.toString();
 		}
 		const segments = folderUri.path.split('/').filter(s => s.length > 0);
 		return segments[segments.length - 1] ?? folderUri.toString();
@@ -598,8 +603,52 @@ export class AutomationsListWidget extends Disposable {
 		}
 	}
 
+	layout(height: number, width: number): void {
+		this.lastHeight = height;
+		this.lastWidth = width;
+
+		this.element.style.height = `${height}px`;
+
+		// Measure the header to calculate the list height.
+		// When offsetHeight returns 0 the container may have just become visible
+		// after display:none and the browser hasn't reflowed yet — defer layout
+		// once so measurements are accurate. Only retry once to avoid an endless
+		// loop when the widget is created while permanently hidden.
+		const headerHeight = this.headerEl.offsetHeight;
+		if (headerHeight === 0 && !this._layoutDeferred) {
+			this._layoutDeferred = true;
+			DOM.getWindow(this.element).requestAnimationFrame(() => {
+				try {
+					this.layout(this.lastHeight, this.lastWidth);
+				} finally {
+					this._layoutDeferred = false;
+				}
+			});
+			return;
+		}
+		const listHeight = Math.max(0, height - headerHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
+	}
+
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.automationService.automations.get().length);
+	}
+
+	/** Test-only: number of rows currently in the virtualized list. */
+	get itemCount(): number {
+		return this.list.length;
+	}
+
+	/**
+	 * Test-only: snapshot of the view-model rows the list is displaying.
+	 * The virtualized {@link WorkbenchList} does not lay out rows in a unit-test
+	 * DOM, so tests assert the derived render state (expansion, runs, in-flight)
+	 * here instead of querying row elements.
+	 */
+	getDisplayEntriesForTest(): readonly IAutomationListEntry[] {
+		return this.displayEntries;
 	}
 
 	focusSearch(): void {

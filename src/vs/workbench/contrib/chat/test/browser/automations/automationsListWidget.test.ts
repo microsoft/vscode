@@ -19,6 +19,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -111,6 +114,8 @@ suite('AutomationsListWidget', () => {
 		teardown.add({ dispose: () => workspace.dispose() });
 		instantiation.stub(IWorkspaceContextService, workspace);
 		instantiation.stub(IKeybindingService, upcastPartial<IKeybindingService>({}));
+		instantiation.stub(IContextKeyService, new MockContextKeyService());
+		instantiation.stub(IListService, teardown.add(new ListService()));
 		instantiation.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: document.createElement('div') }));
 		instantiation.stub(IHostService, upcastPartial<IHostService>({}));
 		instantiation.stub(ILogService, log);
@@ -133,38 +138,39 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(rows.length, 0);
 	});
 
-	test('renders one row per automation', async () => {
+	// The Automations list is a virtualized WorkbenchList, which does not lay
+	// out rows in a unit-test DOM (no height). Mirroring the sibling
+	// aiCustomizationListWidget test, these cases assert the widget's public
+	// API and view-model (via getDisplayEntriesForTest / itemCount) rather than
+	// querying or clicking virtualized row elements.
+
+	test('exposes one display entry per automation', async () => {
 		const { widget, service } = setup();
 		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), folderUri: FOLDER });
 		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), folderUri: FOLDER });
 
-		const rows = widget.element.querySelectorAll('.automations-row');
-		assert.strictEqual(rows.length, 2);
+		assert.strictEqual(widget.itemCount, 2);
 
-		const names = Array.from(widget.element.querySelectorAll('.automations-row-name'))
-			.map(el => el.textContent?.replace(/Disabled$/, '').trim())
-			.sort();
+		const entries = widget.getDisplayEntriesForTest();
+		assert.strictEqual(entries.length, 2);
+		const names = entries.map(e => e.automation.name).sort();
 		assert.deepStrictEqual(names, ['First', 'Second']);
 	});
 
-	test('shows a "Disabled" badge on disabled rows', async () => {
+	test('disabled automations surface in the view-model as not enabled', async () => {
 		const { widget, service } = setup();
 		await service.createAutomation({ name: 'D', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: false });
 
-		const badge = widget.element.querySelector('.automations-row-disabled-badge');
-		assert.ok(badge, 'expected disabled badge');
-		assert.match(badge.textContent ?? '', /Disabled/);
+		const entries = widget.getDisplayEntriesForTest();
+		assert.strictEqual(entries.length, 1);
+		assert.strictEqual(entries[0].automation.enabled, false, 'disabled badge is rendered from this flag');
 	});
 
-	test('Run now button invokes the runner with trigger=manual', async () => {
+	test('runNow invokes the runner with trigger=manual', async () => {
 		const { widget, service, runner } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
-		const button = widget.element.querySelector('.automations-row .automations-row-action-button') as HTMLButtonElement;
-		button.click();
-		// Let the microtask queue drain.
-		await Promise.resolve();
-		await Promise.resolve();
+		await widget.runNow(a);
 
 		assert.strictEqual(runner.calls.length, 1);
 		assert.strictEqual(runner.calls[0].automationId, a.id);
@@ -175,21 +181,14 @@ suite('AutomationsListWidget', () => {
 		const { widget, service, runner, configService, dialog } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
 
-		// Flip the setting off after the widget rendered the row, then
-		// click each mutating action. None of them should reach the
-		// service / runner.
+		// Flip the setting off, then drive each mutating action through the
+		// public API. None of them should reach the service / runner.
 		configService.setUserConfiguration('chat.automations.enabled', false);
 		dialog.confirmResult = true;
 
-		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
-		// Buttons are ordered: Run Now, Toggle, Edit, Delete (+History).
-		(buttons[0] as HTMLButtonElement).click(); // run now
-		(buttons[1] as HTMLButtonElement).click(); // toggle
-		(buttons[3] as HTMLButtonElement).click(); // delete
-		// Drain microtasks.
-		for (let i = 0; i < 5; i++) {
-			await Promise.resolve();
-		}
+		await widget.runNow(a);
+		await widget.toggleEnabled(a);
+		await widget.deleteAutomation(a);
 
 		assert.strictEqual(runner.calls.length, 0, 'runNow must not call the runner when disabled');
 		const reloaded = service.getAutomation(a.id);
@@ -197,51 +196,38 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(reloaded?.enabled, true, 'toggle must not mutate enabled flag');
 	});
 
-	test('toggle button flips enabled state', async () => {
+	test('toggleEnabled flips the enabled state', async () => {
 		const { widget, service } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
 
-		// Buttons are ordered: Run Now, Toggle, Edit, Delete.
-		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
-		const toggleButton = buttons[1] as HTMLButtonElement;
-		toggleButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		await widget.toggleEnabled(a);
 
 		const updated = service.getAutomation(a.id);
 		assert.ok(updated);
 		assert.strictEqual(updated.enabled, false);
 	});
 
-	test('delete button only deletes when confirmation is confirmed', async () => {
+	test('deleteAutomation only deletes when the confirmation is accepted', async () => {
 		const { widget, service, dialog } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		dialog.confirmResult = false;
-		const deleteButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[3] as HTMLButtonElement;
-		deleteButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		await widget.deleteAutomation(a);
 
 		assert.strictEqual(dialog.confirmations.length, 1);
 		assert.ok(service.getAutomation(a.id), 'expected automation to still exist after declined delete');
 	});
 
-	test('delete button removes the automation when confirmation is accepted', async () => {
+	test('deleteAutomation removes the automation when the confirmation is accepted', async () => {
 		const { widget, service, dialog } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
 		dialog.confirmResult = true;
-		const deleteButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[3] as HTMLButtonElement;
-		deleteButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
-		// Wait for the async updateAutomations propagation.
-		await new Promise(r => setTimeout(r, 0));
+		await widget.deleteAutomation(a);
 
 		assert.strictEqual(service.getAutomation(a.id), undefined);
-		const rows = widget.element.querySelectorAll('.automations-row');
-		assert.strictEqual(rows.length, 0);
+		assert.strictEqual(widget.itemCount, 0);
+		assert.strictEqual(widget.getDisplayEntriesForTest().length, 0);
 	});
 
 	test('fires onDidChangeItemCount when automations change', async () => {
@@ -267,51 +253,32 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(captured, 1);
 	});
 
-	test('history panel is hidden by default and toggled by the history button', async () => {
+	test('history is collapsed by default and toggleExpanded flips the row expansion', async () => {
 		const { widget, service } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
-		assert.strictEqual(widget.element.querySelectorAll('.automations-row-history').length, 0);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
 
-		// Buttons: Run, Toggle, Edit, Delete, History (5th).
-		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
-		const historyButton = buttons[4] as HTMLButtonElement;
-		assert.strictEqual(historyButton.getAttribute('aria-expanded'), 'false');
-
-		historyButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		const panels = widget.element.querySelectorAll('.automations-row-history');
-		assert.strictEqual(panels.length, 1);
-		assert.strictEqual(panels[0].getAttribute('id'), `automation-history-${a.id}`);
-
-		// Re-collect buttons after re-render.
-		const buttonsAfter = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
-		assert.strictEqual((buttonsAfter[4] as HTMLButtonElement).getAttribute('aria-expanded'), 'true');
+		widget.toggleExpanded(a.id);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, true);
 
 		// Collapse again.
-		(buttonsAfter[4] as HTMLButtonElement).click();
-		await Promise.resolve();
-		await Promise.resolve();
-		assert.strictEqual(widget.element.querySelectorAll('.automations-row-history').length, 0);
+		widget.toggleExpanded(a.id);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
 	});
 
-	test('history panel renders empty-state when there are no runs', async () => {
+	test('expanded row exposes no runs when there are none', async () => {
 		const { widget, service } = setup();
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
-		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
-		historyButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		widget.toggleExpanded(a.id);
 
-		const empty = widget.element.querySelector('.automations-history-empty');
-		assert.ok(empty, 'expected history empty-state');
-		assert.match(empty.textContent ?? '', /No runs yet/);
+		const entry = widget.getDisplayEntriesForTest()[0];
+		assert.strictEqual(entry.expanded, true);
+		assert.strictEqual(entry.runs.length, 0, 'history empty-state is rendered from an empty runs list');
 	});
 
-	test('history panel renders run rows with status and trigger', async () => {
+	test('expanded row exposes runs newest-first with status and error message', async () => {
 		const { widget, service } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
@@ -324,42 +291,35 @@ suite('AutomationsListWidget', () => {
 
 		await service.recordRunStart(a.id, 'catch_up', 1);
 
-		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
-		historyButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		widget.toggleExpanded(a.id);
 
-		const rows = widget.element.querySelectorAll('.automations-history-row');
-		assert.strictEqual(rows.length, 3);
+		const runs = widget.getDisplayEntriesForTest()[0].runs;
+		assert.strictEqual(runs.length, 3);
 
 		// Newest-first: catch_up pending, manual failed, schedule completed.
-		const statuses = Array.from(rows).map(r => r.getAttribute('data-run-status'));
+		const statuses = runs.map(r => r.status);
 		assert.deepStrictEqual(statuses, ['pending', 'failed', 'completed']);
 
-		// The failed row surfaces the error message.
-		const err = widget.element.querySelector('.automations-history-row-error');
-		assert.ok(err, 'expected error message in failed-run row');
-		assert.strictEqual(err.textContent, 'boom');
+		const triggers = runs.map(r => r.trigger);
+		assert.deepStrictEqual(triggers, ['catch_up', 'manual', 'schedule']);
+
+		// The failed run surfaces the error message.
+		const failed = runs.find(r => r.status === 'failed');
+		assert.strictEqual(failed?.errorMessage, 'boom');
 	});
 
-	test('history panel re-renders when run state changes after a run is added', async () => {
+	test('expanded row re-derives its runs when a run is added', async () => {
 		const { widget, service } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 
-		const historyButton = widget.element.querySelectorAll('.automations-row .automations-row-action-button')[4] as HTMLButtonElement;
-		historyButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
-		assert.strictEqual(widget.element.querySelectorAll('.automations-history-row').length, 0);
+		widget.toggleExpanded(a.id);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].runs.length, 0);
 
 		await service.recordRunStart(a.id, 'schedule', 1);
 		await Promise.resolve();
-		await Promise.resolve();
 
-		assert.strictEqual(widget.element.querySelectorAll('.automations-history-row').length, 1);
+		const entry = widget.getDisplayEntriesForTest()[0];
+		assert.strictEqual(entry.expanded, true);
+		assert.strictEqual(entry.runs.length, 1);
 	});
 });
-
-// Placeholder reference to avoid unused-import lint on Emitter if our
-// fakes evolve away from it.
-void Emitter;
