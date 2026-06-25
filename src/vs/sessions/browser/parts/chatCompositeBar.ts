@@ -306,7 +306,7 @@ export class ChatCompositeBar extends Disposable {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
 				isDraft ? localize('deleteDraftChat', "Delete Chat") : localize('closeChat', "Close"),
-				ThemeIcon.asClassName(isDraft ? Codicon.trash : Codicon.close),
+				ThemeIcon.asClassName(Codicon.close),
 				true,
 				async () => {
 					if (!this._session) {
