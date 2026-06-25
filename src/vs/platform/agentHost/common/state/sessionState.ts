@@ -120,6 +120,20 @@ export interface UsageInfoMeta {
 			readonly resetDate?: string;
 		} | undefined;
 	};
+	/**
+	 * Per-category breakdown of the current context window usage, reported by
+	 * agent hosts that can introspect their context (e.g. the Claude agent via
+	 * the SDK `getContextUsage` control request). Clients MAY use this to render
+	 * a detailed context-usage widget. `totalTokens` is the sum used as the
+	 * denominator for each category's share of the prompt.
+	 */
+	contextUsage?: {
+		readonly categories: readonly {
+			readonly name: string;
+			readonly tokens: number;
+		}[];
+		readonly totalTokens: number;
+	};
 	[key: string]: unknown;
 }
 
@@ -171,7 +185,34 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		}
 		result.quotaSnapshots = snapshots;
 	}
+	const contextUsage = readContextUsage(meta['contextUsage']);
+	if (contextUsage) {
+		result.contextUsage = contextUsage;
+	}
 	return result;
+}
+
+function readContextUsage(value: unknown): UsageInfoMeta['contextUsage'] | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['totalTokens'] !== 'number' || !Array.isArray(raw['categories'])) {
+		return undefined;
+	}
+	const categories: { name: string; tokens: number }[] = [];
+	for (const entry of raw['categories']) {
+		if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+			const category = entry as Record<string, unknown>;
+			if (typeof category['name'] === 'string' && typeof category['tokens'] === 'number') {
+				categories.push({ name: category['name'], tokens: category['tokens'] });
+			}
+		}
+	}
+	if (categories.length === 0) {
+		return undefined;
+	}
+	return { categories, totalTokens: raw['totalTokens'] };
 }
 
 export {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKControlGetContextUsageResponse, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -200,6 +200,13 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	supportedCommandsResult: SlashCommand[] = [];
 	supportedAgentsResult: AgentInfo[] | undefined = undefined;
 	mcpServerStatusResult: McpServerStatus[] | undefined = undefined;
+
+	/**
+	 * Programmable {@link FakeQuery.getContextUsage} response. Stays unmodeled
+	 * (throwing) until a test opts in; the pipeline swallows the throw and
+	 * simply omits the breakdown from the turn's ChatUsage.
+	 */
+	getContextUsageResult: SDKControlGetContextUsageResponse | undefined = undefined;
 
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
@@ -507,7 +514,10 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		if (this._sdk.mcpServerStatusResult === undefined) { throw new Error('FakeQuery: mcpServerStatus not modeled'); }
 		return Promise.resolve(this._sdk.mcpServerStatusResult) as never;
 	}
-	getContextUsage(): never { throw new Error('FakeQuery: getContextUsage not modeled'); }
+	getContextUsage(): never {
+		if (this._sdk.getContextUsageResult === undefined) { throw new Error('FakeQuery: getContextUsage not modeled'); }
+		return Promise.resolve(this._sdk.getContextUsageResult) as never;
+	}
 	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('FakeQuery: usage_EXPERIMENTAL not modeled'); }
 	/** Phase 11 — programmable tool-name snapshot returned by `reloadPlugins()`. */
 	reloadPluginsResults: readonly string[][] = [];
@@ -2059,6 +2069,55 @@ suite('ClaudeAgent', () => {
 			.find(a => a?.type === ActionType.ChatUsage);
 		assert.ok(usage && usage.type === ActionType.ChatUsage, 'ChatUsage action present');
 		assert.deepStrictEqual(usage.usage._meta?.copilotUsage, { totalNanoAiu: 2_000_000_000 });
+	});
+
+	test('the SDK getContextUsage breakdown is attached to the turn ChatUsage as contextUsage', async () => {
+		// The pipeline fetches `query.getContextUsage()` when a turn's result
+		// settles and the mapper attaches the per-category breakdown to the
+		// turn's ChatUsage as `_meta.contextUsage`, powering the workbench
+		// context-usage widget.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		sdk.getContextUsageResult = {
+			categories: [
+				{ name: 'System prompt', tokens: 1000, color: '#111' },
+				{ name: 'Messages', tokens: 3000, color: '#222' },
+				{ name: 'Empty', tokens: 0, color: '#333' },
+			],
+			totalTokens: 4000,
+			maxTokens: 200_000,
+			rawMaxTokens: 200_000,
+			percentage: 2,
+			gridRows: [],
+			model: 'claude-test',
+			memoryFiles: [],
+			mcpTools: [],
+			agents: [],
+			isAutoCompactEnabled: false,
+			apiUsage: null,
+		};
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const usage = signals
+			.map(s => s.kind === 'action' ? s.action : undefined)
+			.find(a => a?.type === ActionType.ChatUsage);
+		assert.ok(usage && usage.type === ActionType.ChatUsage, 'ChatUsage action present');
+		// Zero-token categories are dropped; the rest carry through verbatim.
+		assert.deepStrictEqual(usage.usage._meta?.contextUsage, {
+			categories: [
+				{ name: 'System prompt', tokens: 1000 },
+				{ name: 'Messages', tokens: 3000 },
+			],
+			totalTokens: 4000,
+		});
 	});
 
 	test('multiple text blocks each get a distinct partId; deltas route correctly', async () => {

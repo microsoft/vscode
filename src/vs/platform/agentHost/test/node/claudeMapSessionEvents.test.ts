@@ -598,6 +598,28 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
+	test('result success attaches the context-usage breakdown to ChatUsage._meta when supplied', () => {
+		const result = makeResultSuccess(SESSION_ID);
+		result.usage.input_tokens = 12;
+		result.usage.output_tokens = 34;
+		result.usage.cache_read_input_tokens = 5;
+
+		const contextUsage = {
+			categories: [
+				{ name: 'System prompt', tokens: 1000 },
+				{ name: 'Messages', tokens: 3000 },
+			],
+			totalTokens: 4000,
+		};
+
+		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r(), undefined, contextUsage);
+
+		assert.strictEqual(signals.length, 1);
+		const usage = signals[0];
+		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
+		assert.deepStrictEqual(usage.action.usage._meta, { contextUsage });
+	});
+
 	test('result success does not derive credits from total_cost_usd', () => {
 		// Per-turn credits come from CAPI `copilot_usage` via the proxy, not
 		// from the SDK's Anthropic-list-price `total_cost_usd`. The mapper

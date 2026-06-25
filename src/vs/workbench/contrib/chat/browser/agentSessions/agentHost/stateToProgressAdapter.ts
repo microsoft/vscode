@@ -16,7 +16,7 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/ag
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -177,7 +177,35 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits,
+		promptTokenDetails: getPromptTokenDetails(usage),
 	};
+}
+
+/**
+ * Maps the agent host's per-category context-window usage breakdown (carried on
+ * a usage report's `_meta.contextUsage`, e.g. from the Claude SDK's
+ * `getContextUsage`) into the `promptTokenDetails` shape the context-usage
+ * widget renders. Each category's share is expressed as a percentage of the
+ * total used context. Returns `undefined` when no breakdown is present.
+ */
+function getPromptTokenDetails(usage: UsageInfo | undefined): IChatUsagePromptTokenDetail[] | undefined {
+	const contextUsage = readUsageInfoMeta(usage).contextUsage;
+	if (!contextUsage || contextUsage.totalTokens <= 0) {
+		return undefined;
+	}
+	const category = localize('contextBreakdown', "Breakdown");
+	const details: IChatUsagePromptTokenDetail[] = [];
+	for (const { name, tokens } of contextUsage.categories) {
+		if (tokens <= 0) {
+			continue;
+		}
+		const percentageOfPrompt = Math.round((tokens / contextUsage.totalTokens) * 100);
+		if (percentageOfPrompt <= 0) {
+			continue;
+		}
+		details.push({ category, label: name, percentageOfPrompt });
+	}
+	return details.length > 0 ? details : undefined;
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
