@@ -879,6 +879,7 @@ export interface IRestoredSubagentSession {
 	readonly turns: readonly Turn[];
 }
 
+/**
  * A per-session handle for one active client's contributions (tools and
  * plugin customizations) to an agent session, obtained via
  * {@link IAgent.getOrCreateActiveClient}.
