@@ -67,7 +67,7 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 			members: [
 				'runTests',
 				'testFailure',
-				'problems',
+				...(workspaceService.isSessionsWindow ? [] : ['problems']),
 				'rename',
 				'usages',
 				'extensions',

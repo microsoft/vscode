@@ -14,6 +14,7 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import type { SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -58,7 +59,7 @@ export interface IAgentHostActiveClientService {
 	 * Chat Customizations are the source of truth: a tool is advertised only when it is an enabled
 	 * member of a tool set surfaced in the Agents window Tools section (`deprecated !== true`).
 	 * Editor-only tool sets are not created in the Agents window. Enablement is tri-state per
-	 * {@link IAgentHostToolSetEnablementService}.
+	 * {@link IAgentHostToolSetEnablementService}; sessions-window-only exclusions are applied last.
 	 */
 	getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]>;
 }
@@ -83,6 +84,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IFileService private readonly _fileService: IFileService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
+		@IAICustomizationWorkspaceService private readonly _customizationWorkspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -191,11 +193,18 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return tools.filter(t => enabledToolIds.has(t.id)).map(toolDataToDefinition);
+				return tools
+					.filter(t => enabledToolIds.has(t.id) && this._isAvailableForAgentHost(t))
+					.map(toolDataToDefinition);
 			});
 			this._clientToolsByType.set(sessionType, obs);
 		}
 		return obs;
+	}
+
+	private _isAvailableForAgentHost(tool: IToolData): boolean {
+		return !this._customizationWorkspaceService.isSessionsWindow
+			|| !SESSION_WINDOW_AGENT_HOST_EXCLUDED_TOOL_NAMES.has(tool.toolReferenceName ?? tool.id);
 	}
 }
 
@@ -203,5 +212,7 @@ const EMPTY_CUSTOMIZATIONS: readonly ClientPluginCustomization[] = Object.freeze
 
 /** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */
 const CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY = 50;
+
+const SESSION_WINDOW_AGENT_HOST_EXCLUDED_TOOL_NAMES = new Set(['problems']);
 
 registerSingleton(IAgentHostActiveClientService, AgentHostActiveClientService, InstantiationType.Delayed);
