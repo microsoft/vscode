@@ -38,7 +38,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolCallStructuredContent, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -144,6 +144,11 @@ type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
+
+interface ISdkTerminalCommandStructuredContent {
+	readonly exitCode?: number;
+	readonly cwd?: string;
+}
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
 	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
@@ -414,8 +419,8 @@ function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): Too
 // 	return match ? Number(match[1]) : undefined;
 // }
 
-function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
-	const terminalCommand = result?.structuredContent?.terminalCommand;
+function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
+	const terminalCommand = result?.structuredContent?.['terminalCommand'];
 	if (!isObject(terminalCommand)) {
 		return undefined;
 	}
@@ -432,7 +437,7 @@ function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['resu
 	};
 }
 
-function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
 	const terminalContent = getSdkTerminalContent(result);
 	const structuredTerminalCommand = getSdkStructuredTerminalCommand(result);
 	const exitCode = terminalContent?.exitCode ?? structuredTerminalCommand?.exitCode;
@@ -447,7 +452,7 @@ function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): Too
 	};
 }
 
-function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent | undefined {
+function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): Record<string, unknown> | undefined {
 	const terminalCommand = getSdkTerminalCommand(result);
 	if (!result?.structuredContent && !terminalCommand) {
 		return undefined;
@@ -2575,7 +2580,7 @@ export class CopilotAgentSession extends Disposable {
 			const toolOutput = e.data.error?.message ?? terminalContent?.text ?? e.data.result?.content;
 			const structuredContent = getSdkTerminalStructuredContent(e.data.result);
 			if (isShellTool(tracked.toolName)) {
-				this._logService.info(`[Copilot:${sessionId}] Shell tool terminal result API fields: toolCallId=${e.data.toolCallId}, terminalContentExitCode=${terminalContent?.exitCode ?? '<missing>'}, structuredTerminalCommand=${safeStringify(structuredContent?.terminalCommand)}, contents=${safeStringify(e.data.result?.contents)}, structuredContent=${safeStringify(e.data.result?.structuredContent)}, contentTail=${safeStringify(e.data.result?.content?.slice(-200))}`);
+				this._logService.info(`[Copilot:${sessionId}] Shell tool terminal result API fields: toolCallId=${e.data.toolCallId}, terminalContentExitCode=${terminalContent?.exitCode ?? '<missing>'}, structuredTerminalCommand=${safeStringify(structuredContent?.['terminalCommand'])}, contents=${safeStringify(e.data.result?.contents)}, structuredContent=${safeStringify(e.data.result?.structuredContent)}, contentTail=${safeStringify(e.data.result?.content?.slice(-200))}`);
 			}
 
 			if (isTaskCompleteTool(tracked.toolName)) {

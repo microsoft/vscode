@@ -982,21 +982,10 @@ export interface ToolCallResult {
 	 *
 	 * This mirrors the `structuredContent` field of MCP `CallToolResult`.
 	 */
-	structuredContent?: ToolCallStructuredContent;
+	structuredContent?: Record<string, unknown>;
 	/** Error details if the tool failed */
 	error?: { message: string; code?: string };
 }
-
-/**
- * Additional typed fields VS Code understands in otherwise provider-defined
- * tool structured content.
- */
-export type ToolCallStructuredContent = Record<string, unknown> & {
-	terminalCommand?: {
-		exitCode?: number;
-		cwd?: string;
-	};
-};
 
 /**
  * LM is streaming the tool call parameters.
@@ -1234,4 +1223,3 @@ export type ToolResultContent =
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
 	| ToolResultSubagentContent;
-

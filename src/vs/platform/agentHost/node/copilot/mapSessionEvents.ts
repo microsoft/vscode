@@ -13,7 +13,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolCallStructuredContent, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -24,6 +24,11 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+interface ISdkTerminalCommandStructuredContent {
+	readonly exitCode?: number;
+	readonly cwd?: string;
 }
 
 function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): ToolExecutionCompleteContentTerminal | undefined {
@@ -37,8 +42,8 @@ function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): Too
 // 	return match ? Number(match[1]) : undefined;
 // }
 
-function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
-	const terminalCommand = result?.structuredContent?.terminalCommand;
+function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
+	const terminalCommand = result?.structuredContent?.['terminalCommand'];
 	if (!isObject(terminalCommand)) {
 		return undefined;
 	}
@@ -55,7 +60,7 @@ function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['resu
 	};
 }
 
-function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent['terminalCommand'] | undefined {
+function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
 	const terminalContent = getSdkTerminalContent(result);
 	const structuredTerminalCommand = getSdkStructuredTerminalCommand(result);
 	const exitCode = terminalContent?.exitCode ?? structuredTerminalCommand?.exitCode;
@@ -70,7 +75,7 @@ function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): Too
 	};
 }
 
-function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): ToolCallStructuredContent | undefined {
+function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): Record<string, unknown> | undefined {
 	const terminalCommand = getSdkTerminalCommand(result);
 	if (!result?.structuredContent && !terminalCommand) {
 		return undefined;
