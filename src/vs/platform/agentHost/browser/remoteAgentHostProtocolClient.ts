@@ -1317,7 +1317,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _updateGlobalAutoApproveEnabled(): void {
-		const enabled = this._configurationService.getValue(GLOBAL_AUTO_APPROVE_SETTING_ID) === true;
+		const enabled = this._configurationService.getValue<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID) === true;
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: enabled },
