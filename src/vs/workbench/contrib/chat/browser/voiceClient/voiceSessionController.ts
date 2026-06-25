@@ -1003,7 +1003,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				'focus_session',
 			];
 			if (e.name === 'send_to_chat') {
-				const text = typeof e.args?.['text'] === 'string' ? (e.args['text'] as string) : '';
+				let text = typeof e.args?.['text'] === 'string' ? (e.args['text'] as string) : '';
+				// Strip send keyword if present (backend includes full transcript)
+				const stripped = this._checkSendKeyword(text);
+				if (stripped !== undefined) {
+					text = stripped;
+				}
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
