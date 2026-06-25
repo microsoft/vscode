@@ -525,4 +525,34 @@ suite('ChatModelConfigurationStore', () => {
 
 		assert.deepStrictEqual(denominators, [undefined, DEFAULT_TIER]);
 	});
+
+	test('restore preserves a reopened conversation\'s config for an unregistered model instead of re-pinning a shared stale value', () => {
+		// Repro of the per-conversation restore bug: two conversations share the
+		// (location, sessionType)-scoped store. Conversation B picked a large
+		// context window, leaving the shared bucket + in-memory snapshot at 936k.
+		// Reopening conversation A must restore ITS captured 200k even though the
+		// model is not registered (schema unavailable) — filtering must not discard
+		// the captured config and let the stale 936k survive, which would also get
+		// re-captured into A's persisted state.
+		const storage = store.add(new InMemoryStorageService());
+		// Conversation B's value persisted in the shared scoped bucket.
+		storage.store(KEY, JSON.stringify({ [MODEL]: { contextSize: 936_000 } }), StorageScope.APPLICATION, StorageTarget.USER);
+		// The model is NOT registered, so its configuration schema is unavailable.
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => undefined,
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		// Seed the in-memory snapshot from the stale shared bucket (as if B was active).
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { contextSize: 936_000 });
+
+		// Reopen conversation A: restore its captured 200k config.
+		editor.restoreModelConfiguration(MODEL, { contextSize: 200_000 });
+
+		// A's value wins; the stale 936k is gone.
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { contextSize: 200_000 });
+	});
 });

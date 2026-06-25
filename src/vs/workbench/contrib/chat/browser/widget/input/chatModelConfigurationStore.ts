@@ -170,14 +170,25 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * the same resolution hierarchy as a user-made change — mirroring how the
 	 * restored model selection is persisted to its scoped storage key.
 	 *
-	 * The captured values are first filtered against the model's *current*
-	 * configuration schema so that a config saved against an older schema does
-	 * not re-pin removed properties or invalid values: unknown keys and values
-	 * that violate the schema's `enum` constraint are dropped and fall back to
-	 * the live default.
+	 * When the model is registered, the captured values are filtered against its
+	 * *current* configuration schema so that a config saved against an older
+	 * schema does not re-pin removed properties or invalid values: unknown keys
+	 * and values that violate the schema's `enum` constraint are dropped and fall
+	 * back to the live default.
+	 *
+	 * When the model is NOT yet registered (asynchronous provider registration),
+	 * its schema is unavailable. Filtering would then discard the *entire*
+	 * captured config, causing the restore to merge an empty value over whatever
+	 * the shared per-scope snapshot currently holds — re-pinning another
+	 * conversation's value (e.g. its context size). To preserve the reopened
+	 * session's own configuration in that race, the captured values are restored
+	 * as-is; a later sync re-validates them once the schema loads. See #320393.
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
+		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+		const filtered = metadata
+			? filterConfigurationToSchema(values, metadata.configurationSchema)
+			: { ...values };
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every
