@@ -21,6 +21,18 @@ import { PolicyCategory, PolicyCategoryData } from '../../../../base/common/poli
 import { ExportedPolicyDataDto } from '../common/policyDto.js';
 import { join } from '../../../../base/common/path.js';
 
+/**
+ * `policyReference`s for settings registered ONLY in another window (e.g. the Agents window,
+ * `vs/sessions`). This export runs in the workbench window and never loads those registrations,
+ * so the references are listed here to keep each policy's `referencedSettings` complete.
+ * Keep in sync with the `policyReference` declared by the setting in its own window.
+ */
+const EXTERNAL_POLICY_REFERENCES: ReadonlyArray<{ readonly policyName: string; readonly settingKey: string }> = [
+	// `sessions.chat.claudeAgent.enabled` (Agents window) references `Claude3PIntegration`,
+	// owned by `github.copilot.chat.claudeAgent.enabled`.
+	{ policyName: 'Claude3PIntegration', settingKey: 'sessions.chat.claudeAgent.enabled' },
+];
+
 interface ExtensionConfigurationPolicyEntry {
 	readonly name: string;
 	readonly category: string;
@@ -141,16 +153,26 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				const policyReferenceConfigurations = configurationRegistry.getPolicyReferenceConfigurations();
 				let linkedReferences = 0;
 				for (const policy of policyData.policies) {
-					const references = policyReferenceConfigurations.get(policy.name);
-					if (references && references.size > 0) {
-						for (const referenceKey of references) {
-							const referenceType = configurationProperties[referenceKey]?.type;
-							if (referenceType !== policy.type) {
-								throw new Error(`Policy '${policy.name}': setting '${referenceKey}' (type '${referenceType}') declares a 'policyReference' to a policy of type '${policy.type}'. A 'policyReference' must match the owning setting's type.`);
-							}
+					const referenceKeys = new Set<string>();
+
+					for (const referenceKey of policyReferenceConfigurations.get(policy.name) ?? []) {
+						const referenceType = configurationProperties[referenceKey]?.type;
+						if (referenceType !== policy.type) {
+							throw new Error(`Policy '${policy.name}': setting '${referenceKey}' (type '${referenceType}') declares a 'policyReference' to a policy of type '${policy.type}'. A 'policyReference' must match the owning setting's type.`);
 						}
-						policy.referencedSettings = [...references].sort();
-						linkedReferences += references.size;
+						referenceKeys.add(referenceKey);
+					}
+
+					// Settings registered only in other windows are invisible to this export; add them statically.
+					for (const reference of EXTERNAL_POLICY_REFERENCES) {
+						if (reference.policyName === policy.name) {
+							referenceKeys.add(reference.settingKey);
+						}
+					}
+
+					if (referenceKeys.size > 0) {
+						policy.referencedSettings = [...referenceKeys].sort();
+						linkedReferences += referenceKeys.size;
 					}
 				}
 				this.log(`Linked ${linkedReferences} referenced settings across ${policyData.policies.length} policies.`);
