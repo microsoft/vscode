@@ -1339,13 +1339,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!state && this._chatSessionIsEmpty) {
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
-				// For a fresh session, prefer this agent's last-used model and its
-				// configuration (e.g. context size, thinking effort), both persisted in
-				// the same (location, sessionType)-scoped buckets, so a new chat editor
-				// opened with a remembered agent restores the user's last selection.
-				// Draft text/attachments are untouched (this only seeds the model +
-				// configuration for `_syncFromModel`, mirroring the reopened-session
-				// restore from #321672). The configured default below still wins.
+				// Seed model/config from the last-used selection for this session type (configured default still wins).
 				const rememberedSessionTypeModel = this._getRememberedSessionTypeModel();
 				if (rememberedSessionTypeModel) {
 					const base = state ?? this.getCurrentInputState();
