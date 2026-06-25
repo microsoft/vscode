@@ -9,10 +9,21 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { BYOKKnownModels } from '../common/byokProvider';
-import { AbstractOpenAICompatibleLMProvider } from './abstractLanguageModelChatProvider';
+import { OpenAIEndpoint } from '../node/openAIEndpoint';
+import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 
-export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
+/** Per-model overrides a user can specify in the `openai` provider configuration. */
+interface OpenAIModelOverride {
+	id: string;
+	zeroDataRetentionEnabled?: boolean;
+}
+
+export interface OpenAIModelProviderConfig extends LanguageModelChatConfiguration {
+	models?: OpenAIModelOverride[];
+}
+
+export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAIModelProviderConfig> {
 
 	public static readonly providerName = 'OpenAI';
 	public static readonly providerId = this.providerName.toLowerCase();
@@ -50,5 +61,20 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 			ModelSupportedEndpoint.Responses
 		];
 		return modelInfo;
+	}
+
+	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<OpenAIModelProviderConfig>): Promise<OpenAIEndpoint> {
+		const modelInfo = this.getModelInfo(model.id, model.url);
+		// Apply user-specified per-model overrides from the provider configuration. The
+		// CDN-sourced known models cannot express org-specific settings such as Zero Data
+		// Retention, so honor an explicit override when the user provides one.
+		const modelOverride = model.configuration?.models?.find(m => m.id === model.id);
+		if (modelOverride?.zeroDataRetentionEnabled !== undefined) {
+			modelInfo.zeroDataRetentionEnabled = modelOverride.zeroDataRetentionEnabled;
+		}
+		const url = modelInfo.supported_endpoints?.includes(ModelSupportedEndpoint.Responses) ?
+			`${model.url}/responses` :
+			`${model.url}/chat/completions`;
+		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 }

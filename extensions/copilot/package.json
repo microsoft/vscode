@@ -1841,6 +1841,39 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "models": {
+              "type": "array",
+              "description": "Optional per-model overrides for models discovered from OpenAI. Match an entry by its model `id` to override its settings.",
+              "defaultSnippets": [
+                {
+                  "label": "New Model Override",
+                  "description": "Override settings for a specific OpenAI model",
+                  "body": [
+                    {
+                      "id": "$1",
+                      "zeroDataRetentionEnabled": "^${2|true,false|}"
+                    }
+                  ]
+                }
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Identifier of the OpenAI model to override (e.g. the model `id` as reported by OpenAI)."
+                  },
+                  "zeroDataRetentionEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this model. When `true`, `previous_response_id` will not be sent in requests via Responses API."
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
             }
           },
           "required": [
