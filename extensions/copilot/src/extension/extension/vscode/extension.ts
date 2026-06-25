@@ -5,7 +5,6 @@
 
 import * as l10n from '@vscode/l10n';
 import { commands, env, ExtensionContext, ExtensionMode, l10n as vscodeL10n } from 'vscode';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isScenarioAutomation } from '../../../platform/env/common/envService';
 import { isProduction } from '../../../platform/env/common/packagejson';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
@@ -15,7 +14,6 @@ import { IInstantiationServiceBuilder, InstantiationServiceBuilder } from '../..
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotExtensionApi } from '../../api/vscode/extensionApi';
 import { ContributionCollection, IExtensionContributionFactory } from '../../common/contributions';
-import { registerChatQuotaTrajectoryNudgeEnabledCommand } from '../../contextKeys/common/chatQuotaTrajectoryNudgeCommand';
 
 // ##################################################################################
 // ###                                                                            ###
@@ -66,8 +64,6 @@ export async function baseActivate(configuration: IExtensionActivationConfigurat
 
 	await instantiationService.invokeFunction(async accessor => {
 		const expService = accessor.get(IExperimentationService);
-		const configService = accessor.get(IConfigurationService);
-		context.subscriptions.push(registerChatQuotaTrajectoryNudgeEnabledCommand(commands, configService, expService));
 
 		// Await intialization of exp service. This ensure cache is fresh.
 		// It will then auto refresh every 30 minutes after that.

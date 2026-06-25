@@ -8,12 +8,13 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
@@ -22,7 +23,7 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
 const TRY_AUTO_COMMAND_ID = 'workbench.action.chat.quotaTrajectoryTryAuto';
-const TRAJECTORY_NUDGE_COMMAND_ID = '_github.copilot.chat.getQuotaTrajectoryNudgeEnabled';
+const TRAJECTORY_NUDGE_TREATMENT_NAME = 'config.chatQuotaTrajectoryNudge';
 
 // --- Mock IChatEntitlementService -------------------------------------------
 
@@ -150,22 +151,23 @@ function createMockNotificationService() {
 	};
 }
 
-function createMockCommandService(trajectoryTreatment?: boolean | Promise<boolean | undefined>) {
-	const executeCommandCalls: string[] = [];
-	const service: ICommandService = {
+function createMockAssignmentService(trajectoryTreatment?: boolean | Promise<boolean | undefined>) {
+	const getTreatmentCalls: string[] = [];
+	const service: IWorkbenchAssignmentService = {
 		_serviceBrand: undefined,
-		onWillExecuteCommand: Event.None,
-		onDidExecuteCommand: Event.None,
-		executeCommand<R>(commandId: string): Promise<R | undefined> {
-			executeCommandCalls.push(commandId);
-			if (commandId === TRAJECTORY_NUDGE_COMMAND_ID) {
-				return Promise.resolve(trajectoryTreatment as R | undefined);
+		onDidRefetchAssignments: Event.None,
+		getCurrentExperiments: async () => [],
+		addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
+		getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+			getTreatmentCalls.push(name);
+			if (name === TRAJECTORY_NUDGE_TREATMENT_NAME) {
+				return Promise.resolve(trajectoryTreatment as T | undefined);
 			}
 			return Promise.resolve(undefined);
 		},
 	};
 
-	return { service, executeCommandCalls };
+	return { service, getTreatmentCalls };
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -223,7 +225,7 @@ suite('ChatQuotaNotificationContribution', () => {
 	) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
-		const commandMock = createMockCommandService(modelOpts?.trajectoryTreatment);
+		const assignmentMock = createMockAssignmentService(modelOpts?.trajectoryTreatment);
 		const contextKeyService = store.add(new MockContextKeyService());
 		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
@@ -291,12 +293,12 @@ suite('ChatQuotaNotificationContribution', () => {
 			contextKeyService as IContextKeyService,
 			languageModelsService,
 			storageService,
-			commandMock.service,
+			assignmentMock.service,
 			modelOpts?.telemetryService ?? new NullTelemetryServiceShape(),
 			chatWidgetService,
 		));
 
-		return { contribution, entitlementMock, notificationMock, storageService, commandMock, switchedModels };
+		return { contribution, entitlementMock, notificationMock, storageService, assignmentMock, switchedModels };
 	}
 
 	function updateQuotas(
@@ -693,7 +695,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			// the user is not in the flight. This must not be treated as control
 			// enrollment, but it should still attempt exposure since the user met
 			// every render condition.
-			const { commandMock, notificationMock } = createContribution({
+			const { assignmentMock, notificationMock } = createContribution({
 				entitlement: ChatEntitlement.Pro,
 				quotas: {
 					resetDate: makeResetDate(24),
@@ -705,10 +707,10 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 
 			assert.deepStrictEqual({
-				treatments: commandMock.executeCommandCalls,
+				treatments: assignmentMock.getTreatmentCalls,
 				notification: notificationMock.getNotification(),
 			}, {
-				treatments: [TRAJECTORY_NUDGE_COMMAND_ID],
+				treatments: [TRAJECTORY_NUDGE_TREATMENT_NAME],
 				notification: undefined,
 			});
 		});
@@ -1183,7 +1185,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 			const notificationMock = createMockNotificationService();
-			const commandMock = createMockCommandService();
+			const assignmentMock = createMockAssignmentService();
 			const contextKeyService = store.add(new MockContextKeyService());
 			const storageService = store.add(new InMemoryStorageService());
 			// Start with BYOK model
@@ -1225,7 +1227,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				contextKeyService as IContextKeyService,
 				languageModelsService,
 				storageService,
-				commandMock.service,
+				assignmentMock.service,
 				new NullTelemetryServiceShape(),
 				chatWidgetService,
 			));
