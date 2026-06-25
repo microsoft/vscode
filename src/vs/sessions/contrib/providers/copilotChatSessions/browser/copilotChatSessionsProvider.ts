@@ -47,6 +47,7 @@ import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/ag
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
@@ -1013,7 +1014,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!livePR) {
 				return base;
 			}
-			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computeLivePullRequestIcon(reader, this._gitHubService, base.owner, base.repo, livePR) } };
 		});
 
 		this._workspace = observableValue(this, this._buildWorkspace(session));
@@ -1925,6 +1926,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (cliSessionItems.length > 0) {
 			await this.commandService.executeCommand('agents.github.copilot.cli.deleteSessions', cliSessionItems, { skipConfirmation: true });
 		}
+	}
+
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
 	}
 
 	async createNewChat(sessionId: string, prompt?: string): Promise<IChat> {

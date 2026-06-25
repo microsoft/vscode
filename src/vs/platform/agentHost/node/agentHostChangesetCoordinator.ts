@@ -139,6 +139,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
+
+		// Advertised operations are disabled while a turn is active so the
+		// working tree / branch state can't be mutated mid-request; recompute
+		// them whenever the active-turn state flips.
+		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------

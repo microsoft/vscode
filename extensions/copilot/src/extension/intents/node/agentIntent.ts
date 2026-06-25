@@ -98,14 +98,28 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  * Only clamps when the selection is strictly smaller than the model window so
  * the full tier ("Longer sessions without compaction") stays uncompacted.
  *
+ * When no explicit selection is present, falls back to the model's default
+ * context-max tier (`tokenPricing.default.contextMax`) rather than the full
+ * native window. This keeps the local-agent path consistent with the agent-host
+ * path (whose `getCopilotContextTier` already treats an absent selection as the
+ * default tier) and is a safety net for cases where the resolved model
+ * configuration is missing `contextSize`. Models without a tiered picker have no
+ * `default.contextMax` (or it equals the full window), so the clamp is skipped
+ * and the full window is used.
+ *
  * @internal - exported for testing
  */
 export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	// Guard against non-positive / non-finite selections (e.g. 0, -1, NaN, Infinity):
-	// a non-positive token budget would produce an invalid endpoint configuration.
-	if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0 && contextSize < endpoint.modelMaxPromptTokens) {
-		return endpoint.cloneWithTokenOverride(contextSize);
+	// Use the explicit selection when valid, otherwise fall back to the default
+	// context-max tier. Guard against non-positive / non-finite selections
+	// (e.g. 0, -1, NaN, Infinity): a non-positive token budget would produce an
+	// invalid endpoint configuration.
+	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
+		? contextSize
+		: endpoint.tokenPricing?.default.contextMax;
+	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(effectiveSize);
 	}
 	return endpoint;
 }
