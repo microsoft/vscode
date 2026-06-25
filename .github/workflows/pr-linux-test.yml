@@ -209,6 +209,59 @@ jobs:
           FONTCONFIG_EOF
           echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
 
+      # Root-cause fix for the intermittent startup SIGSEGV: Ubuntu 24.04 (noble)
+      # ships libexpat1 2.6.1, which intermittently NULL-derefs while fontconfig
+      # parses font config XML during Electron/Chromium startup. The crash
+      # signature is a glib worker thread: pangoft2 -> fontconfig (FcInit/parse)
+      # -> expat (XML_ParseBuffer) -> libc NULL deref, before any window appears.
+      # The CVE-specific fontconfig config tweaks above reduce but do not eliminate
+      # it (the runtime XML parse still reaches expat). The fix only exists in
+      # expat >= 2.7.5, which noble does not package yet. Rather than build from
+      # source, install the official prebuilt libexpat1 .deb (from a newer Ubuntu
+      # release) fetched via the Azure Ubuntu mirror the runner already uses: it
+      # Pre-Depends only on libc6 (>= 2.38), satisfied by noble's 2.39, so it
+      # installs cleanly and replaces the system libexpat.so.1 (ABI-stable SONAME)
+      # for every process, including Electron. Remove this step once noble ships
+      # libexpat1 >= 2.7.5.
+      - name: Install CVE-fixed libexpat to avoid fontconfig NULL-deref crash
+        run: |
+          set -euo pipefail
+          # Skip if the runner already ships a fixed expat (>= 2.7.5).
+          EXPAT_VER=$(dpkg-query -W -f='${Version}' libexpat1 2>/dev/null || echo "0")
+          if dpkg --compare-versions "$EXPAT_VER" ge "2.7.5"; then
+            echo "::warning::libexpat1 $EXPAT_VER already includes the fixes (>= 2.7.5). This step can be removed."
+            exit 0
+          fi
+
+          # libexpat1 2.8.1 (> 2.7.5) is byte-identical across Ubuntu sources, so we
+          # verify by sha256 and try the fastest/most-trusted origin first:
+          #   1. the Azure Ubuntu mirror the runner already uses (in-datacenter)
+          #   2. the canonical Ubuntu archive
+          #   3. Launchpad's permanent file store (survives pool rolls)
+          DEB="libexpat1_2.8.1-1_amd64.deb"
+          SHA256="72c8fc5de6fa9bb47a3a593d653f993cbcc4c73532f777736add653e9b141da0"
+          MIRRORS="
+          http://azure.archive.ubuntu.com/ubuntu/pool/main/e/expat/${DEB}
+          http://archive.ubuntu.com/ubuntu/pool/main/e/expat/${DEB}
+          https://launchpad.net/ubuntu/+archive/primary/+files/${DEB}
+          "
+          ok=0
+          for url in $MIRRORS; do
+            if curl -fsSL --max-time 60 --retry 3 -o "$RUNNER_TEMP/$DEB" "$url" \
+              && echo "$SHA256  $RUNNER_TEMP/$DEB" | sha256sum -c -; then
+              echo "Fetched $DEB from $url"
+              ok=1
+              break
+            fi
+            echo "Could not fetch/verify from $url, trying next source..."
+          done
+          if [ "$ok" != 1 ]; then
+            echo "Failed to fetch $DEB from all sources" >&2
+            exit 1
+          fi
+          sudo dpkg -i "$RUNNER_TEMP/$DEB"
+          echo "libexpat1 is now: $(dpkg-query -W -f='${Version}' libexpat1)"
+
       - name: Fontconfig diagnostics and cache reset
         run: |
           set -e
@@ -244,6 +297,9 @@ jobs:
           echo ""
           echo "--- fontconfig version ---"
           fc-cache --version 2>&1 | head -1
+          echo ""
+          echo "--- active libexpat1 version ---"
+          dpkg-query -W -f='${Version}\n' libexpat1 2>/dev/null || true
         continue-on-error: true
 
       - name: Transpile client and extensions
