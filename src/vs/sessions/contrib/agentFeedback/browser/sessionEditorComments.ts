@@ -187,6 +187,10 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 	return `${source}:${sourceId}`;
 }
 
+export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {
+	return comments.filter(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted).length;
+}
+
 export function hasAcceptedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
-	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted);
+	return getAcceptedAgentFeedbackCommentCount(comments) > 0;
 }
