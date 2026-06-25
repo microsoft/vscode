@@ -162,43 +162,37 @@ async function removeCopilotCLIShim() {
 	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
 }
 
-/**
- * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
- * We need to copy these files into the sdk directory to ensure they are available at runtime.
- */
-async function copyCopilotCliWorkerFiles(copilotCliSourceDir: string) {
-	const sourceDir = path.join(copilotCliSourceDir, 'worker');
+async function removeCopilotCliWorkerFiles() {
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'worker');
-
-	await copyCopilotCLIFoldersIfExists(sourceDir, targetDir);
+	await fs.promises.rm(targetDir, { recursive: true, force: true });
 }
 
 async function copyCopilotCliTGrepFiles(copilotCliSourceDir: string) {
 	const sourceDir = path.join(copilotCliSourceDir, 'tgrep');
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'tgrep');
 
-	await copyCopilotCLIFoldersIfExists(sourceDir, targetDir);
+	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
 async function copyCopilotCliDefinitionFiles(copilotCliSourceDir: string) {
 	const sourceDir = path.join(copilotCliSourceDir, 'definitions');
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'definitions');
 
-	await copyCopilotCLIFoldersIfExists(sourceDir, targetDir);
+	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
 async function copyCopilotCliSkillsFiles(copilotCliSourceDir: string) {
 	const sourceDir = path.join(copilotCliSourceDir, 'builtin-skills');
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'builtin-skills');
 
-	await copyCopilotCLIFoldersIfExists(sourceDir, targetDir);
+	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
 async function copyCopilotCliQueryFiles(copilotCliSourceDir: string) {
 	const sourceDir = path.join(copilotCliSourceDir, 'queries');
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'queries');
 
-	await copyCopilotCLIFoldersIfExists(sourceDir, targetDir);
+	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
 async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
@@ -234,15 +228,6 @@ async function copyCopilotCliPrebuildFiles(copilotCliSourceDir: string) {
 
 async function copyCopilotCLIFolders(sourceDir: string, targetDir: string) {
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
-	await fs.promises.mkdir(targetDir, { recursive: true });
-	await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
-}
-
-async function copyCopilotCLIFoldersIfExists(sourceDir: string, targetDir: string) {
-	await fs.promises.rm(targetDir, { recursive: true, force: true });
-	if (!fs.existsSync(sourceDir)) {
-		return;
-	}
 	await fs.promises.mkdir(targetDir, { recursive: true });
 	await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true });
 }
@@ -295,7 +280,7 @@ async function main() {
 
 	const copilotCliSourceDir = await materializeCopilotCliSdkLayout();
 	await removeCopilotCLIShim();
-	await copyCopilotCliWorkerFiles(copilotCliSourceDir);
+	await removeCopilotCliWorkerFiles();
 	await copyCopilotCliDefinitionFiles(copilotCliSourceDir);
 	await copyCopilotCliSkillsFiles(copilotCliSourceDir);
 	await copyCopilotCliTGrepFiles(copilotCliSourceDir);
