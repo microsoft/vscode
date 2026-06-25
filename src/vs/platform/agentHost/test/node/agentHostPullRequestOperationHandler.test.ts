@@ -9,13 +9,40 @@ import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
-import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, SessionStatus } from '../../common/state/sessionState.js';
+import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { CCAModel } from '@vscode/copilot-api';
+
+class TestCopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly calls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
+	response = 'Generated PR title\n\nGenerated PR description.';
+	error: Error | undefined;
+
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
+		throw new Error('not used');
+	}
+	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+	async models(): Promise<CCAModel[]> { return []; }
+	async responses(): Promise<Response> { throw new Error('not used'); }
+	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
+		this.calls.push({ token: githubToken, request, options });
+		if (this.error) {
+			throw this.error;
+		}
+		return this.response;
+	}
+}
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -75,9 +102,13 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	createError: Error | undefined;
 	findAfterCreateError: Error | undefined;
 	created: CreatedPullRequest = { url: 'https://github.com/microsoft/vscode/pull/123', number: 123 };
+	lastTitle: string | undefined;
+	lastBody: string | undefined;
 
-	async createPullRequest(_owner: string, _repo: string, _title: string, _body: string, _head: string, _base: string, draft: boolean, _token: string, _signal: AbortSignal): Promise<CreatedPullRequest> {
+	async createPullRequest(_owner: string, _repo: string, title: string, body: string, _head: string, _base: string, draft: boolean, _token: string, _signal: AbortSignal): Promise<CreatedPullRequest> {
 		this.calls.push(`createPullRequest:${draft}`);
+		this.lastTitle = title;
+		this.lastBody = body;
 		if (this.createError) {
 			throw this.createError;
 		}
@@ -95,13 +126,21 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	}
 }
 
-function createAgentService(): IAgentService {
+function createAgentService(withCopilotToken = false): IAgentService {
 	return {
-		getAuthToken: resource => resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource ? 'gh-token' : undefined,
+		getAuthToken: resource => {
+			if (resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
+				return 'gh-token';
+			}
+			if (withCopilotToken && resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+				return 'copilot-token';
+			}
+			return undefined;
+		},
 	} as IAgentService;
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[] } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[] }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -125,14 +164,22 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		owner: 'microsoft',
 		repo: 'vscode',
 	}));
+	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			false,
-			sessionKey => stateManager.getSessionState(sessionKey),
+			sessionKey => {
+				const state = stateManager.getSessionState(sessionKey);
+				if (state && options?.turns) {
+					return { ...state, turns: options.turns };
+				}
+				return state;
+			},
 			event => createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`),
-			createAgentService(), gitService, octoKitService, new NullLogService()),
+			createAgentService(options?.withCopilotToken), gitService, octoKitService, copilotApiService, new NullLogService()),
 		session,
 		createdEvents,
+		copilotApiService,
 	};
 }
 
@@ -275,6 +322,89 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			gitCalls: [],
 			octoCalls: [],
 			createdEvents: [],
+		});
+	});
+
+	// When a Copilot token is available, the handler asks the utility model
+	// for a title/description, feeding it the main session conversation (only
+	// the markdown text of requests/responses — reasoning, tool calls, and
+	// subagents are excluded) plus the changed-file summary.
+	test('generates the PR title and description from the conversation via the model', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const turns: Turn[] = [{
+			id: 'turn-1',
+			message: { text: 'Add retry logic to the uploader', origin: { kind: MessageKind.User } },
+			responseParts: [
+				{ kind: ResponsePartKind.Reasoning, id: 'r1', content: 'SECRET_REASONING_SHOULD_BE_EXCLUDED' },
+				{ kind: ResponsePartKind.Markdown, id: 'm1', content: 'I added exponential backoff to the uploader.' },
+			],
+			usage: undefined,
+			state: TurnState.Complete,
+		}];
+		const { handler, session, copilotApiService } = setup(disposables, gitService, octoKitService, { withCopilotToken: true, turns });
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		const userContent = copilotApiService.calls[0]?.request.messages.find(m => m.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			message: result.message,
+			token: copilotApiService.calls[0]?.token,
+			title: octoKitService.lastTitle,
+			body: octoKitService.lastBody,
+			includesUserRequest: userContent.includes('Add retry logic to the uploader'),
+			includesAgentResponse: userContent.includes('I added exponential backoff to the uploader.'),
+			excludesReasoning: !userContent.includes('SECRET_REASONING_SHOULD_BE_EXCLUDED'),
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
+			token: 'copilot-token',
+			title: 'Generated PR title',
+			body: 'Generated PR description.',
+			includesUserRequest: true,
+			includesAgentResponse: true,
+			excludesReasoning: true,
+		});
+	});
+
+	// Without a Copilot token the model is never called and the handler falls
+	// back to the branch-name based title/description.
+	test('falls back to branch-name title and description without a Copilot token', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const { handler, session, copilotApiService } = setup(disposables, gitService, octoKitService);
+
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.calls.length,
+			title: octoKitService.lastTitle,
+			body: octoKitService.lastBody,
+		}, {
+			utilityCalls: 0,
+			title: 'feature: test',
+			body: 'Created from `feature/test` targeting `main`.',
+		});
+	});
+
+	// Model failures must not block PR creation — the handler falls back to the
+	// branch-name based title/description.
+	test('falls back to branch-name title and description when generation fails', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.error = new Error('utility model unavailable');
+		const { handler, session } = setup(disposables, gitService, octoKitService, { withCopilotToken: true, copilotApiService });
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			title: octoKitService.lastTitle,
+			body: octoKitService.lastBody,
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
+			title: 'feature: test',
+			body: 'Created from `feature/test` targeting `main`.',
 		});
 	});
 });
