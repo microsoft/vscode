@@ -2,8 +2,6 @@ name: Require commit trailer
 
 on:
   pull_request:
-    branches:
-      - 'release/msrc/*'
 
 permissions: {}
 
