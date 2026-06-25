@@ -51,6 +51,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
+	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
+	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
+
 	private _sessionTypes: readonly ISessionType[] = [];
 
 	/** Tracks the in-progress new session (composed but not yet sent). */
@@ -254,6 +257,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this._newSession.set(undefined, undefined);
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
+		this._onDidDiscardNewSession.fire(current);
 	}
 
 	/**
