@@ -829,10 +829,45 @@ export interface IChatSessionsService {
 	deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Registers an alias so that session-option lookups by the real resource
-	 * are redirected to the canonical (untitled) resource in the internal session map.
+	 * Records the inverse `real → untitled` alias so option lookups for the real
+	 * session resolve to the untitled session's entry (e.g. {@link updateSessionOptions}).
+	 *
+	 * Call this BEFORE the real session loads, and never remove it — the real
+	 * session keeps reading its options through this alias even after the untitled
+	 * model is disposed. (Only the forward mapping is cleared, via
+	 * {@link clearMaterializedSessionResource}.) Publishing the forward mapping is a
+	 * separate step; see {@link setMaterializedSessionResource}.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	/**
+	 * Records the forward `untitled → real` mapping (read via
+	 * {@link getMaterializedSessionResource}) so a late send still addressed to the
+	 * untitled resource re-targets the real session. Call this only AFTER the real
+	 * session has loaded.
+	 *
+	 * Kept separate from {@link registerSessionResourceAlias} on purpose: the
+	 * inverse alias must exist BEFORE the load (for option lookups), but this
+	 * forward mapping must appear only AFTER the real session exists — published
+	 * earlier, a failed or still-loading session would be re-targeted before it
+	 * exists (a later send would throw "Unknown session").
+	 */
+	setMaterializedSessionResource(untitledResource: URI, realResource: URI): void;
+
+	/**
+	 * Returns the real session resource that `untitledResource` materialized
+	 * into (via {@link setMaterializedSessionResource}), or `undefined` if it has
+	 * not materialized or the mapping was already cleared.
+	 */
+	getMaterializedSessionResource(untitledResource: URI): URI | undefined;
+
+	/**
+	 * Clears the forward `untitled → real` mapping for `sessionResource` (passed
+	 * either the untitled key or the real value), so {@link getMaterializedSessionResource}
+	 * stops re-targeting once the session is disposed. Does NOT remove the inverse
+	 * alias, which is intentionally permanent (see {@link registerSessionResourceAlias}).
+	 */
+	clearMaterializedSessionResource(sessionResource: URI): void;
 
 	/**
 	 * Fires {@link onDidCommitSession} to notify listeners that an untitled

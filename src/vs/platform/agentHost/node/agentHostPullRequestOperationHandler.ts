@@ -6,15 +6,31 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
+import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { buildConversationContext } from '../common/agentHostConversationContext.js';
+
+/**
+ * Soft upper bound, in characters, for the conversation context fed to the
+ * utility model when generating a PR title and description. Sized to stay
+ * within the small model's context window while leaving room for the changed
+ * file summary and prompt scaffolding.
+ */
+const MAX_PR_CONVERSATION_CONTEXT_CHARS = 12_000;
+
+/**
+ * Soft upper bound, in characters, for the changed-file summary fed to the
+ * utility model when generating a PR title and description.
+ */
+const MAX_PR_CHANGE_SUMMARY_CHARS = 4_000;
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
@@ -47,11 +63,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	constructor(
 		private readonly _draft: boolean,
-		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -153,9 +170,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const title = this._formatTitle(branchName);
-		const body = this._formatBody(branchName, base);
-
 		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
 		if (existing) {
 			this._throwIfCancelled(token);
@@ -163,6 +177,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			return this._createResult(existing, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", existing.number, existing.url));
 		}
 		this._throwIfCancelled(token);
+
+		const generated = await this._generateTitleAndDescription(sessionState, branchName, base, branchChanges, signal, token);
+		this._throwIfCancelled(token);
+		const title = generated?.title ?? this._formatTitle(branchName);
+		const body = generated?.description ?? this._formatBody(branchName, base);
 
 		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${branchName} -> ${base}`);
 		let created: { readonly url: string; readonly number: number };
@@ -226,6 +245,151 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	private _formatBody(branchName: string, baseBranchName: string): string {
 		return localize('agentHost.changeset.pr.body', "Created from `{0}` targeting `{1}`.", branchName, baseBranchName);
+	}
+
+	/**
+	 * Best-effort generation of a PR title and description using the utility
+	 * model. The model is given the main session conversation (only the
+	 * markdown text of user requests and agent responses — tool calls,
+	 * subagents, and reasoning are excluded and the text is character-bounded)
+	 * along with a summary of the changed files. Returns `undefined` when no
+	 * Copilot token is available or generation fails, so the caller can fall
+	 * back to the branch-name based title/description. PR creation must never
+	 * fail just because the model is unavailable.
+	 */
+	private async _generateTitleAndDescription(
+		sessionState: ISessionWithDefaultChat,
+		branchName: string,
+		base: string,
+		branchChanges: readonly ISessionFileDiff[],
+		signal: AbortSignal,
+		token: CancellationToken,
+	): Promise<{ title: string; description: string } | undefined> {
+		const copilotToken = this._agentService.getAuthToken({
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+			scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+		});
+		if (!copilotToken) {
+			return undefined;
+		}
+
+		const conversation = buildConversationContext(sessionState.turns, { maxChars: MAX_PR_CONVERSATION_CONTEXT_CHARS });
+		const changeSummary = this._summarizeDiffsForPrompt(branchChanges);
+		if (!conversation && !changeSummary) {
+			return undefined;
+		}
+
+		try {
+			const raw = await this._copilotApiService.utilityChatCompletion(copilotToken, {
+				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
+			}, { signal });
+			this._throwIfCancelled(token);
+			return this._parseTitleAndDescription(raw);
+		} catch (err) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			this._logService.warn(`[AgentHostPullRequestOperationHandler] Failed to generate PR title and description: ${err instanceof Error ? err.message : String(err)}`);
+			return undefined;
+		}
+	}
+
+	private _buildTitleAndDescriptionPrompt(branchName: string, base: string, conversation: string | undefined, changeSummary: string): ICopilotUtilityChatMessage[] {
+		const userSections: string[] = [
+			`Branch: ${branchName}`,
+			`Base branch: ${base}`,
+		];
+		if (changeSummary) {
+			userSections.push(`Changed files:\n${changeSummary}`);
+		}
+		if (conversation) {
+			userSections.push(`Conversation (the request that produced these changes):\n${conversation}`);
+		}
+		return [
+			{
+				role: 'system',
+				content: [
+					'You write clear, concise GitHub pull request titles and descriptions.',
+					'The first line of your reply is the PR title: a short imperative summary under 72 characters, with no "Title:" prefix, no surrounding quotes, and no markdown heading.',
+					'After the title, add one blank line, then write the PR description in GitHub-flavored markdown.',
+					'Summarize what changed and why, grounded in the conversation and changed files. Use a short paragraph and/or bullet points.',
+					'Do not invent changes that are not supported by the provided context, and do not wrap the whole reply in code fences.',
+				].join(' '),
+			},
+			{
+				role: 'user',
+				content: userSections.join('\n\n'),
+			},
+		];
+	}
+
+	private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[]): string {
+		const lines: string[] = [];
+		let length = 0;
+		for (const diff of diffs) {
+			const before = diff.before?.uri;
+			const after = diff.after?.uri;
+			const path = after ?? before ?? '(unknown)';
+			let kind = 'Edit';
+			if (!before && after) {
+				kind = 'Create';
+			} else if (before && !after) {
+				kind = 'Delete';
+			} else if (before && after && before !== after) {
+				kind = 'Rename';
+			}
+			const line = `- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`;
+			lines.push(line);
+			// `+ 1` accounts for the newline that joins this line to the previous one.
+			length += line.length + (lines.length > 1 ? 1 : 0);
+			if (length > MAX_PR_CHANGE_SUMMARY_CHARS) {
+				lines.push('[file list truncated]');
+				break;
+			}
+		}
+		return lines.join('\n');
+	}
+
+	private _displayUri(uri: string): string {
+		try {
+			const parsed = URI.parse(uri);
+			return parsed.scheme === 'file' ? parsed.fsPath : parsed.path || uri;
+		} catch {
+			return uri;
+		}
+	}
+
+	private _parseTitleAndDescription(raw: string): { title: string; description: string } | undefined {
+		let text = raw.trim().replace(/\r\n/g, '\n');
+		const fenced = /^```(?:markdown|md|text)?\s*([\s\S]*?)\s*```$/i.exec(text);
+		if (fenced) {
+			text = fenced[1].trim();
+		}
+		if (!text) {
+			return undefined;
+		}
+
+		const lines = text.split('\n');
+		let i = 0;
+		while (i < lines.length && lines[i].trim().length === 0) {
+			i++;
+		}
+		if (i >= lines.length) {
+			return undefined;
+		}
+
+		const title = lines[i].trim()
+			.replace(/^#+\s*/, '')
+			.replace(/^title:\s*/i, '')
+			.trim()
+			.replace(/^"(?<inner>.+)"$/, (_match, inner) => inner)
+			.trim();
+		if (!title) {
+			return undefined;
+		}
+
+		const description = lines.slice(i + 1).join('\n').trim().replace(/^description:\s*/i, '').trim();
+		return { title, description };
 	}
 
 	private _createResult(created: { readonly url: string; readonly number: number }, message: string): InvokeChangesetOperationResult {

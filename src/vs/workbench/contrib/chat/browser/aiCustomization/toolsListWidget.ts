@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -25,6 +25,7 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState, TriState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import './media/aiCustomizationManagement.css';
@@ -55,89 +56,48 @@ const TOOLS_MARKETPLACE_QUERY = 'language model tools';
 
 const TOOLS_GALLERY_ITEM_HEIGHT = 62;
 
-interface IToolsGalleryItemTemplate {
-	readonly name: HTMLElement;
-	readonly publisher: HTMLElement;
-	readonly description: HTMLElement;
-	readonly installButton: Button;
-	readonly elementDisposables: DisposableStore;
-	readonly templateDisposables: DisposableStore;
-}
+const TOOLS_GALLERY_ITEM_TEMPLATE_ID = 'toolsGalleryItem';
 
 class ToolsGalleryItemDelegate implements IListVirtualDelegate<IExtension> {
 	getHeight(): number { return TOOLS_GALLERY_ITEM_HEIGHT; }
-	getTemplateId(): string { return 'toolsGalleryItem'; }
+	getTemplateId(): string { return TOOLS_GALLERY_ITEM_TEMPLATE_ID; }
 }
 
-/** Gallery row with an Install button, backed by the Extensions gallery. */
-class ToolsGalleryItemRenderer implements IListRenderer<IExtension, IToolsGalleryItemTemplate> {
-	readonly templateId = 'toolsGalleryItem';
+/** Adapts an extension from the gallery to the shared gallery row renderer. */
+class ToolsGalleryItemProvider implements IGalleryItemProvider<IExtension> {
 
 	constructor(private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService) { }
 
-	renderTemplate(container: HTMLElement): IToolsGalleryItemTemplate {
-		container.classList.add('extension-list-item', 'tools-gallery-item');
-		const details = DOM.append(container, $('.tools-gallery-details'));
-		const name = DOM.append(details, $('span.tools-gallery-name.ellipsis'));
-		const description = DOM.append(details, $('span.tools-gallery-description.ellipsis'));
-		const publisher = DOM.append(details, $('span.tools-gallery-publisher.ellipsis'));
-		const actionContainer = DOM.append(container, $('.tools-gallery-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
-
-		const templateDisposables = new DisposableStore();
-		templateDisposables.add(installButton);
-
-		return { name, publisher, description, installButton, elementDisposables: new DisposableStore(), templateDisposables };
+	getLabel(extension: IExtension): string {
+		return extension.displayName;
 	}
 
-	renderElement(extension: IExtension, _index: number, templateData: IToolsGalleryItemTemplate): void {
-		templateData.elementDisposables.clear();
-
-		templateData.name.textContent = extension.displayName;
-		templateData.publisher.textContent = extension.publisherDisplayName ? localize('toolsGalleryBy', "by {0}", extension.publisherDisplayName) : '';
-		templateData.description.textContent = extension.description || '';
-
-		this._updateInstallButton(templateData.installButton, extension);
-
-		templateData.elementDisposables.add(templateData.installButton.onDidClick(async () => {
-			if (extension.state === ExtensionState.Uninstalled) {
-				templateData.installButton.label = localize('toolsGalleryInstalling', "Installing...");
-				templateData.installButton.enabled = false;
-				try {
-					await this._extensionsWorkbenchService.install(extension);
-				} catch {
-					this._updateInstallButton(templateData.installButton, extension);
-				}
-			}
-		}));
-
-		templateData.elementDisposables.add(this._extensionsWorkbenchService.onChange(changed => {
-			if (!changed || changed.identifier.id === extension.identifier.id) {
-				this._updateInstallButton(templateData.installButton, extension);
-			}
-		}));
+	getPublisherDisplayName(extension: IExtension): string | undefined {
+		return extension.publisherDisplayName;
 	}
 
-	private _updateInstallButton(button: Button, extension: IExtension): void {
+	getDescription(extension: IExtension): string | undefined {
+		return extension.description;
+	}
+
+	getInstallState(extension: IExtension): GalleryItemInstallState {
 		switch (extension.state) {
-			case ExtensionState.Installed:
-				button.label = localize('toolsGalleryInstalled', "Installed");
-				button.enabled = false;
-				break;
-			case ExtensionState.Installing:
-				button.label = localize('toolsGalleryInstalling', "Installing...");
-				button.enabled = false;
-				break;
-			default:
-				button.label = localize('toolsGalleryInstall', "Install");
-				button.enabled = true;
-				break;
+			case ExtensionState.Installed: return GalleryItemInstallState.Installed;
+			case ExtensionState.Installing: return GalleryItemInstallState.Installing;
+			default: return GalleryItemInstallState.Uninstalled;
 		}
 	}
 
-	disposeTemplate(templateData: IToolsGalleryItemTemplate): void {
-		templateData.elementDisposables.dispose();
-		templateData.templateDisposables.dispose();
+	async install(extension: IExtension): Promise<void> {
+		await this._extensionsWorkbenchService.install(extension);
+	}
+
+	onDidChangeInstallState(extension: IExtension, listener: () => void) {
+		return this._extensionsWorkbenchService.onChange(changed => {
+			if (!changed || changed.identifier.id === extension.identifier.id) {
+				listener();
+			}
+		});
 	}
 }
 
@@ -152,6 +112,9 @@ export class ToolsListWidget extends Disposable {
 
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
+
+	private readonly _onDidSelectExtension = this._register(new Emitter<IExtension>());
+	readonly onDidSelectExtension = this._onDidSelectExtension.event;
 
 	private readonly _rowStore = this._register(new DisposableStore());
 	private readonly _searchQuery = observableValue<string>('toolsSearchQuery', '');
@@ -276,7 +239,7 @@ export class ToolsListWidget extends Disposable {
 			'ToolsMarketplaceList',
 			this._galleryListContainer,
 			new ToolsGalleryItemDelegate(),
-			[new ToolsGalleryItemRenderer(this._extensionsWorkbenchService)],
+			[new GalleryItemRenderer<IExtension>(TOOLS_GALLERY_ITEM_TEMPLATE_ID, new ToolsGalleryItemProvider(this._extensionsWorkbenchService))],
 			{
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
@@ -287,6 +250,12 @@ export class ToolsListWidget extends Disposable {
 				identityProvider: { getId: (extension: IExtension) => extension.identifier.id },
 			},
 		)) as WorkbenchList<IExtension>;
+
+		this._register(this._galleryList.onDidOpen(e => {
+			if (e.element) {
+				this._onDidSelectExtension.fire(e.element);
+			}
+		}));
 	}
 
 	private _readState(reader: IReader): IToolEnablementState {
@@ -378,10 +347,8 @@ export class ToolsListWidget extends Disposable {
 		this._lastWidth = width;
 		this._searchInput.layout();
 
-		const headerHeight = this._header.offsetHeight;
-		const searchRowHeight = this._searchRow.offsetHeight;
-		const listHeight = Math.max(0, height - headerHeight - searchRowHeight - 32 /* flex gaps */);
-		this._galleryList.layout(listHeight, width);
+		const galleryOffset = this._galleryContainer.getBoundingClientRect().top - this.element.getBoundingClientRect().top;
+		this._galleryList.layout(Math.max(0, height - galleryOffset), width);
 	}
 
 	/** Enters/leaves marketplace browse mode, swapping the tree for the gallery list. */

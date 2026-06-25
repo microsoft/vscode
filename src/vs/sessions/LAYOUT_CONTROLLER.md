@@ -37,8 +37,8 @@ resource (`URI`) and persisted to workspace storage:
 | Editor working set | `_workingSets` | open editors in the grid editor part |
 
 All state flows from the `activeSession` **observable** (never events). The controller derives
-`activeSessionResourceObs`, `activeSessionHasChangesObs`, `activeSessionIsUntitledObs`,
-`activeSessionHasWorkspaceObs`, and `multipleSessionsVisibleObs`, then reacts with `autorun`.
+`activeSessionResourceObs`, `activeSessionIsCreatedObs`, `activeSessionHasWorkspaceObs`, and
+`multipleSessionsVisibleObs`, then reacts with `autorun`.
 
 ---
 
@@ -76,17 +76,18 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 
 ### 3.2 Switching to — restore
 
-`_syncAuxiliaryBarVisibility(resource, hasWorkspace, isUntitled, hasChanges)` applies state in
+`_syncAuxiliaryBarVisibility(resource, hasWorkspace, isCreated)` applies state in
 strict priority order:
 
 1. **No resource / no workspace** → do nothing.
-2. **Untitled session (new-session view)** → all untitled sessions share a single state object
+2. **Uncreated session (new-session view)** → all uncreated sessions share a single state object
    (`_newSessionViewState`, persisted to workspace storage under `sessions.newSessionViewState`): if
    the user explicitly hid the aux bar on a new session it stays hidden (across switches *and*
-   reloads); otherwise the default container (§3.2 step 4) is shown. This is the **only** place the
+   reloads); otherwise the default container (§3.2 step 4) is shown. This is the main place the
    side pane is opened automatically — a new session opens it by default so the user starts with
-   Files/Changes visible.
-3. **Titled session** (existing session): the side pane is **never auto-opened**.
+   Files visible.
+3. **Created session** (existing session): the side pane is **never auto-opened** except for the
+   same-session submit transition (§3.3).
    - saved state is **hidden** *or* there is **no saved state** → hide the aux bar and stop. A
      session with no explicit "visible" choice — including one that just converted from the
      new-session view to an existing session — stays closed until the user opens it.
@@ -94,28 +95,34 @@ strict priority order:
    - saved state is **visible** but its container is gone → fall back to the default container
      (§3.2 step 4).
 4. **Default container** (`_openDefaultAuxiliaryBarContainer`), used only when the side pane is being
-   shown (untitled default, or restoring a session the user explicitly left visible):
-   - session **has changes** → open the Changes view (`CHANGES_VIEW_ID`).
-   - otherwise → open the Files container.
+   shown (new-session default, or restoring a session the user explicitly left visible):
+   - session **is created** → open the Changes view (`CHANGES_VIEW_ID`).
+   - otherwise → open the Files container (falling back to Changes if Files is hidden).
 
-### 3.3 No auto-reveal on changes
+### 3.3 New-session submit
 
-The side pane is **not** revealed when a chat turn produces new file changes. The controller does not
-track pending turns; the only automatic opening is the new-session default (§3.2 step 2). Once a
-session is an existing session the side pane stays in whatever state the user left it — they must open
-it themselves to see changes.
+When the active new session becomes created (`isCreated` changes from false to true for the same
+session), the side pane stays in whatever visibility state the user left it. If it is visible, the
+controller switches it to Changes immediately. If it is hidden, the controller records Changes as that
+session's default active container so opening the side pane later shows Changes.
 
-### 3.4 Live visibility tracking
+### 3.4 No auto-reveal on changes
+
+The side pane is **not** revealed, and the active container is not changed, when a chat turn produces
+new file changes. The controller does not track pending turns or file-change counts for default
+selection; the automatic switch to Changes is driven by the created transition (§3.3). Once a session
+is created the side pane stays in whatever state the user left it.
+
+### 3.5 Live visibility tracking
 
 Aux-bar visibility is also tracked **live** (not only on session switch) via an
 `onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` (skipped on mobile web and while
 multiple sessions are visible). For a titled active session it re-runs `_captureViewState`; for an
-untitled active session it updates the shared `_newSessionViewState` (§3.2 step
-2). Without this, the sync autorun — which re-evaluates whenever the session's changes/workspace
-state updates, not just on switch — would, for an untitled session, find no shared state and re-open
-the side pane the user had just hidden.
+uncreated active session it updates the shared `_newSessionViewState` (§3.2 step 2). When a created
+session with hidden saved state is opened, the saved/default active container is restored before the
+visible state is captured, so a hidden-on-submit session opens to Changes.
 
-### 3.5 Editor reveal on session switch
+### 3.6 Editor reveal on session switch
 
 The editor part is revealed programmatically when a session's editor working set is restored on a
 session **switch** (`_revealEditorPartForWorkingSet`, §5). It is **not** revealed on the initial
@@ -203,9 +210,10 @@ back to the default-visible logic (§3.2) on the next reload.)
 - **Observables, not events**, drive all session-switch logic.
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
-- **The side pane is never auto-opened for existing sessions** — it opens automatically only as the
-  new-session default (§3.2 step 2). An existing session with no explicit "visible" choice stays
-  closed until the user opens it.
+- **The side pane is never auto-opened for existing sessions on restore** — it opens automatically as
+  the new-session default (§3.2 step 2) and stays visible when an already-visible new session is
+  submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
+  opens it.
 - **The sessions sidebar is auto-managed on a small window (desktop, [D7])** — when the main container is
   1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
   again once either closes or the window widens, unless the user closed it themselves. Suspended while

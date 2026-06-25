@@ -1103,6 +1103,31 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema omits contextSize when long_context tier has no surcharge', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'free-long-context',
+				name: 'Free Long Context',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.strictEqual(models[0].configSchema?.properties?.contextSize, undefined);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('contextSize to contextTier mapping', () => {
 		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',
@@ -1164,6 +1189,24 @@ suite('CopilotAgent', () => {
 
 		test('passes through a legacy resolved tier string under the deprecated contextTier key', async () => {
 			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextTier: 'long_context' } }, [longContextModel]);
+			assert.ok(config);
+			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('uses long_context when model has no surcharge and no explicit selection', async () => {
+			const freeLongContextModel: ITestCopilotModelInfo = {
+				id: 'free-long-ctx',
+				name: 'Free Long Ctx',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000 },
+					},
+				},
+			};
+			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
 		});
