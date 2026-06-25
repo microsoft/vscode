@@ -155,7 +155,12 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	// Strip wrong-architecture @github/copilot-{platform} packages.
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
 
-	return ['**', ...excludes];
+	return [
+		'**',
+		...excludes,
+		'!**/node_modules/@github/copilot-*/copilot',
+		'!**/node_modules/@github/copilot-*/copilot.exe',
+	];
 }
 
 /**
@@ -228,18 +233,6 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 		throw new Error(`[ensureCopilotPlatformPackage] Failed to materialize ${packageName}@${lockPackage.version}: ${err instanceof Error ? err.message : String(err)}`);
 	} finally {
 		fs.rmSync(tempDir, { recursive: true, force: true });
-	}
-}
-
-export function pruneCopilotStandaloneExecutable(platform: string, arch: string, nodeModulesRoot = 'node_modules'): void {
-	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
-	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
-		return;
-	}
-
-	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
-	for (const executable of ['copilot', 'copilot.exe']) {
-		fs.rmSync(path.join(packageDir, executable), { force: true });
 	}
 }
 
