@@ -1369,7 +1369,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+	async runInView(accessor: ServicesAccessor, _view: ChangesViewPane): Promise<void> { 
 		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
 		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.List);
 	}
