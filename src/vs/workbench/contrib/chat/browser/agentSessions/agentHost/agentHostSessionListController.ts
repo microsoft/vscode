@@ -99,6 +99,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// `_createAndSubscribe` path with no user selections.
 		if (request.untitledResource) {
 			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
+				?? this._newSessionFolderService.getDefaultFolder()
 				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 			// Carry the chosen folder forward onto the real resource so the
 			// handler's working-directory resolution stays consistent after the
