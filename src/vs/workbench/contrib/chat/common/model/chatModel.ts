@@ -1429,11 +1429,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setResult(result: IChatAgentResult): void {
-		// If already cancelled, discard all error details from late-arriving agent responses
-		// so that stale error messages (e.g. "Sorry, no response was returned.") are not
-		// persisted or rendered.
+		// If already cancelled, discard error details from late-arriving agent responses.
 		if (this.isCanceled && result.errorDetails) {
-			const { errorDetails: _, ...rest } = result;
+			const { errorDetails: _errorDetails, ...rest } = result;
 			this._result = rest;
 		} else {
 			this._result = result;
