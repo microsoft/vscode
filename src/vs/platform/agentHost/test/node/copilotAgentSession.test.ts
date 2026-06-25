@@ -527,6 +527,25 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('memoizes the event reconstruction across getMessages/getSubagentMessages and invalidates on log changes', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let getEventsCalls = 0;
+		mockSession.getEvents = async () => { getEventsCalls++; return mockSession.messages; };
+
+		// A single resume wave reads + reconstructs the event log once, shared
+		// by the parent turns and every subagent lookup.
+		await session.getMessages();
+		await session.getSubagentMessages('tc-x');
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 1, 'event log should be read once for the whole resume wave');
+
+		// A log-mutating event drops the memo so a later read rebuilds from
+		// fresh events instead of serving stale turns.
+		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
+	});
+
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
 		const symbolUri = URI.file('/workspace/missing.ts');
 		const { session, mockSession } = await createAgentSession(disposables, {
@@ -3988,6 +4007,18 @@ suite('CopilotAgentSession', () => {
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'shell' } as unknown as SessionEventPayload<'session.mode_changed'>['data']);
+
+			assert.strictEqual(sessionConfigUpdates.length, 0);
+		});
+
+		test('session.mode_changed from a subagent does not update the session config', async () => {
+			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
+			// emit `session.mode_changed` carrying an `agentId`. These reflect
+			// the sub-agent's internal mode, not the root session's, and must
+			// not flip the shared session mode picker (e.g. to Plan) mid-turn.
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'plan' } as SessionEventPayload<'session.mode_changed'>['data'], { agentId: 'subagent-1' });
 
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});

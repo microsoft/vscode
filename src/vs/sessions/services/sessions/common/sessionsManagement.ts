@@ -108,6 +108,16 @@ export interface IActiveSession extends ISession {
 
 	/** Whether this session is sticky in the sessions part's grid. */
 	readonly sticky: IObservable<boolean>;
+
+	/**
+	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
+	 * closed ones). Read-only view state: closing/reopening is a view operation
+	 * driven through the sessions (view) service, like {@link sticky}.
+	 */
+	readonly openChats: IObservable<readonly IChat[]>;
+
+	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
+	readonly closedChats: IObservable<readonly IChat[]>;
 }
 
 /**

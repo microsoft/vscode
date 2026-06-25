@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -47,6 +47,7 @@ import { ISessionsManagementService, IActiveSession } from '../../../../services
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 // =============================================================================
@@ -76,6 +77,7 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 const $ = DOM.$;
 
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
+const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
@@ -644,6 +646,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	readonly templateId = SessionSectionRenderer.TEMPLATE_ID;
 
 	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
+	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -676,6 +679,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			return;
 		}
 		this.templatesByElement.set(element, template);
+		this.templatesById.set(element.id, template);
+		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
 			template.count.textContent = '';
@@ -705,6 +710,11 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		}
 	}
 
+	setDropTarget(sectionId: string, active: boolean): void {
+		const template = this.templatesById.get(sectionId);
+		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+	}
+
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
@@ -717,6 +727,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
 		if (isSessionSection(node.element)) {
 			this.templatesByElement.delete(node.element);
+			this.templatesById.delete(node.element.id);
 		}
 	}
 
@@ -733,7 +744,6 @@ interface ISessionGroupTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly inputContainer: HTMLElement;
-	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -754,6 +764,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
 
 	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
+	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
@@ -767,7 +778,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		container.classList.add('session-section', 'session-group');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
-		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
 		chevron.setAttribute('aria-hidden', 'true');
@@ -778,7 +788,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, count, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, label, inputContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -788,9 +798,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 		template.elementDisposables.clear();
 		this.templatesByElement.set(element, template);
+		this.templatesById.set(element.group.id, template);
+		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
 		template.label.textContent = element.group.name;
-		template.count.textContent = String(element.sessions.length);
 		this.updateChevron(template, node.collapsible, node.collapsed);
 		template.toolbar.context = element;
 
@@ -854,6 +865,11 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 	}
 
+	setDropTarget(groupId: string, active: boolean): void {
+		const template = this.templatesById.get(groupId);
+		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+	}
+
 	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
@@ -866,6 +882,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
 		if (isSessionGroupItem(node.element)) {
 			this.templatesByElement.delete(node.element);
+			this.templatesById.delete(node.element.group.id);
 		}
 		template.elementDisposables.clear();
 	}
@@ -953,8 +970,10 @@ class SessionsAccessibilityProvider {
  * model itself.
  */
 interface ISessionsListDndDelegate {
-	/** Whether a session may participate in reordering (regular, non-pinned, non-archived). */
+	/** Whether a session may participate in reordering within its current section. */
 	isReorderable(session: ISession): boolean;
+	/** Whether a session currently renders in the Pinned section. */
+	isSessionPinned(session: ISession): boolean;
 	/** Whether the dragged sessions may be reordered relative to the given target. */
 	canDropOn(dragged: ISession[], target: ISession): boolean;
 	/** Apply the reorder, placing the dragged sessions before/after the target. */
@@ -962,9 +981,37 @@ interface ISessionsListDndDelegate {
 	/** The id of the group the session belongs to, or `undefined`. */
 	getGroupIdOfSession(session: ISession): string | undefined;
 	/** Add the given sessions to the group. */
-	addSessionsToGroup(sessions: ISession[], groupId: string): void;
-	/** Reorder the dragged group before/after the target group. */
-	reorderGroup(draggedGroupId: string, targetGroupId: string, position: 'before' | 'after'): void;
+	addSessionsToGroup(sessions: ISession[], groupId: string, target: ISession | undefined, position: 'before' | 'after' | undefined): void;
+	/** Pin the given sessions, optionally placing them before/after a pinned target. */
+	pinSessions(sessions: ISession[], target: ISession | undefined, position: 'before' | 'after' | undefined): void;
+	/** Highlight only the header that will receive the dragged sessions. */
+	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
+	/** Reorder a top-level header (group or workspace section) before/after another. */
+	reorderSection(draggedId: string, targetId: string, position: 'before' | 'after', isWorkspace: boolean): void;
+}
+
+interface ISessionDropTargetHeader {
+	readonly kind: 'group' | 'section';
+	readonly id: string;
+}
+
+interface ISessionMembershipDropTarget {
+	readonly sessions: ISession[];
+	readonly header: ISessionDropTargetHeader;
+	readonly target: ISession | undefined;
+	readonly position: 'before' | 'after' | undefined;
+}
+
+interface ISessionAddToGroupDropTarget extends ISessionMembershipDropTarget {
+	readonly groupId: string;
+}
+
+/** A top-level header (group or workspace section) currently being dragged to reorder. */
+interface IDraggedHeader {
+	/** The reorder identity (`group:<id>` or `workspace:<label>`). */
+	readonly id: string;
+	/** Whether the dragged header is a workspace section (vs. a user group). */
+	readonly isWorkspace: boolean;
 }
 
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
@@ -979,7 +1026,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (isSessionGroupItem(element)) {
 			return `sessionGroup:${element.group.id}`;
 		}
-		if (isSessionSection(element) || isSessionShowMore(element)) {
+		if (isSessionSection(element)) {
+			// Only workspace sections are reorderable; Pinned, Done and the date
+			// sections stay fixed and are therefore not draggable.
+			return element.id.startsWith('workspace:') ? `sessionWorkspace:${element.id}` : null;
+		}
+		if (isSessionShowMore(element)) {
 			return null;
 		}
 		return element.resource.toString();
@@ -989,6 +1041,10 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const groupItem = elements.find(isSessionGroupItem);
 		if (groupItem) {
 			return groupItem.group.name;
+		}
+		const workspaceSection = elements.find((e): e is ISessionSection => isSessionSection(e) && e.id.startsWith('workspace:'));
+		if (workspaceSection) {
+			return workspaceSection.label;
 		}
 		const sessions = this.toSessions(elements);
 		if (sessions.length === 0) {
@@ -1019,28 +1075,29 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	onDragEnd(): void {
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+		this.delegate.setDropTargetHeader(undefined);
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
-		const draggedGroup = this.draggedGroup(data);
-		if (draggedGroup) {
-			return this.onGroupDragOver(draggedGroup, targetElement, targetSector);
+		const draggedHeader = this.draggedHeader(data);
+		if (draggedHeader) {
+			this.delegate.setDropTargetHeader(undefined);
+			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
 		}
 
-		// Adding sessions to a group: when the drop target lives in a group the
-		// dragged sessions don't already belong to, highlight the whole group
-		// (header + members) without an insertion line and accept the drop.
-		const addToGroupId = this.resolveAddToGroupTarget(data, targetElement);
-		if (addToGroupId !== undefined) {
-			if (targetElement && isSessionGroupItem(targetElement)) {
-				// Bubble the feedback down across the group and all its members.
-				return { accept: true, bubble: TreeDragOverBubble.Down, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
-			}
-			// Target is a member session: bubble up so the parent group (and its
-			// whole subtree) receives the highlight.
-			return { accept: true, bubble: TreeDragOverBubble.Up };
+		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
+		if (pinTarget) {
+			this.delegate.setDropTargetHeader(pinTarget.header);
+			return this.toMembershipDropReaction(pinTarget);
 		}
 
+		const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
+		if (addToGroupTarget) {
+			this.delegate.setDropTargetHeader(addToGroupTarget.header);
+			return this.toMembershipDropReaction(addToGroupTarget);
+		}
+
+		this.delegate.setDropTargetHeader(undefined);
 		const target = this.resolveReorderTarget(data, targetElement);
 		if (!target) {
 			return false;
@@ -1056,31 +1113,47 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
-		const draggedGroup = this.draggedGroup(data);
-		if (draggedGroup) {
-			if (targetElement && isSessionGroupItem(targetElement) && targetElement.group.id !== draggedGroup.id) {
-				this.delegate.reorderGroup(draggedGroup.id, targetElement.group.id, sectorToPosition(targetSector));
+		this.delegate.setDropTargetHeader(undefined);
+		try {
+			const draggedHeader = this.draggedHeader(data);
+			if (draggedHeader) {
+				if (targetElement) {
+					const targetRef = this.headerRefOf(targetElement);
+					if (targetRef && targetRef !== draggedHeader.id) {
+						this.delegate.reorderSection(draggedHeader.id, targetRef, sectorToPosition(targetSector), draggedHeader.isWorkspace);
+					}
+				}
+				return;
 			}
-			return;
-		}
 
-		const addToGroupId = this.resolveAddToGroupTarget(data, targetElement);
-		if (addToGroupId !== undefined) {
-			const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
-			this.delegate.addSessionsToGroup(dragged, addToGroupId);
-			return;
-		}
+			const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
+			if (pinTarget) {
+				this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
+				return;
+			}
 
-		const target = this.resolveReorderTarget(data, targetElement);
-		if (!target) {
-			return;
+			const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
+			if (addToGroupTarget) {
+				this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
+				return;
+			}
+
+			const target = this.resolveReorderTarget(data, targetElement);
+			if (!target) {
+				return;
+			}
+			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
+		} finally {
+			this.delegate.setDropTargetHeader(undefined);
 		}
-		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
-		this.delegate.reorder(dragged, target, sectorToPosition(targetSector));
 	}
 
-	private onGroupDragOver(draggedGroup: ISessionGroup, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
-		if (!targetElement || !isSessionGroupItem(targetElement) || targetElement.group.id === draggedGroup.id) {
+	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		if (!targetElement) {
+			return false;
+		}
+		const targetRef = this.headerRefOf(targetElement);
+		if (!targetRef || targetRef === draggedHeader.id) {
 			return false;
 		}
 		const position = sectorToPosition(targetSector);
@@ -1093,35 +1166,71 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		};
 	}
 
-	/**
-	 * The group id the dragged sessions should be added to, or `undefined` if
-	 * the current drag is not an add-to-group operation. Returns a group id only
-	 * when the target belongs to a group and at least one dragged session is not
-	 * already a member of that group.
-	 */
-	private resolveAddToGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): string | undefined {
+	private resolvePinTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionMembershipDropTarget | undefined {
+		if (!targetElement) {
+			return undefined;
+		}
+
+		let target: ISession | undefined;
+		if (isSessionSection(targetElement)) {
+			if (targetElement.id !== 'pinned') {
+				return undefined;
+			}
+		} else if (isSessionItem(targetElement) && this.delegate.isSessionPinned(targetElement)) {
+			target = targetElement;
+		} else {
+			return undefined;
+		}
+
+		const dragged = this.draggedSessions(data);
+		const hasArchived = dragged.some(session => session.isArchived.get());
+		const allPinned = dragged.every(session => this.delegate.isSessionPinned(session));
+		if (dragged.length === 0 || hasArchived || allPinned) {
+			return undefined;
+		}
+		if (target && dragged.some(session => session.sessionId === target.sessionId)) {
+			return undefined;
+		}
+		return {
+			sessions: dragged,
+			header: { kind: 'section', id: 'pinned' },
+			target,
+			position: target ? sectorToPosition(targetSector) : undefined,
+		};
+	}
+
+	private resolveAddToGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionAddToGroupDropTarget | undefined {
 		if (!targetElement) {
 			return undefined;
 		}
 		let groupId: string | undefined;
+		let target: ISession | undefined;
 		if (isSessionGroupItem(targetElement)) {
 			groupId = targetElement.group.id;
 		} else if (isSessionItem(targetElement)) {
 			groupId = this.delegate.getGroupIdOfSession(targetElement);
+			target = groupId === undefined ? undefined : targetElement;
 		}
 		if (groupId === undefined) {
 			return undefined;
 		}
-		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
-		if (dragged.length === 0) {
+
+		const dragged = this.draggedSessions(data);
+		const hasArchived = dragged.some(session => session.isArchived.get());
+		const allInGroup = dragged.every(session => this.delegate.getGroupIdOfSession(session) === groupId);
+		if (dragged.length === 0 || hasArchived || allInGroup) {
 			return undefined;
 		}
-		// Only an add-to-group drop when at least one dragged session isn't
-		// already in this group; otherwise fall through to within-group reorder.
-		if (dragged.every(s => this.delegate.getGroupIdOfSession(s) === groupId)) {
+		if (target && dragged.some(session => session.sessionId === target.sessionId)) {
 			return undefined;
 		}
-		return groupId;
+		return {
+			sessions: dragged,
+			groupId,
+			header: { kind: 'group', id: groupId },
+			target,
+			position: target ? sectorToPosition(targetSector) : undefined,
+		};
 	}
 
 	/**
@@ -1136,7 +1245,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (!this.delegate.isReorderable(target)) {
 			return undefined;
 		}
-		const dragged = this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
+		const dragged = this.draggedSessions(data);
 		if (dragged.length === 0 || dragged.some(s => s.sessionId === target.sessionId)) {
 			return undefined;
 		}
@@ -1149,12 +1258,51 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		return target;
 	}
 
-	private draggedGroup(data: IDragAndDropData): ISessionGroup | undefined {
+	private toMembershipDropReaction(target: ISessionMembershipDropTarget): ITreeDragOverReaction {
+		let position = ListDragOverEffectPosition.Over;
+		if (target.position === 'after') {
+			position = ListDragOverEffectPosition.After;
+		} else if (target.position === 'before') {
+			position = ListDragOverEffectPosition.Before;
+		}
+		return {
+			accept: true,
+			effect: {
+				type: ListDragOverEffectType.Move,
+				position,
+			},
+		};
+	}
+
+	private draggedHeader(data: IDragAndDropData): IDraggedHeader | undefined {
 		if (!(data instanceof ElementsDragAndDropData)) {
 			return undefined;
 		}
-		const groupItem = (data.elements as SessionListItem[]).find(isSessionGroupItem);
-		return groupItem?.group;
+		const elements = data.elements as SessionListItem[];
+		const groupItem = elements.find(isSessionGroupItem);
+		if (groupItem) {
+			return { id: `group:${groupItem.group.id}`, isWorkspace: false };
+		}
+		const workspaceSection = elements.find((e): e is ISessionSection => isSessionSection(e) && e.id.startsWith('workspace:'));
+		if (workspaceSection) {
+			return { id: workspaceSection.id, isWorkspace: true };
+		}
+		return undefined;
+	}
+
+	/** The reorder identity of a top-level header element, or `undefined` when it is not reorderable. */
+	private headerRefOf(element: SessionListItem): string | undefined {
+		if (isSessionGroupItem(element)) {
+			return `group:${element.group.id}`;
+		}
+		if (isSessionSection(element) && element.id.startsWith('workspace:')) {
+			return element.id;
+		}
+		return undefined;
+	}
+
+	private draggedSessions(data: IDragAndDropData): ISession[] {
+		return this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
 	}
 
 	private toSessions(elements: SessionListItem[]): ISession[] {
@@ -1221,7 +1369,7 @@ export interface ISessionsList {
 	collapseAllSections(): void;
 	createGroupFromSessions(sessions: ISession[]): void;
 	beginRenameGroup(groupId: string): void;
-	addSessionsToGroup(sessions: ISession[], groupId: string): void;
+	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void;
 	getGroupsInDisplayOrder(): ISessionGroup[];
 }
 
@@ -1268,6 +1416,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
 	private _groupRenderer!: SessionGroupRenderer;
+	private _sectionRenderer!: SessionSectionRenderer;
+	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
+
+	/**
+	 * Snapshot of the currently-rendered reorderable top-level headers (groups
+	 * and, in workspace mode, workspace sections) in display order, by reorder
+	 * identity. Captured each render and used as the basis for drag-reorder math.
+	 */
+	private _topLevelOrder: string[] = [];
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -1284,6 +1441,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
+		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -1334,6 +1492,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
+		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
@@ -1361,11 +1520,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 				accessibilityProvider: new SessionsAccessibilityProvider(),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
+					isSessionPinned: session => this.isSessionPinned(session),
 					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
 					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
 					getGroupIdOfSession: session => this._sessionGroupsService.getGroupOfSession(session.sessionId),
-					addSessionsToGroup: (sessions, groupId) => this.addSessionsToGroup(sessions, groupId),
-					reorderGroup: (draggedGroupId, targetGroupId, position) => this.reorderGroup(draggedGroupId, targetGroupId, position),
+					addSessionsToGroup: (sessions, groupId, target, position) => this.addSessionsToGroup(sessions, groupId, target, position),
+					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
+					setDropTargetHeader: header => this.setDropTargetHeader(header),
+					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
@@ -1537,6 +1699,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(this._sessionSectionOrderService.onDidChange(() => {
+			if (this.visible) {
+				this.update();
+			}
+		}));
+
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this.visible) {
 				this.update();
@@ -1621,9 +1789,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
-		const mode = sortingToMode(sorting);
-		const sortKeyOf = (s: ISession) => this._sessionsListModelService.getSortKey(s, mode);
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
+
+		// Garbage-collect manual order/promotion entries for groups and
+		// workspaces that no longer exist (does not affect the visible order).
+		this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 
 		// Pull regular (non-pinned, non-archived) grouped sessions out of the
 		// normal date/workspace sectioning so they render under their group.
@@ -1655,18 +1825,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const forSections = groupedRegularIds.size > 0 ? filtered.filter(s => !groupedRegularIds.has(s.sessionId)) : filtered;
 
-		// Build the group blocks with members sorted by the normal sort logic and
-		// a representative key (manual override, else the best member key) used to
-		// place the group among the other top-level items.
-		const groupItems: { item: ISessionGroupItem; repKey: number }[] = [];
+		// Build the group blocks with members sorted by the normal sort logic.
+		// Groups are fully user-managed: their order is owned by the section-order
+		// service (defaulting to newest-first), independent of their members'
+		// recency, and is shared across both grouping modes.
+		const groupItemsById = new Map<string, ISessionGroupItem>();
 		for (const [groupId, members] of groupedMembers) {
 			const group = this._sessionGroupsService.getGroup(groupId)!;
 			const sortedMembers = sortSessions(members, sorting, sortKeyForGrouping);
-			const naturalRep = sortedMembers.length > 0 ? Math.max(...sortedMembers.map(sortKeyOf)) : group.createdAt;
-			const repKey = group.sortKeyOverride ?? naturalRep;
-			groupItems.push({ item: { group, sessions: sortedMembers, editing: group.id === this._editingGroupId }, repKey });
+			groupItemsById.set(groupId, { group, sessions: sortedMembers, editing: group.id === this._editingGroupId });
 		}
-		groupItems.sort((a, b) => b.repKey - a.repKey);
+		const defaultGroupIds = [...groupItemsById.values()]
+			.sort((a, b) => b.group.createdAt - a.group.createdAt)
+			.map(item => `group:${item.group.id}`);
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
 
@@ -1713,7 +1884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 
 				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId) {
+					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id)) {
 						moreFolderSectionIds.add(section.id);
 					}
 				}
@@ -1779,63 +1950,65 @@ export class SessionsList extends Disposable implements ISessionsList {
 			};
 		};
 
-		const sectionRepKey = (section: ISessionSection): number =>
-			section.sessions.length > 0 ? Math.max(...section.sessions.map(sortKeyOf)) : Number.NEGATIVE_INFINITY;
-
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
 			children.push(renderSection(pinnedSection));
 		}
 
+		const renderGroupById = (id: string): void => {
+			const groupItem = groupItemsById.get(id.slice('group:'.length));
+			if (groupItem) {
+				children.push(renderGroup(groupItem));
+			}
+		};
+
 		if (grouping === SessionsGrouping.Date) {
-			// Interleave groups among the date sections by representative key so a
-			// group sorts to wherever its most-recent member would place it.
-			// Pinned stays at the top, Done (archived) stays at the bottom.
-			type Block = { key: number; render: () => IObjectTreeElement<SessionListItem> };
-			const blocks: Block[] = [];
+			// Groups form a contiguous, fully user-ordered block right below the
+			// Pinned section. They no longer interleave with the date sections by
+			// recency and never mix into Today/Yesterday/etc. Pinned stays at the
+			// top, Done (archived) stays at the bottom.
+			const resolvedGroupIds = this._sessionSectionOrderService.resolveOrder(defaultGroupIds);
+			this._topLevelOrder = resolvedGroupIds;
+			for (const id of resolvedGroupIds) {
+				renderGroupById(id);
+			}
 			for (const section of sections) {
 				if (section.id === 'pinned' || section.id === 'archived') {
 					continue;
 				}
-				blocks.push({ key: sectionRepKey(section), render: () => renderSection(section) });
-			}
-			for (const groupItem of groupItems) {
-				blocks.push({ key: groupItem.repKey, render: () => renderGroup(groupItem.item) });
-			}
-			blocks.sort((a, b) => b.key - a.key);
-			for (const block of blocks) {
-				children.push(block.render());
+				children.push(renderSection(section));
 			}
 			const archived = sections.find(s => s.id === 'archived');
 			if (archived) {
 				children.push(renderSection(archived));
 			}
 		} else {
-			// Workspace grouping: groups render as a block right after Pinned and
-			// before the (alphabetical) workspace sections, sorted among
-			// themselves by representative key.
-			for (const groupItem of groupItems) {
-				children.push(renderGroup(groupItem.item));
-			}
+			// Workspace grouping: groups and (primary) workspace sections share one
+			// freely-reorderable, user-managed order right below Pinned. Groups
+			// default above workspaces; workspaces default to their alphabetical
+			// order. Pinned stays first, Done last, and hidden ("+N more")
+			// workspaces are appended below the ordered block.
+			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
+			const primaryWorkspaceIds = workspaceSections
+				.filter(s => !moreFolderSectionIds.has(s.id))
+				.map(s => s.id);
 
-			const moreFolderSections: ISessionSection[] = [];
-			// The archived ("Done") section should always appear after the
-			// "more workspaces" toggle (both collapsed and expanded states)
-			// so it remains the very last group in the list.
-			let archivedSection: ISessionSection | undefined;
-			for (const section of sections) {
-				if (section.id === 'pinned') {
-					continue;
-				}
-				if (moreFolderSectionIds.has(section.id)) {
-					moreFolderSections.push(section);
-				} else if (partitionFolders && section.id === 'archived') {
-					archivedSection = section;
+			const defaultOrder = [...defaultGroupIds, ...primaryWorkspaceIds];
+			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
+			this._topLevelOrder = resolvedIds;
+			for (const id of resolvedIds) {
+				if (id.startsWith('group:')) {
+					renderGroupById(id);
 				} else {
-					children.push(renderSection(section));
+					const section = sectionById.get(id);
+					if (section) {
+						children.push(renderSection(section));
+					}
 				}
 			}
 
+			const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
 			if (moreFolderSections.length > 0) {
 				if (this.expandedMoreFolders) {
 					for (const section of moreFolderSections) {
@@ -1850,6 +2023,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					});
 				}
 			}
+
+			// The archived ("Done") section is always the very last entry.
+			const archivedSection = sections.find(s => s.id === 'archived');
 			if (archivedSection) {
 				children.push(renderSection(archivedSection));
 			}
@@ -1948,18 +2124,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// Context menu
 
 	/**
-	 * Resolves the sessions an action should operate on for a given clicked
-	 * session: when the clicked session is part of the current multi-selection
-	 * the full selection is returned (clicked session first), otherwise just the
-	 * clicked session.
-	 */
-	/**
-	 * Whether a session may participate in manual reordering. Only regular
-	 * sessions reorder — pinned and archived (Done) sessions keep their fixed
-	 * sections.
+	 * Whether a session may participate in manual reordering. Archived (Done)
+	 * sessions keep their fixed section.
 	 */
 	private isReorderable(session: ISession): boolean {
-		return !session.isArchived.get() && !this.isSessionPinned(session);
+		return !session.isArchived.get();
 	}
 
 	/**
@@ -1968,11 +2137,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * target's group membership, and (when grouping by workspace) its workspace.
 	 */
 	private canReorderOnto(dragged: ISession[], target: ISession): boolean {
+		const targetPinned = this.isSessionPinned(target);
+		if (dragged.some(s => this.isSessionPinned(s) !== targetPinned)) {
+			return false;
+		}
+		if (targetPinned) {
+			return true;
+		}
+
 		const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
 		if (dragged.some(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) !== targetGroup)) {
 			return false;
 		}
-		if (this.options.grouping() === SessionsGrouping.Workspace) {
+		if (targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
 			const targetLabel = sessionWorkspaceLabel(target);
 			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
 		}
@@ -1993,15 +2170,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Derive neighbours from the actual visible display order (which already
 		// respects filtering and grouping) so the drop slot matches what the user
-		// sees. For workspace grouping only the target's workspace participates;
-		// for date grouping the regular list is one continuous sequence. When the
-		// target belongs to a group, reordering stays within that group's members.
-		const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
+		// sees.
+		const targetPinned = this.isSessionPinned(target);
 		let scope = this.getVisibleSessions().filter(s => this.isReorderable(s));
-		scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
-		if (targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
-			const targetLabel = sessionWorkspaceLabel(target);
-			scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
+		scope = scope.filter(s => this.isSessionPinned(s) === targetPinned);
+		if (!targetPinned) {
+			const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
+			scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
+			if (targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
+				const targetLabel = sessionWorkspaceLabel(target);
+				scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
+			}
 		}
 
 		const draggedIds = new Set(dragged.map(s => s.sessionId));
@@ -2035,12 +2214,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * Create a new group containing the given sessions and start renaming it.
-	 * All selected sessions become members — pinned and archived (Done) sessions
-	 * keep their membership and continue to render in their own sections, but
-	 * return to the group once unpinned/restored.
+	 * Archived (Done) sessions are ignored.
 	 */
 	createGroupFromSessions(sessions: ISession[]): void {
-		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), sessions.map(s => s.sessionId));
+		const groupSessions = sessions.filter(session => !session.isArchived.get());
+		if (groupSessions.length === 0) {
+			return;
+		}
+		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), groupSessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
 	}
@@ -2054,9 +2235,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
-	addSessionsToGroup(sessions: ISession[], groupId: string): void {
-		for (const session of sessions) {
+	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
+		const groupSessions = sessions.filter(session => !session.isArchived.get());
+		for (const session of groupSessions) {
 			this._sessionGroupsService.addToGroup(session.sessionId, groupId);
+		}
+		if (target && position) {
+			this.reorderSessions(groupSessions, target, position);
 		}
 	}
 
@@ -2075,68 +2260,69 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Reorder a group so it lands before/after the target group, persisting a
-	 * synthetic sort key spread between the surrounding groups' representative
-	 * keys. Reuses the session reorder math for a single-item block.
+	 * Reorder a top-level header (group or workspace section) so it lands
+	 * before/after the target header. The new order is persisted to the
+	 * section-order service. When the dragged header is a workspace it is also
+	 * promoted so it stays visible (escapes the "+N more workspaces" capping).
 	 */
-	private reorderGroup(draggedGroupId: string, targetGroupId: string, position: 'before' | 'after'): void {
-		const order = this.getGroupsInDisplayOrder();
-		const repKey = (groupId: string): number => {
-			const group = this._sessionGroupsService.getGroup(groupId);
-			if (group?.sortKeyOverride !== undefined) {
-				return group.sortKeyOverride;
-			}
-			const mode = sortingToMode(this.options.sorting());
-			const memberKeys = this._sessionGroupsService.getSessionIdsInGroup(groupId)
-				.map(id => this.sessions.find(s => s.sessionId === id))
-				.filter((s): s is ISession => !!s)
-				.map(s => this._sessionsListModelService.getSortKey(s, mode));
-			return memberKeys.length > 0 ? Math.max(...memberKeys) : (group?.createdAt ?? Date.now());
-		};
-
-		const remaining = order.filter(g => g.id !== draggedGroupId);
-		const targetIndex = remaining.findIndex(g => g.id === targetGroupId);
-		if (targetIndex === -1) {
-			return;
-		}
-		const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-		const above = remaining[insertIndex - 1];
-		const below = remaining[insertIndex];
-
-		const { set, clear } = computeReorderSortChanges({
-			draggedIds: [draggedGroupId],
-			naturalKeys: [repKey(draggedGroupId)],
-			aboveKey: above ? repKey(above.id) : undefined,
-			belowKey: below ? repKey(below.id) : undefined,
-			now: Date.now(),
-			fallbackStep: SORT_FALLBACK_STEP_MS,
-		});
-		for (const id of clear) {
-			this._sessionGroupsService.setGroupSortKey(id, undefined);
-		}
-		for (const [id, value] of set) {
-			this._sessionGroupsService.setGroupSortKey(id, value);
-		}
+	private reorderSection(draggedId: string, targetId: string, position: 'before' | 'after', isWorkspace: boolean): void {
+		this._sessionSectionOrderService.reorder(this._topLevelOrder, draggedId, targetId, position, isWorkspace ? draggedId : undefined);
 	}
 
 	/**
-	 * Groups in their current top-to-bottom display order, computed from member
-	 * representative keys (and manual overrides). Used to keep the "Add to Group"
-	 * menu and group reordering consistent with the list.
+	 * Groups in their current top-to-bottom display order. Groups are fully
+	 * user-managed (see {@link ISessionSectionOrderService}); the order defaults
+	 * to newest-first and is shared with the list. Used to keep the "Add to
+	 * Group" / "Move to Group" menu consistent with the rendered order.
 	 */
 	getGroupsInDisplayOrder(): ISessionGroup[] {
-		const mode = sortingToMode(this.options.sorting());
-		const repKey = (group: ISessionGroup): number => {
-			if (group.sortKeyOverride !== undefined) {
-				return group.sortKeyOverride;
-			}
-			const memberKeys = this._sessionGroupsService.getSessionIdsInGroup(group.id)
-				.map(id => this.sessions.find(s => s.sessionId === id))
-				.filter((s): s is ISession => !!s)
-				.map(s => this._sessionsListModelService.getSortKey(s, mode));
-			return memberKeys.length > 0 ? Math.max(...memberKeys) : group.createdAt;
-		};
-		return this._sessionGroupsService.getGroups().sort((a, b) => repKey(b) - repKey(a));
+		const groups = this._sessionGroupsService.getGroups();
+		const byId = new Map<string, ISessionGroup>(groups.map(g => [`group:${g.id}`, g]));
+		const defaultIds = [...groups]
+			.sort((a, b) => b.createdAt - a.createdAt)
+			.map(g => `group:${g.id}`);
+		return this._sessionSectionOrderService.resolveOrder(defaultIds)
+			.map(id => byId.get(id))
+			.filter((g): g is ISessionGroup => !!g);
+	}
+
+	/**
+	 * The set of top-level reorder identities that currently exist (every group,
+	 * plus every workspace label present across all sessions, regardless of
+	 * grouping mode or capping). Used to garbage-collect stale manual order and
+	 * promotion entries.
+	 */
+	private liveSectionOrderIds(): Set<string> {
+		const ids = new Set<string>();
+		for (const group of this._sessionGroupsService.getGroups()) {
+			ids.add(`group:${group.id}`);
+		}
+		for (const session of this.sessions) {
+			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
+		}
+		return ids;
+	}
+
+	private setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void {
+		const current = this._dropTargetHeader;
+		if (current?.kind === header?.kind && current?.id === header?.id) {
+			this.toggleDropTargetHeader(header, header !== undefined);
+			return;
+		}
+		this.toggleDropTargetHeader(current, false);
+		this._dropTargetHeader = header;
+		this.toggleDropTargetHeader(header, true);
+	}
+
+	private toggleDropTargetHeader(header: ISessionDropTargetHeader | undefined, active: boolean): void {
+		if (!header) {
+			return;
+		}
+		if (header.kind === 'group') {
+			this._groupRenderer.setDropTarget(header.id, active);
+		} else {
+			this._sectionRenderer.setDropTarget(header.id, active);
+		}
 	}
 
 	private getMultiSelectedSessions(session: ISession): ISession[] {
@@ -2208,6 +2394,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
 		const actions: IAction[] = [];
+		if (selected.some(session => session.isArchived.get())) {
+			return actions;
+		}
 
 		actions.push(new Action('sessions.createGroup', localize('createGroupAction', "Create Group"), undefined, true, async () => {
 			this.createGroupFromSessions(selected);
@@ -2259,6 +2448,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	pinSession(session: ISession): void {
 		this._sessionsListModelService.pinSession(session);
+	}
+
+	private pinSessions(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
+		const pinnable = sessions.filter(session => !session.isArchived.get());
+		for (const session of pinnable) {
+			this._sessionsListModelService.pinSession(session);
+		}
+		if (target && position) {
+			this.reorderSessions(pinnable, target, position);
+		}
 	}
 
 	unpinSession(session: ISession): void {

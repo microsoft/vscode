@@ -12,7 +12,7 @@ import { comparePaths } from '../../../../base/common/comparers.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { ChangesViewModel } from './changesViewModel.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 
 const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
 
@@ -60,8 +60,8 @@ function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
-		private readonly _viewModel: ChangesViewModel,
-		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(this));
@@ -77,16 +77,16 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			if (this._viewModel.activeSessionIsLoadingObs.read(reader)) {
+			if (this.changesViewService.activeSessionIsLoadingObs.read(reader)) {
 				return lastValue ?? [];
 			}
 
-			const activeSessionResource = this._viewModel.activeSessionResourceObs.read(reader);
+			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, parsed.sessionResource)) {
 				return lastValue ?? [];
 			}
 
-			return this._viewModel.activeSessionChangesObs.read(reader);
+			return this.changesViewService.activeSessionChangesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({

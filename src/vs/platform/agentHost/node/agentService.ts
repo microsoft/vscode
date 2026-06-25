@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -1610,10 +1610,30 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		const promises: Promise<unknown>[] = [];
+		// Eagerly register subagent child sessions discovered in the event log
+		// so the client's per-subagent subscriptions resolve from in-memory
+		// state (hitting `restoreSubagent skipped existing`) instead of each
+		// re-fetching and re-reconstructing the full parent event log. The
+		// agent serves these from the same reconstruction it already produced
+		// for the parent turns above, so this adds no extra event-log reads.
+		promises.push((async () => {
+			if (agent.getSubagentSessions) {
+				try {
+					const children = await agent.getSubagentSessions(session);
+					for (const child of children) {
+						this._registerRestoredSubagent(child, summary);
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] restoreSession failed to eagerly register subagents session=${sessionStr}`, err);
+				}
+			}
+		})());
+
 		// Restore any additional (non-default) peer chats the provider has
 		// persisted for this session, seeding each with its own history and
 		// persisted title so they reappear after a process restart.
-		await this._restorePeerChats(agent, session);
+		promises.push(this._restorePeerChats(agent, session));
 
 		const changesets = buildDefaultChangesetCatalogue(sessionStr);
 		this._stateManager.setSessionChangesets(sessionStr, changesets);
@@ -1652,6 +1672,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return undefined;
 				})
 				: Promise.resolve(undefined),
+			...promises
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
@@ -1691,7 +1712,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats.length === 0) {
 			return;
 		}
-		for (const chatUri of chats) {
+		await Promise.all(chats.map(async (chatUri) => {
 			let turns: readonly Turn[] = [];
 			try {
 				turns = await agent.getSessionMessages(chatUri);
@@ -1700,7 +1721,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const title = await this._readPersistedChatTitle(session, chatUri);
 			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
-		}
+		}));
 	}
 
 	/** Reads a peer chat's persisted custom title, if any. */
@@ -2293,6 +2314,31 @@ export class AgentService extends Disposable implements IAgentService {
 			[...childTurns],
 		);
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
+	}
+
+	/**
+	 * Registers a subagent child session's state up-front from data the agent
+	 * already reconstructed for the parent, so a later subscribe-driven
+	 * {@link _restoreSubagentSession} finds it present and returns early
+	 * instead of re-reading the parent event log. No-op if already registered.
+	 */
+	private _registerRestoredSubagent(child: IRestoredSubagentSession, parentSummary: SessionSummary): void {
+		const resourceStr = child.resource.toString();
+		if (this._stateManager.getSessionState(resourceStr)) {
+			return;
+		}
+		this._stateManager.restoreSession(
+			{
+				resource: resourceStr,
+				provider: 'subagent',
+				title: child.title,
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				...(parentSummary.project ? { project: parentSummary.project } : {}),
+			},
+			[...child.turns],
+		);
 	}
 
 	private _findProviderForSession(session: URI | string): IAgent | undefined {

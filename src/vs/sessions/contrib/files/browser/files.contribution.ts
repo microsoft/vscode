@@ -19,6 +19,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import './workspaceFolderActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SessionHasGitRepositoryContext, SessionHasGitSyncActionRunningContext, IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';

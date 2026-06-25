@@ -6311,7 +6311,7 @@
       "chat/input/editing/sessionTitleToolbar": [
         {
           "command": "github.copilot.sessions.refreshChanges",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
           "group": "9_refresh@1"
         }
       ],

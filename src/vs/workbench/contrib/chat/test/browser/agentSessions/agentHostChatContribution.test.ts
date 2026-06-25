@@ -615,7 +615,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
-	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService));
+	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService)));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByType = new Map<string, IObservable<readonly ClientPluginCustomization[]>>();
 	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]> }): IDisposable => {
