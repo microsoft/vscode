@@ -33,6 +33,13 @@ export interface IChatInputNotificationMuteAction {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	/**
+	 * Optional finer-grained identifier for telemetry. When set, the widget
+	 * emits it alongside `id` in show/dismiss telemetry events so that callers
+	 * that reuse a single `id` (e.g. `QUOTA_NOTIFICATION_ID`) can still
+	 * distinguish the *kind* of message that was visible (e.g.
+	 * `quotaExhausted`, `quotaApproaching50`, `managedPlanBlocked`).
+	 */
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
