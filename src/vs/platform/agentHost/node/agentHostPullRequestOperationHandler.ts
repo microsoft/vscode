@@ -378,7 +378,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			return undefined;
 		}
 
-		let title = lines[i].trim()
+		const title = lines[i].trim()
 			.replace(/^#+\s*/, '')
 			.replace(/^title:\s*/i, '')
 			.trim()
