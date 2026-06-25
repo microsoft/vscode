@@ -106,6 +106,12 @@ describe('Configurations', () => {
 				// directly in settings.json.
 				return;
 			}
+			if (key === ConfigKey.Advanced.ChatQuotaTrajectoryNudge.fullyQualifiedId) {
+				// Experiment-backed bridge setting queried from workbench. It is not
+				// surfaced as a contributed user setting because this PR cannot modify
+				// package.json under the engineering-system guard.
+				return;
+			}
 			expect(advancedConfigurationsInPackageJson, `Advanced setting ${key} should be defined in the advanced section of package.json`).toContain(key);
 		});
 
