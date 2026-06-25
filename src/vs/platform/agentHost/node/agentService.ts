@@ -1713,16 +1713,14 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		await Promise.all(chats.map(async (chatUri) => {
-			for (const chatUri of chats) {
-				let turns: readonly Turn[] = [];
-				try {
-					turns = await agent.getSessionMessages(chatUri);
-				} catch (err) {
-					this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
-				}
-				const title = await this._readPersistedChatTitle(session, chatUri);
-				this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+			let turns: readonly Turn[] = [];
+			try {
+				turns = await agent.getSessionMessages(chatUri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
+			const title = await this._readPersistedChatTitle(session, chatUri);
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
 		}));
 	}
 
