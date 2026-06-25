@@ -7,7 +7,6 @@ import type * as vscode from 'vscode';
 import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellableRequestMap } from '../../../base/common/cancellableRequestMap.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -126,7 +125,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
-	private readonly _pendingRequest = new CancellableRequestMap<{ languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
@@ -143,7 +142,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeModelAccess.dispose();
 		this._onDidChangeProviders.dispose();
 		this._onDidChangeModelProxyAvailability.dispose();
-		this._pendingRequest.dispose();
+		this._pendingRequest.clear();
 		this._pendingCancelCTS.dispose();
 	}
 
@@ -514,17 +513,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const requestId = (Math.random() * 1e6) | 0;
 		const res = new LanguageModelResponse();
-		this._pendingRequest.set(requestId, { languageModelId, res }, token, () => {
+		this._pendingRequest.set(requestId, { languageModelId, res });
+
+		const cts = new CancellationTokenSource(token);
+		this._pendingCancelCTS.set(requestId, cts);
+		cts.token.onCancellationRequested(() => {
 			this._proxy.$cancelLanguageModelChatRequest(requestId);
 		});
 
 		try {
-			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, token);
+			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, cts.token);
 
 		} catch (error) {
 			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
 			// later the response can fail as well. Those failures are communicated via the stream-object
 			this._pendingRequest.delete(requestId);
+			this._pendingCancelCTS.deleteAndDispose(requestId);
 			throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 		}
 
@@ -559,6 +563,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return;
 		}
 		this._pendingRequest.delete(requestId);
+		this._pendingCancelCTS.deleteAndDispose(requestId);
 		if (error) {
 			// we error the stream because that's the only way to signal
 			// that the request has failed
