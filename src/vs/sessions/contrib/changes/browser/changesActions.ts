@@ -5,6 +5,7 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -36,6 +37,7 @@ class ViewAllChangesAction extends Action2 {
 		super({
 			id: ViewAllChangesAction.ID,
 			title: localize2('agentSessions.changes', 'Changes'),
+			icon: Codicon.diffMultiple,
 			f1: false,
 			// Diff stats shown in the session header meta row
 			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
@@ -82,14 +84,16 @@ registerAction2(ViewAllChangesAction);
 // --- View All Changes action view item (session header diff stats)
 
 interface IDiffStats {
+	readonly files: number;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly branch: string | undefined;
 }
 
 /**
  * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row) as a `Changes +insertions -deletions` pill. It extends the generic
- * {@link SessionHeaderMetaActionViewItem} (so the `Changes` title renders consistently with other
+ * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
+ * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
  * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
@@ -121,14 +125,23 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 				insertions += change.insertions;
 				deletions += change.deletions;
 			}
-			return { insertions, deletions };
+			const branch = session?.workspace.read(reader)?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
+			return { files: changes.length, insertions, deletions, branch };
 		});
 
 		this._register(autorun(reader => {
 			this._diffStatsObs.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
+			this.updateAriaLabel();
 		}));
+	}
+
+	protected override getLabelText(): string {
+		const { files } = this._diffStatsObs.get();
+		return files === 1
+			? localize('agentSessions.changes.file', "{0} file", files)
+			: localize('agentSessions.changes.files', "{0} files", files);
 	}
 
 	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
@@ -140,7 +153,19 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	}
 
 	protected override getTooltip(): string {
-		return localize('agentSessions.viewChanges.tooltip', "View All Changes");
+		const { branch } = this._diffStatsObs.get();
+		return branch
+			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
+			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+	}
+
+	protected override getAriaLabel(): string {
+		const { files, insertions, deletions } = this._diffStatsObs.get();
+		const filesLabel = files === 1
+			? localize('agentSessions.changes.file', "{0} file", files)
+			: localize('agentSessions.changes.files', "{0} files", files);
+		// e.g. "View Changes (main): 3 files, +10, -4"
+		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }
 

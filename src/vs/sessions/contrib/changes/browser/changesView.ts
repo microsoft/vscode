@@ -768,9 +768,13 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
-				// Open a single file diff editor when configured to do so
-				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
-					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
+				// Holding Alt inverts the configured single/multi file diff behavior.
+				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
+				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
+				if (openSingleFileDiff) {
+					// Alt here only switches the diff mode, not the target group.
+					const sideBySide = e.sideBySide && !altKey;
+					void this._openSingleFileDiffEditor(e.element, sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
 					return;
 				}
 
