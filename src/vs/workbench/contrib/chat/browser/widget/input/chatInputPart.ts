@@ -578,6 +578,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _userExplicitlySelectedModel = false;
 	private _pendingDelegationTarget: AgentSessionTarget | undefined = undefined;
 	private _currentSessionType: string | undefined = undefined;
+	/** Dedupes the verbose visibility-filter trace log (see {@link getModelsForSessionType}). */
+	private _lastHiddenFilterLogKey: string | undefined = undefined;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -1680,7 +1682,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 		const sessionFiltered = filterModelsForSession(allModels, sessionType, this.currentModeKind, this.location);
-		return sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
+		const visibleModels = sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
+		// When the visibility filter actually drops models, trace which ids were hidden
+		// so reports of "the picker only shows one model" can be confirmed as a visibility
+		// issue (vs. models never arriving). Deduped + Trace-gated to avoid hot-path noise.
+		if (visibleModels.length !== sessionFiltered.length && canLog(this.logService.getLevel(), LogLevel.Trace)) {
+			const hiddenIds = sessionFiltered.filter(m => this.languageModelsService.isModelHidden(m.identifier)).map(m => m.identifier);
+			const logKey = `${sessionType ?? '(none)'}|${hiddenIds.join(',')}`;
+			if (logKey !== this._lastHiddenFilterLogKey) {
+				this._lastHiddenFilterLogKey = logKey;
+				this.logService.trace(`[ChatInputPart] Model visibility filter hid ${hiddenIds.length} of ${sessionFiltered.length} model(s) for sessionType=${sessionType ?? '(none)'}: ${hiddenIds.join(', ')}`);
+			}
+		}
+		return visibleModels;
 	}
 
 	/**
