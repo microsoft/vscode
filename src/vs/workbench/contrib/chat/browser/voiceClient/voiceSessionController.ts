@@ -945,6 +945,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (strippedText !== undefined) {
 					text = strippedText;
 					this._updateUserTurn(text, e.committed ?? '', false);
+					this._persistTurn('user', text);
+					this._pttToggleMode = false;
 					this._finishPtt();
 					return;
 				}
@@ -1326,7 +1328,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * Returns the text with the keyword stripped if found, or undefined if not.
 	 */
 	private _checkSendKeyword(text: string): string | undefined {
-		const keyword = this.configurationService.getValue<string>('agents.voice.sendKeyword');
+		const keyword = this.configurationService.getValue<string>('agents.voice.sendKeyword')?.trim();
 		if (!keyword) {
 			return undefined;
 		}
