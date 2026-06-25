@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
@@ -46,7 +46,7 @@ import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiv
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
-import { isPromptInvokedCopilotSlashCommand, isRuntimeCopilotSlashCommand, parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
+import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -67,12 +67,20 @@ import { McpServerStatus, type McpServerState } from '../../common/state/protoco
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
-type RuntimeSlashCommandCache = { readonly expiresAt: number; readonly promise: Promise<ReadonlySet<string>> };
+type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
+type RuntimeSlashCommandCatalog = {
+	readonly commands: readonly RuntimeSlashCommandInfo[];
+	readonly byName: ReadonlyMap<string, RuntimeSlashCommandInfo>;
+	readonly byAlias: ReadonlyMap<string, RuntimeSlashCommandInfo>;
+};
+type RuntimeSlashCommandCache = {
+	value?: RuntimeSlashCommandCatalog;
+	inFlight?: Promise<RuntimeSlashCommandCatalog>;
+};
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
-const RUNTIME_SLASH_COMMAND_CACHE_TTL_MS = 30_000;
 
 type IMappedSessionEvents = { turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> };
 
@@ -1040,51 +1048,10 @@ export class CopilotAgentSession extends Disposable {
 			this._completeActiveTurn();
 			return;
 		}
-		if (slashCommand && isRuntimeCopilotSlashCommand(slashCommand.command) && await this.hasRuntimeSlashCommand(slashCommand.command)) {
-			let result: CopilotCommandInvocationResult;
-			try {
-				result = await this._wrapper.session.rpc.commands.invoke({
-					name: slashCommand.command,
-				});
-			} catch (err) {
-				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
-				throw err;
-			}
-			switch (result.kind) {
-				case 'text':
-					this._emitMarkdownDelta(result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text));
-					break;
-				case 'completed':
-					if (result.message) {
-						this._emitMarkdownDelta(result.message);
-					}
-					break;
-				case 'agent-prompt': {
-					const runtimeMode = toCopilotSdkMode(result.mode);
-					if (runtimeMode) {
-						mode = runtimeMode;
-					}
-					prompt = result.prompt;
-					break;
-				}
-				default:
-					this._logService.warn(`[Copilot:${this.sessionId}] Unexpected /${slashCommand.command} command result kind: ${result.kind}`);
-					this._emitMarkdownDelta(localize('copilotSlashCommand.unsupportedRuntimeResult', "The /{0} command returned an unsupported result.", slashCommand.command));
-					break;
-			}
-			if (result.kind !== 'agent-prompt') {
-				this._completeActiveTurn();
-				return;
-			}
-		}
-		if (slashCommand && isPromptInvokedCopilotSlashCommand(slashCommand.command)) {
-			prompt = slashCommand.rest ? `/${slashCommand.command} ${slashCommand.rest}` : `/${slashCommand.command}`;
-		}
 		if (slashCommand?.command === 'plan') {
 			mode = 'plan';
 			prompt = slashCommand.rest;
-		}
-		if (slashCommand?.command === 'rubber-duck') {
+		} else if (slashCommand?.command === 'rubber-duck') {
 			if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.RubberDuck) !== true) {
 				// Feature not enabled — pass the remaining text through as a plain
 				// message rather than injecting agent instructions for an unavailable agent.
@@ -1094,6 +1061,53 @@ export class CopilotAgentSession extends Disposable {
 				prompt = userPrompt
 					? `The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.\n\nAdditional instructions: ${userPrompt}`
 					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
+			}
+		} else if (slashCommand) {
+			const runtimeSlashCommand = await this._resolveRuntimeSlashCommand(slashCommand.command);
+			if (runtimeSlashCommand) {
+				let result: CopilotCommandInvocationResult;
+				try {
+					result = await this._wrapper.session.rpc.commands.invoke({
+						name: runtimeSlashCommand.name,
+						...(slashCommand.rawRest.length > 0 ? { input: slashCommand.rawRest } : {}),
+					});
+				} catch (err) {
+					this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
+					throw err;
+				}
+				switch (result.kind) {
+					case 'text':
+						this._emitMarkdownDelta(result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text));
+						break;
+					case 'completed':
+						if (result.message) {
+							this._emitMarkdownDelta(result.message);
+						}
+						break;
+					case 'agent-prompt': {
+						const runtimeMode = toCopilotSdkMode(result.mode);
+						if (runtimeMode) {
+							mode = runtimeMode;
+						}
+						prompt = result.prompt;
+						break;
+					}
+					case 'select-subcommand':
+						this._emitMarkdownDelta(localize(
+							'copilotSlashCommand.selectSubcommandResult',
+							"The /{0} command requires selecting a subcommand. Available options: {1}",
+							result.command,
+							result.options.map(option => option.name).join(', '),
+						));
+						break;
+				}
+				if (result.runtimeSettingsChanged === true) {
+					this._invalidateRuntimeSlashCommandCache();
+				}
+				if (result.kind !== 'agent-prompt') {
+					this._completeActiveTurn();
+					return;
+				}
 			}
 		}
 
@@ -1111,27 +1125,121 @@ export class CopilotAgentSession extends Disposable {
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
 		try {
-			return (await this._getRuntimeSlashCommands()).has(command);
+			return !!(await this._resolveRuntimeSlashCommand(command));
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
 			return false;
 		}
 	}
 
-	private _getRuntimeSlashCommands(): Promise<ReadonlySet<string>> {
-		const now = Date.now();
-		if (this._runtimeSlashCommandCache && this._runtimeSlashCommandCache.expiresAt > now) {
-			return this._runtimeSlashCommandCache.promise;
+	async getRuntimeSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
+		try {
+			const maxWaitMs = options?.maxWaitMs;
+			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs === undefined ? undefined : Math.max(0, maxWaitMs));
+			return catalog.commands;
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
+			return [];
 		}
-		const promise = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: false })
-			.then(result => new Set(result.commands.filter(command => command.kind === 'builtin').map(command => command.name)));
-		this._runtimeSlashCommandCache = { expiresAt: now + RUNTIME_SLASH_COMMAND_CACHE_TTL_MS, promise };
-		promise.catch(() => {
-			if (this._runtimeSlashCommandCache?.promise === promise) {
-				this._runtimeSlashCommandCache = undefined;
+	}
+
+	private async _resolveRuntimeSlashCommand(command: string, maxWaitMs: number | undefined = undefined): Promise<RuntimeSlashCommandInfo | undefined> {
+		const key = this._normalizeSlashCommandKey(command);
+		if (!key) {
+			return undefined;
+		}
+		const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
+		return catalog.byName.get(key) ?? catalog.byAlias.get(key);
+	}
+
+	private async _getRuntimeSlashCommandCatalog(maxWaitMs: number | undefined = undefined): Promise<RuntimeSlashCommandCatalog> {
+		const cache = this._runtimeSlashCommandCache ??= {};
+		if (cache.value) {
+			return cache.value;
+		}
+
+		const inFlight = this._refreshRuntimeSlashCommandCatalog(cache);
+		if (maxWaitMs === undefined) {
+			return inFlight;
+		}
+		const settled = await raceTimeout(inFlight, maxWaitMs);
+		if (settled) {
+			return settled;
+		}
+		if (cache.value) {
+			return cache.value;
+		}
+		return {
+			commands: [],
+			byName: new Map(),
+			byAlias: new Map(),
+		};
+	}
+
+	private _refreshRuntimeSlashCommandCatalog(cache: RuntimeSlashCommandCache): Promise<RuntimeSlashCommandCatalog> {
+		if (cache.inFlight) {
+			return cache.inFlight;
+		}
+
+		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: true })
+			.then(result => this._toRuntimeSlashCommandCatalog(result.commands));
+		cache.inFlight = inFlight;
+		inFlight.then(catalog => {
+			if (this._runtimeSlashCommandCache === cache) {
+				cache.value = catalog;
+				cache.inFlight = undefined;
+			}
+		}, () => {
+			if (this._runtimeSlashCommandCache === cache) {
+				cache.inFlight = undefined;
+				if (!cache.value) {
+					this._runtimeSlashCommandCache = undefined;
+				}
 			}
 		});
-		return promise;
+		return inFlight;
+	}
+
+	private _toRuntimeSlashCommandCatalog(commands: readonly RuntimeSlashCommandInfo[]): RuntimeSlashCommandCatalog {
+		const byName = new Map<string, RuntimeSlashCommandInfo>();
+		const byAlias = new Map<string, RuntimeSlashCommandInfo>();
+		const deduped: RuntimeSlashCommandInfo[] = [];
+		for (const command of commands) {
+			const nameKey = this._normalizeSlashCommandKey(command.name);
+			if (!nameKey) {
+				continue;
+			}
+			let canonical = byName.get(nameKey);
+			if (!canonical) {
+				canonical = command;
+				byName.set(nameKey, canonical);
+				deduped.push(canonical);
+			}
+			for (const alias of command.aliases ?? []) {
+				const aliasKey = this._normalizeSlashCommandKey(alias);
+				if (!aliasKey || byAlias.has(aliasKey)) {
+					continue;
+				}
+				byAlias.set(aliasKey, canonical);
+			}
+		}
+		return { commands: deduped, byName, byAlias };
+	}
+
+	private _normalizeSlashCommandKey(command: string): string | undefined {
+		const trimmed = command.trim();
+		if (!trimmed) {
+			return undefined;
+		}
+		const slashStripped = trimmed.charCodeAt(0) === 0x2f /* / */ ? trimmed.slice(1) : trimmed;
+		return slashStripped.toLowerCase();
+	}
+
+	private _invalidateRuntimeSlashCommandCache(): void {
+		if (this._runtimeSlashCommandCache) {
+			// Keep in-flight promises isolated from fresh lookups after invalidation.
+			this._runtimeSlashCommandCache = undefined;
+		}
 	}
 
 	/**
@@ -2681,7 +2789,11 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onToolsUpdated(() => {
+			this._invalidateRuntimeSlashCommandCache();
 			this._fireMcpToolsListChanged();
+		}));
+		this._register(wrapper.onCommandsChanged(() => {
+			this._invalidateRuntimeSlashCommandCache();
 		}));
 
 		// Seed the inventory with any servers the SDK has already loaded by
