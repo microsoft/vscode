@@ -2181,6 +2181,50 @@ suite('ChatService', () => {
 				'Draft text is restored and the model comes from session history, not the stale persisted selection'
 			);
 		});
+
+		test('restored draft preserves the model configuration (effort/context) of the history model', async () => {
+			const historyModelId = 'history-model';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'History Model', vendor: 'copilot', version: '1.0', family: 'history',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true }
+			};
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+
+			const testService = createChatService();
+
+			// Load, then seed an unsent draft together with the per-model configuration the
+			// user picked (e.g. high thinking effort + 1M context window) for that same model.
+			const modelConfiguration = { thinkingEffort: 'high', contextSize: 1_000_000 };
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: historyModelId, metadata: historyMetadata },
+				modelConfiguration,
+			});
+
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+			assert.deepStrictEqual(
+				{ selectedModel: restored?.selectedModel?.identifier, modelConfiguration: restored?.modelConfiguration },
+				{ selectedModel: historyModelId, modelConfiguration },
+				'Model and its configuration (effort + context window) are restored from the persisted draft for the history model'
+			);
+		});
 	});
 
 	test('onWillSaveState persists session index synchronously so it survives reload', async () => {

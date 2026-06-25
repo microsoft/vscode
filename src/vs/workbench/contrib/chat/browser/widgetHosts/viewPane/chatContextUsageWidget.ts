@@ -367,10 +367,19 @@ export class ChatContextUsageWidget extends Disposable {
 			return undefined;
 		}
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		// Computing the total context window needs the model's metadata, notably its output-token budget
+		// (`maxOutputTokens`), which — unlike the input window — has no configuration fallback. Right after a reload the
+		// model provider may not have registered the selected model yet while a persisted `contextSize` is already
+		// resolvable, so the window would be computed input-only (e.g. 272K instead of 272K + 128K for GPT-5). Bail out
+		// until metadata is available rather than render a misleading partial value; the widget re-renders on model
+		// registration (`onDidChangeLanguageModels`) and on model selection.
+		if (!modelMetadata) {
+			return undefined;
+		}
 		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
 		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
-		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata?.configurationSchema, modelMetadata?.maxInputTokens);
-		const maxOutputTokens = modelMetadata?.maxOutputTokens;
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
+		const maxOutputTokens = modelMetadata.maxOutputTokens;
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
 		if (totalContextWindow <= 0) {
 			return undefined;
