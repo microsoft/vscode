@@ -18,6 +18,13 @@ const schema: ILanguageModelConfigurationSchema = {
 	}
 };
 
+const schemaWithContextSize: ILanguageModelConfigurationSchema = {
+	properties: {
+		thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' },
+		contextSize: { type: 'number', default: 200_000 },
+	}
+};
+
 const MODEL = 'copilot/gpt';
 const KEY = 'chat.modelConfiguration.panel';
 
@@ -243,5 +250,31 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [OTHER]);
 		assert.deepStrictEqual(editor.getModelConfiguration(OTHER), { thinkingEffort: 'low' });
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
+	test('model change merges newly available schema defaults into non-empty pre-config-load snapshots', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata) : undefined,
+			getModelConfiguration: (_id: string) => ({ thinkingEffort: 'high' }),
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+
+		registered = true;
+		emitter.fire('copilot');
+
+		assert.deepStrictEqual(
+			{ fired, configuration: editor.getModelConfiguration(MODEL) },
+			{ fired: [MODEL], configuration: { thinkingEffort: 'high', contextSize: 200_000 } }
+		);
 	});
 });
