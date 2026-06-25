@@ -133,6 +133,7 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
 	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
 	// setting, forwarded from the renderer as an env var. The proxy and bridge
 	// registry are always constructed below (so the session launcher can inject
@@ -186,7 +187,7 @@ async function startAgentHost(): Promise<void> {
 		// per-connection bridge below (and the renderer's server channel) are only
 		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
 		// stays empty and the proxy never binds when the feature is off.
-		const byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
 		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
 		diServices.set(IByokLmProxyService, byokLmProxyService);
@@ -236,7 +237,6 @@ async function startAgentHost(): Promise<void> {
 	// in-process renderer-to-utility-process MessagePort transport).
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
-	const byokLmBridgeRegistry = instantiationService.invokeFunction(accessor => accessor.get(IByokLmBridgeRegistry));
 
 	// Wire reverse-RPC for in-process renderer connections. The renderer's
 	// `MessagePortClient` ctx is its `clientId`, and it exposes the
