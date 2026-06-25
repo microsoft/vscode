@@ -1724,12 +1724,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			// On cancel the turn goes terminal immediately (optimistic
 			// `ChatTurnCancelled`), but billed credits for in-flight requests
-			// keep settling for a short window afterwards. Defer finishing to
-			// the cancel handler's drain so the footer isn't snapshotted before
-			// those credits arrive (which would undercount the cost). The token
-			// flips synchronously at cancel — before the optimistic dispatch and
-			// this autorun run — so checking it here avoids a flag-ordering race.
+			// keep settling for a short window afterwards. The agent host emits a
+			// `final` usage marker once the proxy reports the session has drained;
+			// defer finishing until it arrives so the footer isn't snapshotted
+			// before those credits land (which would undercount the cost). A
+			// failsafe timeout (armed on cancel below) finalizes anyway if the
+			// marker never arrives. The token flips synchronously at cancel, so
+			// checking it here avoids a flag-ordering race.
 			if (opts.cancellationToken.isCancellationRequested) {
+				if (readUsageInfoMeta(usage$.read(reader)).copilotUsage?.final === true) {
+					const current = turn$.read(reader);
+					finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
+				}
 				return;
 			}
 			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
@@ -1743,37 +1749,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		store.add(opts.cancellationToken.onCancellationRequested(() => {
-			if (terminated) {
-				return;
-			}
-			// On cancellation the protocol turn finalizes asynchronously and,
-			// crucially, billed Copilot credits for `/v1/messages` requests that
-			// were in flight keep settling after the user cancels (the SDK
-			// subprocess unwinds gracefully; each request reports its credits as
-			// it completes). Finalizing the response immediately would snapshot
-			// the turn before those credits land and undercount the cost footer.
-			// The agent host emits a `final` usage marker once the proxy reports
-			// the session has no in-flight requests left — the deterministic
-			// signal that all billed credits have settled — so wait for that
-			// before finalizing. The chat already renders as cancelled via the
-			// optimistic state; only the internal footer finalization is deferred.
-			const settle = () => {
-				const current = turn$.get();
-				finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
-			};
-			store.add(autorun(reader => {
-				const usage = usage$.read(reader);
-				if (terminated) {
-					return;
-				}
-				if (readUsageInfoMeta(usage).copilotUsage?.final === true) {
-					settle();
-				}
-			}));
 			// Failsafe: if the `final` marker never arrives (e.g. the agent host
 			// wedged), finalize from whatever usage has settled by the cap so the
-			// response cannot stay open indefinitely.
-			store.add(disposableTimeout(settle, CANCEL_CREDIT_DRAIN_MAX_MS));
+			// response cannot stay open indefinitely. The common path finalizes in
+			// the main autorun above once the marker lands.
+			store.add(disposableTimeout(() => {
+				const current = turn$.get();
+				finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
+			}, CANCEL_CREDIT_DRAIN_MAX_MS));
 		}));
 
 		return store;

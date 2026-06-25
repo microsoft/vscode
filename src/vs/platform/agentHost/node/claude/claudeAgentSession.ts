@@ -617,7 +617,6 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._store.isDisposed || this._currentTurnId !== turnId) {
 			return;
 		}
-		this._logService.trace(`[Claude:${this.sessionId}] abort: emitting final ${this._currentTurnNanoAiu} nano-AIU for turn ${turnId}`);
 		this._onDidSessionProgress.fire({
 			kind: 'action',
 			session: this.sessionUri,
