@@ -4,6 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAutomationSchedule } from './automation.js';
+import { localize } from '../../../../../nls.js';
+
+export const DAYS_OF_WEEK: readonly string[] = [
+	localize('automation.day.sun', "Sunday"),
+	localize('automation.day.mon', "Monday"),
+	localize('automation.day.tue', "Tuesday"),
+	localize('automation.day.wed', "Wednesday"),
+	localize('automation.day.thu', "Thursday"),
+	localize('automation.day.fri', "Friday"),
+	localize('automation.day.sat', "Saturday"),
+];
 
 /**
  * Computes the next instant at which a given automation schedule should fire.

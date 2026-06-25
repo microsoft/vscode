@@ -77,7 +77,8 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
-	private readonly _now: () => Date;
+	private _now: () => Date;
+	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	// Set when on-disk schema is newer than this build; prevents writes that would destroy data.
 	private _unsupportedSchema = false;
@@ -117,7 +118,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	/** Test-only: swap in a deterministic clock used by create/update. */
 	setClockForTesting(now: () => Date): void {
-		(this as unknown as { _now: () => Date })._now = now;
+		this._now = now;
 	}
 
 	getAutomation(id: string): IAutomation | undefined {
@@ -125,7 +126,12 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
-		return derived(this, reader => this._runs.read(reader).filter(r => r.automationId === automationId));
+		let cached = this._runsForCache.get(automationId);
+		if (!cached) {
+			cached = derived(this, reader => this._runs.read(reader).filter(r => r.automationId === automationId));
+			this._runsForCache.set(automationId, cached);
+		}
+		return cached;
 	}
 
 	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {

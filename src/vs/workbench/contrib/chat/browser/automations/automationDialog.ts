@@ -30,8 +30,10 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../../platform/window/common/window.js';
+// Automation dialog reuses the sessions-layer workspace picker until a shared surface is available
 // eslint-disable-next-line local/code-import-patterns
 import { WorkspacePicker } from '../../../../../sessions/contrib/chat/browser/sessionWorkspacePicker.js';
+// Automation dialog reuses the sessions-layer workspace picker until a shared surface is available
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../sessions/services/sessions/common/session.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
@@ -40,6 +42,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
+import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
@@ -54,16 +57,6 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'hourly', label: localize('automation.interval.hourly', "Hourly") },
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
-];
-
-const DAYS_OF_WEEK: readonly string[] = [
-	localize('automation.day.sun', "Sunday"),
-	localize('automation.day.mon', "Monday"),
-	localize('automation.day.tue', "Tuesday"),
-	localize('automation.day.wed', "Wednesday"),
-	localize('automation.day.thu', "Thursday"),
-	localize('automation.day.fri', "Friday"),
-	localize('automation.day.sat', "Saturday"),
 ];
 
 // Recognizes popup containers (context views, quick picks, menus, hovers) so the dialog's
@@ -538,9 +531,12 @@ function renderForm(
 		workspacePickerInput: workspacePicker,
 	};
 
-	// Minimal stub — no live chat session exists in this modal.
+	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
+	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
+
+	// Narrow cast: only the fields ChatInputPart reads in dialog mode
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
-	const stubWidget = {
+	const stubWidget: IMinimalChatWidget = {
 		onDidChangeViewModel: Event.None,
 		viewModel: undefined,
 		contribs: [],
@@ -548,7 +544,7 @@ function renderForm(
 		viewContext: {},
 		lockToCodingAgent: () => { },
 		unlockFromCodingAgent: () => { },
-	} as unknown as IChatWidget;
+	};
 
 	// Bind context keys required by chat input toolbar `when` clauses.
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
@@ -562,7 +558,7 @@ function renderForm(
 	const chatInput = disposables.add(
 		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
-	chatInput.render(promptHost, initialPrompt, stubWidget);
+	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 
 	// eslint-disable-next-line no-restricted-syntax
 	const secondaryToolbar = promptHost.querySelector('.chat-secondary-toolbar');
