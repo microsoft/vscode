@@ -743,7 +743,6 @@ interface ISessionGroupTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly inputContainer: HTMLElement;
-	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -778,7 +777,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		container.classList.add('session-section', 'session-group');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
-		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
 		chevron.setAttribute('aria-hidden', 'true');
@@ -789,7 +787,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, count, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, label, inputContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -803,7 +801,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
 		template.label.textContent = element.group.name;
-		template.count.textContent = String(element.sessions.length);
 		this.updateChevron(template, node.collapsible, node.collapsed);
 		template.toolbar.context = element;
 
