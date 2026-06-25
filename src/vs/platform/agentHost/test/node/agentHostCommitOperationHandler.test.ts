@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
@@ -52,7 +52,8 @@ class TestGitService implements IAgentHostGitService {
 	}
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
-	async pushBranch(): Promise<void> { }
+	async pull(): Promise<void> { }
+	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
@@ -108,15 +109,19 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
+	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	onWorkingDirectoryAvailable(_session: string): void { }
+	recomputeSubscribedChangesets(_session: string): void { }
+	onSessionDisposed(_session: string): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	setSubscriberProbe(_probe: (session: string, changeset: string) => boolean): void { }
 }
 
 function createAgentService(token: string | undefined): IAgentService {

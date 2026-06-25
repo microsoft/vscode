@@ -153,20 +153,38 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		case ActionType.SessionServerToolsChanged:
 			return { ...state, serverTools: action.tools };
 
-		case ActionType.SessionActiveClientChanged:
-			return {
-				...state,
-				activeClient: action.activeClient ?? undefined,
-			};
+		case ActionType.SessionActiveClientSet: {
+			const list = state.activeClients;
+			const idx = list.findIndex(c => c.clientId === action.activeClient.clientId);
+			if (idx < 0) {
+				return { ...state, activeClients: [...list, action.activeClient] };
+			}
+			const updated = list.slice();
+			updated[idx] = action.activeClient;
+			return { ...state, activeClients: updated };
+		}
 
-		case ActionType.SessionActiveClientToolsChanged:
-			if (!state.activeClient) {
+		case ActionType.SessionActiveClientRemoved: {
+			const list = state.activeClients;
+			const idx = list.findIndex(c => c.clientId === action.clientId);
+			if (idx < 0) {
 				return state;
 			}
-			return {
-				...state,
-				activeClient: { ...state.activeClient, tools: action.tools },
-			};
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, activeClients: updated };
+		}
+
+		case ActionType.SessionActiveClientToolsChanged: {
+			const list = state.activeClients;
+			const idx = list.findIndex(c => c.clientId === action.clientId);
+			if (idx < 0) {
+				return state;
+			}
+			const updated = list.slice();
+			updated[idx] = { ...updated[idx], tools: action.tools };
+			return { ...state, activeClients: updated };
+		}
 
 		// ── Customizations ──────────────────────────────────────────────────
 

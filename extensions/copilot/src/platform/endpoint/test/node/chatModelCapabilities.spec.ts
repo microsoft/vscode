@@ -118,12 +118,20 @@ describe('modelSupportsContextEditing', () => {
 	test('matches Claude id strings', () => {
 		expect({
 			'claude-opus-4.6': modelSupportsContextEditing('claude-opus-4.6'),
+			'claude-fable-5': modelSupportsContextEditing('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsContextEditing('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsContextEditing('claude-opus-4.8'),
+			'claude-opus-4-8-1m': modelSupportsContextEditing('claude-opus-4-8-1m'),
 			'claude-sonnet-4.5': modelSupportsContextEditing('claude-sonnet-4.5'),
 			'claude-haiku-4-5': modelSupportsContextEditing('claude-haiku-4-5'),
 			'claude-opus-4.6-1m': modelSupportsContextEditing('claude-opus-4.6-1m'),
 			'gpt-5': modelSupportsContextEditing('gpt-5'),
 		}).toEqual({
 			'claude-opus-4.6': true,
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8-1m': false, // 1M variant excluded
 			'claude-sonnet-4.5': true,
 			'claude-haiku-4-5': true,
 			'claude-opus-4.6-1m': false, // 1M variant excluded

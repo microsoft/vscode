@@ -29,7 +29,6 @@ export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
 	WindowsEnabled = 'enabled.windows',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
-	AutoApproveUnsandboxedCommands = 'autoApproveUnsandboxedCommands',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
 	WindowsFileSystem = 'fileSystem.windows',
@@ -43,7 +42,6 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
-	[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: boolean;
 	[AgentHostSandboxKey.LinuxFileSystem]: Record<string, unknown>;
 	[AgentHostSandboxKey.MacFileSystem]: Record<string, unknown>;
 	[AgentHostSandboxKey.WindowsFileSystem]: Record<string, unknown>;
@@ -87,10 +85,6 @@ export const sandboxConfigSchema = createSchema({
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
 			},
-			[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.autoApproveUnsandboxedCommands.title', "Auto-Approve Unsandboxed Commands"),
-			},
 			[AgentHostSandboxKey.LinuxFileSystem]: {
 				type: 'object',
 				title: localize('agentHost.config.sandbox.linuxFileSystem.title', "Linux Sandbox Filesystem"),
@@ -133,7 +127,6 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxKey.Enabled,
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxKey.WindowsEnabled,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
-	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxKey.AutoApproveUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
 	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,

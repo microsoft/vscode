@@ -13,6 +13,7 @@ import { IVoicePlaybackService } from '../../chat/common/voicePlaybackService.js
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { getRepositoryName } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import type { SessionGroupData, SessionRowData } from './components/sessionListComponent.js';
@@ -24,6 +25,7 @@ export interface IWidgetBindingServices {
 	readonly voicePlaybackService: IVoicePlaybackService;
 	readonly environmentService: IWorkbenchEnvironmentService;
 	readonly chatService?: IChatService;
+	readonly configurationService?: IConfigurationService;
 }
 
 /**
@@ -39,6 +41,7 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		agentTitleBarStatusService,
 		voicePlaybackService,
 		environmentService,
+		configurationService,
 	} = services;
 
 	// --- Reactive controller state → widget setters ---
@@ -58,7 +61,9 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		widget.setReconnecting(reconnecting);
 		widget.setVoiceState(state);
 		widget.setPendingToolConfirmations(toolConfirmations);
-		widget.setTranscriptTurns(turns);
+		// Respect showTranscript setting — hide transcript when disabled
+		const showTranscript = configurationService?.getValue<boolean>('agents.voice.showTranscript') !== false;
+		widget.setTranscriptTurns(showTranscript ? turns : []);
 		widget.setStatusText(statusText);
 		widget.setSelectedTargetSession(targetSession);
 

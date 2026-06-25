@@ -103,6 +103,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Tools,
 	];
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {

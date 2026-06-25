@@ -805,6 +805,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [groupISession], changed: [] });
 	}
 
+	async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		for (const sessionId of sessionIds) {
+			await this.deleteSession(sessionId);
+		}
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
@@ -845,6 +851,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
 	}
 
+	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
+	}
+
 	async renameChat(_sessionId: string, chatUri: URI, title: string): Promise<void> {
 		this.chatService.setSessionTitle(chatUri, title);
 		const session = this._findSessionByResource(chatUri);
@@ -852,6 +862,13 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			session.setTitle(title);
 			this._updateStoredSession(session);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(session)] });
+		}
+	}
+
+	async renameSession(sessionId: string, title: string): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (session) {
+			await this.renameChat(sessionId, session.resource, title);
 		}
 	}
 
@@ -1195,6 +1212,8 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			mainChat: primary.mainChat,
 			capabilities: {
 				supportsMultipleChats: true,
+				supportsRename: true,
+				supportsDelete: true,
 			},
 		};
 	}
