@@ -51,6 +51,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
+	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
+	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
+
 	private _sessionTypes: readonly ISessionType[] = [];
 
 	/** Tracks the in-progress new session (composed but not yet sent). */
@@ -254,6 +257,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this._newSession.set(undefined, undefined);
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
+		this._onDidDiscardNewSession.fire(current);
 	}
 
 	/**
@@ -334,6 +338,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const created = await provider.createNewChat(session.sessionId);
 		return created;
+	}
+
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+		}
+		if (!session.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
+		}
+		return provider.forkChat(session.sessionId, sourceChat, turnId);
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {

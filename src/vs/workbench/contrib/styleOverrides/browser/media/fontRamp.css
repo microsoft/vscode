@@ -137,6 +137,18 @@
 }
 
 /*
+ * File Explorer root header — respect the real casing of the workspace / folder
+ * name (user input). `text-transform: none` overrides both the base
+ * `uppercase` rule and the `capitalize` override above (the `:has(...)`
+ * argument raises specificity). System labels such as "Untitled (Workspace)"
+ * are already title-cased in source, so they still render correctly; only
+ * user-provided folder names (e.g. "vscode-dev") are left untouched.
+ */
+.style-override .monaco-pane-view .pane > .pane-header:has(> .icon.codicon-explorer-view-icon) > .title {
+	text-transform: none;
+}
+
+/*
  * Drop the active-tab underline on the auxiliary bar composite header so a
  * single-composite header (e.g. the secondary side bar "Chat") reads as a plain
  * section title that matches the primary side bar, rather than a highlighted

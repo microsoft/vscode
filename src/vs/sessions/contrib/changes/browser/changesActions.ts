@@ -5,6 +5,7 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -22,8 +23,8 @@ import { ISessionContext } from '../../../services/sessions/browser/sessionConte
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
-import { ChangesViewModel } from './changesViewModel.js';
+import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from './sessionChangesService.js';
 
 // --- View All Changes action
 
@@ -34,6 +35,7 @@ class ViewAllChangesAction extends Action2 {
 		super({
 			id: ViewAllChangesAction.ID,
 			title: localize2('agentSessions.changes', 'Changes'),
+			icon: Codicon.diffMultiple,
 			f1: false,
 			// Diff stats shown in the session header meta row
 			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
@@ -50,6 +52,7 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -63,7 +66,7 @@ class ViewAllChangesAction extends Action2 {
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
 		// a workbench contribution.
 		await editorService.openEditor({
-			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
+			multiDiffSource: sessionChangesService.getChangesEditorResource(sessionResource),
 			label: localize('sessions.changes.title', 'Session Changes'),
 		});
 	}
@@ -73,14 +76,16 @@ registerAction2(ViewAllChangesAction);
 // --- View All Changes action view item (session header diff stats)
 
 interface IDiffStats {
+	readonly files: number;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly branch: string | undefined;
 }
 
 /**
  * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row) as a `Changes +insertions -deletions` pill. It extends the generic
- * {@link SessionHeaderMetaActionViewItem} (so the `Changes` title renders consistently with other
+ * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
+ * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
  * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
@@ -112,14 +117,23 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 				insertions += change.insertions;
 				deletions += change.deletions;
 			}
-			return { insertions, deletions };
+			const branch = session?.workspace.read(reader)?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
+			return { files: changes.length, insertions, deletions, branch };
 		});
 
 		this._register(autorun(reader => {
 			this._diffStatsObs.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
+			this.updateAriaLabel();
 		}));
+	}
+
+	protected override getLabelText(): string {
+		const { files } = this._diffStatsObs.get();
+		return files === 1
+			? localize('agentSessions.changes.file', "{0} file", files)
+			: localize('agentSessions.changes.files', "{0} files", files);
 	}
 
 	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
@@ -131,7 +145,19 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	}
 
 	protected override getTooltip(): string {
-		return localize('agentSessions.viewChanges.tooltip', "View All Changes");
+		const { branch } = this._diffStatsObs.get();
+		return branch
+			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
+			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+	}
+
+	protected override getAriaLabel(): string {
+		const { files, insertions, deletions } = this._diffStatsObs.get();
+		const filesLabel = files === 1
+			? localize('agentSessions.changes.file', "{0} file", files)
+			: localize('agentSessions.changes.files', "{0} files", files);
+		// e.g. "View Changes (main): 3 files, +10, -4"
+		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }
 
@@ -175,10 +201,11 @@ class ViewAllChangesActionViewItemContribution extends Disposable implements IWo
  * It used to be created by the `ChangesViewPane`, so it only existed while the
  * Changes view (auxiliary bar) was open. The session header's "View All Changes"
  * action opens the multi-diff editor directly, so the resolver must exist
- * independently of that view — hence this standalone contribution with its own
- * {@link ChangesViewModel}. It is registered at {@link WorkbenchPhase.BlockRestore}
- * so a previously open changes diff editor can resolve its contents during
- * workbench restore.
+ * independently of that view — hence this standalone contribution. It shares the
+ * changes view model with the Changes view via {@link IChangesViewService}
+ * so both resolve the same changeset selection. It is registered at
+ * {@link WorkbenchPhase.BlockRestore} so a previously open changes diff editor
+ * can resolve its contents during workbench restore.
  */
 class ChangesMultiDiffSourceResolverContribution extends Disposable implements IWorkbenchContribution {
 
@@ -188,8 +215,7 @@ class ChangesMultiDiffSourceResolverContribution extends Disposable implements I
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		const viewModel = this._register(instantiationService.createInstance(ChangesViewModel));
-		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver, viewModel));
+		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 	}
 }
 

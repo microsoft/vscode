@@ -18,7 +18,7 @@ import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostRe
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type SessionActiveClientChangedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -26,7 +26,7 @@ import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } f
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
@@ -410,9 +410,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
 
 			// Late notification — must not fan out as an action event.
-			const lateAction: SessionActiveClientChangedAction = {
-				type: ActionType.SessionActiveClientChanged,
-				activeClient: null,
+			const lateAction: SessionActiveClientRemovedAction = {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'c1',
 			};
 			transport.fireMessage({
 				jsonrpc: '2.0',
@@ -497,6 +497,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 				action: {
 					type: ActionType.RootConfigChanged,
 					config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
+				},
+			},
+		});
+		const globalAutoApproveEnabled = findRootConfigNotification(transport.sentMessages, AgentHostGlobalAutoApproveEnabledConfigKey);
+		assert.deepStrictEqual(globalAutoApproveEnabled, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: false },
 				},
 			},
 		});
@@ -723,13 +736,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 			return { service, calls };
 		}
 
-		test('SessionActiveClientChanged dispatches implicit reads for each customization', () => {
+		test('SessionActiveClientSet dispatches implicit reads for each customization', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -755,7 +768,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -777,8 +790,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
-			const action: SessionActiveClientChangedAction = {
-				type: ActionType.SessionActiveClientChanged,
+			const action: SessionActiveClientSetAction = {
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'c1',
 					tools: [],
@@ -794,14 +807,14 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.strictEqual(calls.length, 1);
 		});
 
-		test('null activeClient does not crash', () => {
+		test('active client removal does not crash', () => {
 			const { service, calls } = createCapturingPermissionService();
 			const { client } = createClient(undefined, service);
 			const sessionUri = URI.parse('ahp-session:/test');
 
 			client.dispatch(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
-				activeClient: null,
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'c1',
 			});
 
 			assert.strictEqual(calls.length, 0);

@@ -2052,9 +2052,11 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 			} catch (err) {
 				this.reject(err);
 			} finally {
-				writer.emitOne = undefined!;
-				writer.emitMany = undefined!;
-				writer.reject = undefined!;
+				// The executor has settled; emitting afterwards must be a no-op per the
+				// documented "no effect after resolve()/reject()" contract (see emitOne).
+				writer.emitOne = () => { };
+				writer.emitMany = () => { };
+				writer.reject = () => { };
 			}
 		});
 	}

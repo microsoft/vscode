@@ -6,17 +6,24 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
 import './checksActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ChangesViewService } from './changesViewService.js';
+import { IChangesViewService } from '../common/changesViewService.js';
+
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
 
@@ -70,3 +77,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
+registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
