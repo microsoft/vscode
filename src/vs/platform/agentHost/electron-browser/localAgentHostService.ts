@@ -30,7 +30,7 @@ import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -129,6 +129,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
 				this._updateTerminalAutoApproveEnabled();
 			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
+				this._updateGlobalAutoApproveEnabled();
+			}
 		}));
 
 		if (isAgentHostEnabled(this._configurationService)) {
@@ -154,6 +157,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
 		this._updateTerminalAutoApproveEnabled();
+		this._updateGlobalAutoApproveEnabled();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
@@ -203,6 +207,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateGlobalAutoApproveEnabled(): void {
+		const enabled = this._configurationService.getValue(GLOBAL_AUTO_APPROVE_SETTING_ID) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: enabled },
 		}, this.clientId, 0);
 	}
 

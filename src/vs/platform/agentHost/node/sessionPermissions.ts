@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostTerminalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
@@ -233,26 +233,35 @@ export class SessionPermissionManager extends Disposable {
 	 * required.
 	 *
 	 * Checks are evaluated in order:
-	 * 1. Session-level bypass (`autoApprove` config)
-	 * 2. Per-tool session permissions (`permissions.allow`)
-	 * 3. Read path rules (within working directory)
-	 * 4. Write path rules (within working directory + glob patterns)
-	 * 5. Shell command rules (tree-sitter parsed, default allow/deny)
+	 * 1. Global auto-approve setting (`chat.tools.global.autoApprove`)
+	 * 2. Session-level bypass (`autoApprove` config)
+	 * 3. Per-tool session permissions (`permissions.allow`)
+	 * 4. Read path rules (within working directory)
+	 * 5. Write path rules (within working directory + glob patterns)
+	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
-		// 1. Session-level auto-approve
+		// 1. Global auto-approve setting. VS Code's `chat.tools.global.autoApprove`
+		// setting is a superset of every individual auto-approve setting: when
+		// enabled, all tool calls are auto-approved regardless of the session's
+		// own approval level or the per-kind settings checked below.
+		if (this.isGlobalAutoApproveEnabled()) {
+			return ToolCallConfirmationReason.Setting;
+		}
+
+		// 2. Session-level auto-approve
 		if (this.isSessionAutoApproveEnabled(sessionKey)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
-		// 2. Per-tool session permissions
+		// 3. Per-tool session permissions
 		if (this._isToolAllowedByPermissions(sessionKey, e.toolCallId)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
-		// 3. Read auto-approval
+		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
 			if (this._isPathInWorkingDirectory(e.permissionPath, workDir)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
@@ -261,7 +270,7 @@ export class SessionPermissionManager extends Disposable {
 			return undefined;
 		}
 
-		// 4. Write auto-approval
+		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
 			if (await this._isEditAutoApproved(e.permissionPath, workDir)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
@@ -270,7 +279,7 @@ export class SessionPermissionManager extends Disposable {
 			return undefined;
 		}
 
-		// 5. Shell auto-approval
+		// 6. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
@@ -289,6 +298,16 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`)
+	 * is enabled. When enabled it auto-approves every tool call — a superset of
+	 * all the individual auto-approve settings. This is independent of the
+	 * session's own approval level shown in the permissions picker.
+	 */
+	isGlobalAutoApproveEnabled(): boolean {
+		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {

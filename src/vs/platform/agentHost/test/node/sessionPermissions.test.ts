@@ -12,7 +12,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostTerminalAutoApproveEnabledConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -170,5 +170,24 @@ suite('SessionPermissionManager', () => {
 
 		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
+	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+
+		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'anything.txt')), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
+	test('global auto-approve is reported independently of the session permission picker', () => {
+		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), false);
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
+
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+
+		// The global setting is a superset of all settings but does not change the
+		// session's own approval level (the permissions picker stays at default).
+		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
 	});
 });
