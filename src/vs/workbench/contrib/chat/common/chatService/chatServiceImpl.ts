@@ -120,6 +120,43 @@ class CancellableRequest implements IDisposable {
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
+/**
+ * Builds the input-state draft used when reopening a remote/contributed session
+ * (e.g. an agent-host chat) from its persisted metadata.
+ *
+ * The persisted draft's text/selections/mode are kept, but its persisted
+ * `selectedModel` is replaced by the model derived from the session's request
+ * history (it can be stale or belong to a different model pool). The per-model
+ * configuration (context size, thinking effort, …) is nested *inside*
+ * `selectedModel` in the serialized form, so replacing `selectedModel` outright
+ * would drop it — losing a reopened session's context-size choice. It is carried
+ * over from the persisted `selectedModel` onto the history-derived model when
+ * both refer to the same model id. (A legacy top-level `modelConfiguration`, if
+ * present, is preserved by the spread and recovered by the deserializer.)
+ * See issue #320393.
+ *
+ * @internal exported for testing
+ */
+export function buildRestoredRemoteSessionDraft(
+	storedInputState: ISerializableChatModelInputState | undefined,
+	historyDerivedModel: ISerializableChatModelInputState['selectedModel'],
+): ISerializableChatModelInputState | undefined {
+	if (!storedInputState) {
+		return undefined;
+	}
+	return {
+		...storedInputState,
+		selectedModel: historyDerivedModel
+			? {
+				...historyDerivedModel,
+				modelConfiguration: storedInputState.selectedModel?.identifier === historyDerivedModel.identifier
+					? storedInputState.selectedModel?.modelConfiguration
+					: undefined,
+			}
+			: undefined,
+	};
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
@@ -659,13 +696,12 @@ export class ChatService extends Disposable implements IChatService {
 		// Prefer (in order): a transferred draft, the persisted draft from metadata,
 		// otherwise let the constructor fall back to initialData.value.inputState.
 		// When restoring the persisted draft we keep the unsent text/selections/mode but
-		// deliberately drop its persisted selectedModel (it can be stale or belong to a
-		// different model pool) in favour of the model derived from the session's request
-		// history. When no history model is available the model is left undefined so the
-		// input part resolves it via its own selection logic.
-		const restoredDraft: ISerializableChatModelInputState | undefined = storedInputState
-			? { ...storedInputState, selectedModel: historyDerivedModel }
-			: undefined;
+		// replace its persisted selectedModel (it can be stale or belong to a different
+		// model pool) with the model derived from the session's request history —
+		// carrying over the same model's per-model configuration so a reopened session's
+		// context-size choice survives. When no history model is available the model is
+		// left undefined so the input part resolves it via its own selection logic.
+		const restoredDraft = buildRestoredRemoteSessionDraft(storedInputState, historyDerivedModel);
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData,
 			location,
