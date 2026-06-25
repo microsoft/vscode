@@ -298,10 +298,8 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
-	 * Whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`)
-	 * is enabled. When enabled it auto-approves every tool call — a superset of
-	 * all the individual auto-approve settings. This is independent of the
-	 * session's own approval level shown in the permissions picker.
+	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
+	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
