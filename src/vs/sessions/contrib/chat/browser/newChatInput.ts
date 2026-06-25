@@ -287,6 +287,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			draftStorageKey?: string;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -766,6 +767,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _restoreState(): void {
+		if (!this.options.draftStorageKey) {
+			return;
+		}
 		const draft = this._getDraftState();
 		if (draft) {
 			this._editor?.getModel()?.setValue(draft.inputText);
@@ -776,7 +780,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _getDraftState(): IDraftState | undefined {
-		const raw = this.storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+		if (!this.options.draftStorageKey) {
+			return undefined;
+		}
+		const raw = this.storageService.get(this.options.draftStorageKey, StorageScope.WORKSPACE);
 		if (!raw) {
 			return undefined;
 		}
@@ -789,17 +796,27 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
-		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (this.options.draftStorageKey) {
+			this.storageService.store(this.options.draftStorageKey, JSON.stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	saveState(): void {
+		if (!this.options.draftStorageKey) {
+			return;
+		}
 		if (this._draftState) {
 			const state = {
 				...this._draftState,
 				attachments: this._draftState.attachments.map(IChatRequestVariableEntry.toExport),
 			};
-			this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(this.options.draftStorageKey, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+	}
+
+	override dispose(): void {
+		this.saveState();
+		super.dispose();
 	}
 
 	layout(_height: number, _width: number): void {
