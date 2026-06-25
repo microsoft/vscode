@@ -487,11 +487,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 
 		case ActionType.ChatUsage: {
-			// Usage normally lands on the active turn, but a cancelled turn goes
-			// terminal (optimistic `ChatTurnCancelled`) before the agent host
-			// emits its final billed credits — flushed once the proxy drains — so
-			// also apply usage to a matching terminal turn. Otherwise those
-			// per-turn credits would be dropped and the cost undercounted.
 			if (state.activeTurn && state.activeTurn.id === action.turnId) {
 				return {
 					...state,
@@ -506,6 +501,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			turns[idx] = { ...turns[idx], usage: action.usage };
 			return { ...state, turns };
 		}
+
 		case ActionType.ChatReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {
 				if (part.kind === ResponsePartKind.Reasoning) {
