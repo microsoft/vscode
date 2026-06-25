@@ -253,7 +253,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			log,
 			r(),
-			CLIENT_ID,
+			() => CLIENT_ID,
 		);
 
 		assert.deepStrictEqual(signals, [{

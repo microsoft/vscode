@@ -782,11 +782,16 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
 		this._inflightCreates.set(resource, promise);
+		// This branch only observes settlement to evict the inflight entry; the
+		// `createSession` caller (and the server, via logService.error) owns the
+		// result. `finally` re-raises a rejection, so without this trailing
+		// `catch` an expected create failure (e.g. AHP_AUTH_REQUIRED) would be
+		// reported a second time as an unhandled rejection.
 		void promise.finally(() => {
 			if (this._inflightCreates.get(resource) === promise) {
 				this._inflightCreates.delete(resource);
 			}
-		});
+		}).catch(() => { });
 	}
 
 	/**
@@ -1079,6 +1084,24 @@ export class AgentSubscriptionManager extends Disposable {
 		this._subscriptions.clear();
 		super.dispose();
 	}
+}
+
+/** Returns whether an action envelope targets one of the subscribed channel URIs. */
+export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvelope, subscribedUris: Iterable<string>): boolean {
+	if (isAhpRootChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	for (const uri of subscribedUris) {
+		if (uri === envelope.channel) {
+			return true;
+		}
+	}
+	return false;
 }
 
 // --- Observable Adapter ------------------------------------------------------

@@ -331,6 +331,58 @@ when reconciliation drops them and when the adapter itself is evicted from
 a peer with `map.clear()`/`map.delete()` — use `clearAndDisposeAll()`/
 `deleteAndDispose()` so the `AdditionalChat` is actually torn down.
 
+#### Forking into a new chat (multi-chat sessions)
+
+For sessions that support multiple chats, the **Fork Conversation** gesture
+creates a new **peer chat** in the *same* session — seeded with the source
+chat's history up to the fork point — instead of a brand-new session. The
+single-chat fork (which mints a new session via `createSession({ fork })`) is
+kept as the fallback for non-multi-chat sessions.
+
+Routing: `ForkConversationAction` exposes a `_tryForkAsChat` hook (default
+no-op). The Agents window override (in `localChatSessions.contribution.ts`)
+resolves the owning `ISession`, and only for agent-host sessions that
+`supportsMultipleChats`, calls
+`ISessionsManagementService.forkChatInSession(session, sourceChat, turnId)` →
+`ISessionsProvider.forkChat` and then `openChat`s the new chat. The service
+returns the new chat or throws (for example when the session does not support
+multi-chat forking); it never returns `undefined`. Non-agent-host sessions keep
+the new-session fork path. The `turnId` is the **last turn to keep**: forking
+from a selected request forks *before* it (so `turnId` is the previous request's
+id), matching the new-session fork path (`AgentHostSessionHandler._forkSession`);
+forking the whole conversation keeps everything up to the source chat's last
+request.
+
+On the agent host, `forkChat` mints a client-chosen chat URI and calls
+`connection.createChat(sessionUri, chatUri, { fork: { source, turnId } })`. The
+`source` is the backend chat URI (a `chatId` fragment addresses a peer chat,
+otherwise the session's default chat). `AgentService.createChat` resolves the
+source chat's turns up to the fork point, mints fresh turn IDs
+(`fork.turnIdMapping`), forwards the fork to the agent, and seeds the new chat's
+`ChatState` with the remapped turns (`addChat({ turns })`) plus a `Forked:`
+title. If the requested `turnId` is not present in the source state, the fork is
+dropped (mirroring the no-turn `createSession` fallback) so the agent does not
+inherit the whole backend conversation while the new chat is seeded with zero
+turns. `CopilotAgent.createChat` forks the source chat's SDK conversation
+(`sessions.fork` at the turn's event id), copies its database into the new
+chat's data dir, resumes it, and `remapTurnIds`. The forked chat is committed
+(not `Untitled`) and surfaces through the normal `SessionChatAdded` catalog
+flow.
+
+The `Forked: <source>` title is only a placeholder: because a fork seeds
+pre-existing turns, the usual first-message/first-turn title generation never
+fires for it. Instead `AgentService` calls
+`AgentHostSessionTitleController.generateForkedTitle` once at fork time (for both
+forked chats and forked sessions), which summarizes the inherited conversation
+via the Copilot utility model and replaces the placeholder with a
+content-derived title. The context lists the kept turns oldest-first and, when
+the source title is known, prepends a short framing note that the conversation
+was branched from that earlier chat so the model titles the ongoing topic (the
+prompt forbids labelling the result as forked/branched). The conversation
+context is bounded to the same character budget (middle-truncated) as first-turn
+refinement, so it costs at most one small-model call, and a concurrent manual
+`/rename` suppresses it.
+
 The session handler (`agentHostSessionHandler.ts`) routes each chat widget to its
 own AHP chat channel. Session-scoped reads (`summary`/`config`/`activeClient`)
 stay on the session URI, while conversation reads/dispatches
@@ -376,7 +428,7 @@ Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
 Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
 on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
 and the sessions-list "Rename..." action (gated on the
-`chatSessionSupportsRename` context-menu-overlay key, set from
+`sessionSupportsRename` context-menu-overlay key, set from
 `element.capabilities.supportsRename` in `sessionsList`) both read this flag.
 Providers declare it truthfully: agent-host and `localChatSessions` sessions are
 always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
