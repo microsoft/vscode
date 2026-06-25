@@ -8,7 +8,10 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+
+/** Minimal context-window usage breakdown attached to a turn's {@link ActionType.ChatUsage}. */
+export type ContextUsageBreakdown = NonNullable<UsageInfoMeta['contextUsage']>;
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -220,6 +223,7 @@ export function mapSDKMessageToAgentSignals(
 	logService: ILogService,
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
+	contextUsage?: ContextUsageBreakdown,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -238,7 +242,7 @@ export function mapSDKMessageToAgentSignals(
 				registry,
 			);
 		case 'result':
-			return mapResult(message, session, turnId, state, logService, registry);
+			return mapResult(message, session, turnId, state, logService, registry, contextUsage);
 		case 'assistant':
 			return tagWithParent(
 				mapAssistantCanonical(message, session, turnId, state, message.parent_tool_use_id, registry),
@@ -416,6 +420,7 @@ function mapResult(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
+	contextUsage?: ContextUsageBreakdown,
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
 	if (message.subtype === 'success') {
@@ -440,6 +445,10 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
+					// The SDK `getContextUsage` breakdown (when fetched by the
+					// pipeline for this result) powers the workbench
+					// context-usage widget's per-category detail.
+					...(contextUsage ? { _meta: { contextUsage } } : {}),
 				},
 			},
 		});

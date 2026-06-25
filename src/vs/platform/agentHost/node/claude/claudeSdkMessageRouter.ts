@@ -12,7 +12,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, mapSDKMessageToAgentSignals, type ContextUsageBreakdown } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
@@ -57,7 +57,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
-	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
+	async handle(message: SDKMessage, turnId: string | undefined, contextUsage?: ContextUsageBreakdown): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message);
 		} else if (message.type === 'user' && turnId !== undefined) {
@@ -75,6 +75,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._logService,
 				this._subagents,
 				this._clientToolOwner,
+				contextUsage,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

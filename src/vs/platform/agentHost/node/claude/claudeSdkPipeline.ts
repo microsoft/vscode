@@ -17,6 +17,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
+import type { ContextUsageBreakdown } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
@@ -513,6 +514,30 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * rethrow); other errors propagate to the void caller's `.catch` for
 	 * logging.
 	 */
+	/**
+	 * Fetch the SDK's per-category context-window usage breakdown for the
+	 * just-completed turn and reduce it to the minimal shape the mapper
+	 * attaches to `ChatUsage._meta.contextUsage`. Returns `undefined` when the
+	 * SDK reports no usable breakdown or the control request fails, so a
+	 * missing breakdown never blocks turn completion.
+	 */
+	private async _fetchContextUsage(query: Query): Promise<ContextUsageBreakdown | undefined> {
+		try {
+			const usage = await query.getContextUsage();
+			this._logService.info(`[ClaudeSdkPipeline:${this.sessionId}] getContextUsage raw: totalTokens=${usage?.totalTokens} maxTokens=${usage?.maxTokens} categories=${JSON.stringify(usage?.categories)}`);
+			const categories = usage.categories
+				.filter(category => category.tokens > 0)
+				.map(category => ({ name: category.name, tokens: category.tokens }));
+			if (categories.length === 0 || usage.totalTokens <= 0) {
+				return undefined;
+			}
+			return { categories, totalTokens: usage.totalTokens };
+		} catch (err) {
+			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] getContextUsage failed: ${err}`);
+			return undefined;
+		}
+	}
+
 	private async _processMessages(): Promise<void> {
 		const query = this._query;
 		if (!query) {
@@ -532,8 +557,16 @@ export class ClaudeSdkPipeline extends Disposable {
 					}
 				}
 				const turnId = this._queue.peekParent()?.turnId;
+				// For a `result` message the SDK turn is settled, so its
+				// `getContextUsage` breakdown reflects the final context
+				// window. Fetch it before routing so the mapper can attach it
+				// to this turn's `ChatUsage` action (powers the workbench
+				// context-usage widget). Failures degrade to no breakdown.
+				const contextUsage = message.type === 'result' && turnId !== undefined
+					? await this._fetchContextUsage(query)
+					: undefined;
 				try {
-					await this._router.handle(message, turnId);
+					await this._router.handle(message, turnId, contextUsage);
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
