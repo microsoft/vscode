@@ -148,8 +148,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	/**
-	 * Reads the trajectory experiment treatment. Called lazily, only once
-	 * the user has met every condition required to render the nudge.
+	 * Reads the already-evaluated trajectory experiment cohort. The assignment
+	 * service resolves the cohort asynchronously, so this is requested only once
+	 * the user has met every non-experiment condition required for the nudge.
 	 *
 	 * Stores the raw treatment value. `undefined` means the user is not
 	 * assigned to the flight (or assignments are not available); only a `true`
