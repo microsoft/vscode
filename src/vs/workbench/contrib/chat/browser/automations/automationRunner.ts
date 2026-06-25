@@ -17,6 +17,7 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 	declare readonly _serviceBrand: undefined;
 
 	private _runDurationMs = 1_000;
+	private _now: () => Date = () => new Date();
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -26,6 +27,11 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 	/** Test-only seam. */
 	setRunDurationForTesting(ms: number): void {
 		this._runDurationMs = ms;
+	}
+
+	/** Test-only seam. */
+	setClockForTesting(now: () => Date): void {
+		this._now = now;
 	}
 
 	async runOnce(
@@ -53,7 +59,7 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 			if (token.isCancellationRequested) {
 				await this.automationService.updateRun(runId, {
 					status: 'failed',
-					completedAt: new Date().toISOString(),
+					completedAt: this._now().toISOString(),
 					errorMessage: localize('automation.cancelled', "Cancelled"),
 				});
 				return;
@@ -61,14 +67,14 @@ export class PlaceholderAutomationRunner implements IAutomationRunner {
 
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
-				completedAt: new Date().toISOString(),
+				completedAt: this._now().toISOString(),
 			});
 		} catch (err) {
 			this.logService.error(`[AutomationRunner] run for ${automation.id} failed`, err);
 			if (runId) {
 				await this.automationService.updateRun(runId, {
 					status: 'failed',
-					completedAt: new Date().toISOString(),
+					completedAt: this._now().toISOString(),
 					errorMessage: err instanceof Error ? err.message : String(err),
 				});
 			}
