@@ -269,17 +269,6 @@ registerAction2(class extends Action2 {
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
-				),
-				group: 'navigation',
-				order: -10
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
