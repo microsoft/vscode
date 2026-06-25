@@ -99,6 +99,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameChat = Event.None;
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
+	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
@@ -120,6 +121,8 @@ class MockSessionStore implements ISessionsManagementService {
 				isCreated: constObservable(true),
 				sticky: constObservable(false),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
+				openChats: session.chats,
+				closedChats: constObservable([]),
 			};
 			this.activeSession.set(active, undefined);
 		} else {
@@ -194,6 +197,7 @@ class MockSessionStore implements ISessionsManagementService {
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }

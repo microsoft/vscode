@@ -42,6 +42,8 @@ suite('BrowserPermissionStore', () => {
 		// (e.g. Sensors) default to 'allow'.
 		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Location), false);
 		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Sensors), true);
+		// Devices default to 'allow' (the chooser itself is the consent gesture).
+		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Devices), true);
 
 		store.set('https://a.com', PermissionCategory.Location, 'allow');
 		store.set('https://a.com', PermissionCategory.Sensors, 'deny');
@@ -118,6 +120,10 @@ suite('electronPermissionToCategories', () => {
 		assert.deepStrictEqual(electronPermissionToCategories('geolocation'), [PermissionCategory.Location]);
 		assert.deepStrictEqual(electronPermissionToCategories('notifications'), [PermissionCategory.Notifications]);
 		assert.deepStrictEqual(electronPermissionToCategories('sensors'), [PermissionCategory.Sensors]);
+		// USB, Serial, and HID all map to the single Devices category.
+		assert.deepStrictEqual(electronPermissionToCategories('usb'), [PermissionCategory.Devices]);
+		assert.deepStrictEqual(electronPermissionToCategories('serial'), [PermissionCategory.Devices]);
+		assert.deepStrictEqual(electronPermissionToCategories('hid'), [PermissionCategory.Devices]);
 		assert.deepStrictEqual(electronPermissionToCategories('unrecognized'), []);
 
 		// `media` resolves from hints, defaulting to both when none are given.
