@@ -100,6 +100,10 @@ const copilotOptionalNativePayloadDirs = [
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	const files = [
 		'prebuilds/*/computer.node',
+		'prebuilds/*/computer-use-mcp',
+		'prebuilds/*/computer-use-mcp.exe',
+		'prebuilds/*/Copilot Computer Use.app/**',
+		'prebuilds/*/CopilotComputerUse.exe',
 		'prebuilds/*/keytar.node',
 	];
 
@@ -151,7 +155,12 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	// Strip wrong-architecture @github/copilot-{platform} packages.
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
 
-	return ['**', ...excludes];
+	return [
+		'**',
+		...excludes,
+		'!**/node_modules/@github/copilot-*/copilot',
+		'!**/node_modules/@github/copilot-*/copilot.exe',
+	];
 }
 
 /**
