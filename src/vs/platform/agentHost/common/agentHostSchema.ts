@@ -391,6 +391,35 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
 /**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
+ * agent-host shell permission checks may apply terminal auto-approve rules.
+ */
+export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for terminal auto approve enablement. Defined here so
+ * renderer-side agent-host clients can forward it without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.global.autoApprove` setting changes. When `true`, the global
+ * auto-approve ("approve everything") setting is enabled and the agent host
+ * treats every tool call as auto-approved — equivalent to a session running
+ * with Bypass Approvals.
+ */
+export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for global auto approve. Defined here so renderer-side
+ * agent-host clients can forward it without importing from `workbench/contrib/chat`.
+ */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
+/**
  * Root config key holding agent-host-level MCP server definitions.
  *
  * The value is a map of server name → {@link IMcpServerConfiguration}
@@ -519,6 +548,18 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		default: false,
+	}),
+	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalAutoApproveEnabled.title', "Terminal Auto Approve"),
+		description: localize('agentHost.config.terminalAutoApproveEnabled.description', "Whether terminal auto-approve rules are allowed to apply to agent-host shell permission requests."),
+		default: true,
+	}),
+	[AgentHostGlobalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.globalAutoApproveEnabled.title', "Global Auto Approve"),
+		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Bypass Approvals."),
 		default: false,
 	}),
 	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({

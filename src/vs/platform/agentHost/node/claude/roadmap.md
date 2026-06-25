@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16 → 17**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -465,10 +465,9 @@ are therefore **invisible to other workbench clients** until materialised.
   pre-materialise persistence (Phase 5's `_provisionalSessions` map carries
   the in-memory state). The SDK starts lazily on first `sendMessage`
   (Phase 6).
-- **`createSession({ fork })` — deferred.** The fork branch throws
-  `TODO: Phase 6.5` with no side effects. See "Phase 6.5 — Fork (deferred)"
-  below for the structural reason, the reverted attempt, and the deferred
-  plan that lands alongside Phase 13's result-message mapper.
+- **`createSession({ fork })` — deferred to Phase 6.5 (now ✅ done).** At
+  Phase 5 the fork branch threw `TODO: Phase 6.5`; it now forks the SDK
+  transcript on demand. See "Phase 6.5 — Fork" below.
 - `disposeSession(session)` — tear down the session's `Query` (if alive),
   MCP gateway, in-flight aborts. Provisional sessions dispose by removing
   the in-memory record (no SDK / sidecar to clean up).
@@ -605,15 +604,22 @@ canned Anthropic stream → verify the resulting `AgentSignal` sequence.
 Exit criteria: a workbench client sends "hi" and sees a streamed assistant
 response in the UI.
 
-### Phase 6.5 — Fork (deferred — depends on Phase 13's result-message mapper)
+### Phase 6.5 — Fork ✅ **DONE**
 
-> **Status:** attempted, fully reverted, deferred. `createSession({ fork })`
-> currently throws `TODO: Phase 6.5` at
-> [`claudeAgent.ts:303`](./claudeAgent.ts) with no side effects.
+> **Status:** ✅ done. `createSession({ fork })` is implemented and
+> live-E2E verified (fork-and-continue + restart restore, 2026-06-24).
+> Implementation contract / retrospective:
+> [phase6.5-plan.md](./phase6.5-plan.md). The summary below stays
+> high-level for roadmap continuity; two design points shifted during
+> implementation (see the materialisation note and the plan's Drift
+> section): the turn→uuid lookup is a pure on-demand resolver
+> (`resolveForkAnchorUuid` in [claudeReplayMapper.ts](./claudeReplayMapper.ts)),
+> and fork **defers** the SDK `Query` to the first `sendMessage` rather
+> than materialising eagerly.
 >
 > **Sequencing note:** numbered 6.5 to stay consistent with the throw
-> message and `phase6-plan.md` §8.1, but **executes after Phase 13** because
-> the clean fix shares Phase 13's result-message mapper.
+> message and `phase6-plan.md` §8.1, but **executed after Phase 13** because
+> the clean fix shares Phase 13's transcript reconstruction.
 
 **Why deferred — structural mismatch.** Copilot's fork path
 ([`copilotAgent.ts:660-714`](../copilot/copilotAgent.ts)) calls
@@ -692,16 +698,24 @@ from the JSONL transcript, rather than persisting it.
 
 **Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
 provisional path), `forkSession` writes the forked SDK transcript file
-synchronously. Fork therefore *eagerly* fires `onDidMaterializeSession`
-from inside `createSession`, before returning — there is no provisional
-state to defer. The host's contract for fork is "materialise immediately,
-no separate sendMessage edge" (CONTEXT M9).
+synchronously, so the result is **non-provisional**. But — corrected
+during implementation — fork does **not** start the SDK `Query` or fire
+`onDidMaterializeSession` from inside `createSession`. Doing so raced
+ahead of `AgentService.createSession`'s own (synchronous, non-provisional)
+registration and produced `unknown session` warnings for both the
+materialize event and pipeline progress signals. Instead fork resolves
+the forked `workingDirectory` from `getSessionInfo` and returns; the
+`Query` materialises lazily on the first `sendMessage`, which resumes
+from disk via `_resumeSession`. This matches CONTEXT M9's "`forkSession`
+only writes the new session file; it does not start a `Query` … the SDK
+`Query` is still not started until the first `sendMessage`" and Copilot,
+whose resume path likewise never fires the materialize event.
 
-**Workbench client behavior in the interim.** The agent-host contract today
-is "fork rejects, no side effects" — any client invocation surfaces the
-throw as a session-creation error. Whether the workbench should hide or
-disable the fork affordance for Claude sessions until this phase lands is
-TBD with the workbench owners.
+**Workbench client behavior.** The Agents-window "Fork conversation from
+this point" affordance **is** wired for Claude and works end-to-end
+(verified live 2026-06-24): forking a turn produces a new "Forked: …"
+session truncated to that turn INCLUSIVE, which accepts new turns via
+`Options.resume` and survives an agent-host restart.
 
 Tests (when this phase lands): unit tests for the mapping ingest (turn end
 → persisted row), unit tests for `createSession({ fork })` looking up the
@@ -1500,6 +1514,185 @@ curated built-in agents/skills tier are generated declaratively inline,
 no stub files on disk); `createSession` lifecycle (provisional, cold) is
 unchanged. **Shipped.**
 
+### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan ✅ **DONE**
+
+> **Status:** both parts shipped. Part A (hooks) landed as PR #322637; Part B
+> (native plugins) landed as PR #322766. Both are surface-only (no
+> `Options.plugins` / `claudeSdkOptions.ts` change) — unit-tested,
+> council-reviewed, and live-E2E verified (real `telegram@claude-plugins-official`
+> + `github-inbox@vscode-team-kit` plugins surface under the customization modal
+> with their real cache roots, and a workspace `settings.local.json` disable
+> hides them via the watcher). See [phase17-plan.md](./phase17-plan.md) for the
+> full retrospective, including the post-E2E fixes (multi-format manifest
+> detection, `source`-based post-materialize match, and PB-10 standalone-fallback
+> suppression).
+
+> **Driver.** Phase 16's disk scan surfaces agents, skills, slash commands,
+> MCP servers, and rules — but **hooks** and **Claude-native plugins** that
+> the *user or workspace* has configured are still invisible in the
+> customization list. Both already *run* (the runtime loads them via
+> `settingSources` + `includeHookEvents`), but the user cannot see or edit
+> them from the Agents window. This phase closes that **surfacing** gap for
+> both, mirroring Phase 16's provisional/materialize semantics and its
+> "real editable `file:` URI, no synthetic stub" rule. It does **not**
+> change the SDK loading path.
+>
+> **Scope is user/workspace-configured surfaces only** — hooks and plugins
+> the *user* set up in their `~/.claude` / workspace `.claude`, not what the
+> agent host injects into the SDK (the proxy env, the in-process
+> client-tool MCP server from Phase 10, or the synced client customizations
+> from Phase 11).
+
+**Reference docs** (verified 2026-06-23):
+
+- [Hooks reference](https://code.claude.com/docs/en/hooks.md) — hook
+  locations table: `~/.claude/settings.json` (user), `.claude/settings.json`
+  (project), `.claude/settings.local.json` (local), plus plugin
+  `hooks/hooks.json` and skill/agent frontmatter. `disableAllHooks`
+  short-circuits a scope.
+- [Plugins reference](https://code.claude.com/docs/en/plugins-reference.md)
+  — `enabledPlugins` lives in the same `settings.json` scopes; marketplace
+  plugins are cached under `~/.claude/plugins/cache/...`; `@skills-dir`
+  plugins live in-place under `~/.claude/skills/<name>/.claude-plugin/`
+  and `<cwd>/.claude/skills/<name>/.claude-plugin/`.
+- [SDK plugins](https://code.claude.com/docs/en/agent-sdk/plugins.md) — a
+  *bare* SDK app must pass plugins as `Options.plugins: [{ type: 'local',
+  path }]`. **But with `settingSources` enabled (our config), the runtime
+  auto-loads `.claude` plugins** — so the host must NOT also pass them
+  (`claudeSkills.ts` skips `.claude` dirs "to avoid duplicates").
+  `Options.plugins` stays client-only.
+- [SDK hooks](https://code.claude.com/docs/en/agent-sdk/hooks.md) — shell
+  command hooks from settings files run **only when the matching
+  `settingSources` entry is enabled** (it is, for user/project/local).
+
+#### Part A — Hooks (surface only; already loaded)
+
+Hooks from user/project/local `settings.json` already **fire** at runtime
+because `settingSources` loads them and `includeHookEvents: true` streams
+their events. The gap is purely **discovery/surfacing** in the customization
+list. There is no SDK enumeration API for active hooks (no
+`supportedHooks()`), so — unlike agents/skills/MCP — hooks are surfaced from
+disk **only** and bypass the post-materialize SDK-intersection filter
+(same as rules in Phase 16).
+
+- New scanner under `node/claude/customizations/scan/` that reads the
+  `hooks` block from `~/.claude/settings.json`,
+  `<cwd>/.claude/settings.json`, and `<cwd>/.claude/settings.local.json`,
+  honoring `settingSources`. **Reuse the existing parser**
+  ([`pluginParsers.ts`](../../../agentPlugins/common/pluginParsers.ts)):
+  `parseHooksJson` already understands Claude's nested
+  `{ matcher, hooks: [...] }` shape, the `HOOK_TYPE_MAP` event names, and
+  `disableAllHooks`, and emits a protocol `HookCustomization` via
+  `makeHookCustomization`. The net-new work is the Claude settings-scope
+  roots, not the parser.
+- Each surfaced hook group carries the **real `settings.json` URI**
+  (editable), the event name, and the matcher — opening it from the
+  customization list opens the settings file, like the read-only `/hooks`
+  menu but editable.
+- A scope whose `disableAllHooks` is `true` contributes no hook entries.
+- **Out of scope:** `managed`-policy hooks (matches the existing
+  `managed`-excluded `settingSources` non-goal); skill/agent-frontmatter
+  hooks (those ride along with their owning component, already surfaced in
+  Phase 16).
+
+#### Part B — Claude-native plugins (surface only)
+
+Native plugins are **already loaded** by the SDK runtime via
+`settingSources: ['user', 'project', 'local']` — the same mechanism that
+auto-loads `.claude` agents / skills / hooks. The gap is purely
+**surfacing** them in the customization list. They must **not** be added
+to `Options.plugins`: that channel is exclusively for client/host-provided
+plugins *outside* `.claude` (the Phase 11 `clientCustomizationsDiff` dirs,
+[`claudeAgentSession.ts:324`](./claudeAgentSession.ts#L324) /
+[`:414`](./claudeAgentSession.ts#L414)), and the production extension
+explicitly **skips `.claude` dirs to avoid duplicate loading**
+([`claudeSkills.ts`](../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeSkills.ts)
+`isClaudeDirectory` filter; `claudeCodeAgent.ts` builds `Options.plugins`
+only from `getPluginLocations()`). Plumbing native plugins in would
+**double-load** them.
+
+- **Discover** enabled native plugins by reading `enabledPlugins` from the
+  user/project/local `settings.json` scopes and resolving each to its
+  on-disk root:
+  - marketplace installs → `~/.claude/plugins/cache/<...>/` (the
+    current version dir; orphaned version dirs skipped);
+  - `@skills-dir` plugins → in-place under `~/.claude/skills/<name>/`
+    and `<cwd>/.claude/skills/<name>/` when a `.claude-plugin/plugin.json`
+    is present.
+  Parse each manifest with the shared `parsePlugin` / `CLAUDE_FORMAT`
+  ([`pluginParsers.ts`](../../../agentPlugins/common/pluginParsers.ts)
+  `manifestPath: '.claude-plugin/plugin.json'`,
+  `hookConfigPath: 'hooks/hooks.json'`) and surface the plugin plus its
+  bundled components (skills / agents / hooks / MCP servers) with their
+  **real `file:` URIs**.
+- **No `Options.plugins` change, no host-side rebind to load.** The
+  runtime owns loading; a mid-session `enabledPlugins` edit takes effect on
+  the runtime's next `settingSources` read / restart (the same path as any
+  `settings.json` change). The `ClaudeCustomizationWatcher` only refreshes
+  the **displayed list**.
+
+#### Provisional / materialize semantics (both parts)
+
+Same as Phase 16 — **no eager materialization, no lifecycle change**:
+
+- **Provisional (pre-send):** show the full disk-scanned hook + plugin set
+  (optimistic; no live session yet).
+- **Materialized (live):** hooks stay disk-only (no SDK filter). Native
+  plugins **are** enumerable post-materialize — the SDK `system/init`
+  message reports loaded `plugins` and their namespaced `skills` /
+  `slash_commands`
+  ([SDK plugins](https://code.claude.com/docs/en/agent-sdk/plugins.md)) —
+  so a plugin declared in `enabledPlugins` but **not** loaded by the live
+  session (bad path, manifest error, untrusted workspace) is hidden
+  post-materialize, matching Phase 16's "hide on-disk items the live
+  session did not load" rule.
+- **Watching:** extend `ClaudeCustomizationWatcher`
+  ([`claudeSessionCustomizationDiscovery.ts`](./customizations/claudeSessionCustomizationDiscovery.ts))
+  so edits to `settings.json` / `settings.local.json` (hook block +
+  `enabledPlugins`) and to a resolved plugin's manifest re-fire
+  `onDidCustomizationsChange`. The `.claude` roots are already watched;
+  the settings files largely are too (Phase 16 watches `<userHome>/.claude`
+  + `<cwd>/.claude` recursively).
+
+**Tests:**
+
+- Unit: hook scanner yields `HookCustomization` entries with real
+  settings-file URIs from a temp `~/.claude/settings.json` +
+  `<cwd>/.claude/settings.json`; `disableAllHooks` drops a scope;
+  `managed` is never read.
+- Unit: plugin resolver maps `enabledPlugins` → cache / skills-dir roots,
+  parses each manifest, and yields the plugin + bundled components with
+  real URIs; a missing/orphaned dir is skipped.
+- Unit: provisional `getSessionCustomizations` returns the full
+  hook+plugin set; materialized intersects native plugins against the SDK
+  `init` plugin list while leaving hooks unfiltered.
+- Regression: the existing `claudeSdkOptions.test.ts` still passes
+  **unmodified** — `Options.plugins` is untouched (native plugins are
+  auto-loaded, not host-plumbed).
+- Integration: a temp plugin enabled in `enabledPlugins` is auto-loaded by
+  the live session (appears in the captured `init.plugins`) and its skill
+  is invocable — **without** any host-added `Options.plugins` entry.
+
+**Manual E2E:**
+
+- Add a `PostToolUse` hook to `~/.claude/settings.json`; it appears in the
+  Claude session's customization list with an editable URI, and firing a
+  `Write` triggers it.
+- Install a marketplace plugin via the Claude CLI, enable it, open a Claude
+  session: the plugin and its skills appear in the list and the skill is
+  invocable from the agent.
+
+**Exit criteria:** user/workspace-configured hooks and Claude-native
+plugins appear in the customization list with **real editable URIs**
+(no synthetic stubs); enabled native plugins continue to be auto-loaded by
+the runtime (verified via the captured `init.plugins`) with **no**
+host-added `Options.plugins` entry; provisional sessions show the full
+disk set, materialized sessions hide native plugins the live session did
+not load; the `createSession` provisional/cold lifecycle (M9) is
+unchanged. Shipped as two PRs: Part A (hooks, #322637) then Part B
+(native plugins, #322766). Detailed implementation contract:
+[phase17-plan.md](./phase17-plan.md).
+
 ---
 
 ## Open questions (to resolve as we go)
@@ -1548,6 +1741,8 @@ unchanged. **Shipped.**
   Host itself is the isolation boundary.
 - **Including `managed` in `settingSources`.** Match the reference's
   `['user', 'project', 'local']`. Revisit if managed-policy users complain.
+  Phase 17's hook + native-plugin disk scan follows the same exclusion —
+  `managed`-policy hooks and plugins are not surfaced.
 - **Tracking Bash-tool file edits** in Phase 8. Documented gap;
   follow-up if needed.
 - **Per-session GitHub token** in the proxy. Single-tenant for v1.

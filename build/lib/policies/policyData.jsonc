@@ -46,7 +46,7 @@
             "localization": {
                 "description": {
                     "key": "mcp.enterpriseManagedAuth.idp.policy",
-                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."
                 }
             },
             "type": "object",
@@ -157,6 +157,39 @@
             "type": "boolean",
             "default": false,
             "included": true
+        },
+        {
+            "key": "chat.defaultModel",
+            "name": "ChatDefaultModel",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.defaultModel.policy",
+                    "value": "Sets the default chat model for new conversations. Accepts \"auto\", a model family name (such as \"opus\" or \"gemini\"), or a full model id. Users can still switch the model within a conversation."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": true
+        },
+        {
+            "key": "chat.agentHost.claudeAgent.enabled",
+            "name": "Claude3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.113",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.claudeAgent.enabled.policy",
+                    "value": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.claudeAgent.enabled"
+            ]
         },
         {
             "key": "chat.tools.global.autoApprove",
@@ -650,24 +683,6 @@
             "type": "boolean",
             "default": true,
             "included": true
-        },
-        {
-            "key": "github.copilot.chat.claudeAgent.enabled",
-            "name": "Claude3PIntegration",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.113",
-            "localization": {
-                "description": {
-                    "key": "github.copilot.chat.claudeAgent.enabled",
-                    "value": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "referencedSettings": [
-                "chat.agentHost.claudeAgent.enabled"
-            ]
         }
     ]
 }

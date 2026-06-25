@@ -22,6 +22,7 @@ import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../.
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
+	readonly hideDisconnect: boolean;
 	connect(): void;
 	disconnect(): void;
 	pttDown(): void;
@@ -756,6 +757,7 @@ export class AgentsVoiceWidget extends Disposable {
 				draggable: opts.draggable,
 				showClose: opts.showClose,
 				showPopout: !!this.callbacks.openPopout && this._popoutAvailable.read(reader),
+				hideDisconnect: this.callbacks.hideDisconnect,
 				centerConnectButton: opts.centerConnectButton,
 				onMicDown: (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); },
 				onMicUp: () => { this.callbacks.pttUp(); },

@@ -32,23 +32,29 @@ class Patch {
 		 */
 		public readonly filePath: string,
 		public readonly lineNumZeroBased: number,
+		/**
+		 * Zero-based index of the model-emitted patch this object represents. Patches
+		 * derived from the same model header (e.g. the early + continuation patches of a
+		 * progressive ghost-text reveal) share the same `patchIndex`.
+		 */
+		public readonly patchIndex: number,
 	) { }
 
-	public static ofLine(line: string): Patch | null {
+	public static ofLine(line: string, patchIndex: number): Patch | null {
 		const match = line.match(/^(.+):(\d+)$/);
 		if (!match) {
 			return null;
 		}
 		const [, filename, lineNumber] = match;
-		return new Patch(filename, parseInt(lineNumber, 10));
+		return new Patch(filename, parseInt(lineNumber, 10), patchIndex);
 	}
 
 	/**
 	 * Creates a pure-insertion patch (no removed lines) at the given line.
 	 * Used for the continuation portion of a ghost-text progressive reveal.
 	 */
-	public static insertion(filePath: string, lineNumZeroBased: number): Patch {
-		return new Patch(filePath, lineNumZeroBased);
+	public static insertion(filePath: string, lineNumZeroBased: number, patchIndex: number): Patch {
+		return new Patch(filePath, lineNumZeroBased, patchIndex);
 	}
 
 	addLine(line: string): boolean {
@@ -399,6 +405,7 @@ export namespace XtabPatchResponseHandler {
 						isFromCursorJump: false,
 						targetDocument,
 						window,
+						patchIndex: edit.patchIndex,
 					} satisfies StreamedEdit;
 				}
 			}
@@ -452,14 +459,29 @@ export namespace XtabPatchResponseHandler {
 	export async function* extractEdits(linesStream: AsyncIterable<string>, cursorLineZeroBased?: number, activeDocRelativePath?: string): AsyncGenerator<Patch> {
 		let currentPatch: Patch | null = null;
 		let isFirstPatch = true;
+
 		// Tracks whether we've already attempted progressive reveal (succeeds or fails only once).
 		let progressiveRevealDone = false;
+
+		// Monotonic 0-based index assigned to each real model patch header. Derived
+		// patches (ghost-text early + continuation) inherit their source's index.
+		let nextPatchIndex = 0;
+		// Parses a header line into a patch, allocating it the next patch index.
+		// Returns null for lines that aren't valid headers, which don't consume an index.
+		const parseNextPatchHeader = (line: string): Patch | null => {
+			const patch = Patch.ofLine(line, nextPatchIndex);
+			if (patch !== null) {
+				nextPatchIndex++;
+			}
+			return patch;
+		};
+
 		for await (const line of linesStream) {
 			if (line.trim() === ResponseTags.NO_EDIT) {
 				break;
 			}
 			if (currentPatch === null) {
-				currentPatch = Patch.ofLine(line);
+				currentPatch = parseNextPatchHeader(line);
 				continue;
 			}
 			if (currentPatch.addLine(line)) {
@@ -472,13 +494,16 @@ export namespace XtabPatchResponseHandler {
 					&& currentPatch.removedLines.length >= 1
 				) {
 					if (isGhostTextPatch(currentPatch, cursorLineZeroBased, activeDocRelativePath)) {
+						// Both the early and continuation patches stem from the same
+						// model patch, so they share its index.
+						const sourcePatchIndex = currentPatch.patchIndex;
 						// Yield the cursor-line replacement immediately
-						const earlyPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased);
+						const earlyPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased, sourcePatchIndex);
 						earlyPatch.removedLines = [...currentPatch.removedLines];
 						earlyPatch.addedLines = [...currentPatch.addedLines];
 						yield earlyPatch;
 						// Replace currentPatch with a continuation pure-insertion patch
-						currentPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased + 1);
+						currentPatch = Patch.insertion(currentPatch.filePath, currentPatch.lineNumZeroBased + 1, sourcePatchIndex);
 					}
 					progressiveRevealDone = true;
 				}
@@ -488,7 +513,7 @@ export namespace XtabPatchResponseHandler {
 			if (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0) {
 				yield currentPatch;
 			}
-			currentPatch = Patch.ofLine(line);
+			currentPatch = parseNextPatchHeader(line);
 			isFirstPatch = false;
 		}
 		if (currentPatch && (currentPatch.removedLines.length > 0 || currentPatch.addedLines.length > 0)) {
