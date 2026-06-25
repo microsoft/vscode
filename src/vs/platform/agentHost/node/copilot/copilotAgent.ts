@@ -33,7 +33,7 @@ import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../comm
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1611,6 +1611,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return rawTurns;
 		}
 		return prependAnnouncementToFirstTurn(rawTurns, buildWorktreeAnnouncementText(worktreeMeta.branchName));
+	}
+
+	async getSubagentSessions(session: URI): Promise<readonly IRestoredSubagentSession[]> {
+		// Only the root SDK session entry owns the event log; peer-chat and
+		// subagent URIs are derived from it and have no subagents of their own.
+		const chatInfo = parseChatUri(session);
+		if (chatInfo && !isDefaultChatUri(session)) {
+			return [];
+		}
+		if (parseSubagentSessionUri(session)) {
+			return [];
+		}
+		const sessionId = AgentSession.id(session);
+		// Provisional sessions have no SDK history (and thus no subagents) yet.
+		if (this._provisionalSessions.has(sessionId)) {
+			return [];
+		}
+		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for subagent lookup`, err);
+			return undefined;
+		});
+		return entry ? entry.getSubagentSessions() : [];
 	}
 
 	async disposeSession(session: URI): Promise<void> {
