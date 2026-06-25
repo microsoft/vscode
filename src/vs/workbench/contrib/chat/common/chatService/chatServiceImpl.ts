@@ -1107,6 +1107,7 @@ export class ChatService extends Disposable implements IChatService {
 			// for the new resource resolve to the untitled session's options.
 			this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
 
+			// Do not dispose tempRef as per 6bc5ae80de9caffb21e9eb58e18b5ca24fa2d6e8
 			const tempRef = await this.loadRemoteSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None);
 			const realModel = tempRef?.object as ChatModel | undefined;
 			if (!realModel) {
