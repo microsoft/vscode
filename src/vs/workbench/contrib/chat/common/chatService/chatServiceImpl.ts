@@ -1917,6 +1917,58 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	async sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
+		if (!model) {
+			return;
+		}
+
+		const pendingRequests = model.getPendingRequests();
+		const target = pendingRequests.find(r => r.request.id === requestId);
+		if (!target) {
+			return;
+		}
+
+		if (this._isServerManagedQueue(sessionResource)) {
+			// Agent host queues are drained by the server, which intentionally
+			// skips pending messages on cancellation. So remove the message
+			// (clearing it server-side) and re-send it as a normal turn after
+			// cancelling. Remove before sending to avoid the server also
+			// auto-draining it (double send); restore it on failure so a
+			// rejected re-send doesn't silently drop the message.
+			const message = target.request.message.text;
+			const attachedContext = target.request.variableData.variables.slice();
+			const sendOptions: IChatSendRequestOptions = {
+				...target.sendOptions,
+				queue: undefined,
+				attachedContext,
+			};
+			this.removePendingRequest(sessionResource, requestId);
+			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+			let result: ChatSendResult | undefined;
+			try {
+				result = await this.sendRequest(sessionResource, message, sendOptions);
+			} catch (err) {
+				this.logService.error('sendPendingRequestImmediately: re-send failed', err);
+			}
+			if (!result || result.kind === 'rejected') {
+				this.info('sendPendingRequestImmediately', `Re-send was not accepted (${result?.kind ?? 'error'}); restoring pending message to the queue`);
+				await this.sendRequest(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind });
+			}
+			return;
+		}
+
+		// Local sessions: move the target to the front (keeping its kind),
+		// cancel the in-flight request, and let the queue processor send it.
+		const reordered = [
+			{ requestId: target.request.id, kind: target.kind },
+			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),
+		];
+		this.setPendingRequests(sessionResource, reordered);
+		await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		this.processPendingRequests(sessionResource);
+	}
+
 	public hasSessions(): boolean {
 		return this._chatSessionStore.hasSessions();
 	}
