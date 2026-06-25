@@ -15,6 +15,8 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
 | `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionGroupsService.ts` | `ISessionGroupsService` — user-created groups and session→group membership (UI-only) |
+| `services/sessions/browser/sessionSectionOrderService.ts` | `ISessionSectionOrderService` — manual top-level order of groups + workspace sections and workspace promotion (UI-only) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
 ---
@@ -37,15 +39,18 @@ Each session row displays:
 Sessions are organized into sections with fixed priority:
 
 ```
-1. Pinned        ← always first
-2. Regular       ← grouped by workspace or date
-3. Done/Archived ← always last
+1. Pinned        ← always first, not reorderable
+2. Groups        ← user-created groups, user-ordered (see below)
+3. Regular       ← grouped by workspace or date
+4. Done/Archived ← always last, not reorderable
 ```
 
 Two grouping modes (user-switchable):
 
-- **By Workspace** (default) — one section per workspace label, sorted alphabetically. "Unknown" workspace sorts last.
-- **By Date** — sections: Today, Yesterday, Last 7 Days, Older.
+- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
+- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Today, Yesterday, Last 7 Days, Older). Groups never mix into the date sections.
+
+User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions).
 
 Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned.
 
@@ -87,7 +92,11 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 
 ### Manual Reordering (Drag & Drop)
 
-Regular sessions can be reordered by dragging them up or down within the list. Pinned sessions can be reordered within the Pinned section. An insertion line is shown between rows while dragging.
+Two things can be reordered by dragging: **sessions** (within a section/group) and **top-level headers** (user groups and workspace sections). An insertion line is shown between rows/headers while dragging.
+
+#### Reordering sessions
+
+Regular sessions can be reordered by dragging them up or down within the list. Pinned sessions can be reordered within the Pinned section.
 
 - **Storage** — reordering stores a synthetic numeric *sort key* per session in `ISessionsListModelService` (persisted locally, not synced). It is used **only** for sorting; the provider's real `createdAt`/`updatedAt` are never modified. A separate override map is kept for each sort mode (Created vs Updated).
 - **Sort key** — on drop, the new key is the midpoint between the effective keys of the sessions immediately above and below the drop point. Dropping above the first session uses the current time (so it sorts to the top). Dropping below the last session steps below the last key.
@@ -98,6 +107,16 @@ Regular sessions can be reordered by dragging them up or down within the list. P
 - **User groups** — dropping a non-archived session on a group header adds or moves it into the group and lets it sort naturally. Dropping it on a session inside the group shows an insertion line for the exact slot and highlights only the group header to indicate the receiving group.
 - **Scope** — archived (Done) sessions do not reorder or move into groups. Drops onto the Done section, unsupported section headers, and "show more" rows are rejected.
 - **Multi-selection** — dragging multiple selected sessions moves them as a contiguous block, preserving their relative order. The drag label reads `"N sessions"`. Dragging sessions into the sessions grid opens all of them.
+
+#### Reordering groups and workspaces
+
+Dragging a **group header** or a **workspace section header** over another reorderable header shows an insertion line above/below it and moves the dragged header to that slot on drop.
+
+- **Storage** — the top-level order is owned by `ISessionSectionOrderService` (persisted locally, not synced) as a flat list of identities (`group:<id>` and `workspace:<label>`). Identities the user has never moved fall back to the list's default order, so new groups/workspaces appear in their natural place until dragged. Stale identities (deleted groups, vanished workspaces) are garbage-collected.
+- **By Workspace** — groups and workspace sections share one order and can be freely intermixed. Dragging a workspace also **promotes** it so it stays visible (escapes the "+N more workspaces" capping).
+- **By Date** — only group headers are draggable; they reorder within the groups block. Workspace order changes made in the other mode are preserved. The date sections are fixed and are not drop targets.
+- **Invariants** — the Pinned section is always first and the Done section always last; neither (nor the date sections, nor "show more" rows) is draggable or a valid header drop target.
+- **Shared order** — the relative order of groups is the same in both grouping modes, and also drives the "Add to Group" / "Move to Group" menu order.
 
 The insertion line relies on the base list widget's `drop-target-before`/`drop-target-after` feedback (colored by `list.dropBetweenBackground`). The widget converts an "after" indicator on row *i* into a "before" indicator on row *i+1*, so hovering the bottom half of the upper row and the top half of the lower row render the exact same DOM line with no shift.
 
