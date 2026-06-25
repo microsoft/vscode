@@ -5,6 +5,7 @@
 
 import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -647,9 +648,13 @@ export class ChatService extends Disposable implements IChatService {
 			// The session request history only tells us which model id was last used, not the
 			// user's per-model configuration (e.g. thinking effort, context window). Preserve that
 			// configuration from the persisted draft when it refers to the same model, so reopening
-			// the session restores the full model config and not just the bare model id.
+			// the session restores the full model config and not just the bare model id. Older drafts
+			// stored the configuration as a sibling of `selectedModel` (legacy top-level field) rather
+			// than nested within it, so fall back to that for backwards compatibility.
+			const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
+				?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
 			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
-				? storedInputState?.selectedModel?.modelConfiguration
+				? storedModelConfiguration
 				: undefined;
 			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata, modelConfiguration } : undefined;
 			historySelectedModel = selectedModel?.identifier;
