@@ -4,25 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
+import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
+
+const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
+const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
 
 /**
  * Per-session view state: auxiliary bar visibility and active view container.
@@ -81,6 +100,20 @@ export abstract class BaseLayoutController extends Disposable {
 		return this._restoringSessionLayoutDepth > 0;
 	}
 
+	/**
+	 * [D9] `true` while {@link toggleSidePane} hides/shows the editor + auxiliary
+	 * bar together. The desktop controller's per-session aux-bar capture skips
+	 * this window, so toggling the whole side pane is never recorded as an
+	 * aux-bar choice.
+	 */
+	protected _togglingSidePane = false;
+
+	/**
+	 * Remembers which parts were visible when the side pane was last hidden, so
+	 * re-opening restores the same parts instead of always showing both.
+	 */
+	private _lastVisibleSidePaneParts: { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined;
+
 	private readonly _useModalConfigObs;
 	constructor(
 
@@ -91,9 +124,10 @@ export abstract class BaseLayoutController extends Disposable {
 		@IPaneCompositePartService protected readonly _paneCompositePartService: IPaneCompositePartService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorService protected readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
 	) {
 		super();
 
@@ -216,8 +250,62 @@ export abstract class BaseLayoutController extends Disposable {
 			}));
 		}));
 
+		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
+		this._register(this._registerSidePaneToggleAction());
+
 		// Platform-specific auxiliary bar / view-state management.
 		this._registerViewStateManagement();
+	}
+
+	/**
+	 * Registers the `Toggle Side Panel` action (menu item, keybinding,
+	 * command-palette entry). The action delegates straight to `toggleSidePane()`,
+	 * so no command/service indirection is needed; the controller owns the toggle
+	 * behaviour and its memory.
+	 */
+	private _registerSidePaneToggleAction(): IDisposable {
+		const that = this;
+		return registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.agentToggleSidePanel',
+					title: localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
+					icon: secondarySidebarToggleClosedIcon,
+					toggled: {
+						condition: ContextKeyExpr.or(AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext)!,
+						icon: secondarySidebarToggleOpenIcon,
+					},
+					metadata: {
+						description: localize('openAndCloseSidePanel', 'Open/Show and Close/Hide the Side Panel (editor area and auxiliary bar)'),
+					},
+					category: Categories.View,
+					f1: true,
+					keybinding: {
+						weight: KeybindingWeight.SessionsContrib,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
+					},
+					menu: [
+						{
+							id: Menus.TitleBarSessionMenu,
+							group: 'navigation',
+							order: 11, // After Open in VS Code (7), Run Script (8), and Open Terminal (10)
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+						}
+					]
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const nowVisible = that.toggleSidePane();
+
+				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
+
+				// Announce visibility change to screen readers
+				alert(nowVisible
+					? localize('sidePanelVisible', "Side Panel shown")
+					: localize('sidePanelHidden', "Side Panel hidden"));
+			}
+		});
 	}
 
 	/**
@@ -226,6 +314,55 @@ export abstract class BaseLayoutController extends Disposable {
 	 * implementation does nothing.
 	 */
 	protected _registerViewStateManagement(): void { }
+
+	/**
+	 * Toggle the **side pane** — the editor area together with the auxiliary bar.
+	 * Closing it hides both; re-opening restores exactly the parts that were
+	 * visible when it was last closed (defaulting to both). The whole operation
+	 * runs under {@link _togglingSidePane} so the desktop controller does not
+	 * record it as a per-session aux-bar choice ([D9]). Returns `true` if the
+	 * side pane is now visible.
+	 */
+	protected toggleSidePane(): boolean {
+		this._togglingSidePane = true;
+		try {
+			// Treat the side pane as visible when *either* part is visible so the
+			// toggle always closes both, instead of just revealing the auxiliary
+			// bar on top of an already-visible editor area.
+			const editorVisible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+			const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+			const isCurrentlyVisible = editorVisible || auxiliaryBarVisible;
+
+			// When hiding and unhiding the editor part and auxiliary bar, hiding
+			// must be done in the opposite order than showing for sizing to restore
+			// correct dimensions.
+			if (isCurrentlyVisible) {
+				this._lastVisibleSidePaneParts = { editor: editorVisible, auxiliaryBar: auxiliaryBarVisible };
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			} else {
+				// Restore only the parts that were visible before hiding (default to
+				// both when there is no remembered state, e.g. after a reload).
+				const restore = this._lastVisibleSidePaneParts ?? { editor: true, auxiliaryBar: true };
+				const hasEditors = this._editorGroupsService.groups.some(group => !group.isEmpty);
+				if (restore.editor && hasEditors) {
+					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				}
+				if (restore.auxiliaryBar) {
+					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				}
+				// Ensure the toggle always has a visible effect (e.g. the remembered
+				// state was editor-only but there are no editors to show now).
+				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				}
+			}
+
+			return !isCurrentlyVisible;
+		} finally {
+			this._togglingSidePane = false;
+		}
+	}
 
 	/**
 	 * [B4] Hook that lets a subclass snapshot the active session's view state when

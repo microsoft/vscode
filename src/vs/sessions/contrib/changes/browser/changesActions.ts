@@ -16,7 +16,6 @@ import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/a
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
@@ -24,8 +23,8 @@ import { ISessionContext } from '../../../services/sessions/browser/sessionConte
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { CHANGES_VIEW_ID } from '../common/changes.js';
-import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from './sessionChangesService.js';
 import { ChangesViewModel } from './changesViewModel.js';
 
 // --- View All Changes action
@@ -54,7 +53,7 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
-		const viewsService = accessor.get(IViewsService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -64,17 +63,11 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// Reveal the Changes view in the auxiliary bar (the 3rd pane). The user
-		// expects clicking Changes to bring back the side pane even if they had
-		// previously closed it, so always reveal it here rather than relying on the
-		// per-session saved visibility.
-		await viewsService.openView(CHANGES_VIEW_ID, false);
-
 		// Open the multi-file diff editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
 		// a workbench contribution.
 		await editorService.openEditor({
-			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
+			multiDiffSource: sessionChangesService.getChangesEditorResource(sessionResource),
 			label: localize('sessions.changes.title', 'Session Changes'),
 		});
 	}

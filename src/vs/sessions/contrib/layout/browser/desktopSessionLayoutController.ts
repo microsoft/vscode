@@ -45,7 +45,7 @@ export const RESPONSIVE_SIDEBAR_SETTING = 'sessions.layout.autoCollapseSessionsS
  * {@link BaseLayoutController}, it manages the per-session auxiliary bar
  * visibility and active view container.
  *
- * Its behaviour is enumerated as rules **D1-D6** in
+ * Its behaviour is enumerated as rules **D1-D8** in
  * [desktopSessionLayoutController.md](./desktopSessionLayoutController.md).
  */
 export class LayoutController extends BaseLayoutController {
@@ -64,6 +64,9 @@ export class LayoutController extends BaseLayoutController {
 	private _applyingAutoSidebar = false;
 	/** [D7] Last computed space-constrained state, so the autorun only acts on real transitions. */
 	private _previousSpaceConstrained = false;
+
+	/** [D2/D8] `true` while the controller hides the side pane to restore a session's remembered state, so the hide isn't captured as a user choice. */
+	private _hidingAuxiliaryBarForRestore = false;
 
 	protected override _registerViewStateManagement(): void {
 		this._loadNewSessionViewState();
@@ -149,6 +152,19 @@ export class LayoutController extends BaseLayoutController {
 			if (e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
+			// [D9] Toggling the whole side pane (editor + aux bar together) hides or
+			// shows the aux bar as a side effect, not as a per-session choice, so
+			// don't record it.
+			if (this._togglingSidePane) {
+				return;
+			}
+			// A restore-driven hide replays the remembered state rather than
+			// reacting to a user action, so don't record it as a new per-session
+			// choice (this keeps "no remembered choice yet" meaningful for the
+			// first-time Changes reveal, D8).
+			if (this._hidingAuxiliaryBarForRestore) {
+				return;
+			}
 			if (this.multipleSessionsVisibleObs.get()) {
 				return;
 			}
@@ -168,10 +184,73 @@ export class LayoutController extends BaseLayoutController {
 			}
 		}));
 
+		// [D8] Reveal the Changes view in the side pane the first time a Changes
+		// editor is opened for an existing session; afterwards respect the
+		// remembered per-session choice (D1/D2/D3).
+		this._register(this._editorService.onDidActiveEditorChange(() => this._revealChangesViewOnFirstOpen()));
+
+		// [D8] Re-opening the Changes editor while it is already the active editor
+		// (e.g. after the whole side pane was closed, which only hides the editor
+		// part) re-reveals the editor part without firing an active-editor change,
+		// so also react to the editor part becoming visible.
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.EDITOR_PART && e.visible) {
+				this._revealChangesViewOnFirstOpen();
+			}
+		}));
+
 		this._registerResponsiveSidebar();
 	}
 
-	// --- Responsive sessions sidebar [D7] ---
+	/**
+	 * [D8] When a Changes (multi-diff) editor is opened (becomes active, or its
+	 * editor part is re-revealed) for an existing session, show the Changes view
+	 * in the side pane unless the user explicitly hid the aux bar for that
+	 * session. This reveals it the first time (no remembered choice) and again
+	 * after the whole side pane was closed (D9, which keeps the remembered choice
+	 * "open"), but respects an explicit aux-bar-hidden choice. The reveal is
+	 * captured by [D2]. Skipped while a side-pane toggle is in progress (so the
+	 * toggle restores exactly the remembered parts, D9), while the editor is
+	 * maximized (D5) or while multiple sessions are visible, where the side pane
+	 * is managed by other rules.
+	 */
+	private _revealChangesViewOnFirstOpen(): void {
+		// A side-pane toggle restores exactly the remembered parts; don't let the
+		// editor part it reveals force the Changes view open (D9).
+		if (this._togglingSidePane) {
+			return;
+		}
+		const activeEditorResource = this._editorService.activeEditor?.resource;
+		if (!activeEditorResource) {
+			return;
+		}
+		const changesSessionResource = this._sessionChangesService.getSessionResource(activeEditorResource);
+		if (!changesSessionResource) {
+			return;
+		}
+		if (this.multipleSessionsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || !isEqual(activeSession.resource, changesSessionResource)) {
+			return;
+		}
+		// Untitled sessions share the new-session side-pane state (D3b/D4).
+		if (activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+		const savedState = this._viewStateBySession.get(changesSessionResource);
+		if (savedState) {
+			// The user explicitly hid the aux bar for this session, or the side
+			// pane is already open (leave it on whatever view they chose). Only an
+			// "open but currently closed" state (e.g. after the side pane was
+			// closed whole, D9) falls through to re-reveal the Changes view.
+			if (!savedState.auxiliaryBarVisible || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				return;
+			}
+		}
+		this._viewsService.openView(CHANGES_VIEW_ID, false);
+	}
 
 	/**
 	 * On a small window, auto-hide the sessions sidebar while both the editor and
@@ -309,7 +388,7 @@ export class LayoutController extends BaseLayoutController {
 		// [D3b] New-session view: all untitled sessions share one state.
 		if (isUntitled) {
 			if (this._newSessionViewState && !this._newSessionViewState.auxiliaryBarVisible) {
-				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				this._hideAuxiliaryBarForRestore();
 				return;
 			}
 			return this._openDefaultAuxiliaryBarContainer(hasChanges);
@@ -319,7 +398,7 @@ export class LayoutController extends BaseLayoutController {
 
 		// [D3c] Existing sessions are never auto-opened: hide unless explicitly left visible.
 		if (!savedState || !savedState.auxiliaryBarVisible) {
-			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			this._hideAuxiliaryBarForRestore();
 			return;
 		}
 
@@ -338,6 +417,21 @@ export class LayoutController extends BaseLayoutController {
 			return this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			return this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+		}
+	}
+
+	/**
+	 * [D2/D8] Hide the side pane as part of restoring a session's remembered
+	 * state. The synchronous guard makes the [D2] listener ignore the resulting
+	 * visibility change so a restore-driven hide is never recorded as a new
+	 * per-session choice.
+	 */
+	private _hideAuxiliaryBarForRestore(): void {
+		this._hidingAuxiliaryBarForRestore = true;
+		try {
+			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		} finally {
+			this._hidingAuxiliaryBarForRestore = false;
 		}
 	}
 
