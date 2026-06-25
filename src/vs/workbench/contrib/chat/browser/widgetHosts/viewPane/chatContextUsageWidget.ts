@@ -370,10 +370,7 @@ export class ChatContextUsageWidget extends Disposable {
 		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
 		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
-		// When the resolved configuration is missing `contextSize` (e.g. the schema
-		// default has not loaded yet), fall back to the schema's default context-size
-		// tier before the model's full native window, so the gauge denominator and the
-		// size the request actually uses stay in agreement. See `applyContextSizeOverride`.
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
 		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata?.configurationSchema, modelMetadata?.maxInputTokens);
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
