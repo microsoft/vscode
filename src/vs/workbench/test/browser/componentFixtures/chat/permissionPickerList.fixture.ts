@@ -13,10 +13,14 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 interface PermissionPickerListFixtureOptions {
+	/** Whether the inline "Sandboxing for terminal" toggle is shown on the Default option. */
+	readonly showSandboxToggle?: boolean;
+	/** Whether the inline toggle renders in the on (checked) state. */
 	readonly sandboxingEnabled?: boolean;
 }
 
 function buildItems(options: PermissionPickerListFixtureOptions): IActionListItem<IActionWidgetDropdownAction>[] {
+	const showToggle = !!options.showSandboxToggle;
 	const sandboxOn = !!options.sandboxingEnabled;
 
 	const makeItem = (action: IActionWidgetDropdownAction): IActionListItem<IActionWidgetDropdownAction> => ({
@@ -25,6 +29,7 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 		detail: action.detail,
 		hover: action.hover,
 		toolbarActions: action.toolbarActions,
+		inlineToggle: action.inlineToggle,
 		className: action.className,
 		kind: ActionListItemKind.Action,
 		canPreview: false,
@@ -43,15 +48,12 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 			label: localize('permissions.default', "Default Approvals"),
 			detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 			icon: ThemeIcon.fromId(Codicon.shield.id),
-			checked: !sandboxOn,
-		}),
-		makeItem({
-			...actionTemplate,
-			id: 'chat.permissions.default.sandbox',
-			label: localize('permissions.default.sandbox', "Default Approvals with Sandboxing"),
-			detail: localize('permissions.default.sandbox.subtext', "Terminal commands run in a sandbox"),
-			icon: ThemeIcon.fromId(Codicon.shield.id),
-			checked: sandboxOn,
+			checked: true,
+			inlineToggle: showToggle ? {
+				label: localize('permissions.default.sandbox.toggle', "Sandboxing for terminal"),
+				checked: sandboxOn,
+				onChange: () => { },
+			} : undefined,
 		}),
 		makeItem({
 			...actionTemplate,
@@ -104,7 +106,7 @@ function renderPermissionPickerList(context: ComponentFixtureContext, options: P
 		items,
 		delegate,
 		undefined,
-		{ minWidth: 255, detailItemHeight: 44, reserveSubmenuSpace: false, hideDefaultKeybindingTooltip: true },
+		{ minWidth: 255, detailItemHeight: 44, inlineToggleItemHeight: 70, reserveSubmenuSpace: false, hideDefaultKeybindingTooltip: true },
 	));
 
 	container.classList.add('monaco-workbench');
@@ -118,14 +120,16 @@ function renderPermissionPickerList(context: ComponentFixtureContext, options: P
 	wrapper.appendChild(widget.domNode);
 	container.appendChild(wrapper);
 
-	// Item heights: Action with detail = 44px (detailItemHeight). Separator = 8.
-	// 4 detailed actions (44*4) + separator (8) + 1 plain action (24) = 208.
-	const actionHeight = 44 * 4 + 24;
+	// Item heights: Default = 70 with inline toggle (inlineToggleItemHeight), else 44 (detail).
+	// Bypass + Autopilot with detail = 44 each. Separator = 8. Learn more = 24.
+	const defaultItemHeight = options.showSandboxToggle ? 70 : 44;
+	const actionHeight = defaultItemHeight + 44 * 2 + 24;
 	const totalHeight = actionHeight + 8;
 	widget.layout(totalHeight, 320);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/input/permissionPickerList' }, {
 	Default: defineComponentFixture({ render: context => renderPermissionPickerList(context) }),
-	WithSandboxing: defineComponentFixture({ render: context => renderPermissionPickerList(context, { sandboxingEnabled: true }) }),
+	SandboxToggleOff: defineComponentFixture({ render: context => renderPermissionPickerList(context, { showSandboxToggle: true }) }),
+	SandboxToggleOn: defineComponentFixture({ render: context => renderPermissionPickerList(context, { showSandboxToggle: true, sandboxingEnabled: true }) }),
 });

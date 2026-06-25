@@ -60,6 +60,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	if (sandboxingEnabled) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
