@@ -500,7 +500,13 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Editor working sets [B2] ---
 
 	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
-		const preserveFocus = this._layoutService.hasFocus(Parts.PANEL_PART);
+		// Restoring a session's editor working set must never pull keyboard focus
+		// into the editor area. Focus during a session switch is owned by the
+		// switch itself (it moves focus into the active session's chat input, or
+		// leaves it on the panel); letting the editor restore grab focus would
+		// steal it from the chat input whenever the target session has editors
+		// open.
+		const preserveFocus = true;
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';

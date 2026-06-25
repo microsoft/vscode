@@ -1610,7 +1610,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
 				this.markRead(element);
-				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false, e.sideBySide);
+				// A deliberate left mouse click on a session should move keyboard
+				// focus into the chat input so the user can start typing right
+				// away. A single click always reports `preserveFocus: true`, so
+				// detect the mouse click explicitly. Keyboard navigation keeps
+				// `preserveFocus` as reported so browsing the list never steals
+				// focus from it.
+				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
+				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
+				this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
 			}
 		}));
 
