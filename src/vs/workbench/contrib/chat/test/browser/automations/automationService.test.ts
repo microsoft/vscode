@@ -238,10 +238,15 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
 
-		// A subsequent mutation must not destroy the on-disk newer ledger.
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		// A subsequent mutation must be rejected (read-only mode) and must not
+		// destroy the on-disk newer ledger.
+		await assert.rejects(
+			() => service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER }),
+			/newer version/,
+		);
 
-		// In-memory state is also unchanged because commit short-circuits.
+		// In-memory state is also unchanged because the mutation was rejected
+		// before any commit.
 		assert.deepStrictEqual(service.automations.get(), []);
 
 		// On-disk blob must still be the original future-version data.
