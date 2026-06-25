@@ -27,7 +27,26 @@ On leaving a session, its current side-pane state is captured for that session.
 
 #### D2 — Immediately when you toggle it
 Opening or closing the side pane is captured right away, not only when you switch sessions. This is
-suspended while multiple sessions are visible or while the editor is maximized (D5).
+suspended while multiple sessions are visible, while the editor is maximized (D5), while the
+controller hides the side pane to restore a session's remembered state (so a restore-driven hide is
+never recorded as a new choice), and when the whole side pane is closed at once (D9).
+
+### Scenario: opening the Changes editor
+The session header's **Changes** button opens the multi-file diff editor in the editor area.
+
+#### D8 — Opening the Changes editor shows the side pane
+When a Changes editor is opened for an existing session, the side pane opens to the **Changes** view —
+the **first** time (no remembered choice yet) and again after the whole side pane was closed (D9). If
+you explicitly closed just the side pane (while keeping the editor open), it stays closed on later
+opens (and across reloads). An already-open side pane is left on whatever view you chose. Skipped while
+the editor is maximized (D5) or multiple sessions are visible, where the side pane is managed by other
+rules.
+
+#### D9 — Closing the whole side pane is not an aux-bar choice
+The "side pane" is the editor area together with the auxiliary bar. Closing it (e.g. from the side
+panel toggle) hides both at once. That is **not** remembered as a choice to hide the side pane for the
+session, so reopening the Changes editor shows it again (D8). Only hiding the auxiliary bar on its own,
+while the editor stays open, is remembered as an explicit "closed" choice.
 
 ### Scenario: returning to a session
 When you focus a session, its side pane is restored from the state remembered above.
@@ -94,9 +113,11 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   `auxiliaryBarActiveViewContainerId`; also used by the base save-time hook (B4) via
   `_captureActiveSessionViewState`.
 - **Live tracking [D2]** — `onDidChangePartVisibility` listener for `AUXILIARYBAR_PART`, skipped while
-  multiple sessions are visible or the editor is maximized; updates `_captureViewState` (titled) or
-  `_newSessionViewState` (uncreated). When a created session is revealed from hidden saved state, the
-  saved/default active container is restored before capture.
+  multiple sessions are visible, the editor is maximized, `_togglingSidePane` is set (the side-pane
+  toggle, D9), or `_hidingAuxiliaryBarForRestore` is set (the restore-driven hide routes through
+  `_hideAuxiliaryBarForRestore`); updates `_captureViewState` (created) or `_setNewSessionViewState`
+  (uncreated). When a created session is revealed from hidden saved state, the saved/default active
+  container is restored before capture (`_restoreSavedAuxiliaryBarContainerOnReveal`).
 - **Restore [D3]** — `_syncAuxiliaryBarVisibility(resource, hasWorkspace, isCreated)`.
   Uncreated sessions (D3b) share `_newSessionViewState`, persisted under
   `sessions.newSessionViewState`. `_openDefaultAuxiliaryBarContainer` /
@@ -111,16 +132,36 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   its previous width.
 - **No auto-reveal [D6]** — the sync logic never opens the side pane or switches the active container
   in response to file changes; only D3b opens it, and D4 switches it to Changes.
+- **First Changes open [D8]** — `_revealChangesViewOnFirstOpen`, registered on
+  `IEditorService.onDidActiveEditorChange` **and** on `onDidChangePartVisibility` for `EDITOR_PART`
+  becoming visible. The latter covers re-clicking the **Changes** button after the whole side pane was
+  closed (D9): the Changes editor is still the active editor (only hidden), so re-opening it re-reveals
+  the editor part without firing an active-editor change. The reveal is skipped while `_togglingSidePane`
+  is set so re-opening the side pane via the toggle restores exactly `_lastVisibleSidePaneParts` instead.
+  It recognizes a Changes editor via `ISessionChangesService.getSessionResource` (the multi-diff source
+  URI's session), and opens `CHANGES_VIEW_ID` when that session is the active titled session and neither
+  maximize (D5) nor multi-session mode is active, unless the session's `_viewStateBySession` entry
+  explicitly has `auxiliaryBarVisible: false`, or the aux bar is already visible. The reveal flows through
+  the [D2] listener, which records `{ auxiliaryBarVisible: true }`.
+- **Side-pane close [D9]** — the side-pane toggle lives on the controller (`toggleSidePane`). Its UI
+  entry point (the `Toggle Side Panel` action: menu item, keybinding, command-palette entry, toggled
+  icon) is registered by the base controller in its constructor and calls `toggleSidePane` directly.
+  The toggle hides/shows the editor area and auxiliary bar together (remembering which parts to restore
+  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set. The [D2] listener skips capture
+  while that flag is set, so closing or opening the whole side pane is never recorded as a per-session
+  aux-bar choice.
 - **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
   && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
   `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==
   'stable'`), `onDidLayoutMainContainer` (width `<= SMALL_WINDOW_MAX_WIDTH`, 1800) and
   `onDidChangePartVisibility`. An autorun acts only on real transitions of that derived (skipped while the
-  editor is maximized): constrained → `_setSidebarAutoHidden(true)`, un-constrained →
-  `_setSidebarAutoHidden(false)` unless `_userClosedSidebar`. A separate `onDidChangePartVisibility`
-  listener for `SIDEBAR_PART` records manual toggles into `_userClosedSidebar` (a manual open clears it),
-  guarded by `_applyingAutoSidebar` so the controller's own toggles aren't mistaken for user intent;
-  maximize's own sidebar enter/restore toggles self-cancel through this listener. While restoring a
+  editor is maximized): constrained → if `_setSidebarAutoHidden(true)` actually hid a visible sidebar it sets
+  `_sidebarAutoHidden`, un-constrained → `_setSidebarAutoHidden(false)` only when `_sidebarAutoHidden` (i.e. the
+  controller hid it). A separate `onDidChangePartVisibility` listener for `SIDEBAR_PART` clears
+  `_sidebarAutoHidden` on any manual toggle so the user keeps control, guarded by `_applyingAutoSidebar` so the
+  controller's own toggles aren't mistaken for user intent; maximize's own sidebar enter/restore toggles
+  self-cancel through this listener. Because only controller-driven hides are auto-reverted, a sidebar that was
+  already closed before a reload (in-memory `_sidebarAutoHidden` resets to `false`) is never auto-revealed. While restoring a
   session's layout the autorun re-baselines instead of reacting. The restore epoch lives in the base
   controller (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) and wraps **both** the desktop
   [D3] aux-bar restore (`_onNewSessionSubmitted`, `_syncAuxiliaryBarVisibility`) **and** the base [B2]
