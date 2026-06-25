@@ -200,7 +200,15 @@ jobs:
           branchName: $(Build.SourceBranch)
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
-          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
+          # NB: one glob per line. DownloadBuildArtifacts@1 runs minimatch with
+          # brace expansion disabled, so a "**/{a,b}" pattern matches NOTHING and
+          # silently downloads 0 files (observed in build 450982, the first real
+          # CG outage post-cutover: the artifact downloaded but every file was
+          # excluded, so the apply-fallback step saw no cache). Multi-line plain
+          # globs are matched reliably.
+          itemPattern: |
+            **/ThirdPartyNotices.generated.txt
+            **/notice-meta.txt
           downloadPath: $(Pipeline.Workspace)/cached-notice-branch
         continueOnError: true
         condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
@@ -215,7 +223,11 @@ jobs:
           branchName: refs/heads/main
           allowPartiallySucceededBuilds: true
           artifactName: notice_output
-          itemPattern: "**/{ThirdPartyNotices.generated.txt,notice-meta.txt}"
+          # See note on the same-branch download above: brace patterns match 0
+          # files in DownloadBuildArtifacts@1. Keep one plain glob per line.
+          itemPattern: |
+            **/ThirdPartyNotices.generated.txt
+            **/notice-meta.txt
           downloadPath: $(Pipeline.Workspace)/cached-notice-main
         continueOnError: true
         condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
