@@ -188,9 +188,15 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 }
 
 export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {
-	return comments.filter(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted).length;
+	let count = 0;
+	for (const comment of comments) {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted) {
+			count++;
+		}
+	}
+	return count;
 }
 
 export function hasAcceptedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
-	return getAcceptedAgentFeedbackCommentCount(comments) > 0;
+	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted);
 }

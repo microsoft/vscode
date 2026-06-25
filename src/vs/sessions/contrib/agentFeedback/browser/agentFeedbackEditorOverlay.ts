@@ -32,13 +32,10 @@ class SubmitFeedbackActionRunner extends ActionRunner {
 		super();
 	}
 
-	override async run(action: IAction, context?: unknown): Promise<void> {
-		if (!action.enabled) {
-			return super.run(action, context);
-		}
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
-		await super.run(action, context);
-		if (editorToClose && this._editorGroup.contains(editorToClose)) {
+		const didSubmit = await action.run(context);
+		if (didSubmit === true && editorToClose && this._editorGroup.contains(editorToClose)) {
 			await this._editorGroup.closeEditor(editorToClose);
 		}
 	}
