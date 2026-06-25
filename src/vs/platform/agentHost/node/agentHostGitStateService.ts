@@ -119,55 +119,22 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 	}
 
-	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
-		// Attempt to load the GitHub state from the state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
-		const currentGitHubState = readSessionGitHubState(currentMeta);
-		if (currentGitHubState) {
-			return currentGitHubState;
-		}
-
-		// Load the GitHub state from the session database
-		let databaseRef;
-		try {
-			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService][getSessionGitHubState] Failed to open session database for ${sessionKey}`, error);
-			return undefined;
-		}
-
-		try {
-			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
-			if (githubStateStr) {
-				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
-				this._stateManager.setSessionSummaryMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
-
-				return githubState;
-			}
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService][_getSessionGitHubState] Failed to load GitHub state for ${sessionKey}`, error);
-		} finally {
-			databaseRef.dispose();
-		}
-
-		return undefined;
-	}
-
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
-		const current = await this.getSessionGitHubState(sessionKey);
-		const next = { ...current, ...state } satisfies ISessionGitHubState;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
 
-		if (objectEquals(current, next)) {
+		const currentState = readSessionGitHubState(currentMeta);
+		const nextState = { ...currentState, ...state } satisfies ISessionGitHubState;
+
+		if (objectEquals(currentState, nextState)) {
 			return;
 		}
 
 		// Update session state manager
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
-		const nextMeta = withSessionGitHubState(currentMeta, next);
+		const nextMeta = withSessionGitHubState(currentMeta, nextState);
 		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
 
 		// Update session database
-		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(next));
+		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 	}
 
 	private _setSessionGitState(sessionKey: string, gitState: ISessionGitState): void {
