@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -115,7 +116,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	getDefaultFolder(): URI | undefined {
 		const stored = this._defaultFolder;
-		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => folder.uri.toString() === stored.toString())) {
+		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, stored))) {
 			return stored;
 		}
 		return undefined;

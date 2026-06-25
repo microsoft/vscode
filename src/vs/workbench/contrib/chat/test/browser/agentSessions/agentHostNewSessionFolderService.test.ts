@@ -105,7 +105,7 @@ suite('AgentHostNewSessionFolderService', () => {
 		});
 	});
 
-	test('getDefaultFolder drops a default no longer in the workspace', () => {
+	test('getDefaultFolder hides a default not in the workspace and surfaces it once present', () => {
 		service.setFolder(sessionA, folderC);
 		const whileWorkspaceLacksFolder = service.getDefaultFolder();
 
