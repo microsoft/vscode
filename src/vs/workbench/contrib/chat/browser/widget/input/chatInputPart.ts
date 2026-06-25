@@ -3269,6 +3269,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 							this.permissionWidget?.refresh();
 						},
+						isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;
