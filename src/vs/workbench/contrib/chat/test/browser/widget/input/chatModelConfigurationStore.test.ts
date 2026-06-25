@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
+import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 
 const schema: ILanguageModelConfigurationSchema = {
@@ -484,5 +485,44 @@ suite('ChatModelConfigurationStore', () => {
 			{ fired, configuration: editor.getModelConfiguration(MODEL) },
 			{ fired: [MODEL], configuration: { thinkingEffort: 'medium', contextSize: 200_000 } }
 		);
+	});
+
+	test('integration: store heals + notifies so the widget denominator drops from the full window to the default tier', () => {
+		// Covers the store -> widget seam the original regression slipped through.
+		// A non-empty snapshot (a global thinkingEffort) is cached before the model
+		// registers, so it lacks contextSize. Once the schema loads the store must
+		// both merge the default contextSize AND fire onDidChange, or the widget —
+		// whose only config-refresh trigger is this event — keeps showing the
+		// model's full native window instead of the cheaper default tier.
+		const FULL_WINDOW = 1_000_000;
+		const DEFAULT_TIER = 200_000;
+		const storage = store.add(new InMemoryStorageService());
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const metadata = () => registered
+			? ({ configurationSchema: schemaWithContextSize, maxInputTokens: FULL_WINDOW } as ILanguageModelChatMetadata)
+			: undefined;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => metadata(),
+			getModelConfiguration: (_id: string) => ({ thinkingEffort: 'high' }),
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		// The widget's denominator, fed by the store resolver, recomputed on change.
+		const computeDenominator = () => resolveContextWindowInputTokens(
+			editor.getModelConfiguration(MODEL),
+			metadata()?.configurationSchema,
+			metadata()?.maxInputTokens,
+		);
+		const denominators: (number | undefined)[] = [computeDenominator()];
+		store.add(editor.onDidChange(id => { if (id === MODEL) { denominators.push(computeDenominator()); } }));
+
+		// Schema loads: the store heals the snapshot and notifies the widget.
+		registered = true;
+		emitter.fire('copilot');
+
+		assert.deepStrictEqual(denominators, [undefined, DEFAULT_TIER]);
 	});
 });
