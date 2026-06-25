@@ -104,13 +104,28 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	readonly onDidReportCreditsEmitter = new Emitter<IClaudeProxyCreditsReport>();
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this.onDidReportCreditsEmitter.event;
 
-	/** Tests fire this to simulate the session's in-flight requests draining. */
-	readonly onDidSettleSessionEmitter = new Emitter<string>();
-	readonly onDidSettleSession: Event<string> = this.onDidSettleSessionEmitter.event;
-
-	/** Tests set entries here to simulate outstanding in-flight requests per session. */
+	/** Tests add a session id here to simulate outstanding in-flight requests. */
 	readonly inFlightSessions = new Set<string>();
-	hasInFlightForSession(sessionId: string): boolean { return this.inFlightSessions.has(sessionId); }
+	private readonly _settleWaiters = new Map<string, Array<() => void>>();
+
+	whenSettled(sessionId: string): Promise<void> {
+		if (!this.inFlightSessions.has(sessionId)) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const waiters = this._settleWaiters.get(sessionId) ?? [];
+			waiters.push(resolve);
+			this._settleWaiters.set(sessionId, waiters);
+		});
+	}
+
+	/** Tests call this to drain a session, releasing any `whenSettled` waiters. */
+	settle(sessionId: string): void {
+		this.inFlightSessions.delete(sessionId);
+		const waiters = this._settleWaiters.get(sessionId);
+		this._settleWaiters.delete(sessionId);
+		waiters?.forEach(resolve => resolve());
+	}
 
 	async start(token: string): Promise<IClaudeProxyHandle> {
 		this.startCalls.push({ token });
@@ -123,7 +138,6 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 
 	dispose(): void {
 		this.onDidReportCreditsEmitter.dispose();
-		this.onDidSettleSessionEmitter.dispose();
 	}
 }
 
@@ -3281,8 +3295,7 @@ suite('ClaudeAgent', () => {
 		class RecordingProxyService implements IClaudeProxyService {
 			declare readonly _serviceBrand: undefined;
 			readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = Event.None;
-			readonly onDidSettleSession: Event<string> = Event.None;
-			hasInFlightForSession(_sessionId: string): boolean { return false; }
+			whenSettled(_sessionId: string): Promise<void> { return Promise.resolve(); }
 			async start(_token: string): Promise<IClaudeProxyHandle> {
 				return {
 					baseUrl: 'http://127.0.0.1:0',

@@ -18,6 +18,13 @@ const schema: ILanguageModelConfigurationSchema = {
 	}
 };
 
+const schemaWithContextSize: ILanguageModelConfigurationSchema = {
+	properties: {
+		thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' },
+		contextSize: { type: 'number', default: 200_000 },
+	}
+};
+
 const MODEL = 'copilot/gpt';
 const KEY = 'chat.modelConfiguration.panel';
 
@@ -243,5 +250,99 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [OTHER]);
 		assert.deepStrictEqual(editor.getModelConfiguration(OTHER), { thinkingEffort: 'low' });
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
+	test('model change merges newly available schema defaults into non-empty pre-config-load snapshots', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata) : undefined,
+			getModelConfiguration: (_id: string) => ({ thinkingEffort: 'high' }),
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+
+		registered = true;
+		emitter.fire('copilot');
+
+		assert.deepStrictEqual(
+			{ fired, configuration: editor.getModelConfiguration(MODEL) },
+			{ fired: [MODEL], configuration: { thinkingEffort: 'high', contextSize: 200_000 } }
+		);
+	});
+
+	test('reload: a bucket-backed snapshot missing contextSize heals once the schema loads (regression for #320393)', () => {
+		// Reproduces the subtle reload bug: a previously persisted scoped entry was
+		// captured before `contextSize` existed in the schema (or only held a
+		// thinking-effort override). On reload the editor reads that bucket entry
+		// before providers finish registering, so the snapshot lacks `contextSize`.
+		// Once the schema (with the default contextSize tier) becomes available the
+		// snapshot MUST heal to include it — otherwise the request and gauge fall
+		// back to the model's full native window (1M) instead of the default (200K).
+		const storage = store.add(new InMemoryStorageService());
+		storage.store(KEY, JSON.stringify({ [MODEL]: { thinkingEffort: 'high' } }), StorageScope.APPLICATION, StorageTarget.USER);
+
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata) : undefined,
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		// Before registration the snapshot resolves from the bucket entry only.
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+
+		registered = true;
+		emitter.fire('copilot');
+
+		assert.deepStrictEqual(
+			{ fired, configuration: editor.getModelConfiguration(MODEL) },
+			{ fired: [MODEL], configuration: { thinkingEffort: 'high', contextSize: 200_000 } }
+		);
+	});
+
+	test('reload: an empty pre-config-load snapshot resolves to the default contextSize once the schema loads', () => {
+		// A model with no stored entry and no global value caches an empty snapshot
+		// before registration. Once the schema loads it must resolve to the default
+		// contextSize tier (not be left without a contextSize, which would leak the
+		// full window to the request/gauge).
+		const storage = store.add(new InMemoryStorageService());
+
+		const emitter = store.add(new Emitter<string>());
+		let registered = false;
+		const service = {
+			onDidChangeLanguageModels: emitter.event,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema: schemaWithContextSize } as ILanguageModelChatMetadata) : undefined,
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_modelId: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+
+		// Nothing registered yet: empty (poisoned) snapshot.
+		assert.strictEqual(editor.getModelConfiguration(MODEL), undefined);
+
+		const fired: string[] = [];
+		store.add(editor.onDidChange(id => fired.push(id)));
+
+		registered = true;
+		emitter.fire('copilot');
+
+		assert.deepStrictEqual(
+			{ fired, configuration: editor.getModelConfiguration(MODEL) },
+			{ fired: [MODEL], configuration: { thinkingEffort: 'medium', contextSize: 200_000 } }
+		);
 	});
 });

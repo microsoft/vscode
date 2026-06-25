@@ -262,49 +262,10 @@ suite('chatReducer – ChatUsage credit attribution', () => {
 		let state = startTurn(makeChat());
 		state = chatReducer(state, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
 		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(1_000_000_000) });
-		// A late credit lifts the running total; the amend replaces (not adds).
+		// A late credit lifts the running total; the report replaces (not adds).
 		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(1_500_000_000) });
 
 		assert.deepStrictEqual(state.turns.at(-1)?.usage, creditsUsage(1_500_000_000));
-	});
-
-	test('a credit-only amend on the active turn preserves previously reported token counts', () => {
-		let state = startTurn(makeChat());
-		// Full usage (tokens + credits) lands first while the turn is active.
-		state = chatReducer(state, {
-			type: ActionType.ChatUsage,
-			turnId: 'turn-1',
-			usage: { inputTokens: 10, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
-		});
-		// A later credit-only amend (e.g. a subagent request settling) must not drop tokens.
-		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(1_250_000_000) });
-
-		assert.deepStrictEqual(state.activeTurn?.usage, {
-			inputTokens: 10,
-			outputTokens: 20,
-			_meta: { copilotUsage: { totalNanoAiu: 1_250_000_000 } },
-		});
-	});
-
-	test('a credit-only amend preserves sibling fields nested under copilotUsage', () => {
-		let state = startTurn(makeChat());
-		// First report carries extra nested detail alongside the credit total.
-		state = chatReducer(state, {
-			type: ActionType.ChatUsage,
-			turnId: 'turn-1',
-			usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000, tokenDetails: [{ tokenType: 'input', tokenCount: 7 }] } } },
-		});
-		// A later credit-only amend (e.g. the `final` marker) updates the total
-		// without re-sending the nested detail, which must survive the merge.
-		state = chatReducer(state, {
-			type: ActionType.ChatUsage,
-			turnId: 'turn-1',
-			usage: { _meta: { copilotUsage: { totalNanoAiu: 1_250_000_000, final: true } } },
-		});
-
-		assert.deepStrictEqual(state.activeTurn?.usage, {
-			_meta: { copilotUsage: { totalNanoAiu: 1_250_000_000, final: true, tokenDetails: [{ tokenType: 'input', tokenCount: 7 }] } },
-		});
 	});
 
 	test('usage for an unknown turn is ignored', () => {

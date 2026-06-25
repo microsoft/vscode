@@ -206,130 +206,24 @@ export class ClaudeAgentSession extends Disposable {
 	private _currentTurnNanoAiu = 0;
 
 	/**
-	 * The turn id of the in-flight (or most recently active) turn. Set at the
-	 * start of each {@link send} and used to attribute proxy-reported credits —
-	 * including any that arrive AFTER the turn ends (e.g. a cancelled turn whose
-	 * billed `/v1/messages` credits settle moments later) — back to the correct
-	 * turn via {@link _emitTurnCredits}.
+	 * The id of the in-flight (or most recently active) turn. Set at the start
+	 * of each {@link send}; used to attribute the turn's accumulated credits
+	 * when {@link abort} emits the cancelled turn's final cost.
 	 */
 	private _currentTurnId: string | undefined;
 
 	/**
-	 * Whether {@link _currentTurnId} is still streaming. While `true`, credits
-	 * ride out on the turn's terminal `ChatUsage` (the SDK `result`, enriched by
-	 * {@link _enrichSignalWithCredits}). Once the turn ends (complete / error /
-	 * abort), {@link recordTurnCredits} actively re-emits the running total so
-	 * late-arriving credits still reach the now-terminal turn instead of being
-	 * dropped (which would undercount).
-	 */
-	private _turnActive = false;
-
-	/**
-	 * Set when the current turn was cancelled (via {@link abort}). The `final`
-	 * credit marker — which the consumer waits for before finalizing a cancelled
-	 * response's footer — is only emitted on this path. A turn that completes
-	 * normally carries its credits on the SDK `result`'s enriched `ChatUsage`
-	 * (see {@link _enrichSignalWithCredits}), so it needs no extra marker.
-	 */
-	private _turnCancelled = false;
-
-	/**
-	 * Whether the current turn's credits have been emitted as `final` (every
-	 * billed request settled). Reset at the start of each {@link send}. Guards
-	 * against emitting more than one final marker per turn.
-	 */
-	private _turnCreditsFinalized = false;
-
-	/**
 	 * Accumulate proxy-reported billed credits for the current turn. Called from
 	 * {@link ClaudeAgent} for every proxy `onDidReportCredits` routed to this
-	 * session. Ignores non-positive / non-finite values. While the turn is
-	 * active the running total simply accumulates (it rides out on the turn's
-	 * terminal `ChatUsage`); once the turn has ended it re-emits the running
-	 * total so a late-settling request's credits still reach the (now terminal)
-	 * turn. On a cancelled turn the `final` marker follows once the proxy reports
-	 * the session idle.
+	 * session. Ignores non-positive / non-finite values. The running total rides
+	 * out on the turn's terminal `ChatUsage`: the SDK `result` (enriched by
+	 * {@link _enrichSignalWithCredits}) for a turn that completes normally, or
+	 * the final `ChatUsage` that {@link abort} emits once the proxy has drained
+	 * for a cancelled turn.
 	 */
 	recordTurnCredits(totalNanoAiu: number): void {
 		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
 			this._currentTurnNanoAiu += totalNanoAiu;
-			this._logService.trace(`[Claude:${this.sessionId}] recordTurnCredits: +${totalNanoAiu} nano-AIU (turn total=${this._currentTurnNanoAiu}, turnActive=${this._turnActive})`);
-			if (!this._turnActive && !this._turnCreditsFinalized) {
-				// Terminal turn, more credits still settling: push the running
-				// total now (non-final) so the turn's cost stays current, then —
-				// on the cancel path — re-check whether the session has fully
-				// drained so we can mark the credits final.
-				this._emitTurnCredits(false);
-				this._tryFinalizeTurnCredits();
-			}
-		}
-	}
-
-	/**
-	 * Fire a `ChatUsage` signal carrying the current turn's accumulated Copilot
-	 * credits as `_meta.copilotUsage.totalNanoAiu`, optionally flagged `final`.
-	 * Emits the running total (assign-last-wins on the consumer), so repeated
-	 * calls are idempotent and never overcount. A non-final emit with no credits
-	 * is skipped; a `final` emit always fires (even at zero) so a consumer
-	 * waiting on the final marker is released promptly.
-	 *
-	 * The consumer reducer applies `ChatUsage` to the matching turn whether it is
-	 * still active or already terminal, so this safely reconciles credits that
-	 * arrive after an aborted / completed turn.
-	 */
-	private _emitTurnCredits(final: boolean): void {
-		if (this._currentTurnId === undefined || (!final && this._currentTurnNanoAiu <= 0)) {
-			return;
-		}
-		this._onDidSessionProgress.fire({
-			kind: 'action',
-			session: this.sessionUri,
-			action: {
-				type: ActionType.ChatUsage,
-				turnId: this._currentTurnId,
-				usage: { _meta: { copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu, ...(final ? { final: true } : {}) } } },
-			},
-		});
-	}
-
-	/**
-	 * For a cancelled turn, mark its credits `final` once the proxy reports no
-	 * in-flight `/v1/messages` for this session — the deterministic signal that
-	 * every billed request has resolved (clean end, error, or abort). If
-	 * requests are still outstanding this is a no-op; the proxy's
-	 * `onDidSettleSession` (or the next {@link recordTurnCredits}) re-invokes it
-	 * when the session drains. No-op for normally-completed turns (their credits
-	 * already rode out on the enriched `ChatUsage`). Idempotent per turn.
-	 */
-	private _tryFinalizeTurnCredits(): void {
-		if (!this._turnCancelled || this._turnActive || this._turnCreditsFinalized || this._currentTurnId === undefined) {
-			return;
-		}
-		if (this._claudeProxyService.hasInFlightForSession(this.sessionId)) {
-			return;
-		}
-		this._turnCreditsFinalized = true;
-		this._logService.trace(`[Claude:${this.sessionId}] cancelled turn credits final: ${this._currentTurnNanoAiu} nano-AIU`);
-		this._emitTurnCredits(true);
-	}
-
-	/**
-	 * Observe pipeline signals for turn-end. On the terminal `ChatTurnComplete`
-	 * / `ChatError`, mark the turn inactive so any (rare) credit that settles
-	 * afterwards still re-emits the running total via {@link recordTurnCredits}.
-	 * The turn's credits already rode out on the SDK `result`'s enriched
-	 * `ChatUsage`, so no extra marker is emitted here. Cancellation does not flow
-	 * through here — it is driven by the client-dispatched `ChatTurnCancelled` →
-	 * {@link abort}, which runs the cancel-specific finalize sequence.
-	 */
-	private _observeTurnLifecycle(signal: AgentSignal): void {
-		if (signal.kind !== 'action' || !this._turnActive) {
-			return;
-		}
-		const action = signal.action;
-		if ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
-			&& action.turnId === this._currentTurnId) {
-			this._turnActive = false;
 		}
 	}
 
@@ -389,16 +283,6 @@ export class ClaudeAgentSession extends Disposable {
 		this.abortController = abortController;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
-
-		// Deterministic credit settle: when the proxy reports this session has no
-		// in-flight `/v1/messages` requests left, every billed request for the
-		// current turn has resolved, so finalize the turn's credits (mark them
-		// `final`). Filtered to this session; ignored while a turn is still active.
-		this._register(this._claudeProxyService.onDidSettleSession(sessionId => {
-			if (sessionId === this.sessionId) {
-				this._tryFinalizeTurnCredits();
-			}
-		}));
 
 		// Watch the on-disk Claude customization sources so edits made outside
 		// the session (a new `~/.claude/agents/*.md`, an edited skill, a changed
@@ -484,10 +368,7 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => {
-			this._observeTurnLifecycle(s);
-			this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s));
-		}));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
@@ -663,12 +544,9 @@ export class ClaudeAgentSession extends Disposable {
 		const pipeline = this._requirePipeline();
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero, and bind the
-		// turn id / active flag so late-arriving credits attribute correctly.
+		// turn id so a cancel can attribute the final credits correctly.
 		this._currentTurnNanoAiu = 0;
 		this._currentTurnId = turnId;
-		this._turnActive = true;
-		this._turnCancelled = false;
-		this._turnCreditsFinalized = false;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
 		} else {
@@ -702,24 +580,50 @@ export class ClaudeAgentSession extends Disposable {
 	 * callback (and any interactive tool waiting on user input) unwinds
 	 * with a deny / cancel result instead of leaving stale UI behind.
 	 *
-	 * A cancelled turn produces no SDK `result`, so its credits are finalized
-	 * here instead: flush the running total, then mark it `final` once the proxy
-	 * reports the session has drained (immediately if already idle, else via
-	 * {@link _tryFinalizeTurnCredits} on settle). This avoids both undercounting
-	 * and finalizing before the SDK's in-flight `/v1/messages` requests settle.
+	 * A cancelled turn produces no SDK `result`, so its credits are emitted
+	 * here instead. Billed credits for in-flight `/v1/messages` requests keep
+	 * settling as the aborted SDK subprocess unwinds, so teardown is synchronous
+	 * but the turn's final cost is finalized in the background once the proxy
+	 * reports the session drained — see {@link _finalizeCancelledTurnCredits}.
 	 */
 	abort(): void {
-		// Finalize credits before tearing down (see method doc for why).
-		this._turnActive = false;
-		this._turnCancelled = true;
-		if (this._currentTurnNanoAiu > 0) {
-			this._logService.trace(`[Claude:${this.sessionId}] abort: flushing ${this._currentTurnNanoAiu} nano-AIU accumulated this turn`);
-			this._emitTurnCredits(false);
-		}
-		this._tryFinalizeTurnCredits();
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
+		const turnId = this._currentTurnId;
 		this._requirePipeline().abort();
+		// Finalize the cancelled turn's cost once the proxy drains. Runs in the
+		// background so teardown semantics (and `abortSession`) stay synchronous.
+		void this._finalizeCancelledTurnCredits(turnId);
+	}
+
+	/**
+	 * Emit the cancelled turn's final billed credits once the proxy reports
+	 * this session has no in-flight `/v1/messages` requests left — the
+	 * deterministic signal that every billed request has settled (clean end,
+	 * error, or abort). Each request reports the credits it had already seen on
+	 * the wire as it unwinds, so by the time the session drains the running
+	 * total is complete. The `final` marker lets the workbench finalize the
+	 * cancelled response's cost footer without undercounting. Resolves the
+	 * proxy wait immediately when the session is already idle.
+	 */
+	private async _finalizeCancelledTurnCredits(turnId: string | undefined): Promise<void> {
+		if (turnId === undefined) {
+			return;
+		}
+		await this._claudeProxyService.whenSettled(this.sessionId);
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._logService.trace(`[Claude:${this.sessionId}] abort: emitting final ${this._currentTurnNanoAiu} nano-AIU for turn ${turnId}`);
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session: this.sessionUri,
+			action: {
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: { _meta: { copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu, final: true } } },
+			},
+		});
 	}
 
 	/**

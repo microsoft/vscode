@@ -83,22 +83,14 @@ export interface IClaudeProxyService {
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
-	 * Fires when a session's in-flight `/v1/messages` count transitions to
-	 * zero — i.e. every request the session had outstanding has resolved (clean
-	 * end, error, or abort). Consumers use this as the deterministic signal that
-	 * no further {@link onDidReportCredits} can arrive for the session's current
-	 * turn, so a cancelled turn's billed credits are fully settled. The payload
-	 * is the decoded session id.
+	 * Resolve once the session has no in-flight `/v1/messages` requests — i.e.
+	 * every request it had outstanding has resolved (clean end, error, or
+	 * abort). After cancelling a turn, the agent host awaits this before
+	 * finalizing the turn's cost so every billed request has reported its
+	 * credits first (a cancelled request reports the credits it had already seen
+	 * on the wire). Resolves immediately when the session is already idle.
 	 */
-	readonly onDidSettleSession: Event<string>;
-
-	/**
-	 * Whether the session currently has any in-flight `/v1/messages` request.
-	 * Pair with {@link onDidSettleSession}: a terminal turn whose session reports
-	 * `false` here is already fully settled (no settle event will follow), so
-	 * credits can be finalized immediately.
-	 */
-	hasInFlightForSession(sessionId: string): boolean;
+	whenSettled(sessionId: string): Promise<void>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -175,11 +167,11 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
 	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
 
-	private readonly _onDidSettleSession = new Emitter<string>();
-	readonly onDidSettleSession: Event<string> = this._onDidSettleSession.event;
-
 	/** Count of in-flight `/v1/messages` requests per session id. */
 	private readonly _inFlightBySession = new Map<string, number>();
+
+	/** Resolvers for {@link whenSettled} callers waiting on a session to drain. */
+	private readonly _settleWaiters = new Map<string, Array<() => void>>();
 
 	constructor(
 		@ILogService logService: ILogService,
@@ -192,8 +184,15 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		return { githubToken };
 	}
 
-	hasInFlightForSession(sessionId: string): boolean {
-		return (this._inFlightBySession.get(sessionId) ?? 0) > 0;
+	whenSettled(sessionId: string): Promise<void> {
+		if ((this._inFlightBySession.get(sessionId) ?? 0) === 0) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const waiters = this._settleWaiters.get(sessionId) ?? [];
+			waiters.push(resolve);
+			this._settleWaiters.set(sessionId, waiters);
+		});
 	}
 
 	/** Increment the session's in-flight count when a `/v1/messages` request starts. */
@@ -206,8 +205,8 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	/**
 	 * Decrement the session's in-flight count when a `/v1/messages` request ends.
-	 * Fires {@link onDidSettleSession} on the 1→0 transition so consumers learn
-	 * the session has no outstanding billed requests.
+	 * On the 1→0 transition the session has no outstanding billed requests, so
+	 * release any {@link whenSettled} waiters.
 	 */
 	private _releaseInFlight(sessionId: string | undefined): void {
 		if (sessionId === undefined) {
@@ -220,7 +219,13 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		}
 		this._inFlightBySession.delete(sessionId);
 		this._logService.trace(`[${PROXY_USER_FACING_NAME}] session settled (no in-flight): session=${sessionId}`);
-		this._onDidSettleSession.fire(sessionId);
+		const waiters = this._settleWaiters.get(sessionId);
+		if (waiters) {
+			this._settleWaiters.delete(sessionId);
+			for (const resolve of waiters) {
+				resolve();
+			}
+		}
 	}
 
 	async start(githubToken: string): Promise<IClaudeProxyHandle> {
@@ -239,7 +244,13 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	override dispose(): void {
 		super.dispose();
 		this._onDidReportCredits.dispose();
-		this._onDidSettleSession.dispose();
+		// Release any pending `whenSettled` waiters so awaiters don't hang.
+		for (const waiters of this._settleWaiters.values()) {
+			for (const resolve of waiters) {
+				resolve();
+			}
+		}
+		this._settleWaiters.clear();
 	}
 
 	protected override writeInternalError(res: http.ServerResponse): void {

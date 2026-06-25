@@ -879,6 +879,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sess.abortController.abort();
 			return;
 		}
+		// `abort()` tears the turn down synchronously (rejecting the in-flight
+		// deferred and freeing the sequencer); the cancelled turn's final cost is
+		// finalized in the background once the proxy drains.
 		sess.abort();
 	}
 
