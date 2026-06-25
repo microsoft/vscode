@@ -391,7 +391,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				title: inlineToggle.title ?? inlineToggle.label,
 				isChecked: inlineToggle.checked,
 				actionClassName: 'action-list-inline-switch',
-				notFocusable: true,
+				notFocusable: false,
 				inputActiveOptionBorder: undefined,
 				inputActiveOptionForeground: undefined,
 				inputActiveOptionBackground: undefined,
