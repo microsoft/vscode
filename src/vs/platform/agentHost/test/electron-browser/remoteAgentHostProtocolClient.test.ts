@@ -26,7 +26,7 @@ import { CustomizationType, ROOT_STATE_URI, StateComponents, customizationId } f
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
@@ -497,6 +497,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 				action: {
 					type: ActionType.RootConfigChanged,
 					config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: true },
+				},
+			},
+		});
+		const globalAutoApproveEnabled = findRootConfigNotification(transport.sentMessages, AgentHostGlobalAutoApproveEnabledConfigKey);
+		assert.deepStrictEqual(globalAutoApproveEnabled, {
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: {
+				channel: ROOT_STATE_URI,
+				clientSeq: 0,
+				action: {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: false },
 				},
 			},
 		});
