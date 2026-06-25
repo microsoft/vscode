@@ -63,15 +63,6 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
 	}
 	lines.push('');
-	if (filter.includedUserFileRoots) {
-		lines.push(`Filter includedUserFileRoots:`);
-		for (const r of filter.includedUserFileRoots) {
-			lines.push(`  ${r.fsPath}`);
-		}
-	} else {
-		lines.push(`Filter includedUserFileRoots: (all)`);
-	}
-	lines.push('');
 
 	// Determine which provider the widget actually uses (mirrors getItemSource logic)
 	const extensionProvider = activeDescriptor.itemProvider;

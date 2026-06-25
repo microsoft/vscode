@@ -158,7 +158,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 				if (sourceFolders.length === 0) {
 					this._logger.info(`  -- ${section} --`);
 				}
-				this._logger.info(`     Filter: sources=[${filter.sources.join(', ')}]${filter.includedUserFileRoots ? `, roots=[${filter.includedUserFileRoots.map(r => r.fsPath).join(', ')}]` : ''}`);
+				this._logger.info(`     Filter: sources=[${filter.sources.join(', ')}]`);
 				this._logger.info(`     Found ${filtered.length} item(s):`);
 				for (const f of filtered) {
 					this._logger.info(`       [${f.storage}] ${f.uri.fsPath}`);
