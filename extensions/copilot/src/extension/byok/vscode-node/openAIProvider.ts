@@ -40,6 +40,12 @@ export interface OpenAIModelConfig extends _OpenAIModelConfig {
 export interface OpenAIModelProviderConfig extends LanguageModelChatConfiguration {
 	url?: string;
 	models?: OpenAIModelConfig[];
+	/**
+	 * Enables Zero Data Retention for every model in this provider group. ZDR organizations
+	 * reject `previous_response_id` and server-side storage, so when set the Responses API path
+	 * is forced into stateless mode (`store: false`, no marker reuse).
+	 */
+	zeroDataRetentionEnabled?: boolean;
 }
 
 export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAIModelProviderConfig> {
@@ -88,6 +94,8 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<OpenAIModelProviderConfig>): Promise<OpenAIEndpoint> {
+		// Zero Data Retention is configured per provider group and applies to every model in it.
+		const groupZeroDataRetention = !!model.configuration?.zeroDataRetentionEnabled;
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		if (modelConfiguration) {
 			const apiType: OpenAIApiType = modelConfiguration.apiType ?? (model.url.includes('/responses') ? 'responses' : 'chat-completions');
@@ -102,7 +110,7 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 				thinking: modelConfiguration.thinking ?? false,
 				streaming: modelConfiguration.streaming,
 				requestHeaders: modelConfiguration.requestHeaders,
-				zeroDataRetentionEnabled: modelConfiguration.zeroDataRetentionEnabled,
+				zeroDataRetentionEnabled: modelConfiguration.zeroDataRetentionEnabled || groupZeroDataRetention,
 				supportsReasoningEffort: modelConfiguration.supportsReasoningEffort,
 				reasoningEffortFormat: modelConfiguration.reasoningEffortFormat
 			};
@@ -112,7 +120,13 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 				: [ModelSupportedEndpoint.ChatCompletions];
 			return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 		}
-		return super.createOpenAIEndPoint(model);
+		// Discovered models still honor the group-level Zero Data Retention setting.
+		const modelInfo = this.getModelInfo(model.id, model.url);
+		modelInfo.zeroDataRetentionEnabled = groupZeroDataRetention;
+		const url = modelInfo.supported_endpoints?.includes(ModelSupportedEndpoint.Responses)
+			? `${model.url}/responses`
+			: `${model.url}/chat/completions`;
+		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 
 	protected override getModelInfo(modelId: string, modelUrl: string): IChatModelInformation {
@@ -131,7 +145,7 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
  * path is appended based on the API type (defaulting the version segment to
  * `/v1` when missing).
  */
-function resolveOpenAIUrl(url: string, apiType: OpenAIApiType): string {
+export function resolveOpenAIUrl(url: string, apiType: OpenAIApiType): string {
 	if (url.includes('/responses') || url.includes('/chat/completions')) {
 		return url;
 	}

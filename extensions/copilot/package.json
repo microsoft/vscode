@@ -1826,6 +1826,12 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "title": "Zero Data Retention",
+              "markdownDescription": "Set this to `true` if your OpenAI organization enforces Zero Data Retention (ZDR). When enabled, requests sent via the Responses API disable server-side storage (`store: false`) and never send `previous_response_id`, which a ZDR organization rejects. Applies to all models in this group."
             }
           },
           "required": [
