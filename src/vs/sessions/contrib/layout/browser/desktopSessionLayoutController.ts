@@ -12,7 +12,6 @@ import product from '../../../../platform/product/common/product.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
@@ -45,7 +44,7 @@ export const RESPONSIVE_SIDEBAR_SETTING = 'sessions.layout.autoCollapseSessionsS
  * {@link BaseLayoutController}, it manages the per-session auxiliary bar
  * visibility and active view container.
  *
- * Its behaviour is enumerated as rules **D1-D6** in
+ * Its behaviour is enumerated as rules **D1-D7** in
  * [desktopSessionLayoutController.md](./desktopSessionLayoutController.md).
  */
 export class LayoutController extends BaseLayoutController {
@@ -68,20 +67,9 @@ export class LayoutController extends BaseLayoutController {
 	protected override _registerViewStateManagement(): void {
 		this._loadNewSessionViewState();
 
-		const activeSessionHasChangesObs = derived<boolean>(reader => {
+		const activeSessionIsCreatedObs = derived<boolean>(reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const changes = activeSession.changes.read(reader);
-			return changes.length > 0;
-		});
-
-		const activeSessionIsUntitledObs = derived<boolean>(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			const activeSessionStatus = activeSession?.status.read(reader);
-
-			return activeSessionStatus === SessionStatus.Untitled;
+			return activeSession?.isCreated.read(reader) ?? false;
 		});
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
@@ -95,11 +83,11 @@ export class LayoutController extends BaseLayoutController {
 
 		// Switch between sessions — sync auxiliary bar
 		let previousSessionResource: URI | undefined;
-		let previousIsUntitled = false;
+		let previousIsCreated = false;
 		this._register(autorun(reader => {
 			const editorMaximized = editorMaximizedObs.read(reader);
 			const activeSessionResource = this.activeSessionResourceObs.read(reader);
-			const isUntitled = activeSessionIsUntitledObs.read(reader);
+			const isCreated = activeSessionIsCreatedObs.read(reader);
 
 			// [D5] While the editor area is maximized, always show the Changes view
 			// regardless of the session's saved/previous state. The forced visibility
@@ -107,18 +95,17 @@ export class LayoutController extends BaseLayoutController {
 			// re-runs this autorun and restores the session's real state.
 			if (editorMaximized) {
 				previousSessionResource = activeSessionResource;
-				previousIsUntitled = isUntitled;
+				previousIsCreated = isCreated;
 				this._viewsService.openView(CHANGES_VIEW_ID, false);
 				return;
 			}
 
 			const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
-			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 			const multipleVisible = this.multipleSessionsVisibleObs.read(reader);
 
 			if (multipleVisible) {
 				previousSessionResource = activeSessionResource;
-				previousIsUntitled = isUntitled;
+				previousIsCreated = isCreated;
 				return;
 			}
 
@@ -128,11 +115,15 @@ export class LayoutController extends BaseLayoutController {
 				this._captureViewState(previousSessionResource!);
 			}
 
-			// [D4] Submit: the same session transitions from new (untitled) to real.
-			const isSubmit = !isSessionSwitch && previousIsUntitled && !isUntitled && activeSessionResource !== undefined;
+			// [D4] Submit: the same session transitions from new (uncreated) to real.
+			const isSubmit = previousSessionResource !== undefined
+				&& !isSessionSwitch
+				&& !previousIsCreated
+				&& isCreated
+				&& activeSessionResource !== undefined;
 
 			previousSessionResource = activeSessionResource;
-			previousIsUntitled = isUntitled;
+			previousIsCreated = isCreated;
 
 			if (isSubmit) {
 				this._withSessionLayoutRestore(() => this._onNewSessionSubmitted(activeSessionResource!));
@@ -140,7 +131,9 @@ export class LayoutController extends BaseLayoutController {
 			}
 
 			// [D3] Restore the session's auxiliary bar state.
-			this._withSessionLayoutRestore(() => this._syncAuxiliaryBarVisibility(activeSessionResource, activeSessionHasWorkspace, isUntitled, activeSessionHasChanges));
+			this._withSessionLayoutRestore(() =>
+				this._syncAuxiliaryBarVisibility(activeSessionResource, activeSessionHasWorkspace, isCreated)
+			);
 		}));
 
 		// [D2] Track auxiliary bar visibility changes by the user so that hiding the
@@ -161,9 +154,12 @@ export class LayoutController extends BaseLayoutController {
 			if (!activeSession) {
 				return;
 			}
-			if (activeSession.status.get() === SessionStatus.Untitled) {
+			if (!activeSession.isCreated.get()) {
 				this._setNewSessionViewState({ auxiliaryBarVisible: e.visible });
 			} else {
+				if (e.visible && this._restoreSavedAuxiliaryBarContainerOnReveal(activeSession.resource)) {
+					return;
+				}
 				this._captureViewState(activeSession.resource);
 			}
 		}));
@@ -283,7 +279,7 @@ export class LayoutController extends BaseLayoutController {
 	}
 
 	/**
-	 * [D4] When a new (untitled) session is submitted it becomes a real session
+	 * [D4] When a new (uncreated) session is submitted it becomes a real session
 	 * while staying active. Keep the auxiliary bar as the user left it: if open,
 	 * keep it open and switch to the Changes view; if closed, keep it closed. The
 	 * resulting state is persisted so later syncs don't fall back to hidden.
@@ -292,7 +288,7 @@ export class LayoutController extends BaseLayoutController {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		this._viewStateBySession.set(sessionResource, {
 			auxiliaryBarVisible,
-			auxiliaryBarActiveViewContainerId: auxiliaryBarVisible ? CHANGES_VIEW_CONTAINER_ID : undefined,
+			auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
 		});
 		if (auxiliaryBarVisible) {
 			return this._viewsService.openView(CHANGES_VIEW_ID, false);
@@ -300,19 +296,19 @@ export class LayoutController extends BaseLayoutController {
 	}
 
 	// [D3] Restore the auxiliary bar in strict priority order.
-	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void | Promise<unknown> {
+	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isCreated: boolean): void | Promise<unknown> {
 		// [D3a] No resource / no workspace → do nothing.
 		if (!sessionResource || !hasWorkspace) {
 			return;
 		}
 
-		// [D3b] New-session view: all untitled sessions share one state.
-		if (isUntitled) {
+		// [D3b] New-session view: all uncreated sessions share one state.
+		if (!isCreated) {
 			if (this._newSessionViewState && !this._newSessionViewState.auxiliaryBarVisible) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 				return;
 			}
-			return this._openDefaultAuxiliaryBarContainer(hasChanges);
+			return this._openDefaultAuxiliaryBarContainer(false);
 		}
 
 		const savedState = this._viewStateBySession.get(sessionResource);
@@ -329,16 +325,36 @@ export class LayoutController extends BaseLayoutController {
 			return this._viewsService.openViewContainer(savedContainerId, false);
 		}
 
-		return this._openDefaultAuxiliaryBarContainer(hasChanges);
+		return this._openDefaultAuxiliaryBarContainer(true);
 	}
 
-	/** [D3d] Prefer Changes when the session has changes, otherwise Files (falling back to Changes if Files is hidden). */
-	private _openDefaultAuxiliaryBarContainer(hasChanges: boolean): Promise<unknown> {
-		if (hasChanges || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
+	/** [D3d] Prefer Changes for created sessions and Files for new sessions. */
+	private _openDefaultAuxiliaryBarContainer(isCreated: boolean): Promise<unknown> {
+		if (isCreated || !this._isAuxiliaryBarContainerPinned(SESSIONS_FILES_CONTAINER_ID)) {
 			return this._viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			return this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 		}
+	}
+
+	private _restoreSavedAuxiliaryBarContainerOnReveal(sessionResource: URI): boolean {
+		const savedState = this._viewStateBySession.get(sessionResource);
+		if (!savedState || savedState.auxiliaryBarVisible) {
+			return false;
+		}
+
+		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
+		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
+			this._viewStateBySession.set(sessionResource, { ...savedState, auxiliaryBarVisible: true });
+			void this._viewsService.openViewContainer(savedContainerId, false);
+		} else {
+			this._viewStateBySession.set(sessionResource, {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			});
+			void this._openDefaultAuxiliaryBarContainer(true);
+		}
+		return true;
 	}
 
 	private _isAuxiliaryBarContainerPinned(containerId: string): boolean {
