@@ -145,7 +145,7 @@ jobs:
           fi
           echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
           # Workaround: use a minimal fontconfig config with no <include> directives,
-          # avoiding the external entity parser codepath entirely. Based on upstream
+          # which avoids pulling in additional external files via <include>. Based on upstream
           # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
           # aliases inlined, and default font mappings for generic families added
           # (from conf.d/49-sansserif.conf and DejaVu font configs).
