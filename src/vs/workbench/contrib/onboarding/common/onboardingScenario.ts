@@ -95,6 +95,15 @@ export interface IOnboardingScenario<TPayload = unknown> {
 	/** Stable identifier. Used as the persistence key for "shown once" state. */
 	readonly id: string;
 
+	/**
+	 * Persistence key for the once-per-user "shown" state. Scenarios that share a
+	 * `seenKey` are treated as the *same* onboarding for once-per-user gating:
+	 * showing any one of them marks them all as seen, so the others never run
+	 * automatically. Use this for variations of the same tour that should be
+	 * shown at most once between them. Defaults to {@link id}.
+	 */
+	readonly seenKey?: string;
+
 	/** Eligibility gate. AND-ed with the engine's own checks. */
 	readonly when?: ContextKeyExpression;
 

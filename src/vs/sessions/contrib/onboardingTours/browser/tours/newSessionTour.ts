@@ -23,6 +23,17 @@ import { localize } from '../../../../../nls.js';
  */
 export const NEW_SESSION_TOUR_ID = 'sessions.onboarding.newSession';
 
+/**
+ * Shared "shown" persistence key for the new-session onboarding tours. The
+ * {@link createNewSessionTour} and `createNewSessionViewTour` variants teach the
+ * same new-session pickers, so they record their once-per-user state under this
+ * single key: once a user has seen either variant, neither runs again.
+ *
+ * The value matches {@link NEW_SESSION_TOUR_ID} so users who already saw the
+ * original tour (state persisted under that id) are not shown the variant.
+ */
+export const NEW_SESSION_ONBOARDING_SEEN_KEY = NEW_SESSION_TOUR_ID;
+
 const newSessionPayload: ISpotlightPayload = {
 	steps: [
 		{
@@ -52,6 +63,7 @@ const newSessionPayload: ISpotlightPayload = {
 export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_TOUR_ID,
+		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
 		when: ChatContextKeys.enabled,
 		trigger: { kind: 'observable', signal },
 		priority: 100,
