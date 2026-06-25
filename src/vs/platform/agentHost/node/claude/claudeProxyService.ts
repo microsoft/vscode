@@ -7,7 +7,6 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { once } from 'events';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import {
@@ -33,6 +32,7 @@ import {
 } from './anthropicErrors.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { parseProxyBearer } from './claudeProxyAuth.js';
+import { IClaudeUsageService } from './claudeUsageService.js';
 
 // #region Public types
 
@@ -55,42 +55,8 @@ export interface IClaudeProxyHandle extends ILoopbackProxyHandle {
 	readonly nonce: string;
 }
 
-/**
- * A per-request credits report. CAPI returns the actual billed credits
- * for a `/v1/messages` request as `copilot_usage.total_nano_aiu` on the
- * Anthropic SSE stream. The Claude SDK subprocess strips this field from
- * its `result` message, so the proxy — which sees the raw CAPI response —
- * is the only place the real billed amount survives. `sessionId` is
- * decoded from the proxy Bearer token (`<nonce>.<sessionId>`) so consumers
- * can attribute credits to the originating session/turn.
- */
-export interface IClaudeProxyCreditsReport {
-	readonly sessionId: string;
-	/** Billed credits for the request, in nano-AIU (1 credit = 1e9 nano-AIU). */
-	readonly totalNanoAiu: number;
-}
-
 export interface IClaudeProxyService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Fires once per completed CAPI `/v1/messages` request that reported
-	 * `copilot_usage.total_nano_aiu`. Consumers accumulate per turn to
-	 * surface real per-turn Copilot credits (the SDK-computed
-	 * `total_cost_usd` is an Anthropic-list-price estimate, not the
-	 * amount CAPI actually bills).
-	 */
-	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
-
-	/**
-	 * Resolve once the session has no in-flight `/v1/messages` requests — i.e.
-	 * every request it had outstanding has resolved (clean end, error, or
-	 * abort). After cancelling a turn, the agent host awaits this before
-	 * finalizing the turn's cost so every billed request has reported its
-	 * credits first (a cancelled request reports the credits it had already seen
-	 * on the wire). Resolves immediately when the session is already idle.
-	 */
-	whenSettled(sessionId: string): Promise<void>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -164,67 +130,16 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
-	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
-
-	/** Count of in-flight `/v1/messages` requests per session id. */
-	private readonly _inFlightBySession = new Map<string, number>();
-
-	/** Resolvers for {@link whenSettled} callers waiting on a session to drain. */
-	private readonly _settleWaiters = new Map<string, Array<() => void>>();
-
 	constructor(
 		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IClaudeUsageService private readonly _usageService: IClaudeUsageService,
 	) {
 		super(PROXY_USER_FACING_NAME, logService);
 	}
 
 	protected createState(githubToken: string): IClaudeProxyState {
 		return { githubToken };
-	}
-
-	whenSettled(sessionId: string): Promise<void> {
-		if ((this._inFlightBySession.get(sessionId) ?? 0) === 0) {
-			return Promise.resolve();
-		}
-		return new Promise<void>(resolve => {
-			const waiters = this._settleWaiters.get(sessionId) ?? [];
-			waiters.push(resolve);
-			this._settleWaiters.set(sessionId, waiters);
-		});
-	}
-
-	/** Increment the session's in-flight count when a `/v1/messages` request starts. */
-	private _acquireInFlight(sessionId: string | undefined): void {
-		if (sessionId === undefined) {
-			return;
-		}
-		this._inFlightBySession.set(sessionId, (this._inFlightBySession.get(sessionId) ?? 0) + 1);
-	}
-
-	/**
-	 * Decrement the session's in-flight count when a `/v1/messages` request ends.
-	 * On the 1→0 transition the session has no outstanding billed requests, so
-	 * release any {@link whenSettled} waiters.
-	 */
-	private _releaseInFlight(sessionId: string | undefined): void {
-		if (sessionId === undefined) {
-			return;
-		}
-		const next = (this._inFlightBySession.get(sessionId) ?? 0) - 1;
-		if (next > 0) {
-			this._inFlightBySession.set(sessionId, next);
-			return;
-		}
-		this._inFlightBySession.delete(sessionId);
-		const waiters = this._settleWaiters.get(sessionId);
-		if (waiters) {
-			this._settleWaiters.delete(sessionId);
-			for (const resolve of waiters) {
-				resolve();
-			}
-		}
 	}
 
 	async start(githubToken: string): Promise<IClaudeProxyHandle> {
@@ -242,14 +157,6 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	override dispose(): void {
 		super.dispose();
-		this._onDidReportCredits.dispose();
-		// Release any pending `whenSettled` waiters so awaiters don't hang.
-		for (const waiters of this._settleWaiters.values()) {
-			for (const resolve of waiters) {
-				resolve();
-			}
-		}
-		this._settleWaiters.clear();
 	}
 
 	protected override writeInternalError(res: http.ServerResponse): void {
@@ -257,8 +164,8 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	}
 
 	/**
-	 * Fire {@link onDidReportCredits} for a completed request. No-op when
-	 * the request carried no credits (`copilot_usage` absent) or the
+	 * Record a completed request's billed credits against its session. No-op
+	 * when the request carried no credits (`copilot_usage` absent) or the
 	 * Bearer token lacked a session id (shouldn't happen post-auth).
 	 */
 	private _reportCredits(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
@@ -266,7 +173,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 			return;
 		}
 		this._logService.trace(`[${PROXY_USER_FACING_NAME}] credits: session=${sessionId} totalNanoAiu=${totalNanoAiu}`);
-		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
+		this._usageService.addUsage(sessionId, totalNanoAiu);
 	}
 
 	/**
@@ -428,7 +335,6 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 			clientGone: false,
 		};
 		runtime.inFlight.add(entry);
-		this._acquireInFlight(sessionId);
 		const onClose = () => {
 			entry.clientGone = true;
 			entry.ac.abort();
@@ -460,7 +366,6 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 		} finally {
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
-			this._releaseInFlight(sessionId);
 		}
 	}
 

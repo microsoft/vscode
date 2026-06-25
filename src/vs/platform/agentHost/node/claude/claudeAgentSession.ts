@@ -7,7 +7,7 @@ import type { McpSdkServerConfigWithInstance, Options, PermissionMode, SDKUserMe
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -38,7 +38,8 @@ import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentS
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
-import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
+import { IClaudeProxyHandle } from './claudeProxyService.js';
+import { IClaudeUsageService } from './claudeUsageService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
@@ -195,46 +196,35 @@ export class ClaudeAgentSession extends Disposable {
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
 	/**
-	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
-	 * turn, summed across every `/v1/messages` request the SDK made
-	 * (including subagents). Fed by {@link recordTurnCredits} from the
-	 * proxy's `onDidReportCredits`, reset at the start of each {@link send},
-	 * and attached to the turn's `ChatUsage` signal by
-	 * {@link _enrichSignalWithCredits}. Unlike the SDK's `total_cost_usd`
-	 * (an Anthropic-list-price estimate), this is what CAPI actually bills.
-	 */
-	private _currentTurnNanoAiu = 0;
-
-	/**
 	 * The id of the in-flight (or most recently active) turn. Set at the start
-	 * of each {@link send}; used to attribute the turn's accumulated credits
-	 * when {@link abort} emits the cancelled turn's final cost.
+	 * of each {@link send}; used to attribute usage to the right turn when
+	 * {@link abort} surfaces a cancelled turn's still-settling credits.
 	 */
 	private _currentTurnId: string | undefined;
 
 	/**
-	 * Accumulate proxy-reported billed credits for the current turn. Called from
-	 * {@link ClaudeAgent} for every proxy `onDidReportCredits` routed to this
-	 * session. Ignores non-positive / non-finite values. The running total rides
-	 * out on the turn's terminal `ChatUsage`: the SDK `result` (enriched by
-	 * {@link _enrichSignalWithCredits}) for a turn that completes normally, or
-	 * the final `ChatUsage` that {@link abort} emits once the proxy has drained
-	 * for a cancelled turn.
+	 * Live subscription that re-emits a cancelled turn's `ChatUsage` as the
+	 * proxy reports late-settling credits. Replaced when the next {@link send}
+	 * starts a fresh turn. A turn that completes normally needs none — its
+	 * credits ride out on the SDK `result` (see {@link _enrichSignalWithCredits}).
 	 */
-	recordTurnCredits(totalNanoAiu: number): void {
-		if (Number.isFinite(totalNanoAiu) && totalNanoAiu > 0) {
-			this._currentTurnNanoAiu += totalNanoAiu;
-		}
-	}
+	private readonly _cancelledUsageSub = this._register(new MutableDisposable());
 
 	/**
-	 * Inject the turn's accumulated Copilot credits into its `ChatUsage`
-	 * signal as `_meta.copilotUsage.totalNanoAiu` — the well-known key the
-	 * workbench prefers over `_meta.cost` when rendering per-turn credits.
-	 * All other signals pass through untouched.
+	 * Inject the turn's billed Copilot credits into its `ChatUsage` signal as
+	 * `_meta.copilotUsage.totalNanoAiu` — the well-known key the workbench
+	 * prefers over `_meta.cost`. The SDK `result`'s `ChatUsage` marks the turn's
+	 * clean end, so this {@link IClaudeUsageService.consume}s the per-session
+	 * accumulator (attaching the full billed total and resetting it for the next
+	 * turn). All other signals pass through untouched. Unlike the SDK's
+	 * `total_cost_usd` (an Anthropic-list-price estimate), this is what CAPI bills.
 	 */
 	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
-		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
+			return signal;
+		}
+		const totalNanoAiu = this._usageService.consume(this.sessionId);
+		if (totalNanoAiu <= 0) {
 			return signal;
 		}
 		const usage = signal.action.usage;
@@ -246,7 +236,7 @@ export class ClaudeAgentSession extends Disposable {
 					...usage,
 					_meta: {
 						...usage._meta,
-						copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu },
+						copilotUsage: { totalNanoAiu },
 					},
 				},
 			},
@@ -273,7 +263,7 @@ export class ClaudeAgentSession extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-		@IClaudeProxyService private readonly _claudeProxyService: IClaudeProxyService,
+		@IClaudeUsageService private readonly _usageService: IClaudeUsageService,
 	) {
 		super();
 		this.project = project;
@@ -542,10 +532,12 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
-		// New turn: reset the per-turn credit accumulator so proxy reports
-		// for this turn's `/v1/messages` calls sum from zero, and bind the
-		// turn id so a cancel can attribute the final credits correctly.
-		this._currentTurnNanoAiu = 0;
+		// New turn (new user message): clear any credits left over from a
+		// cancelled prior turn so this turn's `/v1/messages` calls sum from
+		// zero, stop re-emitting that turn's usage, and bind the turn id so a
+		// cancel can attribute the still-settling credits correctly.
+		this._usageService.clear(this.sessionId);
+		this._cancelledUsageSub.clear();
 		this._currentTurnId = turnId;
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
 			await this._rebindForSyncedState();
@@ -580,41 +572,40 @@ export class ClaudeAgentSession extends Disposable {
 	 * callback (and any interactive tool waiting on user input) unwinds
 	 * with a deny / cancel result instead of leaving stale UI behind.
 	 *
-	 * A cancelled turn produces no SDK `result`, so its credits are emitted
-	 * here instead. Billed credits for in-flight `/v1/messages` requests keep
-	 * settling as the aborted SDK subprocess unwinds, so teardown is synchronous
-	 * but the turn's final cost is finalized in the background once the proxy
-	 * reports the session drained — see {@link _finalizeCancelledTurnCredits}.
+	 * A cancelled turn produces no SDK `result`, so surface its billed credits
+	 * directly: emit what the proxy has salvaged so far, then re-emit as more
+	 * settle while the aborted request unwinds (the in-flight request reports the
+	 * credits it had already seen). The accumulator is NOT consumed — it is
+	 * {@link IClaudeUsageService.clear}ed only when the next user message starts a
+	 * fresh turn. The cost footer updates reactively as each emit lands, so an
+	 * eagerly-finished cancelled response still reflects the full billed amount.
 	 */
 	abort(): void {
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		const turnId = this._currentTurnId;
 		this._requirePipeline().abort();
-		// Finalize the cancelled turn's cost once the proxy drains. Runs in the
-		// background so teardown semantics (and `abortSession`) stay synchronous.
-		void this._finalizeCancelledTurnCredits(turnId);
-	}
-
-	/**
-	 * Emit the cancelled turn's final billed credits once the proxy reports
-	 * this session has no in-flight `/v1/messages` requests left — the
-	 * deterministic signal that every billed request has settled (clean end,
-	 * error, or abort). Each request reports the credits it had already seen on
-	 * the wire as it unwinds, so by the time the session drains the running
-	 * total is complete. The `final` marker lets the workbench finalize the
-	 * cancelled response's cost footer without undercounting. Resolves the
-	 * proxy wait immediately when the session is already idle.
-	 */
-	private async _finalizeCancelledTurnCredits(turnId: string | undefined): Promise<void> {
 		if (turnId === undefined) {
 			return;
 		}
-		await this._claudeProxyService.whenSettled(this.sessionId);
-		// Bail if disposed, or if a new turn has since started (it now owns the
-		// shared credit accumulator, so the running total no longer belongs to
-		// the cancelled turn).
-		if (this._store.isDisposed || this._currentTurnId !== turnId) {
+		const emit = () => this._emitCancelledUsage(turnId);
+		emit(); // what the proxy has salvaged at abort time (may be zero)
+		// Re-emit as late credits for this session's draining request settle.
+		this._cancelledUsageSub.value = this._usageService.onDidChangeUsage(sessionId => {
+			if (sessionId === this.sessionId) {
+				emit();
+			}
+		});
+	}
+
+	/**
+	 * Fire a `ChatUsage` for the cancelled turn carrying the session's currently
+	 * accumulated billed credits ({@link IClaudeUsageService.peek}). Emitted
+	 * directly (not via {@link _enrichSignalWithCredits}, which consumes) so the
+	 * running total can be re-surfaced as more credits settle.
+	 */
+	private _emitCancelledUsage(turnId: string): void {
+		if (this._store.isDisposed) {
 			return;
 		}
 		this._onDidSessionProgress.fire({
@@ -623,7 +614,7 @@ export class ClaudeAgentSession extends Disposable {
 			action: {
 				type: ActionType.ChatUsage,
 				turnId,
-				usage: { _meta: { copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu, final: true } } },
+				usage: { _meta: { copilotUsage: { totalNanoAiu: this._usageService.peek(this.sessionId) } } },
 			},
 		});
 	}

@@ -24,8 +24,8 @@ import {
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { markAsSingleton, type DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -57,7 +57,8 @@ import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetad
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { ClaudeUsageService, IClaudeUsageService } from '../../node/claude/claudeUsageService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -100,33 +101,6 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	readonly startCalls: IStartCall[] = [];
 	disposeCount = 0;
 
-	/** Tests fire this to simulate a per-request CAPI credits report. */
-	readonly onDidReportCreditsEmitter = new Emitter<IClaudeProxyCreditsReport>();
-	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this.onDidReportCreditsEmitter.event;
-
-	/** Tests add a session id here to simulate outstanding in-flight requests. */
-	readonly inFlightSessions = new Set<string>();
-	private readonly _settleWaiters = new Map<string, Array<() => void>>();
-
-	whenSettled(sessionId: string): Promise<void> {
-		if (!this.inFlightSessions.has(sessionId)) {
-			return Promise.resolve();
-		}
-		return new Promise<void>(resolve => {
-			const waiters = this._settleWaiters.get(sessionId) ?? [];
-			waiters.push(resolve);
-			this._settleWaiters.set(sessionId, waiters);
-		});
-	}
-
-	/** Tests call this to drain a session, releasing any `whenSettled` waiters. */
-	settle(sessionId: string): void {
-		this.inFlightSessions.delete(sessionId);
-		const waiters = this._settleWaiters.get(sessionId);
-		this._settleWaiters.delete(sessionId);
-		waiters?.forEach(resolve => resolve());
-	}
-
 	async start(token: string): Promise<IClaudeProxyHandle> {
 		this.startCalls.push({ token });
 		return {
@@ -137,7 +111,6 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	}
 
 	dispose(): void {
-		this.onDidReportCreditsEmitter.dispose();
 	}
 }
 
@@ -644,6 +617,7 @@ const ALL_MODELS: readonly CCAModel[] = [
 interface ITestContext {
 	readonly agent: ClaudeAgent;
 	readonly proxy: FakeClaudeProxyService;
+	readonly usage: ClaudeUsageService;
 	readonly api: FakeCopilotApiService;
 	readonly sdk: FakeClaudeAgentSdkService;
 	readonly sessionData: RecordingSessionDataService;
@@ -678,6 +652,7 @@ function createTestContext(
 	overrides?: { logService?: ILogService; database?: TestSessionDatabase },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
+	const usage = markAsSingleton(new ClaudeUsageService());
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
@@ -701,6 +676,7 @@ function createTestContext(
 		[ILogService, logService],
 		[ICopilotApiService, api],
 		[IClaudeProxyService, proxy],
+		[IClaudeUsageService, usage],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
 		[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -710,7 +686,7 @@ function createTestContext(
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
+	return { agent, proxy, usage, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -1020,6 +996,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -1083,6 +1060,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -1151,6 +1129,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -1843,11 +1822,11 @@ suite('ClaudeAgent', () => {
 
 	test('proxy credit reports are summed and attached to the turn ChatUsage as copilotUsage', async () => {
 		// CAPI bills real Copilot credits per `/v1/messages` request via
-		// `copilot_usage.total_nano_aiu`, surfaced by the proxy's
-		// `onDidReportCredits` (the SDK strips it from its `result`). The
-		// session accumulates every report for the turn and attaches the
-		// sum to the turn's ChatUsage as `_meta.copilotUsage.totalNanoAiu`.
-		const { agent, proxy, sdk } = createTestContext(disposables);
+		// `copilot_usage.total_nano_aiu`, which the proxy records on the
+		// `IClaudeUsageService` (the SDK strips it from its `result`). The
+		// session consumes the accumulated total at turn-end and attaches it
+		// to the turn's ChatUsage as `_meta.copilotUsage.totalNanoAiu`.
+		const { agent, usage, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
@@ -1856,12 +1835,12 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), result];
 
 		// Two proxy reports (e.g. a main-thread call plus a subagent call)
-		// fired mid-turn, before the result closes the turn. `queryAdvance`
+		// recorded mid-turn, before the result closes the turn. `queryAdvance`
 		// runs just before each message is yielded; index 1 is the result.
 		sdk.queryAdvance = async (idx: number) => {
 			if (idx === 1) {
-				proxy.onDidReportCreditsEmitter.fire({ sessionId, totalNanoAiu: 1_500_000_000 });
-				proxy.onDidReportCreditsEmitter.fire({ sessionId, totalNanoAiu: 500_000_000 });
+				usage.addUsage(sessionId, 1_500_000_000);
+				usage.addUsage(sessionId, 500_000_000);
 			}
 		};
 
@@ -1870,11 +1849,11 @@ suite('ClaudeAgent', () => {
 
 		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 
-		const usage = signals
+		const usageAction = signals
 			.map(s => s.kind === 'action' ? s.action : undefined)
 			.find(a => a?.type === ActionType.ChatUsage);
-		assert.ok(usage && usage.type === ActionType.ChatUsage, 'ChatUsage action present');
-		assert.deepStrictEqual(usage.usage._meta?.copilotUsage, { totalNanoAiu: 2_000_000_000 });
+		assert.ok(usageAction && usageAction.type === ActionType.ChatUsage, 'ChatUsage action present');
+		assert.deepStrictEqual(usageAction.usage._meta?.copilotUsage, { totalNanoAiu: 2_000_000_000 });
 	});
 
 	test('multiple text blocks each get a distinct partId; deltas route correctly', async () => {
@@ -2163,6 +2142,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -2793,6 +2773,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -2864,6 +2845,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -2948,6 +2930,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -2995,6 +2978,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -3294,8 +3278,6 @@ suite('ClaudeAgent', () => {
 
 		class RecordingProxyService implements IClaudeProxyService {
 			declare readonly _serviceBrand: undefined;
-			readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = Event.None;
-			whenSettled(_sessionId: string): Promise<void> { return Promise.resolve(); }
 			async start(_token: string): Promise<IClaudeProxyHandle> {
 				return {
 					baseUrl: 'http://127.0.0.1:0',
@@ -3311,6 +3293,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, new NullLogService()],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new RecordingProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -3363,6 +3346,7 @@ suite('ClaudeAgent', () => {
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
@@ -3722,6 +3706,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[IAgentConfigurationService, fakeConfigService],
 			[IClaudeAgentSdkService, sdk],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[IClaudeUsageService, markAsSingleton(new ClaudeUsageService())],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[ISessionDataService, sessionData],
 		);
@@ -4983,6 +4968,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	function buildCtxWith(pluginManager: FakeAgentPluginManager): ITestContext {
 		const proxy = new FakeClaudeProxyService();
+		const usage = markAsSingleton(new ClaudeUsageService());
 		const api = new FakeCopilotApiService();
 		api.models = async () => [...ALL_MODELS];
 		const sdk = new FakeClaudeAgentSdkService();
@@ -5000,6 +4986,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
+			[IClaudeUsageService, usage],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, pluginManager],
@@ -5009,7 +4996,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
+		return { agent, proxy, usage, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 	}
 
 	test('setClientCustomizations forwards each item as a SessionCustomizationUpdated action', async () => {

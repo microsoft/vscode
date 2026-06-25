@@ -100,13 +100,6 @@ export interface UsageInfoMeta {
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		totalNanoAiu?: number;
-		/**
-		 * When `true`, this credit total is final for the turn — every billed
-		 * `/v1/messages` request has settled. Consumers that defer finalizing a
-		 * cancelled turn's cost footer (see the agent-host session handler) wait
-		 * for this marker so the footer reflects the complete amount.
-		 */
-		final?: boolean;
 		[key: string]: unknown;
 	};
 	/**
@@ -168,7 +161,6 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const rawUsage = copilotUsage as Record<string, unknown>;
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
-		if (typeof rawUsage['final'] === 'boolean') { usage.final = rawUsage['final']; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta['quotaSnapshots'];

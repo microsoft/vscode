@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -32,7 +31,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -111,6 +110,15 @@ interface IObserveTurnOptions {
 	readonly chatChannel: string;
 	readonly turnId: string;
 	readonly sink: (parts: IChatProgress[]) => void;
+	/**
+	 * When set, the per-turn usage autorun is registered here instead of the
+	 * observer's own store, so usage keeps flowing to {@link sink} after the
+	 * turn finishes and the observer is disposed. Used by the live-turn path so
+	 * a cancelled turn's billed credits — which settle a beat after the response
+	 * is (eagerly) completed — still update the cost footer. The caller owns the
+	 * store and replaces it when the next turn starts.
+	 */
+	readonly lateUsageStore?: DisposableStore;
 	readonly cancellationToken: CancellationToken;
 	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
@@ -254,21 +262,6 @@ function convertProtocolAnswers(raw: Record<string, ChatInputAnswer> | undefined
 // =============================================================================
 // Chat session
 // =============================================================================
-
-/**
- * After the user cancels a turn, billed Copilot credits for `/v1/messages`
- * requests that were in flight keep settling until the SDK subprocess unwinds
- * and the proxy drains. The agent host marks the turn's credits `final` (via
- * `_meta.copilotUsage.final`) once the proxy reports the session has no
- * outstanding requests; {@link AgentHostSessionHandler._observeTurn} defers
- * finalizing the cancelled response's cost footer until that marker arrives so
- * the footer reflects the full billed amount instead of undercounting.
- *
- * This hard cap is a pure failsafe: if the marker never arrives (e.g. the agent
- * host wedged), finalize from whatever usage has settled by then so the
- * response cannot stay open indefinitely.
- */
-const CANCEL_CREDIT_DRAIN_MAX_MS = 8000;
 
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
@@ -440,6 +433,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
+	/**
+	 * Per-session store keeping the latest live turn's usage autorun alive past
+	 * the turn's completion, so a cancelled turn's billed credits (which settle
+	 * just after the response is eagerly finished) still update the cost footer.
+	 * Replaced — and the prior one disposed — when the next turn starts.
+	 */
+	private readonly _lateUsageStores = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
@@ -780,6 +780,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._activeSessions.delete(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
+				this._lateUsageStores.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
 				this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatKey);
 			},
@@ -1431,6 +1432,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		return new Promise<Turn | undefined>(resolve => {
 			const store = new DisposableStore();
+			// Keep this turn's usage flowing after it finishes: a cancelled turn's
+			// billed credits settle a beat after the response is eagerly completed,
+			// and the footer updates reactively as they land. Replacing the map
+			// entry disposes the previous turn's forwarder.
+			const lateUsageStore = new DisposableStore();
+			this._lateUsageStores.set(request.sessionResource, lateUsageStore);
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -1446,6 +1453,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				chatChannel: chatKey,
 				turnId,
 				sink: progress,
+				lateUsageStore,
 				cancellationToken,
 				suppressErrorMarkdown: true,
 				onTurnEnded: (lastTurn) => {
@@ -1618,7 +1626,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			store.add(autorun(reader => {
+			// Register on `lateUsageStore` when provided so usage keeps flowing
+			// after the turn finishes (a cancelled turn's credits settle just
+			// after the response completes — see {@link IObserveTurnOptions.lateUsageStore}).
+			(opts.lateUsageStore ?? store).add(autorun(reader => {
 				const usage = usageInfoToChatUsage(usage$.read(reader));
 				if (!usage) {
 					return;
@@ -1722,22 +1733,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
-			// On cancel the turn goes terminal immediately (optimistic
-			// `ChatTurnCancelled`), but billed credits for in-flight requests
-			// keep settling for a short window afterwards. The agent host emits a
-			// `final` usage marker once the proxy reports the session has drained;
-			// defer finishing until it arrives so the footer isn't snapshotted
-			// before those credits land (which would undercount the cost). A
-			// failsafe timeout (armed on cancel below) finalizes anyway if the
-			// marker never arrives. The token flips synchronously at cancel, so
-			// checking it here avoids a flag-ordering race.
-			if (opts.cancellationToken.isCancellationRequested) {
-				if (readUsageInfoMeta(usage$.read(reader)).copilotUsage?.final === true) {
-					const current = turn$.read(reader);
-					finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
-				}
-				return;
-			}
 			if (!opts.suppressErrorMarkdown && lastTurn?.state === TurnState.Error && lastTurn.error) {
 				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error, this._chatErrorContext());
 				const content = forwarded
@@ -1746,17 +1741,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				opts.sink([{ kind: 'markdownContent', content }]);
 			}
 			finish(lastTurn);
-		}));
-
-		store.add(opts.cancellationToken.onCancellationRequested(() => {
-			// Failsafe: if the `final` marker never arrives (e.g. the agent host
-			// wedged), finalize from whatever usage has settled by the cap so the
-			// response cannot stay open indefinitely. The common path finalizes in
-			// the main autorun above once the marker lands.
-			store.add(disposableTimeout(() => {
-				const current = turn$.get();
-				finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
-			}, CANCEL_CREDIT_DRAIN_MAX_MS));
 		}));
 
 		return store;
