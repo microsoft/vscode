@@ -243,10 +243,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	/**
-	 * Remember the session type (agent) of the last-focused user-facing chat so a
-	 * brand-new chat editor can reopen with the same agent. Quick Chat is excluded
-	 * because it is ephemeral and always a local session — recording it would
-	 * clobber the user's last-used agent.
+	 * Stores the session type (agent) of the last-focused user-facing chat so new chat editors can reuse it (excluding Quick Chat).
 	 */
 	private recordLastUsedSessionType(widget: IChatWidget | undefined): void {
 		const sessionResource = widget?.viewModel?.sessionResource;
