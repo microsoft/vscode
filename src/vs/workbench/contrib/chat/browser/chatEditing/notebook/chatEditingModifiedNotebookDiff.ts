@@ -60,6 +60,7 @@ export class ChatEditingModifiedNotebookDiff {
 		return {
 			added,
 			removed,
+			originalIsEmpty: false,
 			identical: added === 0 && removed === 0,
 			quitEarly: false,
 			isFinal: true,
