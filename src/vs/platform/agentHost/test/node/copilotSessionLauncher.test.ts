@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
+import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
+import { CopilotSessionLauncher, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -137,5 +140,79 @@ suite('resolveByokSessionConfig', () => {
 		}
 		assert.strictEqual(captured?.vendor, 'acme');
 		assert.strictEqual(captured?.modelId, 'claude');
+	});
+});
+
+/**
+ * Covers the launcher's lazy memoization and disposal of the shared BYOK proxy
+ * handle: concurrent launches share one bind, and
+ * {@link CopilotSessionLauncher.disposeByokProxyHandle} (called by the agent
+ * after the runtime subprocess stops) releases it so the next launch mints a
+ * fresh nonce.
+ */
+suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const sessionId = 'sess-1';
+
+	/** Minimal bridge connection: a scripted `listModels` and an unused `chat`. */
+	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>) {
+		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), listModels };
+	}
+
+	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
+	function fakeProxyService() {
+		let starts = 0;
+		let disposes = 0;
+		const service: IByokLmProxyService = {
+			_serviceBrand: undefined,
+			start: async (): Promise<IByokLmProxyHandle> => {
+				const nonce = `NONCE-${++starts}`;
+				return {
+					baseUrl: 'http://127.0.0.1:1',
+					nonce,
+					providerBaseUrl: vendor => `http://127.0.0.1:1/v/${vendor}`,
+					dispose: () => { disposes++; },
+				};
+			},
+			dispose: () => { },
+		};
+		return { service, get starts() { return starts; }, get disposes() { return disposes; } };
+	}
+
+	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry): CopilotSessionLauncher {
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IByokLmProxyService, proxy);
+		services.set(IByokLmBridgeRegistry, registry);
+		// The launcher's other dependencies are unused by the BYOK path and
+		// resolve to `undefined` under the non-strict InstantiationService.
+		const instantiationService = store.add(new InstantiationService(services));
+		return instantiationService.createInstance(CopilotSessionLauncher);
+	}
+
+	test('memoizes the handle, and disposeByokProxyHandle releases it so the next launch mints a fresh nonce', async () => {
+		const store = new DisposableStore();
+		const proxy = fakeProxyService();
+		const registry = new ByokLmBridgeRegistry();
+		store.add(registry.register('client-1', connectionOf(async () => [{ vendor: 'acme', id: 'claude' }])));
+		const launcher = createLauncher(store, proxy.service, registry);
+		const resolve = () => (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
+
+		const first = await resolve();
+		const second = await resolve();
+		assert.strictEqual(proxy.starts, 1, 'subsequent launches share the memoized bind');
+		assert.strictEqual(first.providers![0].bearerToken, second.providers![0].bearerToken, 'the shared bind reuses one nonce');
+
+		await launcher.disposeByokProxyHandle();
+		await launcher.disposeByokProxyHandle();
+		assert.strictEqual(proxy.disposes, 1, 'the handle is released exactly once and disposal is idempotent');
+
+		const third = await resolve();
+		assert.strictEqual(proxy.starts, 2, 'a fresh bind is minted after disposal');
+		assert.notStrictEqual(third.providers![0].bearerToken, first.providers![0].bearerToken, 'the fresh bind carries a new nonce');
+
+		store.dispose();
 	});
 });

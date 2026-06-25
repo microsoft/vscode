@@ -738,6 +738,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._client = undefined;
 		this._clientStarting = undefined;
 		await client?.stop();
+		// The runtime subprocess is now dead, so it is safe to release the BYOK
+		// proxy handle: the next session launch mints a fresh nonce. See the
+		// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
+		await this._sessionLauncher.disposeByokProxyHandle();
 	}
 
 	/**
@@ -2238,6 +2242,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._client?.stop();
 			this._client = undefined;
+			// Release the BYOK proxy handle only after the runtime subprocess is
+			// gone, mirroring `_stopClient` and the proxy ownership invariant.
+			await this._sessionLauncher.disposeByokProxyHandle();
 		})();
 		return this._shutdownPromise;
 	}

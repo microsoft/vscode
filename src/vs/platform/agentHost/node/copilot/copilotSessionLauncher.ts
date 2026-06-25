@@ -288,6 +288,14 @@ export async function resolveByokSessionConfig(
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
+	/**
+	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
+	 * on the first session launch that surfaces BYOK models (see
+	 * {@link _resolveByokSessionConfig}). Held as a promise so concurrent
+	 * launches share one bind. Released and cleared by
+	 * {@link disposeByokProxyHandle} when the owning Copilot client/runtime is
+	 * stopped, so the next start mints a fresh nonce.
+	 */
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
 	constructor(
@@ -409,6 +417,30 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			return this._byokProxyHandle;
 		}, this._logService);
+	}
+
+	/**
+	 * Release the memoized BYOK loopback proxy handle (if any) and clear it so
+	 * the next session launch mints a fresh nonce. Idempotent.
+	 *
+	 * **Ownership invariant.** The caller MUST stop the Copilot client/runtime
+	 * subprocess before invoking this: disposing the handle drops the proxy's
+	 * refcount and may rebind it on a different port/nonce, so a still-running
+	 * subprocess would silently lose its endpoint — see {@link IByokLmProxyHandle}.
+	 * Invoked from `CopilotAgent._stopClient` / `CopilotAgent.shutdown` after the
+	 * client has stopped.
+	 */
+	async disposeByokProxyHandle(): Promise<void> {
+		const handle = this._byokProxyHandle;
+		this._byokProxyHandle = undefined;
+		if (!handle) {
+			return;
+		}
+		try {
+			(await handle).dispose();
+		} catch {
+			// The lazy `start()` rejected; there is nothing to release.
+		}
 	}
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
