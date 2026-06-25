@@ -908,12 +908,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * The model remembered for the current session type (persisted per location +
-	 * session type), if it is currently available in the session's model pool.
-	 * Used to restore the last-used model when a fresh session of a remembered
-	 * agent is opened (e.g. via "New Chat Editor"). Returns `undefined` for session
-	 * types without their own model pool (e.g. local), whose model is already
-	 * restored from the general key by {@link initSelectedModel}.
+	 * Returns the persisted model for the current session type, if it exists in the current model pool.
 	 */
 	private _getRememberedSessionTypeModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const sessionType = this._currentSessionType;
