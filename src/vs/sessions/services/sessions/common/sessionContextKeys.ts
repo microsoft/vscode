@@ -20,8 +20,9 @@ import {
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
 	SessionIdContext,
+	SessionHasMultipleCommittedChatsContext,
 } from '../../../common/contextkeys.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ISession } from './session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -42,6 +43,7 @@ interface ISessionContextKeys {
 	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
+	readonly hasMultipleCommittedChats: IContextKey<boolean>;
 }
 
 /**
@@ -72,6 +74,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
+			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -135,4 +138,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const keys = getBoundKeys(contextKeyService);
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
+
+	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
+	// so the Conversations menu only surfaces once a session has more than one
+	// real chat. Counts the whole chat list (open or closed) so a committed chat
+	// that was closed still keeps the menu available to reopen it.
+	const committedChatCount = session?.chats.read(reader)
+		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled ? count : count + 1, 0) ?? 0;
+	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 }

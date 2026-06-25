@@ -22,11 +22,11 @@ import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowConte
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 
@@ -358,19 +358,52 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
+// The "New Chat" toolbar entry starts a new chat in the session. It is shown in
+// the session header while the session has at most one committed chat (so it
+// stays available even when an in-composer draft has surfaced the tab strip).
+// Once the session has more than one committed chat this toolbar slot shows the
+// "Conversations" dropdown instead; the tab strip also renders its own "New
+// Chat" button at the end of the tabs whenever it is visible.
+registerAction2(class AddChatToSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.addChat',
+			title: localize2('chatCompositeBar.addChat', "New Chat"),
+			icon: Codicon.add,
+			menu: {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext.negate()),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		if (!session) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		await sessionsService.openNewChatInSession(session);
+		sessionsPartService.focusSession(session);
+	}
+});
+
 // The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// opens with a "New Chat" entry, a separator, then every chat in the session with
-// a checkbox. Checked chats are shown as tabs; unchecked chats are closed (hidden
-// from the tab strip). Toggling an entry closes or reopens the corresponding chat.
-// The main chat is always shown and cannot be closed, so its entry is checked and
-// disabled.
+// opens with a "New Chat" entry (registered by SessionConversationsMenuContribution
+// below), then lists every chat in the session with a checkbox. Checked chats are
+// shown as tabs; unchecked chats are closed (hidden from the tab strip). Toggling
+// an entry closes or reopens the corresponding chat. The main chat is always shown
+// and cannot be closed, so its entry is checked and disabled. It replaces the "New
+// Chat" toolbar button once the session has more than one committed chat.
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Conversations"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext),
 });
 
 /**
@@ -432,6 +465,12 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		const openChats = session.openChats.read(reader);
 
 		allChats.forEach((chat, index) => {
+			// Skip untitled (in-composer) draft chats: they are transient "New
+			// Chat" drafts that can't be meaningfully closed/reopened, and listing
+			// them here (titled "New Chat") just duplicates the New Chat action.
+			if (chat.status.read(reader) === SessionStatus.Untitled) {
+				return;
+			}
 			const chatResource = chat.resource;
 			const isOpen = openChats.some(c => extUri.isEqual(c.resource, chatResource));
 			const isMain = extUri.isEqual(chatResource, mainResource);
