@@ -220,8 +220,10 @@ export interface ISessionsManagementService {
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 	/**
 	 * Fires when the in-progress new session is discarded via
-	 * {@link discardNewSession} (abandoned without sending). A send does not
-	 * discard the draft, so this is a precise "new session abandoned" signal.
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
 
