@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
@@ -154,6 +156,13 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			host,
 			makeConfigService(behavior),
 		));
+	}
+
+	async function flushAnimationFrames(): Promise<void> {
+		const targetWindow = dom.getWindow(document.body);
+		await new Promise<void>(resolve => {
+			targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve()));
+		});
 	}
 
 	suite('layout', () => {
@@ -716,6 +725,62 @@ suite('ChatScrollbarPromptMarkerController', () => {
 	});
 
 	suite('revealItem', () => {
+		test('setVisible(false) cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+
+			controller['revealItem'](req);
+			controller.setVisible(false);
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
+		test('setEnabled(false) cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+
+			controller['revealItem'](req);
+			controller.setEnabled(false);
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
 		test('with Reveal calls reveal only and never focusItem', () => {
 			const req = makeRequest('r1');
 			const layoutInfo = makeLayoutInfo(14);
@@ -764,9 +829,8 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			// reveal is called immediately; focusItem is deferred to animation frames
 			assert.deepStrictEqual(calls, ['reveal']);
 
-			// Flush scheduled animation frames — use a real timeout since
-			// scheduleAtNextAnimationFrame is not virtualized by runWithFakedTimers
-			await new Promise(resolve => setTimeout(resolve, 200));
+			// Flush scheduled animation frames deterministically
+			await flushAnimationFrames();
 
 			// focusItem should have been called once after hasElement returned true
 			assert.ok(calls.includes('focusItem'), `expected focusItem to be called, got: ${JSON.stringify(calls)}`);

@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import {
 	Disposable,
+	IDisposable,
 	MutableDisposable,
 	toDisposable,
 } from '../../../../../base/common/lifecycle.js';
@@ -89,6 +90,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 		this._register(
 			toDisposable(() => {
+				this.cancelPendingFocusRetries();
 				this.container.remove();
 			}),
 		);
@@ -107,6 +109,9 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 	setVisible(visible: boolean): void {
 		this.visible = visible;
+		if (!visible) {
+			this.cancelPendingFocusRetries();
+		}
 		this.updateContainerVisibility();
 	}
 
@@ -122,6 +127,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		}
 		this.enabled = enabled;
 		if (!enabled) {
+			this.cancelPendingFocusRetries();
 			this.clearMarkers();
 		}
 		this.updateContainerVisibility();
@@ -199,6 +205,47 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private updateContainerVisibility(): void {
 		const shouldShow = this.visible && this.enabled && this.host.renderHeight > 0;
 		this.container.style.display = shouldShow ? '' : 'none';
+	}
+
+	private cancelPendingFocusRetries(): void {
+		this._focusRetryDisposable.clear();
+	}
+
+	private scheduleFocusRetry(targetWindow: Window, callback: () => void): IDisposable {
+		let disposed = false;
+		let settled = false;
+		const runOnce = () => {
+			if (!disposed && !settled) {
+				settled = true;
+				callback();
+			}
+		};
+
+		const requestAnimationFrameFn = targetWindow.requestAnimationFrame?.bind(targetWindow)
+			?? globalThis.requestAnimationFrame?.bind(globalThis);
+		let frameHandle: number | undefined;
+		if (typeof requestAnimationFrameFn === 'function') {
+			frameHandle = requestAnimationFrameFn(runOnce);
+		}
+
+		let microtaskHandle: Promise<void> | undefined;
+		if (typeof queueMicrotask === 'function') {
+			microtaskHandle = Promise.resolve().then(runOnce);
+		}
+
+		return toDisposable(() => {
+			disposed = true;
+			if (typeof frameHandle === 'number') {
+				if (typeof targetWindow.cancelAnimationFrame === 'function') {
+					targetWindow.cancelAnimationFrame(frameHandle);
+				} else if (typeof globalThis.cancelAnimationFrame === 'function') {
+					globalThis.cancelAnimationFrame(frameHandle);
+				}
+			}
+			if (microtaskHandle) {
+				microtaskHandle = undefined;
+			}
+		});
 	}
 
 	private clearMarkers(): void {
@@ -484,10 +531,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				}
 				attempts++;
 				if (attempts < maxAttempts) {
-					this._focusRetryDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
+					this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
 				}
 			};
-			this._focusRetryDisposable.value = dom.scheduleAtNextAnimationFrame(targetWindow, tryFocus);
+			this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
 		}
 	}
 }
