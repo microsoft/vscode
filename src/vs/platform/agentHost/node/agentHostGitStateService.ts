@@ -123,7 +123,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
 
 		const currentState = readSessionGitHubState(currentMeta);
-		const nextState = { ...currentState, ...state } satisfies ISessionGitHubState;
+		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
 
 		if (objectEquals(currentState, nextState)) {
 			return;
