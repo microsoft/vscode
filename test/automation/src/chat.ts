@@ -209,6 +209,36 @@ export class Chat {
 		return (await response.textContent()) ?? '';
 	}
 
+	/**
+	 * Reads the resolved writing direction of the latest rendered response. Used by the
+	 * RTL smoke test to assert Hebrew/Arabic content is laid out right-to-left.
+	 */
+	async getLatestResponseTextDirection(): Promise<string | null> {
+		const latestResponse = this.code.driver.currentPage.locator(CHAT_RESPONSE_COMPLETE).last();
+		const directional = latestResponse.locator(`.chat-markdown-part [dir]`).last();
+		return await directional.getAttribute('dir');
+	}
+
+	/**
+	 * Types text into the chat input without submitting it. Used by the RTL smoke test to
+	 * assert the input box itself lays Hebrew/Arabic out right-to-left while composing.
+	 */
+	async typeInInput(text: string): Promise<void> {
+		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.waitForInputFocus();
+		const sanitizedText = text.replace(/\n/g, ' ');
+		await this.code.waitForTypeInEditor(this.chatInputSelector, sanitizedText);
+	}
+
+	/**
+	 * Reads the writing direction Monaco resolved for the last rendered line of the chat input
+	 * editor. A Hebrew/Arabic line is rendered with `dir="rtl"` on its view line.
+	 */
+	async getInputTextDirection(): Promise<string | null> {
+		const inputViewLine = this.code.driver.currentPage.locator(`${CHAT_INPUT_EDITOR} .view-line`).last();
+		return await inputViewLine.getAttribute('dir');
+	}
+
 	async waitForModelInFooter(): Promise<void> {
 		await this.code.waitForElements(CHAT_FOOTER_DETAILS, false, el => {
 			return el.some(el => {

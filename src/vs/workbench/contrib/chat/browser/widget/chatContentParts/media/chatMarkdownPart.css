@@ -20,4 +20,19 @@
 		width: fit-content;
 		overflow: hidden;
 	}
+
+	/* RTL support: align directional blocks to their start edge so Hebrew/Arabic
+	   content reads correctly, and keep code blocks left-to-right. */
+	[dir="auto"],
+	[dir="rtl"],
+	[dir="ltr"] {
+		text-align: start;
+	}
+
+	pre,
+	pre code {
+		direction: ltr;
+		text-align: left;
+		unicode-bidi: isolate;
+	}
 }
