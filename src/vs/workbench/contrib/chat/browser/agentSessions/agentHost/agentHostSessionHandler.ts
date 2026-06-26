@@ -11,6 +11,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
@@ -18,6 +19,7 @@ import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -53,6 +55,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -74,6 +77,13 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
+
+/**
+ * Provider id for the Copilot CLI backend (mirrors `CopilotAgent.id` on the agent-host node side). Only this backend
+ * can consume inlined unsaved editor content; the Claude/Codex prompt resolvers forward on-disk paths instead.
+ */
+const COPILOT_CLI_PROVIDER: AgentProvider = 'copilotcli';
+
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -601,6 +611,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IModelService private readonly _modelService: IModelService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
 		this._config = config;
@@ -3512,6 +3524,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the request for agents, leaving an agent-host backend unable to resolve what "this file" means. Re-add the active
 	 * editor (already computed by the implicit-context machinery on the widget) as a lightweight reference, deduping
 	 * against any file the user attached explicitly.
+	 *
+	 * Unsaved editors (untitled, or files with in-memory edits) can't be read from disk by the agent-host harness. For
+	 * the Copilot CLI backend we inline the live buffer as an embedded resource so the model still sees the real
+	 * content; other backends only read paths, so we skip untitled there and let saved-but-dirty files fall back to
+	 * their on-disk content.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
@@ -3528,12 +3545,52 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (entry.value === undefined) {
 				continue;
 			}
+			const uri = entry.uri;
+			if (uri && this._isUnsavedResource(uri)) {
+				if (this._config.provider === COPILOT_CLI_PROVIDER) {
+					const dedupeKey = this._rebaseAttachmentUri(uri, request.sessionResource).toString();
+					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name);
+					if (embedded && !existingResourceUris.has(dedupeKey)) {
+						existingResourceUris.add(dedupeKey);
+						attachments.push(embedded);
+					}
+					continue;
+				}
+				if (uri.scheme === Schemas.untitled) {
+					// Untitled editors don't exist on disk, so a path reference would be unreadable for non-Copilot
+					// backends. Skip rather than forward a broken path.
+					continue;
+				}
+			}
 			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
-			if (attachment?.type === MessageAttachmentKind.Resource && !existingResourceUris.has(attachment.uri)) {
+			if (!Array.isArray(attachment) && attachment?.type === MessageAttachmentKind.Resource && !existingResourceUris.has(attachment.uri)) {
 				existingResourceUris.add(attachment.uri);
 				attachments.push(attachment);
 			}
 		}
+	}
+
+	/** A resource is "unsaved" when it's an untitled editor or a saved file with in-memory (dirty) changes. */
+	private _isUnsavedResource(uri: URI): boolean {
+		return uri.scheme === Schemas.untitled || this._workingCopyService.isDirty(uri);
+	}
+
+	/**
+	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a backend that reads paths from
+	 * disk still receives the current content. Returns `undefined` when no loaded text model is available.
+	 */
+	private _buildUnsavedEditorAttachment(uri: URI, label: string): MessageAttachment | undefined {
+		const model = this._modelService.getModel(uri);
+		if (!model) {
+			return undefined;
+		}
+		return {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label,
+			displayKind: 'document',
+			data: encodeBase64(VSBuffer.fromString(model.getValue())),
+			contentType: 'text/plain',
+		};
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
