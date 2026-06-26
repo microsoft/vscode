@@ -152,16 +152,11 @@
  * Chat view title — the conversation title (e.g. "hello") shown in the chat
  * view header. It is dynamic text (user / model generated), so respect its real
  * casing rather than forcing ALL-CAPS like the base rule
- * (chatViewTitleControl.css) does. Only the first letter of the sentence is
- * capitalized so it reads as a title without distorting the rest of the text.
+ * (chatViewTitleControl.css) does.
  */
 .style-override .chat-viewpane .chat-view-title-container .chat-view-title-label {
 	text-transform: none;
 	font-size: var(--vscode-bodyFontSize-small);
-}
-
-.style-override .chat-viewpane .chat-view-title-container .chat-view-title-label::first-letter {
-	text-transform: uppercase;
 }
 
 /*
