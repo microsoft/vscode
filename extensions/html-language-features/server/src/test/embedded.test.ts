@@ -128,6 +128,16 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
 	});
 
+	test('Scripts with type module', function (): any {
+		assertLanguageId('<script type="module">var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type=module>var| i = 0;</script>', 'javascript');
+	});
+
+	test('Script content - module scope isolation', function (): any {
+		assertEmbeddedLanguageContent('<script>let a = 1;</script><script type="module">let a = 2;</script>', 'javascript', '        let a = 1;                              {let a = 2;}        ');
+		assertEmbeddedLanguageContent('<script type="module">let a = 1;</script><script type="module">let b = 2;</script>', 'javascript', '                     {let a = 1;}                             {let b = 2;}        ');
+	});
+
 	test('Script content - HTML escape characters', function (): any {
 		assertEmbeddedLanguageContent('<div style="font-family: &quot;Arial&quot;"></div>', 'css', '         __{font-family: "     Arial     "}       ');
 		assertEmbeddedLanguageContent('<div style="font-family: &#34;Arial&#34;"></div>', 'css', '         __{font-family: "    Arial    "}       ');
