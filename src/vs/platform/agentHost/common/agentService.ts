@@ -345,6 +345,59 @@ export interface IAgentHostOTelSettings {
 }
 
 /**
+ * IPC channel (renderer -> main) the desktop agent-host path uses to hand the
+ * enterprise-resolved `chat.agentHost.otel.*` policy to `ElectronAgentHostStarter`.
+ *
+ * The main-process configuration service does NOT include the renderer-only
+ * `AccountPolicyService` (managed settings: server / native-MDM / file channels), so a
+ * starter running in the main process sees `policyValue === undefined` for these keys.
+ * The renderer — whose policy layer does include managed settings — forwards the resolved
+ * values here just before requesting the agent-host connection, so the host is spawned with
+ * the managed OTel env. See {@link readAgentHostOTelPolicySettings}.
+ */
+export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
+
+/**
+ * Resolve the enterprise-policy values for the `chat.agentHost.otel.*` settings from a
+ * configuration service whose policy layer includes managed settings (i.e. the renderer's).
+ * Each field is `undefined` when no policy is set. Intended as the `policySettings` argument
+ * of {@link buildAgentHostOTelEnv}.
+ */
+export function readAgentHostOTelPolicySettings(configurationService: IConfigurationService): IAgentHostOTelSettings {
+	const policyValue = <T>(key: string): T | undefined => configurationService.inspect<T>(key).policyValue;
+	return {
+		enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+		exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+		otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+		otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+		captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+		outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+	};
+}
+
+/**
+ * Validate/normalize an {@link IAgentHostOTelSettings} received over IPC, keeping only
+ * well-typed fields. Defends the main process against a malformed payload before the values
+ * are turned into agent-host process env vars.
+ */
+export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTelSettings {
+	if (!raw || typeof raw !== 'object') {
+		return {};
+	}
+	const record = raw as Record<string, unknown>;
+	const asString = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
+	const asBoolean = (value: unknown): boolean | undefined => typeof value === 'boolean' ? value : undefined;
+	return {
+		enabled: asBoolean(record.enabled),
+		exporterType: asString(record.exporterType),
+		otlpProtocol: asString(record.otlpProtocol),
+		otlpEndpoint: asString(record.otlpEndpoint),
+		captureContent: asBoolean(record.captureContent),
+		outfile: asString(record.outfile),
+	};
+}
+
+/**
  * Build the env-var overlay for the agent host process from user settings and
  * inherited env. Settings are translated to env vars, but if the same env var is
  * already present on `inheritedEnv` it wins (developer override).

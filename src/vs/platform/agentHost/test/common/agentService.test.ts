@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled } from '../../common/agentService.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
 
 suite('AgentSession namespace', () => {
 
@@ -101,5 +102,85 @@ suite('buildAgentHostOTelEnv', () => {
 		assert.strictEqual(env[AgentHostOTelEnvVars.Enabled], 'false');
 		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpEndpoint], '');
 		assert.strictEqual(env[AgentHostOTelEnvVars.FilePath], '');
+	});
+});
+
+suite('readAgentHostOTelPolicySettings', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function fakeConfig(policy: Record<string, unknown>): IConfigurationService {
+		return {
+			inspect: <T>(key: string) => ({ policyValue: policy[key] as T | undefined }),
+		} as unknown as IConfigurationService;
+	}
+
+	test('maps the policy value of every otel key', () => {
+		const cfg = fakeConfig({
+			'chat.agentHost.otel.enabled': true,
+			'chat.agentHost.otel.exporterType': 'otlp-http',
+			'chat.agentHost.otel.otlpProtocol': 'http/protobuf',
+			'chat.agentHost.otel.otlpEndpoint': 'http://localhost:4318',
+			'chat.agentHost.otel.captureContent': false,
+			'chat.agentHost.otel.outfile': '/tmp/o.jsonl',
+		});
+		assert.deepStrictEqual(readAgentHostOTelPolicySettings(cfg), {
+			enabled: true,
+			exporterType: 'otlp-http',
+			otlpProtocol: 'http/protobuf',
+			otlpEndpoint: 'http://localhost:4318',
+			captureContent: false,
+			outfile: '/tmp/o.jsonl',
+		});
+	});
+
+	test('absent policy yields an all-undefined snapshot', () => {
+		assert.deepStrictEqual(readAgentHostOTelPolicySettings(fakeConfig({})), {
+			enabled: undefined,
+			exporterType: undefined,
+			otlpProtocol: undefined,
+			otlpEndpoint: undefined,
+			captureContent: undefined,
+			outfile: undefined,
+		});
+	});
+});
+
+suite('sanitizeAgentHostOTelPolicySettings', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps well-typed fields and drops unknown/mistyped ones', () => {
+		assert.deepStrictEqual(
+			sanitizeAgentHostOTelPolicySettings({
+				enabled: true,
+				exporterType: 'otlp-http',
+				otlpProtocol: 'http/protobuf',
+				otlpEndpoint: 'http://localhost:4318',
+				captureContent: false,
+				outfile: '/tmp/o.jsonl',
+				bogus: 123,
+			}),
+			{
+				enabled: true,
+				exporterType: 'otlp-http',
+				otlpProtocol: 'http/protobuf',
+				otlpEndpoint: 'http://localhost:4318',
+				captureContent: false,
+				outfile: '/tmp/o.jsonl',
+			},
+		);
+	});
+
+	test('mistyped fields are dropped to undefined', () => {
+		assert.deepStrictEqual(
+			sanitizeAgentHostOTelPolicySettings({ enabled: 'yes', otlpEndpoint: 42, captureContent: 1 }),
+			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined },
+		);
+	});
+
+	test('non-object input yields an empty policy', () => {
+		assert.deepStrictEqual(sanitizeAgentHostOTelPolicySettings(null), {});
+		assert.deepStrictEqual(sanitizeAgentHostOTelPolicySettings('x'), {});
 	});
 });
