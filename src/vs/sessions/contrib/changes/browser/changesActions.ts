@@ -22,6 +22,7 @@ import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 
@@ -52,6 +53,7 @@ class ViewAllChangesAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -60,6 +62,11 @@ class ViewAllChangesAction extends Action2 {
 		if (!sessionResource) {
 			return;
 		}
+
+		// The header pill reflects the session's default changeset, so reset any
+		// Changes-view selection to the default before opening so the diff editor
+		// (a shared per-session resource) shows the same changes as the pill.
+		changesViewService.setChangesetId(undefined);
 
 		// Open the multi-file diff editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
