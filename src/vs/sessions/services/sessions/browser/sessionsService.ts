@@ -408,7 +408,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
 				const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
-				this.openNewSession(folderUri ? { folderUri } : undefined);
+				this.openNewSession(folderUri ? { folderUri, providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType } : undefined);
 			}
 			wasArchived = isArchived;
 		}));
