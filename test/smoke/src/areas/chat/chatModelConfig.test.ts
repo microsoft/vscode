@@ -151,6 +151,14 @@ export function setup(logger: Logger) {
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
+					// Keep the built-in copilot-chat extension enabled on the fresh
+					// per-run profile. Without this, BuiltinChatExtensionEnablementMigration
+					// disables it (since chat setup is never "completed" in automation),
+					// so no model provider registers and the panel falls into the
+					// failing chat-setup install path. Listing the chat extension here
+					// only skips that disable-migration (mirrors what the perf:chat
+					// harness does by pre-seeding the storage DB).
+					VSCODE_SKIP_BUILTIN_EXTENSIONS: 'GitHub.copilot-chat',
 				},
 			};
 		});

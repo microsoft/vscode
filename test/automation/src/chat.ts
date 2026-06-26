@@ -14,8 +14,8 @@ const CHAT_RESPONSE = `${CHAT_VIEW} .interactive-item-container.interactive-resp
 const CHAT_RESPONSE_COMPLETE = `${CHAT_RESPONSE}:not(.chat-response-loading)`;
 const CHAT_RESPONSE_RENDERED = `${CHAT_RESPONSE} .rendered-markdown`;
 const CHAT_FOOTER_DETAILS = `${CHAT_VIEW} .chat-footer-details`;
-const CHAT_MODEL_PICKER_NAME = `${CHAT_VIEW} .model-picker-name`;
-const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .model-picker-config`;
+const CHAT_MODEL_PICKER_NAME = `${CHAT_VIEW} .interactive-input-part .model-picker-name`;
+const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .interactive-input-part .model-picker-config`;
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 const CHAT_EDITOR_INPUT_EDITOR = `${CHAT_EDITOR} .interactive-input-part .monaco-editor[role="code"]`;
@@ -224,19 +224,29 @@ export class Chat {
 
 	/**
 	 * Opens the model picker (in the panel chat input) and selects the model
-	 * whose displayed name contains `modelName`. Waits for the matching row to
-	 * appear in the picker popup (models may still be registering), clicks it,
-	 * then waits for the popup to dismiss.
+	 * whose displayed name contains `modelName`. Clicks the model-picker name
+	 * button to open the popup, waits for the matching row to appear (models may
+	 * still be registering), clicks it, then waits for the popup to dismiss.
 	 */
 	async selectModel(modelName: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_MODEL_PICKER_NAME);
-		await this.code.waitForElement(ACTION_WIDGET);
 		const page = this.code.driver.currentPage;
+		await page.locator(CHAT_MODEL_PICKER_NAME).first().click();
+		await this.code.waitForElement(ACTION_WIDGET);
+		// The picker opens with a focused filter input. Type the model name to
+		// narrow the list — otherwise the model may be hidden in a collapsed
+		// "Other Models" section.
+		await page.keyboard.type(modelName);
 		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
 		await row.waitFor({ state: 'visible', timeout: 30_000 });
-		await row.click();
-		// The picker dismisses after a selection.
-		await page.locator(ACTION_WIDGET).waitFor({ state: 'detached', timeout: 15_000 });
+		// `force` bypasses the transient `context-view-pointerBlock` overlay that
+		// intercepts pointer events while the action widget is animating open.
+		await row.click({ force: true });
+		// The picker dismisses after a selection (aria-expanded flips back to false).
+		await page.waitForFunction(
+			(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
+			CHAT_MODEL_PICKER_NAME,
+			{ timeout: 15_000 },
+		);
 	}
 
 	/**
@@ -247,8 +257,9 @@ export class Chat {
 	 */
 	async openModelConfig(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(CHAT_MODEL_PICKER_CONFIG).waitFor({ state: 'visible', timeout: 15_000 });
-		await this.code.waitAndClick(CHAT_MODEL_PICKER_CONFIG);
+		const configButton = page.locator(CHAT_MODEL_PICKER_CONFIG).first();
+		await configButton.waitFor({ state: 'visible', timeout: 15_000 });
+		await configButton.click();
 		await this.code.waitForElement(ACTION_WIDGET);
 	}
 
@@ -261,7 +272,7 @@ export class Chat {
 	async selectModelConfigOption(label: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
-		await row.click();
+		await row.click({ force: true });
 		await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
 	}
 
@@ -269,7 +280,12 @@ export class Chat {
 	 * Dismisses the open model configuration dropdown.
 	 */
 	async closeModelConfig(): Promise<void> {
-		await this.code.driver.currentPage.keyboard.press('Escape');
-		await this.code.driver.currentPage.locator(ACTION_WIDGET).waitFor({ state: 'detached', timeout: 15_000 });
+		const page = this.code.driver.currentPage;
+		await page.keyboard.press('Escape');
+		await page.waitForFunction(
+			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
+			CHAT_MODEL_PICKER_CONFIG,
+			{ timeout: 15_000 },
+		);
 	}
 }

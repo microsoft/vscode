@@ -349,7 +349,12 @@ function getCategoryLabel(category: string | undefined): string | undefined {
 		case 'powerful':
 			return localize('chat.category.powerful', "Powerful");
 		default:
-			return category.charAt(0).toUpperCase() + category.slice(1);
+			// Defensive: the metadata `category` is typed as a string, but a
+			// provider may supply an unexpected shape (e.g. a grouping object).
+			// Never let a bad value crash the entire model picker.
+			return typeof category === 'string'
+				? category.charAt(0).toUpperCase() + category.slice(1)
+				: undefined;
 	}
 }
 
