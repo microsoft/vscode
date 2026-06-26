@@ -22,6 +22,9 @@ function toExpectedTreatment(name: string, org: string | undefined, sku: string 
 	return `${name}.${org}.${sku}`;
 }
 
+const AB_EXP_FEATURE_DATA_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
+const LAZY_COHORT_EVALUATION_TREATMENT = 'copilotchat.configService.lazyCohortEvaluation';
+
 class TestExperimentationService extends BaseExperimentationService {
 	private _mockTasService: MockTASExperimentationService | undefined;
 
@@ -37,14 +40,18 @@ class TestExperimentationService extends BaseExperimentationService {
 		};
 
 		super(delegateFn, extensionContext, tokenStore, configurationService, telemetryService, logService);
-		this._mockTasService = this._delegate as MockTASExperimentationService;
 	}
 
 	get mockTasService(): MockTASExperimentationService {
+		this._mockTasService = this.ensureDelegate() as MockTASExperimentationService;
 		if (!this._mockTasService) {
 			throw new Error('Mock TAS service not initialized');
 		}
 		return this._mockTasService;
+	}
+
+	get hasCreatedDelegate(): boolean {
+		return this._delegate !== undefined;
 	}
 }
 
@@ -54,6 +61,7 @@ class MockTASExperimentationService implements ITASExperimentationService {
 	private _initialized = false;
 	private _fetchedTreatments = false;
 	public refreshCallCount = 0;
+	public initialFetchStartCount = 0;
 	public treatmentRequests: Array<{ configId: string; name: string; org: string | undefined; sku: string | undefined }> = [];
 
 	constructor(private userInfoStore: UserInfoStore) { }
@@ -78,6 +86,7 @@ class MockTASExperimentationService implements ITASExperimentationService {
 		if (this._initialFetch) {
 			return this._initialFetch;
 		}
+		this.initialFetchStartCount++;
 
 		// Resolve after 100ms to simulate async fetch
 		this._initialFetch = new Promise<void>((resolve) => {
@@ -122,12 +131,17 @@ class MockTASExperimentationService implements ITASExperimentationService {
 		if (configId === 'vscode' && name === 'refresh') {
 			this.refreshCallCount++;
 		}
-		return Promise.resolve(this.getTreatmentVariable(configId, name));
+		return (async () => {
+			await this.initializePromise;
+			await this.initialFetch;
+			return this.getTreatmentVariable<T>(configId, name);
+		})();
 	}
 
 	// Test helper methods
 	reset(): void {
 		this.refreshCallCount = 0;
+		this.initialFetchStartCount = this._initialFetch ? 1 : 0;
 		this.treatmentRequests = [];
 	}
 }
@@ -148,22 +162,24 @@ describe('ExP Service Tests', () => {
 	const SnEnabledToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=1;tid=test', username: 'fake', sku: 'pro', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'] }));
 	const SnDisabledToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'sn=0;tid=test', username: 'fake', sku: 'pro', copilot_plan: 'unknown', organization_list: ['4535c7beffc844b46bb1ed4aa04d759a'] }));
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		const testingServiceCollection = createPlatformServices();
 		telemetryService = new SpyingTelemetryService();
 		testingServiceCollection.define(ITelemetryService, telemetryService);
 		accessor = testingServiceCollection.createTestingAccessor();
 		extensionContext = accessor.get(IVSCodeExtensionContext);
+		await extensionContext.globalState.update(AB_EXP_FEATURE_DATA_STORAGE_KEY, undefined);
 		copilotTokenService = accessor.get(ICopilotTokenStore);
 		expService = accessor.get(IInstantiationService).createInstance(TestExperimentationService);
 	});
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		// Reset the mock service before each test
 		expService.mockTasService.reset();
 		telemetryService.reset();
 		// Clear any existing tokens
 		copilotTokenService.copilotToken = undefined;
+		await extensionContext.globalState.update(AB_EXP_FEATURE_DATA_STORAGE_KEY, undefined);
 	});
 
 	const GetNewTreatmentsChangedPromise = () => {
@@ -249,6 +265,57 @@ describe('ExP Service Tests', () => {
 				hasValue: 1
 			}
 		});
+	});
+
+	it('should eagerly fetch treatments on startup in control', async () => {
+		await extensionContext.globalState.update(AB_EXP_FEATURE_DATA_STORAGE_KEY, {
+			features: [],
+			assignmentContext: '',
+			configs: [{
+				Id: 'vscode',
+				Parameters: {
+					[LAZY_COHORT_EVALUATION_TREATMENT]: false
+				}
+			}]
+		});
+
+		const controlExpService = accessor.get(IInstantiationService).createInstance(TestExperimentationService);
+		expect(controlExpService.hasCreatedDelegate).toBe(true);
+
+		await controlExpService.hasTreatments();
+
+		expect(controlExpService.mockTasService.initialFetchStartCount).toBe(1);
+		expect(controlExpService.mockTasService.treatmentRequests).toHaveLength(0);
+	});
+
+	it('should defer treatment fetch until first treatment request in lazy variation', async () => {
+		await extensionContext.globalState.update(AB_EXP_FEATURE_DATA_STORAGE_KEY, {
+			features: [],
+			assignmentContext: '',
+			configs: [{
+				Id: 'vscode',
+				Parameters: {
+					[LAZY_COHORT_EVALUATION_TREATMENT]: true
+				}
+			}]
+		});
+
+		const lazyExpService = accessor.get(IInstantiationService).createInstance(TestExperimentationService);
+		expect(lazyExpService.hasCreatedDelegate).toBe(false);
+
+		await lazyExpService.hasTreatments();
+		expect(lazyExpService.hasCreatedDelegate).toBe(false);
+
+		const firstRead = lazyExpService.getTreatmentVariable<string>('copilotchat.lazyValidationRequested');
+		expect(firstRead).toBeUndefined();
+		expect(lazyExpService.hasCreatedDelegate).toBe(true);
+		expect(lazyExpService.mockTasService.initialFetchStartCount).toBe(1);
+
+		await lazyExpService.mockTasService.initialFetch;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		expect(lazyExpService.mockTasService.treatmentRequests.some(request => request.name === 'copilotchat.lazyValidationRequested')).toBe(true);
+		expect(lazyExpService.getTreatmentVariable<string>('copilotchat.lazyValidationRequested')).toBe(toExpectedTreatment('copilotchat.lazyValidationRequested', undefined, undefined));
 	});
 
 	it('should trigger treatments refresh when user info changes', async () => {

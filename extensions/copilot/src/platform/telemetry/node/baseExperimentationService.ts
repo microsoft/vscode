@@ -119,14 +119,32 @@ export class UserInfoStore extends Disposable {
 
 export type TASClientDelegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => ITASExperimentationService;
 
+const AB_EXP_FEATURE_DATA_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
+const LAZY_COHORT_EVALUATION_TREATMENT = 'copilotchat.configService.lazyCohortEvaluation';
+
+interface CachedFeatureData {
+	readonly configs?: readonly {
+		readonly Id?: string;
+		readonly Parameters?: Record<string, unknown>;
+	}[];
+}
+
+interface WrappedCachedFeatureData {
+	readonly $$$isWrappedExpValue: true;
+	readonly value?: CachedFeatureData;
+}
+
 export class BaseExperimentationService extends Disposable implements IExperimentationService {
 
 	declare _serviceBrand: undefined;
 	private readonly _refreshTimer = this._register(new IntervalTimer());
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
 	private readonly _emittedTreatments = new Map<string, boolean | string | number | undefined>();
+	private readonly _lazyCohortEvaluation: boolean;
+	private readonly _delegateFn: TASClientDelegateFn;
+	private readonly _context: IVSCodeExtensionContext;
 
-	protected readonly _delegate: ITASExperimentationService;
+	protected _delegate: ITASExperimentationService | undefined;
 	protected readonly _userInfoStore: UserInfoStore;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
@@ -142,10 +160,16 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	) {
 		super();
 
+		this._delegateFn = delegateFn;
+		this._context = context;
 		this._userInfoStore = new UserInfoStore(context, copilotTokenStore);
+		this._lazyCohortEvaluation = this.readCachedLazyCohortEvaluation(context);
 
 		// Refresh treatments when user info changes
 		this._register(this._userInfoStore.onDidChangeUserInfo(async () => {
+			if (!this._delegate) {
+				return;
+			}
 			await this._delegate.getTreatmentVariableAsync('vscode', 'refresh');
 			this._logService.trace(`[BaseExperimentationService] User info changed, refreshed treatments`);
 			this._signalTreatmentsChangeEvent();
@@ -153,18 +177,44 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 		// Refresh treatments every hour
 		this._refreshTimer.cancelAndSet(async () => {
+			if (!this._delegate) {
+				return;
+			}
 			await this._delegate.getTreatmentVariableAsync('vscode', 'refresh');
 			this._logService.trace(`[BaseExperimentationService] Refreshed treatments on timer`);
 			this._signalTreatmentsChangeEvent();
 		}, 60 * 60 * 1000);
 
-		this._delegate = delegateFn(context.globalState, this._userInfoStore);
+		if (!this._lazyCohortEvaluation) {
+			this.ensureDelegate();
+		}
+	}
+
+	private readCachedLazyCohortEvaluation(context: IVSCodeExtensionContext): boolean {
+		const storedFeatureData = context.globalState.get<unknown>(AB_EXP_FEATURE_DATA_STORAGE_KEY);
+		const featureData = isWrappedCachedFeatureData(storedFeatureData) ? storedFeatureData.value : storedFeatureData;
+		if (!isCachedFeatureData(featureData)) {
+			return false;
+		}
+		const vscodeConfig = featureData.configs?.find(config => config.Id === 'vscode');
+		return vscodeConfig?.Parameters?.[LAZY_COHORT_EVALUATION_TREATMENT] === true;
+	}
+
+	protected ensureDelegate(): ITASExperimentationService {
+		if (this._delegate) {
+			return this._delegate;
+		}
+		this._delegate = this._delegateFn(this._context.globalState, this._userInfoStore);
 		this._delegate.initialFetch.then(() => {
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
 		});
+		return this._delegate;
 	}
 
 	private _signalTreatmentsChangeEvent = () => {
+		if (!this._delegate) {
+			return;
+		}
 		const affectedTreatmentVariables: string[] = [];
 		for (const [key, previousValue] of this._previouslyReadTreatments) {
 			const currentValue = this._delegate.getTreatmentVariable('vscode', key);
@@ -185,13 +235,21 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	};
 
 	async hasTreatments(): Promise<void> {
-		await this._delegate.initializePromise;
-		return this._delegate.initialFetch;
+		if (this._lazyCohortEvaluation) {
+			return;
+		}
+		const delegate = this.ensureDelegate();
+		await delegate.initializePromise;
+		return delegate.initialFetch;
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		const result = this._delegate.getTreatmentVariable('vscode', name) as T;
+		const delegate = this.ensureDelegate();
+		const result = delegate.getTreatmentVariable('vscode', name) as T;
 		this._previouslyReadTreatments.set(name, result);
+		if (this._lazyCohortEvaluation && result === undefined) {
+			void delegate.getTreatmentVariableAsync('vscode', name, true).then(() => this._signalTreatmentsChangeEvent());
+		}
 		const isFirstEmit = !this._emittedTreatments.has(name);
 		const previousEmitted = this._emittedTreatments.get(name);
 		if (isFirstEmit || previousEmitted !== result) {
@@ -219,14 +277,27 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 			this._completionsFilters.set(key, value);
 		}
 
-		await this._delegate.initialFetch;
-		await this._delegate.getTreatmentVariableAsync('vscode', 'refresh');
+		const delegate = this.ensureDelegate();
+		await delegate.initialFetch;
+		await delegate.getTreatmentVariableAsync('vscode', 'refresh');
 		this._signalTreatmentsChangeEvent();
 	}
 
 	protected getCompletionsFilters(): Map<string, string> {
 		return this._completionsFilters;
 	}
+}
+
+function isCachedFeatureData(value: unknown): value is CachedFeatureData {
+	if (!value || typeof value !== 'object' || !('configs' in value)) {
+		return false;
+	}
+	const configs = (value as CachedFeatureData).configs;
+	return configs === undefined || Array.isArray(configs);
+}
+
+function isWrappedCachedFeatureData(value: unknown): value is WrappedCachedFeatureData {
+	return !!value && typeof value === 'object' && (value as WrappedCachedFeatureData).$$$isWrappedExpValue === true;
 }
 
 function equalMap(map1: Map<string, string>, map2: Map<string, string>): boolean {
