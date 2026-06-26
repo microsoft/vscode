@@ -22,6 +22,7 @@ import { AnthropicMessagesTool, ContextManagement } from './anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { getConfiguredProxyUrl, isLLMEndpoint, maybeInterceptUrlThroughProxy } from './proxyUtils';
 
 /**
@@ -472,6 +473,7 @@ function networkRequest(
 	const fetcher = accessor.get(IFetcherService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const capiClientService = accessor.get(ICAPIClientService);
+	const configService = accessor.get(IConfigurationService);
 	const { requestType, endpointOrUrl, secretKey, intent, requestId, body, additionalHeaders, cancelToken, useFetcher, canRetryOnce = true, location } = options;
 
 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
@@ -527,9 +529,11 @@ function networkRequest(
 		request.signal = abort.signal;
 	}
 	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
-		// Apply proxy interception if configured
+		// Apply proxy interception if configured.
+		// VS Code setting takes priority; env var is the fallback for terminal-launched VS Code.
 		let fetchUrl: string = endpoint.urlOrRequestMetadata;
-		const proxyUrl = getConfiguredProxyUrl();
+		const vsCodeProxyUrl = configService.getConfig(ConfigKey.Advanced.HeadroomProxyUrl) || undefined;
+		const proxyUrl = getConfiguredProxyUrl(vsCodeProxyUrl);
 		if (proxyUrl && typeof fetchUrl === 'string' && isLLMEndpoint(fetchUrl)) {
 			fetchUrl = maybeInterceptUrlThroughProxy(fetchUrl, proxyUrl, headers);
 		}
