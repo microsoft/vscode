@@ -11,7 +11,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -44,6 +44,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
@@ -513,7 +514,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -554,10 +556,11 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		if (deprecationLink) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
+			const label = $('span.model-deprecation-link-label', undefined, localize('models.deprecation.link.label', "Migrate"), icon);
 			templateData.deprecationLink.link = {
-				label: icon,
-				href: deprecationLink,
-				title: localize('models.deprecation.link.tooltip', "This provider is deprecated. Open the replacement extension.")
+				label,
+				href: resolveProviderDeprecationLink(deprecationLink, this.productService.urlProtocol).toString(),
+				title: localize('models.deprecation.link.tooltip', "This provider is deprecated. Migrate to the official extension.")
 			};
 			templateData.deprecationLinkContainer.style.display = '';
 		}

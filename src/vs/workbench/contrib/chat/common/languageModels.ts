@@ -20,6 +20,7 @@ import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -633,6 +634,19 @@ export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageM
 	readonly isDefault: boolean;
 }
 
+/**
+ * Resolves a provider `deprecation.link` for opening inside the current build. Contributions point
+ * at the replacement extension with a stable `vscode:extension/<id>` URI, but the URL service only
+ * routes URIs whose scheme matches this build's `urlProtocol` (e.g. `code-oss`, `vscode-insiders`).
+ * The `vscode:` scheme is therefore rewritten to the current protocol so the extensions URL handler
+ * opens the extension; without this the opener falls back to treating the URI as a (non-existent)
+ * file resource and fails. Other schemes (http(s), command) are returned unchanged.
+ */
+export function resolveProviderDeprecationLink(link: string, urlProtocol: string | undefined): URI {
+	const uri = URI.parse(link);
+	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
+}
+
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
 	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
@@ -1203,10 +1217,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const providerName = (vendor.displayName || metadata.vendor).replace(/\s*\(deprecated\)\s*$/i, '');
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('chat.providerDeprecation.message', "The internal {0} language model provider is deprecated. Please migrate to the official extension to continue using it.", providerName),
+			localize('chat.providerDeprecation.message', "The internal {0} language model provider is being deprecated. Please migrate to the official extension.", providerName),
 			[{
 				label: localize('chat.providerDeprecation.install', "Install Extension"),
-				run: () => { this._openerService.open(link, { allowCommands: true }); }
+				run: () => { this._openerService.open(resolveProviderDeprecationLink(link, this._productService.urlProtocol), { allowCommands: true }); }
 			}],
 			{
 				neverShowAgain: { id: `chat.providerDeprecation.${metadata.vendor}`, scope: NeverShowAgainScope.APPLICATION }

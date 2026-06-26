@@ -148,6 +148,16 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link .model-deprecation-link-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link .model-deprecation-link-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
 .models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.error-status {
 	color: var(--vscode-errorForeground);
 }
