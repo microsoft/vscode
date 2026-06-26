@@ -19,7 +19,7 @@ import { TestExtensionService } from '../../../../test/common/workbenchTestServi
 import { HasByokModelsContribution } from '../../browser/hasByokModelsContribution.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { COPILOT_VENDOR_ID } from '../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 suite('HasByokModelsContribution', () => {
@@ -30,6 +30,7 @@ suite('HasByokModelsContribution', () => {
 
 	interface IScenarioOptions {
 		readonly groups?: readonly FakeProviderGroup[];
+		readonly resolvedModels?: Array<{ id: string; vendor: string; isUserSelectable?: boolean }>;
 		readonly contextKeys?: {
 			readonly clientByokEnabled?: boolean;
 			readonly nonCopilotUserSelectable?: boolean;
@@ -82,6 +83,40 @@ suite('HasByokModelsContribution', () => {
 		}
 	}
 
+	class FakeLanguageModelsService {
+		_serviceBrand: undefined;
+		private readonly _onDidChangeLanguageModels = new Emitter<string>();
+		readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
+		private _modelIds: string[] = [];
+		private _models = new Map<string, { vendor: string; isUserSelectable?: boolean }>();
+
+		setModels(models: Array<{ id: string; vendor: string; isUserSelectable?: boolean }>): void {
+			this._models.clear();
+			this._modelIds = models.map(m => {
+				this._models.set(m.id, { vendor: m.vendor, isUserSelectable: m.isUserSelectable });
+				return m.id;
+			});
+			this._onDidChangeLanguageModels.fire('');
+		}
+
+		getLanguageModelIds(): string[] {
+			return this._modelIds;
+		}
+
+		lookupLanguageModel(id: string) {
+			const model = this._models.get(id);
+			return model ? { vendor: model.vendor, isUserSelectable: model.isUserSelectable } : undefined;
+		}
+
+		async selectLanguageModels(): Promise<string[]> {
+			return this._modelIds;
+		}
+
+		dispose(): void {
+			this._onDidChangeLanguageModels.dispose();
+		}
+	}
+
 	interface IScenario {
 		readonly storage: InMemoryStorageService;
 		readonly configService: FakeLanguageModelsConfigurationService;
@@ -112,12 +147,19 @@ suite('HasByokModelsContribution', () => {
 			(configService as unknown as { _groups: readonly FakeProviderGroup[] })._groups = options.groups;
 		}
 
+		const languageModelsService = new FakeLanguageModelsService();
+		store.add({ dispose: () => languageModelsService.dispose() });
+		if (options.resolvedModels) {
+			languageModelsService.setModels(options.resolvedModels);
+		}
+
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IExtensionService, new TestExtensionService());
 		instantiation.stub(IContextKeyService, contextKeyService);
 		instantiation.stub(IConfigurationService, configurationService);
 		instantiation.stub(ILanguageModelsConfigurationService, configService as unknown as ILanguageModelsConfigurationService);
+		instantiation.stub(ILanguageModelsService, languageModelsService as unknown as ILanguageModelsService);
 
 		const hasByokModels = ChatEntitlementContextKeys.hasByokModels.bindTo(contextKeyService);
 		store.add(instantiation.createInstance(HasByokModelsContribution));
@@ -212,6 +254,16 @@ suite('HasByokModelsContribution', () => {
 		const store = disposables.add(new DisposableStore());
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
+		});
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('resolved extension-provided non-Copilot model is sufficient', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			resolvedModels: [{ id: 'dial/model', vendor: 'dial' }],
 		});
 		await flush();
 

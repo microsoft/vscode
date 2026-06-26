@@ -3,6 +3,8 @@ name: tool-rename-deprecation
 description: 'Ensure renamed built-in tool references preserve backward compatibility. Use when renaming a toolReferenceName, tool set referenceName, or any tool identifier. Run on ANY change to tool registration code. Covers legacyToolReferenceFullNames for tools and legacyFullNames for tool sets.'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Tool Rename Deprecation
 
 When a tool or tool set reference name is changed, the **old name must always be added to the deprecated/legacy array** so that existing prompt files, tool configurations, and saved references continue to resolve correctly.

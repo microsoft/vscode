@@ -3,6 +3,8 @@ name: cpu-profile-analysis
 description: "Analyze V8/Chrome CPU profiles (.cpuprofile) and DevTools trace files (Trace-*.json). Use when: profiling performance, investigating slow functions, comparing code paths, finding bottlenecks, analyzing timeToRequest, understanding call trees from sampling profiler data, analyzing layout/paint/rendering, investigating user timing marks."
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Analyze Performance Profiles
 
 Analyze `.cpuprofile` files (V8 sampling profiler) and DevTools trace files (`Trace-*.json`, Chrome Trace Event Format) to find performance bottlenecks, compare code paths, and understand timing.

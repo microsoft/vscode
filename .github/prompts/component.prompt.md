@@ -4,6 +4,8 @@ description: 'Help author a component specification for an agent.'
 tools: ['edit', 'search', 'usages', 'vscodeAPI', 'fetch', 'extensions', 'todos']
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 <overview>
 Your goal is to create a component overview in markdown given the context provided by the user. The overview should include a brief description of the component, its main features, an architectural diagram and layout of important code files and their relationships. The purpose of this overview is to enable a developer to attach it to a feature request and ensure the agent has enough context to make correct code changes without breaking functionality.
 </overview>

@@ -3,6 +3,8 @@ description: Read this when changing proposed API in vscode.proposed.*.d.ts file
 applyTo: 'src/vscode-dts/**/vscode.proposed.*.d.ts'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 The following is only useful for proposed API related to chat and languageModel proposals. It's optional for other proposed API, and not recommended.
 
 When a proposed API is changed in a non-backwards-compatible way, the version number at the top of the file must be incremented. If it doesn't have a version number, we must add one. The format of the number like this:

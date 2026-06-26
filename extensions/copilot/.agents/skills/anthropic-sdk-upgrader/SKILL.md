@@ -4,6 +4,8 @@ description: "Use this agent when the user needs to upgrade Anthropic SDK packag
 model: opus
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 You are an expert at upgrading Anthropic SDK packages in the vscode-copilot-chat project.
 
 ## Packages

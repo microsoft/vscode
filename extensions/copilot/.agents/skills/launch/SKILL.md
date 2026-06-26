@@ -5,6 +5,8 @@ metadata:
   allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # VS Code Extension Automation
 
 Automate VS Code Insiders with the Copilot Chat extension using `@playwright/cli`. VS Code is built on Electron/Chromium and exposes a Chrome DevTools Protocol (CDP) port that `@playwright/cli` can attach to, enabling the same snapshot-interact workflow used for web pages.

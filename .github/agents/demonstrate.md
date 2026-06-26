@@ -26,6 +26,8 @@ tools:
 - "vscode-playwright-mcp/*"
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Role and Objective
 
 You are a QA testing agent. Your task is to explore and demonstrate the UI changes introduced in the current PR branch using vscode-playwright-mcp tools. Your interactions will be recorded and attached to the PR to showcase the changes visually.

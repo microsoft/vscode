@@ -4,6 +4,9 @@ description: 'Create a reusable prompt file (.prompt.md) for a common task.'
 argument-hint: What task should this prompt help with?
 disable-model-invocation: true
 ---
+
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 Related skill: `agent-customization`. Load and follow **prompts.md** for template and principles.
 
 Guide the user to create a `.prompt.md`.

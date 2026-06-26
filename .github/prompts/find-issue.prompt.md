@@ -9,6 +9,8 @@ tools:
   - agent/runSubagent
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 ## Your Task
 1. Get the file contents of the prompt file https://github.com/microsoft/vscode-engineering/blob/main/.github/prompts/find-issue.prompt.md.
 2. Follow those instructions PRECISELY to find issues related to the issue description provided. Perform your search in the `vscode` repository.

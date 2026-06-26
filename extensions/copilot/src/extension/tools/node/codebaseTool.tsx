@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { isByokEmbeddingModelConfigured } from '../../../platform/workspaceChunkSearch/common/byokEmbeddingModel';
 import { IWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { raceTimeoutAndCancellationError } from '../../../util/common/racePromise';
 import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
@@ -64,6 +65,8 @@ export class CodebaseTool implements vscode.LanguageModelTool<ICodebaseToolParam
 		let references: PromptReference[] = [];
 		const id = generateUuid();
 		const sw = StopWatch.create();
+		// BYOK embedding backends are much slower than GitHub code search; allow time for queued CPU inference.
+		const searchTimeoutMs = isByokEmbeddingModelConfigured(this.configurationService) ? 300_000 : 20_000;
 		const promptTsxResult = await raceTimeoutAndCancellationError(
 			async searchToken => {
 				const hasSemanticSearch = await this.workspaceChunkSearchService.isAvailable();
@@ -84,7 +87,7 @@ export class CodebaseTool implements vscode.LanguageModelTool<ICodebaseToolParam
 				}, undefined, searchToken);
 			},
 			token,
-			20_000,
+			searchTimeoutMs,
 			'Codebase search timed out, try a different search tool',
 		);
 		const durationMs = sw.elapsed();

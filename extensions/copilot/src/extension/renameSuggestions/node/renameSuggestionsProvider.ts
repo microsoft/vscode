@@ -155,11 +155,21 @@ export class RenameSuggestionsProvider implements vscode.NewSymbolNamesProvider 
 						);
 						const fetchTime = sw.elapsed();
 
-						// @ulugbekna: only show the quota exceeded dialog when the user manually invoked rename suggestions.
-						// For automatic triggers (e.g., when pressing F2), showing a modal dialog steals focus from the
-						// rename widget and cancels the user's rename action - see https://github.com/microsoft/vscode/issues/319414
-						if (RenameSuggestionsProvider.shouldShowQuotaExceededDialog(triggerKind, fetchResult.type, this._authService.copilotToken?.isNoAuthUser ?? false)) {
-							await this._notificationService.showQuotaExceededDialog({ isNoAuthUser: this._authService.copilotToken?.isNoAuthUser ?? false });
+						if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || fetchResult.type === ChatFetchResponseType.RateLimited) {
+							if (endpoint.isExtensionContributed) {
+								await this._notificationService.showByokModelError({
+									errorType: fetchResult.type === ChatFetchResponseType.QuotaExceeded ? 'quotaExceeded' : 'rateLimited',
+									reason: fetchResult.reason,
+									providerName: endpoint.modelProvider
+								});
+							} else {
+								// @ulugbekna: only show the quota exceeded dialog when the user manually invoked rename suggestions.
+								// For automatic triggers (e.g., when pressing F2), showing a modal dialog steals focus from the
+								// rename widget and cancels the user's rename action - see https://github.com/microsoft/vscode/issues/319414
+								if (RenameSuggestionsProvider.shouldShowQuotaExceededDialog(triggerKind, fetchResult.type, this._authService.copilotToken?.isNoAuthUser ?? false)) {
+									await this._notificationService.showQuotaExceededDialog({ isNoAuthUser: this._authService.copilotToken?.isNoAuthUser ?? false });
+								}
+							}
 						}
 
 						if (token.isCancellationRequested) {

@@ -572,7 +572,11 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
-		])).flatMap(o => o);
+		])).flatMap(o => o).filter(dep => {
+			// rcedit/signtool only apply to Windows PE binaries; skip other platforms' native modules.
+			const normalized = dep.replace(/\\/g, '/');
+			return !/(?:^|\/)(?:x64-linux|arm64-linux|x64-darwin|arm64-darwin|linux|darwin)(?:\/|$)/i.test(normalized);
+		});
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');

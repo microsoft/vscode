@@ -215,7 +215,6 @@ zone.js/dist/**
 @xterm/xterm-addon-*/out-test/**
 
 # @github/copilot - strip unneeded binaries and files
-@github/copilot/sdk/index.js
 @github/copilot/prebuilds/**
 @github/copilot/clipboard/**
 @github/copilot/ripgrep/**

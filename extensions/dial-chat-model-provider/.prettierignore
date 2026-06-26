@@ -1,0 +1,6 @@
+dist
+node_modules
+out
+*.vsix
+package-lock.json
+.github

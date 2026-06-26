@@ -1,0 +1,40 @@
+# Force LF for all text files in the repo and on checkout, regardless of OS.
+# Prevents accidental CRLF on Windows checkouts and keeps tooling
+# (eslint, prettier, webpack, VS Code extension manifest readers) consistent.
+* text=auto eol=lf
+
+# Shell scripts must stay LF (Unix shells will refuse CRLF).
+*.sh         text eol=lf
+*.bash       text eol=lf
+
+# Source / config / docs are text — explicit just in case.
+*.ts         text eol=lf
+*.tsx        text eol=lf
+*.js         text eol=lf
+*.mjs        text eol=lf
+*.cjs        text eol=lf
+*.json       text eol=lf
+*.jsonc      text eol=lf
+*.md         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.toml       text eol=lf
+*.html       text eol=lf
+*.css        text eol=lf
+*.svg        text eol=lf
+*.gitignore  text eol=lf
+*.gitattributes text eol=lf
+*.editorconfig  text eol=lf
+.vscodeignore   text eol=lf
+
+# Binary assets — never normalize.
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.webp       binary
+*.vsix       binary
+*.zip        binary
+*.gz         binary
+*.tgz        binary

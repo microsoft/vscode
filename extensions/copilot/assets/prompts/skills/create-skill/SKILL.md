@@ -4,6 +4,9 @@ description: 'Create a reusable skill (SKILL.md) that packages a workflow.'
 argument-hint: What should this skill produce?
 disable-model-invocation: true
 ---
+
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 Related skill: `agent-customization`. Load and follow **skills.md** for template and principles.
 
 Guide the user to create a `SKILL.md`.

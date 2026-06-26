@@ -1,0 +1,9 @@
+{
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"editorconfig.editorconfig",
+		"amodio.tsl-problem-matcher",
+		"ms-vscode.extension-test-runner"
+	]
+}

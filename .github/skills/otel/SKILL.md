@@ -3,6 +3,8 @@ name: otel
 description: OpenTelemetry instrumentation for the Copilot Chat extension — covers the four agent execution paths, the IOTelService abstraction, span/metric/event conventions, and the relationship between code and the user/developer monitoring docs. Use when adding/changing OTel spans, metrics, or events; instrumenting a new agent surface; touching the Copilot CLI bridge or Claude span emission; or updating `extensions/copilot/docs/monitoring/agent_monitoring*.md`.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # OpenTelemetry Instrumentation Skill
 
 When adding, changing, or reviewing OTel telemetry in the Copilot Chat extension, **always read the two source-of-truth docs first** and **always keep them in sync with the code you change**.

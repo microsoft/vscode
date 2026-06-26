@@ -4021,6 +4021,53 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
 	}
 }
 
+function normalizeLanguageModelUsageTotal(prompt: number, completion: number, total?: number): number {
+	const sum = prompt + completion;
+	if (total === undefined || total < 0) {
+		return sum;
+	}
+	return Math.max(total, sum);
+}
+
+function normalizeLanguageModelCachedInput(cached?: number): number | undefined {
+	if (cached === undefined || cached < 0) {
+		return undefined;
+	}
+	return cached;
+}
+
+export class LanguageModelUsagePart implements vscode.LanguageModelUsagePart {
+	readonly promptTokens: number;
+	readonly completionTokens: number;
+	readonly totalTokens: number;
+	readonly cachedInputTokens: number | undefined;
+
+	constructor(promptTokens: number, completionTokens: number, totalTokens?: number, cachedInputTokens?: number) {
+		const prompt = Math.max(0, promptTokens);
+		const completion = Math.max(0, completionTokens);
+		this.promptTokens = prompt;
+		this.completionTokens = completion;
+		this.totalTokens = normalizeLanguageModelUsageTotal(prompt, completion, totalTokens);
+		this.cachedInputTokens = normalizeLanguageModelCachedInput(cachedInputTokens);
+	}
+
+	static fromOpenAICompatible(usage: {
+		prompt_tokens: number;
+		completion_tokens: number;
+		total_tokens?: number;
+		prompt_tokens_details?: { cached_tokens?: number };
+	}): LanguageModelUsagePart {
+		const promptTokens = Math.max(0, usage.prompt_tokens);
+		const completionTokens = Math.max(0, usage.completion_tokens);
+		return new LanguageModelUsagePart(
+			promptTokens,
+			completionTokens,
+			usage.total_tokens,
+			usage.prompt_tokens_details?.cached_tokens,
+		);
+	}
+}
+
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;

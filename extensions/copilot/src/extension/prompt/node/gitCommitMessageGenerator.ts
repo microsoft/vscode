@@ -82,12 +82,31 @@ export class GitCommitMessageGenerator {
 			timeToComplete: Date.now() - startTime
 		});
 
-		if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || (fetchResult.type === ChatFetchResponseType.RateLimited && this.authService.copilotToken?.isNoAuthUser)) {
-			await this.notificationService.showQuotaExceededDialog({ isNoAuthUser: this.authService.copilotToken?.isNoAuthUser ?? false });
+		// Show appropriate notification based on error type and endpoint source
+		if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || fetchResult.type === ChatFetchResponseType.RateLimited) {
+			if (endpoint.isExtensionContributed) {
+				// BYOK model: show provider-specific notification
+				await this.notificationService.showByokModelError({
+					errorType: fetchResult.type === ChatFetchResponseType.QuotaExceeded ? 'quotaExceeded' : 'rateLimited',
+					reason: fetchResult.reason,
+					providerName: endpoint.modelProvider
+				});
+			} else {
+				// Copilot model: show standard quota dialog
+				await this.notificationService.showQuotaExceededDialog({ isNoAuthUser: this.authService.copilotToken?.isNoAuthUser ?? false });
+			}
 			return undefined;
 		}
 
 		if (fetchResult.type !== ChatFetchResponseType.Success) {
+			// For BYOK models that failed (not quota/rate limit), show a warning
+			if (endpoint.isExtensionContributed && fetchResult.type === ChatFetchResponseType.Failed) {
+				await this.notificationService.showByokModelError({
+					errorType: 'failed',
+					reason: fetchResult.reason,
+					providerName: endpoint.modelProvider
+				});
+			}
 			return undefined;
 		}
 

@@ -3,6 +3,8 @@ name: updateCopilotCLIToolMapping
 description: Update the mapping of Copilot CLI tools from the source code for the CLI runtime
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 The constant `ToolFriendlyNameAndHandlers` in src/extension/chatSessions/copilotcli/common/copilotCLITools.ts
 contains a mapping of known tools, and how the progress and output is displayed.
 The type `ToolInfo` contains all of the tools and their corresponding arguments/return types.

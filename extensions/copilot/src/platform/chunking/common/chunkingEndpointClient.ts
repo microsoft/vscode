@@ -65,5 +65,11 @@ export interface IChunkingEndpointClient {
 		cache: ReadonlyMap</* hash */string, FileChunkWithEmbedding> | undefined,
 		telemetryInfo: CallTracker,
 		token: CancellationToken,
+		computeOptions?: ChunkingComputeOptions,
 	): Promise<readonly FileChunkWithEmbedding[] | undefined>;
+}
+
+export interface ChunkingComputeOptions {
+	/** Cap chunks embedded per file (BYOK search uses this to skip huge generated assets). */
+	readonly maxChunks?: number;
 }

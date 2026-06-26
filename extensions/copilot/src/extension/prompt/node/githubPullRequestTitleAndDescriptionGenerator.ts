@@ -99,8 +99,16 @@ export class GitHubPullRequestTitleAndDescriptionGenerator implements TitleAndDe
 			);
 
 		this.lastContext = { commitMessages, patches };
-		if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || (fetchResult.type === ChatFetchResponseType.RateLimited && this.authService.copilotToken?.isNoAuthUser)) {
-			await this.notificationService.showQuotaExceededDialog({ isNoAuthUser: this.authService.copilotToken?.isNoAuthUser ?? false });
+		if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || fetchResult.type === ChatFetchResponseType.RateLimited) {
+			if (endpoint.isExtensionContributed) {
+				await this.notificationService.showByokModelError({
+					errorType: fetchResult.type === ChatFetchResponseType.QuotaExceeded ? 'quotaExceeded' : 'rateLimited',
+					reason: fetchResult.reason,
+					providerName: endpoint.modelProvider
+				});
+			} else {
+				await this.notificationService.showQuotaExceededDialog({ isNoAuthUser: this.authService.copilotToken?.isNoAuthUser ?? false });
+			}
 		}
 
 		if (fetchResult.type !== ChatFetchResponseType.Success) {

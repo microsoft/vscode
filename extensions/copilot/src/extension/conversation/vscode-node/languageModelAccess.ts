@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
@@ -35,6 +36,7 @@ import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelatio
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isBoolean, isDefined, isNumber, isString, isStringArray } from '../../../util/vs/base/common/types';
+import { localize } from '../../../util/vs/nls';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation as ApiChatLocation, ExtensionMode } from '../../../vscodeTypes';
 import type { LMResponsePart } from '../../byok/common/byokProvider';
@@ -234,6 +236,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		@IVSCodeExtensionContext private readonly _vsCodeExtensionContext: IVSCodeExtensionContext,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -284,7 +287,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
-		const session = await this._getToken();
+		const session = await this._getToken({ silent: true });
 		if (!session) {
 			// Return cached models until we have auth reacquired
 			// We clear this list in onDidAuthenticationChange so signed out should still have model picker clear
@@ -528,14 +531,47 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		return this._lmWrapper.provideTokenCount(endpoint, text);
 	}
 
+	private _getNonCopilotEmbeddingModelOverride(): string | undefined {
+		const embeddingModelOverride = this._configurationService.getNonExtensionConfig<string>('chat.embeddingModel');
+		if (embeddingModelOverride
+			&& typeof embeddingModelOverride === 'string'
+			&& embeddingModelOverride.length > 0
+			&& !embeddingModelOverride.startsWith('copilot.')) {
+			return embeddingModelOverride;
+		}
+		return undefined;
+	}
+
 	private async _registerEmbeddings(): Promise<void> {
 
 		const dispo = this._register(new MutableDisposable());
 
 
 		const update = async () => {
+			// When the user selected a non-Copilot embedding model, an extension
+			// (e.g. DIAL) registers the provider. Copilot must not re-register
+			// the same model ID — that throws and briefly clears the provider
+			// during BYOK extension refresh. Internal flows delegate via
+			// vscode.lm.computeEmbeddings / ExtensionContributedEmbeddingEndpoint.
+			const embeddingModelOverride = this._getNonCopilotEmbeddingModelOverride();
+			if (embeddingModelOverride) {
+				dispo.clear();
+				try {
+					const registeredModels = vscode.lm.embeddingModels;
+					if (!registeredModels.includes(embeddingModelOverride)) {
+						this._logService.trace(
+							`[LanguageModelAccess] Waiting for embedding model '${embeddingModelOverride}' to be registered by its provider extension.`,
+						);
+					}
+				} catch {
+					// embeddingModels is a proposed API; ignore lookup failures.
+				}
+				return;
+			}
 
-			if (!await this._getToken()) {
+			// No override — fall back to the default Copilot embedding model,
+			// which requires a valid Copilot token.
+			if (!await this._getToken({ forDefaultEmbeddings: true })) {
 				dispo.clear();
 				return;
 			}
@@ -557,12 +593,22 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		};
 
 		this._register(this._authenticationService.onDidAuthenticationChange(() => update()));
+		// Re-register when the user changes their embedding model selection.
+		this._register(vscode.lm.onDidChangeEmbeddingModels(() => update()));
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.embeddingModel')) {
+				update();
+			}
+		}));
 		await update();
 	}
 
-	private async _getToken(): Promise<CopilotToken | undefined> {
+	private async _getToken(options?: { forDefaultEmbeddings?: boolean; silent?: boolean }): Promise<CopilotToken | undefined> {
 		if (!this._authenticationService.hasCopilotTokenSource) {
-			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without a Copilot token source');
+			const usingByokEmbeddings = !!this._getNonCopilotEmbeddingModelOverride();
+			if (!options?.silent && (!usingByokEmbeddings || options?.forDefaultEmbeddings)) {
+				this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without a Copilot token source');
+			}
 			return undefined;
 		}
 
@@ -570,8 +616,11 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;
 		} catch (e) {
-			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth token');
-			this._logService.error(e);
+			const usingByokEmbeddings = !!this._getNonCopilotEmbeddingModelOverride();
+			if (!options?.silent && (!usingByokEmbeddings || options?.forDefaultEmbeddings)) {
+				this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth token');
+				this._logService.error(e);
+			}
 			return undefined;
 		}
 	}

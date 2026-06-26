@@ -168,14 +168,26 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 }
 
 /**
- * Signed-out users are allowed; signed-in users without a Copilot token (e.g. enterprise-managed errors) are denied to avoid bypassing policy.
+ * Determines whether the client is allowed to use BYOK (Bring Your Own Key) models.
+ *
+ * - Signed-out users are always allowed (air-gapped / BYOK-only scenario).
+ * - Signed-in users with a valid Copilot token are allowed if they have an
+ *   individual plan, are internal, or their org has explicitly enabled BYOK.
+ * - Signed-in users **without** a Copilot token are allowed as well — this
+ *   covers users who are logged into GitHub but have not signed up for
+ *   Copilot (or whose subscription has expired). They can still use
+ *   extension-contributed (BYOK) language models. Enterprise-managed users
+ *   whose token is present but lacks the BYOK flag will still be denied.
  */
 export function isClientBYOKAllowed(hasGitHubSession: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
 	if (!hasGitHubSession) {
 		return true;
 	}
 	if (!copilotToken) {
-		return false;
+		// Signed in to GitHub but no Copilot token (e.g., not signed up,
+		// subscription expired, or GitHub login failed). Allow BYOK so the
+		// user can still use extension-contributed models.
+		return true;
 	}
 	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }

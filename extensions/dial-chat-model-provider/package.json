@@ -1,0 +1,234 @@
+{
+	"name": "dial-chat-model-provider",
+	"displayName": "DIAL Chat Model Provider",
+	"description": "A VS Code chat model provider for DIAL API with OpenID Connect and API Key authentication",
+	"version": "0.5.3",
+	"publisher": "sergey-zinchenko",
+	"engines": {
+		"vscode": "^1.110.0"
+	},
+	"enabledApiProposals": [
+		"chatProvider",
+		"embeddings"
+	],
+	"categories": [
+		"AI",
+		"Chat"
+	],
+	"icon": "dial-logo.png",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/sergey-zinchenko/DialChatModelProvider"
+	},
+	"homepage": "https://github.com/sergey-zinchenko/DialChatModelProvider#readme",
+	"bugs": {
+		"url": "https://github.com/sergey-zinchenko/DialChatModelProvider/issues"
+	},
+	"main": "./dist/extension.js",
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"contributes": {
+		"languageModelChatProviders": [
+			{
+				"vendor": "dial",
+				"displayName": "DIAL",
+				"managementCommand": "dial.openSettings"
+			}
+		],
+		"configuration": {
+			"title": "DIAL Chat Model Provider",
+			"properties": {
+				"dial.serverUrl": {
+					"type": "string",
+					"default": "",
+					"description": "The DIAL server URL (e.g., https://dial.example.com)",
+					"order": 1
+				},
+				"dial.authMethod": {
+					"type": "string",
+					"enum": [
+						"openid",
+						"apikey"
+					],
+					"default": "openid",
+					"description": "Authentication method: 'openid' for OpenID Connect or 'apikey' for API Key",
+					"order": 2
+				},
+				"dial.oidcClientId": {
+					"type": "string",
+					"default": "",
+					"description": "OpenID Connect client ID (public identifier; auto-registered on login when empty)",
+					"order": 3,
+					"markdownDescription": "Public client ID from Keycloak. After dynamic registration this field is filled automatically. Use **DIAL: Clear OAuth Client** to reset an auto-registered client. Secrets (client secret, initial access token, API key) are never stored here — see commands **DIAL: Set OIDC Client Secret**, **DIAL: Set OIDC Initial Access Token**, **DIAL: Set API Key**."
+				},
+				"dial.oidcScopes": {
+					"type": "string",
+					"default": "openid profile offline_access dial-api",
+					"description": "Space-separated OIDC scopes for login and client registration (must include openid)",
+					"order": 4,
+					"markdownDescription": "Scopes for authorization and DCR. Include **`offline_access`** so Keycloak returns a refresh token (long-lived session). Also sent at DCR without `openid`."
+				},
+				"dial.oauthCallbackPort": {
+					"type": "number",
+					"default": 47821,
+					"minimum": 1024,
+					"maximum": 65535,
+					"description": "Local TCP port for OAuth redirect (loopback)",
+					"order": 5,
+					"markdownDescription": "Redirect URI: `http://127.0.0.1:PORT/oauth-callback`. After changing, run **DIAL: Clear OAuth Client** and login again."
+				},
+				"dial.oauthBrowserProfile": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"system",
+						"persistent"
+					],
+					"default": "auto",
+					"description": "Browser profile for the OAuth sign-in window",
+					"order": 6,
+					"markdownDescription": "**auto** — use your Chrome/Edge profile when the browser is not already running (password autofill works). Falls back to a separate DIAL profile if Chrome/Edge is open. **system** — always use your main browser profile (close Chrome/Edge first). **persistent** — always use a separate DIAL profile (no saved passwords from your main browser)."
+				},
+				"dial.useServerTokenization": {
+					"type": "boolean",
+					"default": true,
+					"description": "Use the DIAL /tokenize endpoint for accurate token counts",
+					"order": 7,
+					"markdownDescription": "When enabled, the extension calls `/v1/deployments/{id}/tokenize` for `provideTokenCount` (results are cached by content hash). When disabled, token counting is unavailable — the IDE cannot show an accurate context budget."
+				},
+				"dial.httpRetryMaxAttempts": {
+					"type": "number",
+					"default": 5,
+					"minimum": 1,
+					"maximum": 20,
+					"description": "Max retry attempts for transient DIAL HTTP failures",
+					"order": 8,
+					"markdownDescription": "How many times to retry a failed `/tokenize` or `/chat/completions` request when the error looks transient (503, connection reset, empty body, etc.). Semantic chat retries (unsupported `max_tokens`, context clamp) are separate and do not consume this budget."
+				},
+				"dial.httpRetryBaseDelayMs": {
+					"type": "number",
+					"default": 1000,
+					"minimum": 100,
+					"maximum": 60000,
+					"description": "Initial backoff delay (ms) before the first HTTP retry",
+					"order": 9
+				},
+				"dial.httpRetryMaxDelayMs": {
+					"type": "number",
+					"default": 30000,
+					"minimum": 1000,
+					"maximum": 300000,
+					"description": "Maximum backoff delay (ms) between HTTP retries",
+					"order": 10
+				},
+				"dial.chatStreamTimeoutMs": {
+					"type": "number",
+					"default": 300000,
+					"minimum": 30000,
+					"maximum": 600000,
+					"description": "Streaming chat POST timeout (ms)",
+					"order": 11,
+					"markdownDescription": "How long to wait for the streaming `/chat/completions` response before giving up on one attempt. Large agent prompts may sit in the upstream queue for minutes — increase this (and `dial.httpRetryMaxDelayMs`) when logs show `(empty response body)` while vLLM is overloaded."
+				},
+				"dial.embeddingsTimeoutMs": {
+					"type": "number",
+					"default": 300000,
+					"minimum": 30000,
+					"maximum": 600000,
+					"description": "Embeddings POST timeout (ms)",
+					"order": 12,
+					"markdownDescription": "How long to wait for a `/embeddings` response before giving up on one attempt. CPU embedding backends and large batches can take several minutes under load — increase this when `#codebase` search logs `timeout of 60000ms exceeded`."
+				},
+				"dial.requiredTopics": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"order": 12,
+					"markdownDescription": "Show only models whose DIAL Admin **Topics** (API field `description_keywords`) include at least one of these tags. Leave empty to show all models returned by the server."
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "dial.login",
+				"title": "DIAL: Login"
+			},
+			{
+				"command": "dial.logout",
+				"title": "DIAL: Logout"
+			},
+			{
+				"command": "dial.clearOidcClient",
+				"title": "DIAL: Clear OAuth Client"
+			},
+			{
+				"command": "dial.applyCopilotDefaults",
+				"title": "DIAL: Apply Copilot Model Defaults"
+			},
+			{
+				"command": "dial.openSettings",
+				"title": "DIAL: Open Settings"
+			},
+			{
+				"command": "dial.setApiKey",
+				"title": "DIAL: Set API Key"
+			},
+			{
+				"command": "dial.setOidcClientSecret",
+				"title": "DIAL: Set OIDC Client Secret"
+			},
+			{
+				"command": "dial.setOidcInitialAccessToken",
+				"title": "DIAL: Set OIDC Initial Access Token"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run package",
+		"compile": "webpack",
+		"watch": "webpack --watch",
+		"package": "webpack --mode production --no-devtool",
+		"compile-tests": "tsc -p . --outDir out",
+		"watch-tests": "tsc -p . -w --outDir out",
+		"pretest": "npm run compile-tests && npm run compile && npm run lint",
+		"test:quick": "npm run compile-tests && npm run lint && vscode-test",
+		"lint": "eslint src",
+		"lint:fix": "eslint src --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"check": "npm run format:check && npm run lint && npm run compile",
+		"test": "vscode-test"
+	},
+	"dependencies": {
+		"axios": "^1.16.1"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^22.19.19",
+		"@types/vscode": "~1.110.0",
+		"@vscode/test-cli": "^0.0.12",
+		"@vscode/test-electron": "^2.5.2",
+		"eslint": "^9.39.4",
+		"eslint-config-prettier": "^10.1.8",
+		"prettier": "^3.8.3",
+		"ts-loader": "^9.5.7",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.59.4",
+		"webpack": "^5.107.1",
+		"webpack-cli": "^6.0.1"
+	},
+	"overrides": {
+		"diff": "^8.0.3",
+		"serialize-javascript": "^7.0.5",
+		"brace-expansion": "^2.0.3",
+		"flatted": "^3.4.2",
+		"fast-uri": "^3.1.2",
+		"follow-redirects": "^1.15.12",
+		"picomatch": "^4.0.4",
+		"glob": "^13.0.0"
+	}
+}

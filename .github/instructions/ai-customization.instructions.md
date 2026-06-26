@@ -3,6 +3,8 @@ description: Architecture documentation for VS Code AI Customization view. Use w
 applyTo: 'src/vs/workbench/contrib/chat/browser/aiCustomization/**'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # AI Customization View
 
 The AI Customization view provides a unified view for discovering and managing AI customization 'artifacts' (customizations that augment LLM prompts or behavior).

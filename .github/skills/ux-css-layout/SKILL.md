@@ -3,6 +3,8 @@ name: ux-css-layout
 description: VS Code CSS conventions, file organization, class naming, standard sizes, SplitView/Grid layout, scrollable content, responsive layout, and text overflow/ellipsis patterns. Use when writing CSS, building layouts, or fixing text truncation issues.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 This skill covers CSS file organization, naming, standard sizes, programmatic layout (SplitView, Grid, scrollable), responsive patterns, and text overflow handling.
 
 ---

@@ -22,7 +22,8 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -106,7 +107,7 @@ interface ITestFixture {
 	dialog: { confirmResult: boolean; confirmCount: number };
 }
 
-function createFixture(store: DisposableStore): ITestFixture {
+function createFixture(store: DisposableStore, languageModelsService?: ILanguageModelsService): ITestFixture {
 	const instantiationService = store.add(new TestInstantiationService());
 	const chatService = store.add(new MockChatService());
 	const storage = store.add(new TestStorageService());
@@ -125,7 +126,10 @@ function createFixture(store: DisposableStore): ITestFixture {
 	instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
 		override getUriLabel(uri: URI): string { return uri.fsPath; }
 	}());
-	instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { }());
+	instantiationService.stub(ILanguageModelsService, languageModelsService ?? new class extends mock<ILanguageModelsService>() {
+		override readonly onDidChangeLanguageModelVendors = Event.None;
+		override async selectLanguageModels() { return []; }
+	}());
 	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { }());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
 		override async openRepository() { return undefined; }
@@ -497,5 +501,38 @@ suite('LocalChatSessionsProvider', () => {
 
 		childInProgress.set(false, undefined);
 		assert.strictEqual(group.status.get(), SessionStatus.Completed);
+	});
+
+	test('getModels includes BYOK models when isUserSelectable is omitted', () => {
+		const modelId = 'customendpoint/my-model';
+		const metadata: ILanguageModelChatMetadata = {
+			id: 'my-model',
+			name: 'My Model',
+			vendor: 'customendpoint',
+			version: '1',
+			family: 'my-model',
+			extension: new ExtensionIdentifier('github.copilot'),
+			maxInputTokens: 128000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: {},
+			capabilities: { toolCalling: true, agentMode: true },
+		};
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModelVendors = Event.None;
+			override async selectLanguageModels() { return [modelId]; }
+			override getLanguageModelIds() { return [modelId]; }
+			override lookupLanguageModel(id: string) { return id === modelId ? metadata : undefined; }
+			override getVendors() { return [{ vendor: 'customendpoint', displayName: 'Custom Endpoint' } as never]; }
+			override hasResolvedVendor(vendor: string) { return vendor === 'customendpoint'; }
+			override isModelHidden() { return false; }
+		}();
+
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService } = createFixture(store, languageModelsService);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const models = provider.getModels('draft');
+		assert.strictEqual(models.length, 1);
+		assert.strictEqual(models[0].identifier, modelId);
 	});
 });

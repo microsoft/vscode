@@ -13,22 +13,26 @@ import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEn
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { COPILOT_VENDOR_ID } from '../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 
 /**
  * Owns the `github.copilot.hasByokModels` context key. The key is true iff:
- *  - `github.copilot.clientByokEnabled` is true (set by `ChatEntitlementService` + Copilot extension),
  *  - `chat.aiDisabled` is off, and
- *  - the language-models configuration has at least one non-Copilot vendor group (at any time),
- *    or — pre extension scan — the `chatNonCopilotModelsAreUserSelectable` signal is on.
+ *  - at least one of:
+ *    - a non-Copilot vendor is configured in the language-models config,
+ *    - a non-Copilot language model is already resolved (e.g. extension-provided DIAL models),
+ *    - the `chatNonCopilotModelsAreUserSelectable` signal is on (pre extension scan only), or
+ *    - the last persisted positive answer is restored from storage.
  *
- * Strategy (avoids activating BYOK extensions just to gate UI):
- *  1. Restore the last persisted answer for correct warm-reload UI.
+ * Strategy (avoids activating BYOK extensions just to gate UI where possible):
+ *  1. Restore the last persisted answer immediately for correct warm-reload UI (even before
+ *     `clientByokEnabled` is set by the Copilot extension).
  *  2. Configured non-Copilot vendor groups are a positive signal at any time.
- *  3. Pre-registration only, also trust the `chatNonCopilotModelsAreUserSelectable` signal
+ *  3. Resolved non-Copilot models from extension providers are a positive signal at any time.
+ *  4. Pre-registration only, also trust the `chatNonCopilotModelsAreUserSelectable` signal
  *     (post-registration it can be stale — model cache lags behind group removal).
- *  4. Only persist `false` after both extension scan and first config load complete, so startup
+ *  5. Only persist `false` after both extension scan and first config load complete, so startup
  *     latency doesn't clobber a previously-true answer.
  *
  * Eager so the key is bound before any sign-in UI renders.
@@ -37,7 +41,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	static readonly ID = 'workbench.contrib.hasByokModels';
 
-	private static readonly STORAGE_KEY_LAST_KNOWN = 'chat.hasByokModels.lastKnown';
+	static readonly STORAGE_KEY_LAST_KNOWN = 'chat.hasByokModels.lastKnown';
 
 	private static readonly TRACKED_KEYS = new Set([
 		ChatEntitlementContextKeys.clientByokEnabled.key,
@@ -50,6 +54,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -65,7 +70,13 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (!this._store.isDisposed) {
 				this._extensionsRegistered = true;
-				this._update();
+				// Resolve extension-contributed models (e.g. DIAL) so we detect BYOK
+				// providers that never appear in the static language-models config file.
+				void this._languageModelsService.selectLanguageModels({}).finally(() => {
+					if (!this._store.isDisposed) {
+						this._update();
+					}
+				});
 			}
 		});
 
@@ -80,6 +91,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AIDisabled)),
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(HasByokModelsContribution.TRACKED_KEYS)),
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
+			this._languageModelsService.onDidChangeLanguageModels,
 		)(() => this._update()));
 	}
 
@@ -89,11 +101,26 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _restore(): void {
-		if (!this._isFeatureEnabled()) {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)) {
 			this._hasByokModels.set(false);
 			return;
 		}
-		this._hasByokModels.set(this._storageService.getBoolean(HasByokModelsContribution.STORAGE_KEY_LAST_KNOWN, StorageScope.APPLICATION, false));
+
+		const clientByokEnabled = this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
+		if (clientByokEnabled === false) {
+			this._hasByokModels.set(false);
+			return;
+		}
+
+		// Trust the persisted answer immediately so a second window (Agents) can skip
+		// Copilot sign-in before extension-contributed models are resolved.
+		const lastKnown = this._storageService.getBoolean(HasByokModelsContribution.STORAGE_KEY_LAST_KNOWN, StorageScope.APPLICATION, false);
+		if (lastKnown) {
+			this._hasByokModels.set(true);
+			return;
+		}
+
+		this._hasByokModels.set(false);
 	}
 
 	private _setResult(value: boolean): void {
@@ -101,9 +128,24 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		this._storageService.store(HasByokModelsContribution.STORAGE_KEY_LAST_KNOWN, value, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
+	private _hasResolvedNonCopilotModels(): boolean {
+		for (const id of this._languageModelsService.getLanguageModelIds()) {
+			const model = this._languageModelsService.lookupLanguageModel(id);
+			if (model && model.vendor !== COPILOT_VENDOR_ID && model.isUserSelectable !== false) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private _update(): void {
-		if (!this._isFeatureEnabled()) {
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)) {
 			this._setResult(false);
+			return;
+		}
+
+		if (this._hasResolvedNonCopilotModels()) {
+			this._setResult(true);
 			return;
 		}
 
@@ -117,6 +159,11 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		// Post-registration it can be stale (model cache lags behind group removal), so ignore.
 		if (!this._extensionsRegistered && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.key)) {
 			this._setResult(true);
+			return;
+		}
+
+		if (!this._isFeatureEnabled()) {
+			// Don't clobber an optimistic restore while waiting for clientByokEnabled.
 			return;
 		}
 

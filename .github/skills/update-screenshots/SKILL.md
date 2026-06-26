@@ -3,6 +3,8 @@ name: update-screenshots
 description: Download screenshot baselines from the latest CI run and commit them. Use when asked to update, accept, or refresh component screenshot baselines from CI, or after the screenshot-test GitHub Action reports differences. This skill should be run as a subagent.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Update Component Screenshots from CI
 
 Screenshot baselines are **no longer stored in the repository**. They are managed by an external screenshot service (`hediet-screenshots.azurewebsites.net`). The CI workflow uploads screenshots to this service and diffs them automatically.

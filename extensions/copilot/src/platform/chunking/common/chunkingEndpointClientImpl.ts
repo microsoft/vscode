@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType } from '@vscode/copilot-api';
-import { CallTracker } from '../../../util/common/telemetryCorrelationId';
+import { createFencedCodeBlock, getLanguageId } from '../../../util/common/markdown';
+import { CallTracker, TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
+import { TokenizerType } from '../../../util/common/tokenizer';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -13,7 +15,9 @@ import { LinkedList } from '../../../util/vs/base/common/linkedList';
 import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { Range } from '../../../util/vs/editor/common/core/range';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { Embedding, EmbeddingType, EmbeddingVector } from '../../embeddings/common/embeddingsComputer';
+import { URI } from '../../../util/vs/base/common/uri';
+import { Embedding, EmbeddingType, EmbeddingVector, IEmbeddingsComputer } from '../../embeddings/common/embeddingsComputer';
+import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { getGithubMetadataHeaders } from '../../github/common/githubApiFetcherService';
 import { logExecTime } from '../../log/common/logExecTime';
@@ -23,8 +27,11 @@ import { postRequest } from '../../networking/common/networking';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { getWorkspaceFileDisplayPath, IWorkspaceService } from '../../workspace/common/workspaceService';
-import { FileChunkWithEmbedding, FileChunkWithOptionalEmbedding } from './chunk';
-import { ChunkableContent, ComputeBatchInfo, EmbeddingsComputeQos, IChunkingEndpointClient } from './chunkingEndpointClient';
+import { BYOK_CHUNKING_AUTH_TOKEN, isByokEmbeddingModelConfigured } from '../../workspaceChunkSearch/common/byokEmbeddingModel';
+import { INaiveChunkingService } from '../node/naiveChunkerService';
+import { MAX_CHUNK_SIZE_TOKENS } from '../node/naiveChunker';
+import { FileChunk, FileChunkWithEmbedding, FileChunkWithOptionalEmbedding } from './chunk';
+import { ChunkableContent, ChunkingComputeOptions, ComputeBatchInfo, EmbeddingsComputeQos, IChunkingEndpointClient } from './chunkingEndpointClient';
 import { stripChunkTextMetadata } from './chunkingStringUtils';
 
 type RequestTask = (attempt: number) => Promise<Response>;
@@ -298,6 +305,9 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INaiveChunkingService private readonly _naiveChunkingService: INaiveChunkingService,
+		@IEmbeddingsComputer private readonly _embeddingsComputer: IEmbeddingsComputer,
 	) {
 		super();
 
@@ -308,8 +318,8 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 		return this.doComputeChunksAndEmbeddings(authToken, embeddingType, content, batchInfo, { qos, computeEmbeddings: false }, cache, telemetryInfo, token);
 	}
 
-	public async computeChunksAndEmbeddings(authToken: string, embeddingType: EmbeddingType, content: ChunkableContent, batchInfo: ComputeBatchInfo, qos: EmbeddingsComputeQos, cache: ReadonlyMap<string, FileChunkWithEmbedding> | undefined, telemetryInfo: CallTracker, token: CancellationToken): Promise<readonly FileChunkWithEmbedding[] | undefined> {
-		const result = await this.doComputeChunksAndEmbeddings(authToken, embeddingType, content, batchInfo, { qos, computeEmbeddings: true }, cache, telemetryInfo, token);
+	public async computeChunksAndEmbeddings(authToken: string, embeddingType: EmbeddingType, content: ChunkableContent, batchInfo: ComputeBatchInfo, qos: EmbeddingsComputeQos, cache: ReadonlyMap<string, FileChunkWithEmbedding> | undefined, telemetryInfo: CallTracker, token: CancellationToken, computeOptions?: ChunkingComputeOptions): Promise<readonly FileChunkWithEmbedding[] | undefined> {
+		const result = await this.doComputeChunksAndEmbeddings(authToken, embeddingType, content, batchInfo, { qos, computeEmbeddings: true, maxChunks: computeOptions?.maxChunks }, cache, telemetryInfo, token);
 		return result as FileChunkWithEmbedding[] | undefined;
 	}
 
@@ -321,11 +331,16 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 		options: {
 			qos: EmbeddingsComputeQos;
 			computeEmbeddings: boolean;
+			maxChunks?: number;
 		},
 		cache: ReadonlyMap<string, FileChunkWithEmbedding> | undefined,
 		telemetryInfo: CallTracker,
 		token: CancellationToken
 	): Promise<readonly FileChunkWithOptionalEmbedding[] | undefined> {
+		if (authToken === BYOK_CHUNKING_AUTH_TOKEN || isByokEmbeddingModelConfigured(this._configurationService)) {
+			return this.doComputeChunksAndEmbeddingsByok(embeddingType, content, batchInfo, options, token);
+		}
+
 		const text = await raceCancellationError(content.getText(), token);
 		if (isFalsyOrWhitespace(text)) {
 			return [];
@@ -444,5 +459,79 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 			this._logService.error(e);
 			return undefined;
 		}
+	}
+
+	private async doComputeChunksAndEmbeddingsByok(
+		embeddingType: EmbeddingType,
+		content: ChunkableContent,
+		batchInfo: ComputeBatchInfo,
+		options: {
+			computeEmbeddings: boolean;
+			maxChunks?: number;
+		},
+		token: CancellationToken,
+	): Promise<readonly FileChunkWithOptionalEmbedding[] | undefined> {
+		const text = await raceCancellationError(content.getText(), token);
+		if (isFalsyOrWhitespace(text)) {
+			return [];
+		}
+
+		const tokenizationEndpoint = { tokenizer: TokenizerType.O200K };
+		let chunks = await this._naiveChunkingService.chunkFile(
+			tokenizationEndpoint,
+			content.uri,
+			text,
+			{ maxTokenLength: MAX_CHUNK_SIZE_TOKENS },
+			token,
+		);
+
+		if (options.maxChunks !== undefined && chunks.length > options.maxChunks) {
+			this._logService.trace(
+				`[ChunkingEndpointClientImpl] BYOK search truncating ${content.uri} from ${chunks.length} to ${options.maxChunks} chunk(s)`,
+			);
+			chunks = chunks.slice(0, options.maxChunks);
+		}
+
+		if (!options.computeEmbeddings) {
+			return chunks.map(chunk => ({
+				chunk,
+				chunkHash: this.computeLocalChunkHash(content.uri, chunk),
+				embedding: undefined,
+			}));
+		}
+
+		const strings = chunks.map(chunk => this.chunkToEmbeddingString(content.uri, chunk));
+		const embeddingsResult = await this._embeddingsComputer.computeEmbeddings(
+			embeddingType,
+			strings,
+			{ inputType: 'document' },
+			new TelemetryCorrelationId('ChunkingEndpointClientImpl::doComputeChunksAndEmbeddingsByok'),
+			token,
+		);
+
+		if (embeddingsResult.values.length !== chunks.length) {
+			this._logService.warn(
+				`[ChunkingEndpointClientImpl] BYOK embedding count mismatch for ${content.uri}: expected ${chunks.length}, got ${embeddingsResult.values.length}`,
+			);
+			return undefined;
+		}
+
+		batchInfo.recomputedFileCount++;
+		batchInfo.sentContentTextLength += text.length;
+
+		return chunks.map((chunk, index) => ({
+			chunk,
+			chunkHash: this.computeLocalChunkHash(content.uri, chunk),
+			embedding: embeddingsResult.values[index],
+		}));
+	}
+
+	private computeLocalChunkHash(uri: URI, chunk: FileChunk): string {
+		return `${uri.toString()}#${chunk.range.startLineNumber}:${chunk.range.endLineNumber}`;
+	}
+
+	private chunkToEmbeddingString(uri: URI, chunk: FileChunk): string {
+		const displayPath = getWorkspaceFileDisplayPath(this._workspaceService, uri);
+		return `File: \`${displayPath}\`\n${createFencedCodeBlock(getLanguageId(uri), chunk.text)}`;
 	}
 }

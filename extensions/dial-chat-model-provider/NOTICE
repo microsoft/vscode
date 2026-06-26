@@ -1,0 +1,33 @@
+DIAL Chat Model Provider
+Copyright 2026 Sergey Zinchenko
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this work except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+----------------------------------------------------------------------
+
+Third-party attribution
+=======================
+
+This extension is an HTTP client for AI DIAL Core, an open-source agentic
+AI orchestration platform developed and maintained by EPAM Systems, Inc.
+The upstream project is distributed under the Apache License 2.0 at:
+
+    https://github.com/epam/ai-dial-core
+
+"DIAL", "AI DIAL", "AI DIAL Core", and the DIAL logo (file
+`dial-logo.png` shipped with this extension) are trademarks of
+EPAM Systems, Inc. They are used here solely for identification, to
+indicate compatibility of this extension with the upstream platform.
+
+This extension is an independent project. It is not an official EPAM
+product and it is not affiliated with, sponsored by, or endorsed by
+EPAM Systems, Inc.
+
+The Apache License 2.0 does not grant rights to use trademarks of the
+licensor (see Section 6 of the License). All references to DIAL, AI
+DIAL, AI DIAL Core, and the DIAL logo remain the property of their
+respective owner.

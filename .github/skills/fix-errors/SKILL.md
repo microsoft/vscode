@@ -3,6 +3,8 @@ name: fix-errors
 description: Guidelines for fixing unhandled errors from the VS Code error telemetry dashboard. Use when investigating error-telemetry issues with stack traces, error messages, and hit/user counts. Covers tracing data flow through call stacks, identifying producers of invalid data vs. consumers that crash, enriching error messages for telemetry diagnosis, and avoiding common anti-patterns like silently swallowing errors.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 When fixing an unhandled error from the telemetry dashboard, the issue typically contains an error message, a stack trace, hit count, and affected user count.
 
 ## Approach

@@ -3,6 +3,8 @@ name: azure-pipelines
 description: Use when validating Azure DevOps pipeline changes for the VS Code build. Covers queueing builds, checking build status, viewing logs, and iterating on pipeline YAML changes without waiting for full CI runs.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Validating Azure Pipeline Changes
 
 When modifying Azure DevOps pipeline files (YAML files in `build/azure-pipelines/`), you can validate changes locally using the Azure CLI before committing. This avoids the slow feedback loop of pushing changes, waiting for CI, and checking results.

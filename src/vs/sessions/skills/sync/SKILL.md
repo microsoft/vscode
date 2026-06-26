@@ -2,6 +2,9 @@
 name: sync
 description: Sync the current session branch with its upstream branch, or publish the current session branch to a remote. Use when the user asks to sync a branch, pull latest changes, rebase onto upstream, push current branch, publish branch, or set upstream.
 ---
+
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Sync Changes

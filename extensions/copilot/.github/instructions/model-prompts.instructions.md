@@ -3,6 +3,8 @@ applyTo: 'src/extension/prompts/node/agent/**'
 description: Model-specific prompt authoring and registry guidelines
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 Guidelines for creating, registering, and testing model-specific prompts via the `PromptRegistry` system.
 
 ## Prompt Registry

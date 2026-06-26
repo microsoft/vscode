@@ -1,5 +1,8 @@
 # [Custom Agents (.agent.md)](https://code.visualstudio.com/docs/copilot/customization/custom-agents)
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
+
 Custom personas with specific tools, instructions, and behaviors. Use for orchestrated workflows with role-based tool restrictions.
 
 ## Locations

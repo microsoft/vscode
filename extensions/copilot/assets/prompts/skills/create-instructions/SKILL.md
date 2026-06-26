@@ -4,6 +4,9 @@ description: 'Create an instructions file (.instructions.md) for a project rule 
 argument-hint: What rule or convention to enforce?
 disable-model-invocation: true
 ---
+
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 Related skill: `agent-customization`. Load and follow **instructions.md** for template and principles.
 
 Guide the user to create an instructions file.

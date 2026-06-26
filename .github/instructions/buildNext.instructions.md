@@ -3,6 +3,8 @@ description: Working notes and architecture documentation for the new esbuild-ba
 applyTo: 'build/next/**'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Working Notes: New esbuild-based Build System
 
 > These notes are for AI agents to help with context in new or summarized sessions.

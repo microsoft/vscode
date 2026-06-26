@@ -5,6 +5,8 @@ argument-hint: Paste the GitHub issue URL for the error-telemetry issue
 tools: ['edit', 'search', 'execute/getTerminalOutput', 'execute/runInTerminal', 'read/terminalLastCommand', 'read/terminalSelection', 'execute/createAndRunTask', 'execute/runTask', 'read/getTaskOutput', 'search/usages', 'read/problems', 'search/changes', 'execute/testFailure', 'todo', 'execute/runTests', 'web/fetch', 'web/githubRepo']
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 The user has given you a GitHub issue URL for an unhandled error from the VS Code error telemetry dashboard. Fetch the issue to retrieve its details (error message, stack trace, hit count, affected users).
 
 Follow the `fix-errors` skill guidelines to fix this error. Key principles:

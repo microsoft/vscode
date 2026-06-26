@@ -3,6 +3,8 @@ name: fix-ci-failures
 description: Investigate and fix CI failures on a pull request. Use when CI checks fail on a PR branch — covers finding the PR, identifying failed checks, downloading logs and artifacts, extracting the failure cause, and iterating on a fix. Requires the `gh` CLI.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Investigating and Fixing CI Failures
 
 This skill guides you through diagnosing and fixing CI failures on a PR using the `gh` CLI. The user has the PR branch checked out locally.

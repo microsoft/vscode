@@ -1,3 +1,4 @@
+# Fork notice: sergey-zinchenko/vscode fork — see ../../../../FORK.md
 # This folder is a scratchpad for heap snapshot investigation scripts.
 # Files here are gitignored — write freely.
 #

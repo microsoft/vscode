@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { EmbeddingType } from '../../embeddings/common/embeddingsComputer';
+import { getByokEmbeddingModelOverride } from './byokEmbeddingModel';
 import { IEnvService } from '../../env/common/envService';
 import { getGithubMetadataHeaders } from '../../github/common/githubApiFetcherService';
 import { ILogService } from '../../log/common/logService';
@@ -192,6 +193,12 @@ export class GithubAvailableEmbeddingTypesService implements IGithubAvailableEmb
 	}
 
 	async getPreferredType(silent: boolean): Promise<EmbeddingType | undefined> {
+		const byokOverride = getByokEmbeddingModelOverride(this._configurationService);
+		if (byokOverride) {
+			this._logService.info(`GithubAvailableEmbeddingTypesManager: using BYOK embedding model ${byokOverride}`);
+			return new EmbeddingType(byokOverride);
+		}
+
 		const result = await this.getAllAvailableTypes(silent);
 		if (!result.isOk()) {
 			this._logService.info(`GithubAvailableEmbeddingTypesManager: Could not find any available embedding types. Error: ${result.err.type}`);

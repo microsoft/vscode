@@ -13,9 +13,12 @@ import { CopilotChatEndpoint, CopilotUtilityChatEndpoint, CopilotUtilitySmallCha
 import { EmbeddingEndpoint } from '../../../platform/endpoint/node/embeddingsEndpoint';
 import { IModelMetadataFetcher, ModelMetadataFetcher } from '../../../platform/endpoint/node/modelMetadataFetcher';
 import { ExtensionContributedChatEndpoint } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { ExtensionContributedEmbeddingEndpoint } from '../../../platform/endpoint/vscode-node/extEmbeddingEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IEmbeddingsEndpoint } from '../../../platform/networking/common/networking';
+import { INotificationService } from '../../../platform/notification/common/notificationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { localize } from '../../../util/vs/nls';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -39,6 +42,7 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAuthenticationService protected readonly _authService: IAuthenticationService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -65,6 +69,18 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			}
 		}));
 
+		// When the user changes their embedding model override we need to clear
+		// the embedding endpoints cache so the next request re-resolves.
+		this._register(this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ProductionEndpointProvider.EMBEDDING_MODEL_CONFIG_KEY)) {
+				this._logService.trace(`[ProductionEndpointProvider] Embedding model override changed; invalidating embedding endpoints.`);
+				this._embeddingEndpoints.clear();
+				this._lastEmbeddingOverrideTelemetryFingerprint = '';
+				this._lastEmbeddingOverrideNotificationFingerprint = '';
+				this._onDidModelsRefresh.fire();
+			}
+		}));
+
 	}
 
 	// NOTE: Keep in sync with `ChatConfiguration.UtilityModel` /
@@ -77,6 +93,12 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	private static readonly UTILITY_MODEL_CONFIG_KEY = 'chat.utilityModel';
 	private static readonly UTILITY_SMALL_MODEL_CONFIG_KEY = 'chat.utilitySmallModel';
 
+	// NOTE: Keep in sync with `ChatConfiguration.EmbeddingModel` in
+	// `src/vs/workbench/contrib/chat/common/constants.ts`. The setting value
+	// is a plain model ID string (e.g., 'copilot.text-embedding-3-small' or
+	// 'ollama.nomic-embed-text').
+	private static readonly EMBEDDING_MODEL_CONFIG_KEY = 'chat.embeddingModel';
+
 	/**
 	 * Per-family marker recording that we already emitted a telemetry event
 	 * for the currently-applied override. Used to dedupe so we emit at most
@@ -84,6 +106,20 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * changes.
 	 */
 	private readonly _lastOverrideTelemetryFingerprint = new Map<ChatEndpointFamily, string>();
+
+	/**
+	 * Marker recording that we already emitted a telemetry event for the
+	 * currently-applied embedding model override. Cleared when the setting
+	 * changes.
+	 */
+	private _lastEmbeddingOverrideTelemetryFingerprint = '';
+
+	/**
+	 * Marker recording that we already showed a notification for an
+	 * invalid/unavailable embedding model override. Prevents spamming
+	 * the user when the model is persistently unavailable.
+	 */
+	private _lastEmbeddingOverrideNotificationFingerprint = '';
 
 	private getOrCreateChatEndpointInstance(modelMetadata: IChatModelInformation): IChatEndpoint {
 		const modelId = modelMetadata.id;
@@ -282,10 +318,95 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 
 	async getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint> {
 		this._logService.trace(`Resolving embedding model`);
+
+		// Check for user-configured override first
+		const override = await this._resolveEmbeddingOverride();
+		if (override) {
+			this._logService.trace(`Resolved embedding model to extension-contributed override`);
+			return override;
+		}
+
 		const modelMetadata = await this._modelFetcher.getEmbeddingsModel('text-embedding-3-small');
 		const model = await this.getOrCreateEmbeddingEndpointInstance(modelMetadata);
 		this._logService.trace(`Resolved embedding model`);
 		return model;
+	}
+
+	/**
+	 * Resolves the user's `chat.embeddingModel` override (if any) to a
+	 * concrete embeddings endpoint.
+	 * Returns `undefined` if no override is configured, if the value is
+	 * the default Copilot model, or if the lookup throws.
+	 */
+	private async _resolveEmbeddingOverride(): Promise<IEmbeddingsEndpoint | undefined> {
+		const raw = this._configService.getNonExtensionConfig<unknown>(ProductionEndpointProvider.EMBEDDING_MODEL_CONFIG_KEY);
+		if (raw === undefined || typeof raw !== 'string' || raw.length === 0) {
+			return undefined;
+		}
+
+		// If the user selected the Copilot model, fall through to the default CAPI endpoint
+		if (raw === 'copilot' || raw.startsWith('copilot.')) {
+			return undefined;
+		}
+
+		// Prefer the configured override even if the provider extension is still
+		// starting or briefly re-registering — computeEmbeddings resolves at call time.
+		try {
+			const registeredModels = lm.embeddingModels;
+			if (!registeredModels.includes(raw)) {
+				this._logService.trace(`[ProductionEndpointProvider] ${ProductionEndpointProvider.EMBEDDING_MODEL_CONFIG_KEY} override '${raw}' is not registered yet; will delegate at compute time.`);
+			}
+		} catch {
+			// embeddingModels is a proposed API; if it throws, fall through
+			// and let computeEmbeddings fail if the model is unavailable.
+		}
+
+		try {
+			this._logService.trace(`[ProductionEndpointProvider] Applying ${ProductionEndpointProvider.EMBEDDING_MODEL_CONFIG_KEY} override: '${raw}'`);
+			this._reportEmbeddingOverrideAppliedTelemetry(raw);
+			return this._instantiationService.createInstance(ExtensionContributedEmbeddingEndpoint, raw);
+		} catch (err) {
+			this._logService.warn(`[ProductionEndpointProvider] Failed to resolve ${ProductionEndpointProvider.EMBEDDING_MODEL_CONFIG_KEY} override '${raw}'; falling back to default. Error: ${err}`);
+			this._notifyEmbeddingModelUnavailable(raw);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Shows a warning notification when the user's selected embedding model
+	 * is unavailable. Deduplicated so we show at most one notification per
+	 * model ID per session (reset when the setting changes).
+	 */
+	private _notifyEmbeddingModelUnavailable(modelId: string): void {
+		if (this._lastEmbeddingOverrideNotificationFingerprint === modelId) {
+			return;
+		}
+		this._lastEmbeddingOverrideNotificationFingerprint = modelId;
+
+		this._notificationService.showWarningMessage(
+			localize('embeddingModel.unavailable', "The embedding model '{0}' is not available. Falling back to the default model. You may need to install an extension that provides this model or select a different model in settings.", modelId),
+		);
+	}
+
+	private _reportEmbeddingOverrideAppliedTelemetry(modelId: string): void {
+		if (this._lastEmbeddingOverrideTelemetryFingerprint === modelId) {
+			return;
+		}
+		this._lastEmbeddingOverrideTelemetryFingerprint = modelId;
+
+		/* __GDPR__
+			"chat.embeddingModelOverride" : {
+				"owner": "vrbhardw",
+				"comment": "Tracks adoption of the chat.embeddingModel setting. Emitted at most once per model ID per session when the configured override successfully resolves.",
+				"modelId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The embedding model ID that was selected by the user." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent(
+			'chat.embeddingModelOverride',
+			{
+				modelId,
+			},
+		);
 	}
 
 	private async getOrCreateEmbeddingEndpointInstance(modelMetadata: IEmbeddingModelInformation): Promise<IEmbeddingsEndpoint> {

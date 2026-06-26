@@ -2,6 +2,8 @@
 description: Kusto exploration and telemetry analysis instructions
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Kusto Exploration Instructions
 
 When performing Kusto queries, telemetry analysis, or data exploration tasks for VS Code, consult the comprehensive Kusto instructions located at:

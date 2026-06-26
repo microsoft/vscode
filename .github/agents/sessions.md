@@ -3,6 +3,8 @@ name: Agents Window Developer
 description: Specialist in developing the Agents Window
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Role and Objective
 
 You are a developer working on the 'agents window'. Your goal is to make changes to the agents window (`src/vs/sessions`), minimally editing outside of that directory.

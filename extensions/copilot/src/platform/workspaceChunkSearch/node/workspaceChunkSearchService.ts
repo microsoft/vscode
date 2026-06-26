@@ -14,11 +14,12 @@ import { raceCancellationError } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
-import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart2, ChatResponseWarningPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import { IConfigurationService } from '../../configuration/common/configurationService';
 import { FileChunk, FileChunkAndScore } from '../../chunking/common/chunk';
 import { MAX_CHUNK_SIZE_TOKENS } from '../../chunking/node/naiveChunker';
 import { distance, Embedding, EmbeddingDistance, Embeddings, EmbeddingType, IEmbeddingsComputer } from '../../embeddings/common/embeddingsComputer';
@@ -31,12 +32,14 @@ import { INotificationService } from '../../notification/common/notificationServ
 import { ISimulationTestContext } from '../../simulationTestContext/common/simulationTestContext';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { getWorkspaceFileDisplayPath, IWorkspaceService } from '../../workspace/common/workspaceService';
+import { getByokEmbeddingModelOverride, isByokEmbeddingModelConfigured } from '../common/byokEmbeddingModel';
 import { IGithubAvailableEmbeddingTypesService } from '../common/githubAvailableEmbeddingTypes';
 import { IRerankerService } from '../common/rerankerService';
 import { StrategySearchResult, StrategySearchSizing, WorkspaceChunkQuery, WorkspaceChunkQueryWithEmbeddings, WorkspaceChunkSearchOptions, WorkspaceSearchAlert } from '../common/workspaceChunkSearch';
 import { CodeSearchChunkSearch, CodeSearchRemoteIndexState, ExternalIngestEnablement } from './codeSearch/codeSearchChunkSearch';
 import { BuildIndexTriggerReason, TriggerIndexingError } from './codeSearch/codeSearchRepo';
 import { IWorkspaceFileIndex } from './workspaceFileIndex';
+import { WorkspaceChunkEmbeddingsIndex } from './workspaceChunkEmbeddingsIndex';
 
 const maxEmbeddingSpread = 0.65;
 
@@ -104,11 +107,14 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 	readonly onDidChangeIndexState = this._onDidChangeIndexState.event;
 
 	private _impl: WorkspaceChunkSearchServiceImpl | undefined;
+	private readonly _implDisposable = this._register(new MutableDisposable<WorkspaceChunkSearchServiceImpl>());
+	private readonly _implStateListener = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IGithubAvailableEmbeddingTypesService private readonly _availableEmbeddingTypes: IGithubAvailableEmbeddingTypesService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
@@ -117,12 +123,31 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		this.tryInit(true);
 
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
+			// BYOK semantic search uses local embeddings and does not depend on GitHub auth.
+			// Resetting here closes the SQLite cache mid-session (see "database is not open").
+			if (isByokEmbeddingModelConfigured(this._configurationService)) {
+				return;
+			}
+			this.resetImpl();
 			this.tryInit(true);
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.embeddingModel')) {
+				this.resetImpl();
+				this.tryInit(true);
+			}
 		}));
 	}
 
+	private resetImpl(): void {
+		this._implStateListener.clear();
+		this._implDisposable.clear();
+		this._impl = undefined;
+	}
+
 	private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl | undefined> {
-		if (!this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser) {
+		const byokModel = getByokEmbeddingModelOverride(this._configurationService);
+		if (!byokModel && (!this._authenticationService.copilotToken || this._authenticationService.copilotToken.isNoAuthUser)) {
 			return undefined;
 		}
 
@@ -134,7 +159,9 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 		type TryInitOutcome = 'success' | 'noEmbeddingType' | 'alreadyInitialized' | 'error';
 		let outcome: TryInitOutcome = 'noEmbeddingType';
 		try {
-			const best = await this._availableEmbeddingTypes.getPreferredType(silent);
+			const best = byokModel
+				? new EmbeddingType(byokModel)
+				: await this._availableEmbeddingTypes.getPreferredType(silent);
 			// Double check that we haven't initialized in the meantime
 			if (this._impl) {
 				outcome = 'alreadyInitialized';
@@ -143,8 +170,9 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 
 			if (best) {
 				this._logService.info(`WorkspaceChunkSearchService: using embedding type ${best}`);
-				this._impl = this._register(this._instantiationService.createInstance(WorkspaceChunkSearchServiceImpl, best));
-				this._register(this._impl.onDidChangeIndexState(() => this._onDidChangeIndexState.fire()));
+				this._impl = this._instantiationService.createInstance(WorkspaceChunkSearchServiceImpl, best);
+				this._implDisposable.value = this._impl;
+				this._implStateListener.value = this._impl.onDidChangeIndexState(() => this._onDidChangeIndexState.fire());
 				this._onDidChangeIndexState.fire();
 				outcome = 'success';
 
@@ -187,11 +215,12 @@ export class WorkspaceChunkSearchService extends Disposable implements IWorkspac
 	}
 
 	async isAvailable(): Promise<boolean> {
-		if (!this._impl) {
+		const impl = await this.tryInit(true);
+		if (!impl) {
 			return false;
 		}
 
-		return this._impl.isAvailable();
+		return impl.isAvailable();
 	}
 
 	async searchFileChunks(sizing: WorkspaceChunkSearchSizing, query: WorkspaceChunkQuery, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, progress: vscode.Progress<vscode.ChatResponsePart> | undefined, token: CancellationToken): Promise<WorkspaceChunkSearchResult> {
@@ -244,7 +273,10 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	private readonly shouldEagerlyIndexKey = 'workspaceChunkSearch.shouldEagerlyIndex';
 	private readonly hasPromptedForExternalIngestKey = 'workspaceChunkSearch.externalIngest.prompted';
 
-	private readonly _codeSearchChunkSearch: CodeSearchChunkSearch;
+	private readonly _codeSearchChunkSearch: CodeSearchChunkSearch | undefined;
+	private readonly _useByokLocalSearch: boolean;
+	private readonly _remoteCodeSearchDisabled: boolean;
+	private readonly _localEmbeddingsIndex: WorkspaceChunkEmbeddingsIndex | undefined;
 
 	private readonly _onDidChangeIndexState = this._register(new Emitter<void>());
 	readonly onDidChangeIndexState = this._onDidChangeIndexState.event;
@@ -252,6 +284,7 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	constructor(
 		private readonly _embeddingType: EmbeddingType,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IEmbeddingsComputer private readonly _embeddingsComputer: IEmbeddingsComputer,
 		@IIgnoreService private readonly _ignoreService: IIgnoreService,
 		@ILogService private readonly _logService: ILogService,
@@ -262,17 +295,36 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 		@IWorkspaceFileIndex private readonly _workspaceFileIndex: IWorkspaceFileIndex,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._codeSearchChunkSearch = this._register(instantiationService.createInstance(CodeSearchChunkSearch, this._embeddingType));
+		this._useByokLocalSearch = isByokEmbeddingModelConfigured(configurationService);
+		if (this._useByokLocalSearch) {
+			this._localEmbeddingsIndex = this._register(instantiationService.createInstance(WorkspaceChunkEmbeddingsIndex, this._embeddingType));
+			this._logService.info(`WorkspaceChunkSearchService: BYOK local semantic search enabled for ${this._embeddingType.id}`);
+		}
 
-		this._register(
-			Event.debounce(
-				this._codeSearchChunkSearch.onDidChangeIndexState,
-				() => { },
-				250
-			)(() => this._onDidChangeIndexState.fire()));
+		// Remote GitHub/ADO code search is pointless when we run on local BYOK
+		// embeddings or when there is no usable Copilot subscription. In those
+		// cases we must not create/initialize the code search machinery, otherwise
+		// it issues failing GitHub index-status requests ("No valid github auth token").
+		const copilotToken = this._authenticationService.copilotToken;
+		const hasUsableCopilotToken = !!copilotToken && !copilotToken.isNoAuthUser;
+		this._remoteCodeSearchDisabled = this._useByokLocalSearch || !hasUsableCopilotToken;
+
+		if (!this._remoteCodeSearchDisabled) {
+			this._codeSearchChunkSearch = this._register(instantiationService.createInstance(CodeSearchChunkSearch, this._embeddingType));
+
+			this._register(
+				Event.debounce(
+					this._codeSearchChunkSearch.onDidChangeIndexState,
+					() => { },
+					250
+				)(() => this._onDidChangeIndexState.fire()));
+		} else {
+			this._logService.info(`WorkspaceChunkSearchService: remote code search disabled (byok=${this._useByokLocalSearch}, hasCopilotToken=${hasUsableCopilotToken})`);
+		}
 
 		/* __GDPR__
 			"workspaceChunkSearch.created" : {
@@ -287,21 +339,40 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	}
 
 	async getIndexState(): Promise<WorkspaceIndexState> {
+		if (!this._codeSearchChunkSearch) {
+			return {
+				remoteIndexState: {
+					status: 'disabled',
+					repos: [],
+				},
+			};
+		}
+
 		return {
 			remoteIndexState: this._codeSearchChunkSearch.getRemoteIndexState(this.hasPromptedForExternalIngest),
 		};
 	}
 
 	async isAvailable(): Promise<boolean> {
+		if (this._useByokLocalSearch) {
+			await this._workspaceFileIndex.initialize();
+			return this._workspaceFileIndex.fileCount > 0;
+		}
+		if (!this._codeSearchChunkSearch) {
+			return false;
+		}
 		return this._codeSearchChunkSearch.isAvailable(new TelemetryCorrelationId('WorkspaceChunkSearchServiceImpl.isAvailable'), false, CancellationToken.None);
 	}
 
-	triggerIndexing(trigger: BuildIndexTriggerReason, onProgress: (message: string) => void, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
+	async triggerIndexing(trigger: BuildIndexTriggerReason, onProgress: (message: string) => void, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
+		if (!this._codeSearchChunkSearch) {
+			return Result.ok<true>(true);
+		}
 		return this._codeSearchChunkSearch.triggerIndexing(trigger, onProgress, telemetryInfo, token);
 	}
 
 	async enableExternalIngest(): Promise<boolean> {
-		if (!this._codeSearchChunkSearch.canExternalIngestBeEnabled()) {
+		if (!this._codeSearchChunkSearch || !this._codeSearchChunkSearch.canExternalIngestBeEnabled()) {
 			return false;
 		}
 
@@ -309,14 +380,23 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 		return this._codeSearchChunkSearch.enableExternalIngest();
 	}
 
-	deleteExternalIngestWorkspaceIndex(): Promise<void> {
+	async deleteExternalIngestWorkspaceIndex(): Promise<void> {
+		if (!this._codeSearchChunkSearch) {
+			return;
+		}
 		return this._codeSearchChunkSearch.deleteExternalIngestWorkspaceIndex(
 			new TelemetryCorrelationId('WorkspaceChunkSearchService::deleteExternalIngestWorkspaceIndex'),
 			CancellationToken.None);
 	}
 
-	getDiagnosticsDump(): AsyncIterable<string> {
-		return this._codeSearchChunkSearch.getDiagnosticsDump();
+	async *getDiagnosticsDump(): AsyncIterable<string> {
+		if (!this._codeSearchChunkSearch) {
+			yield this._useByokLocalSearch
+				? `Remote code search disabled: using BYOK local semantic search (${this._embeddingType.id}).`
+				: 'Remote code search disabled: no Copilot subscription.';
+			return;
+		}
+		yield* this._codeSearchChunkSearch.getDiagnosticsDump();
 	}
 
 	async searchFileChunks(
@@ -451,6 +531,10 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	}
 
 	private async promptForExternalIngestIfNeeded(token: CancellationToken): Promise<void> {
+		if (this._useByokLocalSearch || !this._codeSearchChunkSearch) {
+			return;
+		}
+
 		if (token.isCancellationRequested || this.hasPromptedForExternalIngest || this._codeSearchChunkSearch.getExternalIngestEnablement() !== ExternalIngestEnablement.DisabledBySetting) {
 			return;
 		}
@@ -492,19 +576,44 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 	): Promise<StrategySearchOutcome> {
 		this._logService.debug(`Searching for ${sizing.maxResultCountHint} chunks in workspace`);
 
-		try {
-			await raceCancellationError(this._codeSearchChunkSearch.prepareSearchWorkspace(telemetryInfo, token), token);
+		if (this._useByokLocalSearch && this._localEmbeddingsIndex) {
+			try {
+				await raceCancellationError(this._localEmbeddingsIndex.initialize(), token);
+				const queryEmbedding = await raceCancellationError(query.resolveQueryEmbeddings(token), token);
+				const chunks = await raceCancellationError(
+					this._localEmbeddingsIndex.searchByokWorkspace(
+						query.queryText,
+						Promise.resolve(queryEmbedding),
+						sizing.maxResultCountHint,
+						options,
+						telemetryInfo,
+						token,
+					),
+					token,
+				);
+				return Result.ok<StrategySearchResult>({ chunks });
+			} catch (e) {
+				if (isCancellationError(e)) {
+					throw e;
+				}
 
-			const result = await raceCancellationError(this._codeSearchChunkSearch.searchWorkspace(sizing, query, options, telemetryInfo, token), token);
-			if (result) {
-				return Result.ok<StrategySearchResult>(result);
+				this._logService.error(e, `Error during BYOK local workspace search`);
 			}
-		} catch (e) {
-			if (isCancellationError(e)) {
-				throw e;
-			}
+		} else if (this._codeSearchChunkSearch) {
+			try {
+				await raceCancellationError(this._codeSearchChunkSearch.prepareSearchWorkspace(telemetryInfo, token), token);
 
-			this._logService.error(e, `Error during code search chunk search`);
+				const result = await raceCancellationError(this._codeSearchChunkSearch.searchWorkspace(sizing, query, options, telemetryInfo, token), token);
+				if (result) {
+					return Result.ok<StrategySearchResult>(result);
+				}
+			} catch (e) {
+				if (isCancellationError(e)) {
+					throw e;
+				}
+
+				this._logService.error(e, `Error during code search chunk search`);
+			}
 		}
 
 		return Result.error<StrategySearchErr>({

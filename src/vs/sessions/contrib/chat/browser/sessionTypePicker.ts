@@ -20,7 +20,10 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+
+const localSessionTypeId = 'local';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -72,6 +75,8 @@ export class SessionTypePicker extends Disposable {
 	 * session.
 	 */
 	protected _picked: IPreferredSessionType | undefined;
+	/** Set when the user explicitly picks a non-Local harness this session. */
+	private _explicitNonLocalPickThisSession = false;
 	protected readonly _onDidSelectSessionType = this._register(new Emitter<IPickedSessionType | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
@@ -88,6 +93,7 @@ export class SessionTypePicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -137,6 +143,37 @@ export class SessionTypePicker extends Disposable {
 		return this._readStoredPick();
 	}
 
+	hasExplicitNonLocalPickThisSession(): boolean {
+		return this._explicitNonLocalPickThisSession;
+	}
+
+	/**
+	 * Session type pick used when creating a new chat. For BYOK-only users,
+	 * ignore a stored non-Local preference so new drafts use Local (where
+	 * general-purpose BYOK models are visible) instead of agent-host/CLI types
+	 * that require Copilot auth. An explicit non-Local pick made via the picker
+	 * this session is always honored.
+	 */
+	getEffectiveUserPickedSessionType(folderUri: URI): IPreferredSessionType | undefined {
+		const userPick = this._readStoredPick();
+		if (!userPick) {
+			return undefined;
+		}
+		if (this._explicitNonLocalPickThisSession) {
+			return userPick;
+		}
+		if (this.shouldPreferLocalForByokOnly(this.sessionsManagementService.getSessionTypesForFolder(folderUri))) {
+			const local = this.sessionsManagementService.getSessionTypesForFolder(folderUri)
+				.find(t => t.sessionType.id === localSessionTypeId);
+			if (local && userPick.sessionTypeId === local.sessionType.id
+				&& (userPick.providerId === undefined || userPick.providerId === local.providerId)) {
+				return userPick;
+			}
+			return undefined;
+		}
+		return userPick;
+	}
+
 	/**
 	 * The preferred session type for {@link folderUri}: the first entry in
 	 * the folder's session-type list. Recomputed against the live list, so
@@ -145,8 +182,36 @@ export class SessionTypePicker extends Disposable {
 	 * explicit pick.
 	 */
 	getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined {
-		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri)[0];
+		const types = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
+		if (this.shouldPreferLocalForByokOnly(types)) {
+			const local = types.find(t => t.sessionType.id === localSessionTypeId);
+			if (local) {
+				return { providerId: local.providerId, sessionTypeId: local.sessionType.id };
+			}
+		}
+		const first = types[0];
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
+	}
+
+	private shouldPreferLocalForByokOnly(types: IProviderSessionType[]): boolean {
+		if (this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+			return false;
+		}
+		if (!types.some(t => t.sessionType.id === localSessionTypeId)) {
+			return false;
+		}
+		// Prefer Local when BYOK is configured, or when general-purpose models
+		// are already registered (they appear before `hasByokModels` is set).
+		return this.chatEntitlementService.hasByokModels || this._localSessionHasSelectableModels(types);
+	}
+
+	private _localSessionHasSelectableModels(types: IProviderSessionType[]): boolean {
+		const local = types.find(t => t.sessionType.id === localSessionTypeId);
+		if (!local) {
+			return false;
+		}
+		const provider = this.sessionsProvidersService.getProvider(local.providerId);
+		return (provider?.getModels('') ?? []).length > 0;
 	}
 
 	render(container: HTMLElement, options?: { className?: string }): void {
@@ -306,13 +371,19 @@ export class SessionTypePicker extends Disposable {
 
 		// Persist the explicit selection regardless of whether the visible
 		// pick changed (the visible pick may reflect the active session rather
-		// than the stored preference): picking the preferred (first) type means
+		// than the stored preference): picking the preferred type means
 		// "no explicit preference" and clears the stored pick so the session
 		// keeps tracking the preferred type as the folder's list changes; any
 		// other explicit pick is stored.
-		const preferred = this._folderSessionTypes[0];
-		const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionType.id === pick.sessionTypeId;
+		const folderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
+		const preferred = folderUri
+			? this.getPreferredSessionType(folderUri)
+			: (this._folderSessionTypes[0]
+				? { providerId: this._folderSessionTypes[0].providerId, sessionTypeId: this._folderSessionTypes[0].sessionType.id }
+				: undefined);
+		const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionTypeId === pick.sessionTypeId;
 		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
+		this._explicitNonLocalPickThisSession = !isDefault && pick.sessionTypeId !== localSessionTypeId;
 		if (isDefault) {
 			this._clearStoredPick(pick);
 		} else {

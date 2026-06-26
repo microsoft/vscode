@@ -2,6 +2,9 @@
 name: sync-upstream
 description: Update a stale session branch by rebasing onto the latest origin. Use when the upstream has moved significantly and the session needs to catch up, resolving conflicts by preserving upstream changes and adapting session work to fit.
 ---
+
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Update Branch

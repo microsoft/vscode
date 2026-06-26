@@ -33,6 +33,7 @@ import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntr
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { ensureCopilotEnabledForByokFromAccessor } from '../enableCopilotForByokContribution.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -176,6 +177,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
+	private static readonly BYOK_SETUP_NEEDED_MESSAGE = new MarkdownString(localize('byokSetupNeeded', "Chat requires a configured language model. Check your language model settings."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
@@ -259,9 +261,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		const hasByokModels = this.chatEntitlementService.hasByokModels;
 		if (
 			(!this.context.state.completed && !hasByokModels) ||				// Setup not completed (unless BYOK models are available)
-			this.context.state.disabled ||										// Extension disabled: run setup to enable
-			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
-			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
+			(this.context.state.disabled && !hasByokModels) ||					// Extension disabled: run setup to enable (unless BYOK models are available)
+			(this.context.state.untrusted && !hasByokModels) ||				// Workspace untrusted: run setup to ask for trust (unless BYOK models are available)
+			(this.context.state.entitlement === ChatEntitlement.Available && !hasByokModels) ||	// Entitlement available: run setup to sign up (unless BYOK models are available)
 			(
 				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
 				!this.chatEntitlementService.anonymous &&						// unless anonymous access is enabled
@@ -328,6 +330,10 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
 		if (authExtensionReEnabled) {
 			refreshTokens(this.commandService);
+		}
+
+		if (this.chatEntitlementService.hasByokModels) {
+			await this.instantiationService.invokeFunction(accessor => ensureCopilotEnabledForByokFromAccessor(accessor));
 		}
 
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
@@ -625,15 +631,27 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private whenAgentReady(chatAgentService: IChatAgentService, mode: ChatModeKind | undefined): Promise<unknown> | void {
-		const defaultAgent = chatAgentService.getDefaultAgent(this.location, mode);
-		if (defaultAgent && !defaultAgent.isCore) {
+		const isNonCoreDefaultAgentReady = () => {
+			const defaultAgent = chatAgentService.getDefaultAgent(this.location, mode);
+			return Boolean(defaultAgent && !defaultAgent.isCore);
+		};
+
+		if (isNonCoreDefaultAgentReady()) {
 			return; // we have a default agent from an extension!
 		}
 
-		return Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
-			const defaultAgent = chatAgentService.getDefaultAgent(this.location, mode);
-			return Boolean(defaultAgent && !defaultAgent.isCore);
-		}));
+		return this.whenAgentReadyAsync(chatAgentService, mode, isNonCoreDefaultAgentReady);
+	}
+
+	private async whenAgentReadyAsync(chatAgentService: IChatAgentService, mode: ChatModeKind | undefined, isNonCoreDefaultAgentReady: () => boolean): Promise<void> {
+		if (this.chatEntitlementService.hasByokModels) {
+			await this.instantiationService.invokeFunction(accessor => ensureCopilotEnabledForByokFromAccessor(accessor));
+			if (isNonCoreDefaultAgentReady()) {
+				return;
+			}
+		}
+
+		await Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => isNonCoreDefaultAgentReady()));
 	}
 
 	private async whenAgentActivated(chatService: IChatService): Promise<void> {
@@ -738,9 +756,13 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// User has cancelled the setup
 		else {
+			const hasByokModels = this.chatEntitlementService.hasByokModels;
+			const message = !this.workspaceTrustManagementService.isWorkspaceTrusted()
+				? SetupAgent.TRUST_NEEDED_MESSAGE
+				: (hasByokModels ? SetupAgent.BYOK_SETUP_NEEDED_MESSAGE : SetupAgent.SETUP_NEEDED_MESSAGE);
 			progress({
 				kind: 'markdownContent',
-				content: this.workspaceTrustManagementService.isWorkspaceTrusted() ? SetupAgent.SETUP_NEEDED_MESSAGE : SetupAgent.TRUST_NEEDED_MESSAGE
+				content: message
 			});
 		}
 

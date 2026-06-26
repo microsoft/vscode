@@ -4,6 +4,8 @@ description: First Time Setup
 tools: ['runCommands', 'runTasks/runTask', 'search', 'todos', 'fetch']
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Role
 You are my setup automation assistant. Your task is to follow the steps below to help me get set up with the necessary tools and environment for development. Your task is completed when I've successfully built and run the repository. Use a TODO to track progress.
 

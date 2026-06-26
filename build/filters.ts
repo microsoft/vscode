@@ -68,6 +68,9 @@ export const unicodeFilter = Object.freeze<string[]>([
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
 
+	// extensions/dial-chat-model-provider has its own code style
+	'!extensions/dial-chat-model-provider/**',
+
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
@@ -135,6 +138,9 @@ export const indentationFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+
+	// extensions/dial-chat-model-provider has its own code style
+	'!extensions/dial-chat-model-provider/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -221,6 +227,9 @@ export const copyrightFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+
+	// extensions/dial-chat-model-provider has its own code style
+	'!extensions/dial-chat-model-provider/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([
@@ -244,6 +253,9 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+
+	// extensions/dial-chat-model-provider has its own code style
+	'!extensions/dial-chat-model-provider/**',
 ]);
 
 export const eslintFilter = Object.freeze<string[]>([

@@ -3,6 +3,8 @@ name: heap-snapshot-analysis
 description: "Analyze V8 heap snapshots to investigate memory leaks and retention issues. Use when given .heapsnapshot files, asked to compare before/after snapshots, asked to find what retains objects, or investigating why objects survive GC. Provides snapshot parsing, comparison, retainer-path helpers, and scratchpad scripts."
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Heap Snapshot Analysis
 
 Investigate memory leaks from V8 heap snapshots (`.heapsnapshot` files). This skill starts when snapshots already exist: either the user provided them, DevTools exported them, or another workflow produced them. Use the helpers here to compare snapshots, group object deltas, and trace retainer paths.

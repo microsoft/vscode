@@ -3,6 +3,8 @@ name: ux-theming
 description: VS Code theming, color tokens, widget styles, focus indicators, and high-contrast theme support. Use when registering colors, styling widgets with theme tokens, or ensuring HC/focus compliance.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 This skill covers color registration, CSS variable usage, widget style patterns, focus indicators, and high-contrast theme requirements.
 
 ---

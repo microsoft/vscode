@@ -1,5 +1,12 @@
 # Contributing to VS Code
 
+> **This is a fork.** Submit issues and pull requests to [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not to microsoft/vscode. See [FORK.md](FORK.md) for customizations vs upstream.
+>
+> When filing issues, mention the affected area:
+> - **DIAL extension** → `extensions/dial-chat-model-provider/`
+> - **BYOK / chat pipeline** → `src/vs/workbench/contrib/chat/` or `extensions/copilot/`
+> - **Upstream-only bugs** → consider reporting to [microsoft/vscode](https://github.com/microsoft/vscode/issues) instead
+
 Welcome, and thank you for your interest in contributing to VS Code!
 
 There are several ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.

@@ -13,11 +13,12 @@ import { TelemetryCorrelationId } from '../../../util/common/telemetryCorrelatio
  * This includes both the model identifier and the dimensions.
  */
 export class EmbeddingType {
-	public static readonly text3small_512 = new EmbeddingType('text-embedding-3-small-512');
-	public static readonly metis_1024_I16_Binary = new EmbeddingType('metis-1024-I16-Binary');
+	public static readonly text3small_512 = new EmbeddingType('text-embedding-3-small-512', 512);
+	public static readonly metis_1024_I16_Binary = new EmbeddingType('metis-1024-I16-Binary', 1024);
 
 	constructor(
-		public readonly id: string
+		public readonly id: string,
+		public readonly dimensions?: number,
 	) { }
 
 	public toString(): string {
@@ -68,6 +69,41 @@ const wellKnownEmbeddingMetadata = Object.freeze<Record<string, EmbeddingTypeInf
 
 export function getWellKnownEmbeddingTypeInfo(type: EmbeddingType): EmbeddingTypeInfo | undefined {
 	return wellKnownEmbeddingMetadata[type.id];
+}
+
+/**
+ * Gets the dimensions for an embedding type.
+ * For well-known types, returns dimensions from metadata.
+ * For extension-contributed types with known dimensions, returns the type's dimensions.
+ */
+export function getEmbeddingDimensions(type: EmbeddingType): number | undefined {
+	const wellKnown = getWellKnownEmbeddingTypeInfo(type);
+	if (wellKnown) {
+		return wellKnown.dimensions;
+	}
+	return type.dimensions;
+}
+
+/**
+ * Probes the dimensions of an embedding type by computing a single embedding.
+ * Returns the length of the first embedding's values, or undefined if the computation fails.
+ */
+export async function probeDimensions(computer: IEmbeddingsComputer, type: EmbeddingType, token?: CancellationToken): Promise<number | undefined> {
+	// If we already know the dimensions, no need to probe
+	if (getEmbeddingDimensions(type) !== undefined) {
+		return getEmbeddingDimensions(type);
+	}
+
+	try {
+		const result = await computer.computeEmbeddings(type, ['probe'], undefined, undefined, token);
+		if (result && result.values.length > 0 && result.values[0].value.length > 0) {
+			return result.values[0].value.length;
+		}
+	} catch {
+		// If probing fails, return undefined
+	}
+
+	return undefined;
 }
 
 export type EmbeddingVector = readonly number[];

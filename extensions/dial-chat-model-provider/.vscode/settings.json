@@ -1,0 +1,27 @@
+{
+	"files.exclude": {
+		"out": false,
+		"dist": false
+	},
+	"search.exclude": {
+		"out": true,
+		"dist": true
+	},
+	"typescript.tsc.autoDetect": "off",
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"eslint.validate": ["typescript"],
+	"eslint.useFlatConfig": true
+}

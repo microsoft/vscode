@@ -3,6 +3,8 @@ description: Design-system size tokens (spacing, corner radius, font size, codic
 applyTo: src/vs/**/*.css
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Design tokens for sizing, spacing & radii
 
 VS Code ships a design-system **size** ramp. These tokens are registered in

@@ -3,6 +3,8 @@ description: Architecture documentation for VS Code AI Customization view. Use w
 applyTo: 'src/vs/platform/agentHost/**'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Agent Host
 
 The agent host communicates via the Agent Host Protocol. The specification for this lives in a directory `../agent-host-protocol` as a sibling of the VS Code directory.

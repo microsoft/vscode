@@ -19,6 +19,7 @@
 **/extensions/copilot/src/extension/typescriptContext/serverPlugin/dist/**
 **/extensions/copilot/src/extension/completions-core/**/testdata/*
 **/extensions/copilot/.vscode/extensions/test-extension/dist/**
+**/extensions/dial-chat-model-provider/**
 **/extensions/css-language-features/server/test/pathCompletionFixtures/**
 **/extensions/html-language-features/server/lib/jquery.d.ts
 **/extensions/html-language-features/server/src/test/pathCompletionFixtures/**

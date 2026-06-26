@@ -28,12 +28,15 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { filterModelsForSession, mergeModelsWithCache } from '../../../../../workbench/contrib/chat/browser/widget/input/chatModelSelectionLogic.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
-/** Local session type — in-process VS Code chat, no background agent or worktree. */
+/** Shared with the main chat input — merged at read time to bridge LM startup races. */
+const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
+
 export const LocalSessionType: ISessionType = {
 	id: 'local',
 	label: localize('localSession', "Local"),
@@ -446,6 +449,30 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			// Load persisted local sessions on initialization
 			this._loadPersistedSessions();
 		});
+
+		// Eagerly resolve registered language models so the model picker has a
+		// populated list for Local sessions. `getLanguageModelIds()` only returns
+		// models that have been resolved into the cache; in the Agents window
+		// nothing else triggers resolution for general-purpose (BYOK) vendors, so
+		// the picker would otherwise stay empty until the user interacts with it.
+		// `selectLanguageModels` resolves all vendors and fires
+		// `onDidChangeLanguageModels`, which our `onDidChangeModels` re-emits so
+		// the picker re-reads `getModels()`.
+		this._ensureModelsResolved();
+		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this._ensureModelsResolved()));
+	}
+
+	private _ensureModelsResolved(): void {
+		// Resolve each contributed vendor independently so one slow/hanging
+		// provider (e.g. a local Ollama server waiting on a socket) can't block
+		// the others. Resolution populates the model cache and fires
+		// `onDidChangeLanguageModels`, which our `onDidChangeModels` re-emits so
+		// the picker re-reads `getModels()`.
+		for (const { vendor } of this.languageModelsService.getVendors()) {
+			this.languageModelsService.selectLanguageModels({ vendor }).catch(err => {
+				this.logService.warn(`[local-chat] Failed to resolve vendor '${vendor}'`, err);
+			});
+		}
 	}
 
 	/**
@@ -728,16 +755,30 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	getModels(_sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
-		// Local (in-process VS Code chat) sessions use general-purpose models
-		// (those without a `targetChatSessionType`) that are user-selectable —
-		// no extension registers models specifically targeting the 'local'
-		// session type.
-		return this.languageModelsService.getLanguageModelIds()
+		// Align with the main chat model picker: merge cached models, treat
+		// omitted `isUserSelectable` as selectable, and filter for general-purpose
+		// models (no `targetChatSessionType`) suitable for agent-mode local sessions.
+		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
+		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable ? { identifier: id, metadata } : undefined;
+				return metadata ? { identifier: id, metadata } : undefined;
 			})
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+
+		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
+		const resolvedVendors = new Set<string>();
+		for (const vendor of contributedVendors) {
+			if (this.languageModelsService.hasResolvedVendor(vendor)) {
+				resolvedVendors.add(vendor);
+			}
+		}
+
+		const allModels = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
+		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+
+		return filterModelsForSession(allModels, LocalSessionType.id, ChatModeKind.Agent, ChatAgentLocation.Chat)
+			.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
 	}
 
 	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {

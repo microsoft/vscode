@@ -20,6 +20,10 @@ const defaultEntryDescription = localize('chat.utilityModel.defaultEntry.descrip
 const utilityArrays = createDefaultModelArrays(defaultEntryLabel, defaultEntryDescription);
 const utilitySmallArrays = createDefaultModelArrays(defaultEntryLabel, defaultEntryDescription);
 
+const riskAssessmentDefaultEntryLabel = localize('chat.tools.riskAssessment.model.defaultEntry.label', 'Default');
+const riskAssessmentDefaultEntryDescription = localize('chat.tools.riskAssessment.model.defaultEntry.description', "Use the built-in default model for risk assessment");
+const riskAssessmentArrays = createDefaultModelArrays(riskAssessmentDefaultEntryLabel, riskAssessmentDefaultEntryDescription);
+
 /**
  * Populates the dynamic enum of language models for the `chat.utilityModel`
  * setting. Selecting a model here overrides the internal `copilot-utility`
@@ -77,5 +81,34 @@ export class UtilitySmallModelContribution extends DefaultModelContribution {
 	}
 }
 
+/**
+ * Populates the dynamic enum of language models for the
+ * `chat.tools.riskAssessment.model` setting. Selecting a model here overrides
+ * the model used for tool risk assessments (Safe / Caution / Review carefully).
+ * A small, fast model is recommended.
+ */
+export class RiskAssessmentModelContribution extends DefaultModelContribution {
+	static readonly ID = 'workbench.contrib.riskAssessmentModel';
+
+	static readonly modelIds = riskAssessmentArrays.modelIds;
+	static readonly modelLabels = riskAssessmentArrays.modelLabels;
+	static readonly modelDescriptions = riskAssessmentArrays.modelDescriptions;
+
+	constructor(
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILogService logService: ILogService,
+	) {
+		super(riskAssessmentArrays, {
+			configKey: ChatConfiguration.ToolRiskAssessmentModel,
+			configSectionId: 'chatSidebar',
+			logPrefix: '[RiskAssessmentModel]',
+			storageFormat: 'vendorAndId',
+			defaultEntryLabel: riskAssessmentDefaultEntryLabel,
+			defaultEntryDescription: riskAssessmentDefaultEntryDescription,
+		}, languageModelsService, logService);
+	}
+}
+
 registerWorkbenchContribution2(UtilityModelContribution.ID, UtilityModelContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(UtilitySmallModelContribution.ID, UtilitySmallModelContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RiskAssessmentModelContribution.ID, RiskAssessmentModelContribution, WorkbenchPhase.BlockRestore);

@@ -4,6 +4,8 @@ description: Use this to update the Github Copilot CLI/SDK
 model: Claude Opus 4.6
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 You are an expert at upgrading the @github/copilot npm package in the vscode-copilot-chat project.
 
 ## Upgrade Process

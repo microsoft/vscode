@@ -16,10 +16,42 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IPickedSessionType, IPreferredSessionType, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+
+class ConfigurableChatEntitlementService extends mock<IChatEntitlementService>() {
+	override readonly onDidChangeEntitlement = Event.None;
+	override readonly onDidChangeQuotaExceeded = Event.None;
+	override readonly onDidChangeQuotaRemaining = Event.None;
+	override readonly onDidChangeUsageBasedBilling = Event.None;
+	override readonly onDidChangeSentiment = Event.None;
+	override readonly onDidChangeAnonymous = Event.None;
+	override entitlement = ChatEntitlement.Unknown;
+	override readonly entitlementObs = observableValue('entitlement', ChatEntitlement.Unknown);
+	override readonly previewFeaturesDisabled = false;
+	override readonly clientByokEnabled = true;
+	override hasByokModels = false;
+	override readonly organisations = undefined;
+	override readonly isInternal = false;
+	override readonly sku = undefined;
+	override readonly copilotTrackingId = undefined;
+	override readonly quotas = {};
+	override readonly sentiment = {};
+	override readonly sentimentObs = observableValue('sentiment', {});
+	override readonly anonymous = false;
+	override readonly anonymousObs = observableValue('anonymous', false);
+	override acceptQuotas(): void { }
+	override clearQuotas(): void { }
+	override markAnonymousRateLimited(): void { }
+	override markSetupCompleted(): void { }
+	override setForceHidden(_hidden: boolean): void { }
+	override update(): Promise<void> { return Promise.resolve(); }
+}
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -79,13 +111,17 @@ function createPicker(
 	session: ISettableObservable<ISession | undefined>,
 	managementService: MockSessionsManagementService,
 	storage: IStorageService,
+	entitlementService?: ConfigurableChatEntitlementService,
+	providersService?: ISessionsProvidersService,
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
+	const entitlement = entitlementService ?? new ConfigurableChatEntitlementService();
 	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+	instantiationService.stub(ISessionsProvidersService, providersService ?? { getProvider: () => undefined });
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IChatEntitlementService, entitlement);
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session));
 }
 
@@ -209,5 +245,112 @@ suite('SessionTypePicker', () => {
 		session.set(createFakeSession('local-1', 'local', folder), undefined);
 		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
 		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+	});
+
+	test('BYOK-only users prefer Local even when Copilot CLI is first', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'local-1', sessionTypeId: 'local' });
+	});
+
+	test('signed-in Copilot users keep the first session type as preferred', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Free;
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('BYOK-only falls back to first type when Local is unavailable', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('BYOK-only ignores stored non-Local session type preference', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.strictEqual(picker.getEffectiveUserPickedSessionType(folder), undefined);
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'local-1', sessionTypeId: 'local' });
+	});
+
+	test('BYOK-only honors explicit non-Local pick made this session', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		session.set(createFakeSession('local-1', 'local', folder), undefined);
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getEffectiveUserPickedSessionType(folder), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.strictEqual(picker.hasExplicitNonLocalPickThisSession(), true);
+	});
+
+	test('BYOK-only keeps stored Local session type preference', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.hasByokModels = true;
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		const picker = createPicker(disposables, session, management, storage, entitlement);
+
+		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
+		assert.deepStrictEqual(picker.getEffectiveUserPickedSessionType(folder), { providerId: 'local-1', sessionTypeId: 'local' });
+	});
+
+	test('unsigned-in users prefer Local when local provider already has models', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const entitlement = new ConfigurableChatEntitlementService();
+		entitlement.entitlement = ChatEntitlement.Unknown;
+		class LocalProviderWithModels extends mock<ISessionsProvider>() {
+			override getModels() {
+				return [{ identifier: 'customendpoint/test', metadata: { name: 'Test' } as never }];
+			}
+		}
+		class MockProvidersService extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(id: string): T | undefined {
+				return (id === 'local-1' ? new LocalProviderWithModels() : undefined) as T | undefined;
+			}
+		}
+		const picker = createPicker(disposables, session, management, storage, entitlement, new MockProvidersService());
+
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'local-1', sessionTypeId: 'local' });
+		assert.strictEqual(picker.getEffectiveUserPickedSessionType(folder), undefined);
 	});
 });

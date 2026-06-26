@@ -3,6 +3,8 @@ name: code-oss-logs
 description: 'Find and read logs from Code OSS dev builds. Use when: finding logs, reading log files, debugging Code OSS, checking renderer logs, extension host logs, agent host logs, main process logs, investigating errors in dev builds.'
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Code OSS Logs
 
 Find and display logs from the most recent Code OSS or Agents app dev run.

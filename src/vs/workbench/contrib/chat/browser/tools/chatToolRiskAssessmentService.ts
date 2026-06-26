@@ -116,16 +116,37 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
-		const modelId = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel) || 'copilot-utility-small';
+		const settingValue = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel);
 
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: modelId });
-		if (!models.length || token.isCancellationRequested) {
-			return undefined;
+		// Empty setting means "use built-in default" (copilot-utility-small family).
+		let modelId: string;
+		if (!settingValue) {
+			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+			if (!models.length || token.isCancellationRequested) {
+				return undefined;
+			}
+			modelId = models[0];
+		} else {
+			// Setting value is stored as `vendor/id` (vendorAndId storage format).
+			const slashIndex = settingValue.indexOf('/');
+			let models: string[];
+			if (slashIndex <= 0) {
+				// Fallback for legacy values that are plain model IDs (no vendor prefix).
+				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: settingValue });
+			} else {
+				const vendor = settingValue.substring(0, slashIndex);
+				const id = settingValue.substring(slashIndex + 1);
+				models = await this._languageModelsService.selectLanguageModels({ vendor, id });
+			}
+			if (!models.length || token.isCancellationRequested) {
+				return undefined;
+			}
+			modelId = models[0];
 		}
 
 		const prompt = buildPrompt(tool, parameters, kind);
 		const response = await this._languageModelsService.sendChatRequest(
-			models[0],
+			modelId,
 			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 			{},

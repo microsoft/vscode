@@ -3,6 +3,8 @@ name: vscode-dev-workbench
 description: Use when the user wants to run the vscode.dev server locally and exercise the VS Code workbench or Agents window in the integrated browser against the local `microsoft/vscode` sources. Covers starting the dev server, the `vscode-quality=dev` URL, browser-driven interaction patterns, and optionally wiring up a local mock agent host for the Agents window.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Running vscode.dev Against Local VS Code Sources
 
 The `vscode-dev` repo is the `vscode.dev` server. When run locally with `?vscode-quality=dev`, it serves the VS Code web workbench (or Agents window at `/agents`) from the **sibling** `microsoft/vscode` checkout. This is the fastest way to validate web-only changes to the workbench without shipping an Insiders build.

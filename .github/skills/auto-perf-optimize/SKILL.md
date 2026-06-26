@@ -5,6 +5,8 @@ metadata:
   allowed-tools: Bash(npx @playwright/cli:*)
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # VS Code Performance Workflow
 
 Drive a repeatable VS Code scenario, collect memory/performance artifacts, verify that the scenario actually happened, then hand the resulting heap snapshots to the generic heap-snapshot-analysis skill when object-level investigation is needed.

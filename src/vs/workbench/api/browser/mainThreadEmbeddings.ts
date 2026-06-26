@@ -16,9 +16,9 @@ interface IEmbeddingsProvider {
 	provideEmbeddings(input: string[], token: CancellationToken): Promise<{ values: number[] }[]>;
 }
 
-const IEmbeddingsService = createDecorator<IEmbeddingsService>('embeddingsService');
+export const IEmbeddingsService = createDecorator<IEmbeddingsService>('embeddingsService');
 
-interface IEmbeddingsService {
+export interface IEmbeddingsService {
 
 	_serviceBrand: undefined;
 

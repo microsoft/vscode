@@ -168,6 +168,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		location,
 		source,
 		telemetryProperties,
+		modelCapabilities,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages);
 		const ourRequestId = generateUuid();
@@ -191,6 +192,14 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
 				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
+				// Forward reasoning/thinking settings so the extension provider can use them.
+				// The provider receives these via ProvideLanguageModelChatResponseOptions.modelOptions.
+				...(modelCapabilities?.enableThinking !== undefined
+					? { enableThinking: modelCapabilities.enableThinking }
+					: {}),
+				...(modelCapabilities?.reasoningEffort
+					? { reasoningEffort: modelCapabilities.reasoningEffort }
+					: {}),
 			}
 		};
 
@@ -227,6 +236,8 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						numToolsCalled++;
 						await streamRecorder.callback(text, 0, { text: '', copilotToolCalls: functionCalls });
 					}
+				} else if (chunk instanceof vscode.LanguageModelUsagePart) {
+					reportedUsage = apiUsageFromLanguageModelUsagePart(chunk);
 				} else if (chunk instanceof vscode.LanguageModelDataPart) {
 					if (chunk.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
 						const decoded = decodeStatefulMarker(chunk.data);
@@ -236,20 +247,10 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
-							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
-							if (isApiUsage(parsed)) {
-								// Clamp sentinel negative values that some BYOK providers emit
-								// when the API hasn't reported a count yet (e.g. -1).
-								reportedUsage = {
-									...parsed,
-									prompt_tokens: Math.max(0, parsed.prompt_tokens),
-									completion_tokens: Math.max(0, parsed.completion_tokens),
-									total_tokens: Math.max(0, parsed.total_tokens),
-									prompt_tokens_details: {
-										...parsed.prompt_tokens_details,
-										cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
-									}
-								};
+							const parsed: unknown = JSON.parse(new TextDecoder().decode(chunk.data));
+							const normalized = normalizeApiUsage(parsed);
+							if (normalized) {
+								reportedUsage = normalized;
 							}
 						} catch {
 							// ignore malformed usage payload
@@ -287,9 +288,34 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				};
 			}
 		} catch (e) {
+			const reason = toErrorMessage(e, true);
+			const errorType = classifyExtensionContributedError(e, reason);
+
+			if (errorType === ChatFetchResponseType.RateLimited) {
+				return {
+					type: ChatFetchResponseType.RateLimited,
+					reason,
+					requestId: generateUuid(),
+					serverRequestId: undefined,
+					retryAfter: undefined,
+					rateLimitKey: '',
+					isAuto: false
+				};
+			}
+
+			if (errorType === ChatFetchResponseType.QuotaExceeded) {
+				return {
+					type: ChatFetchResponseType.QuotaExceeded,
+					reason,
+					requestId: generateUuid(),
+					serverRequestId: undefined,
+					retryAfter: undefined
+				};
+			}
+
 			return {
 				type: ChatFetchResponseType.Failed,
-				reason: toErrorMessage(e, true),
+				reason,
 				requestId: generateUuid(),
 				serverRequestId: undefined
 			};
@@ -321,6 +347,52 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 
 	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
 	return Number.isSafeInteger(turn) ? turn : undefined;
+}
+
+function normalizeApiUsageTotal(prompt: number, completion: number, total: number): number {
+	if (total < 0) {
+		return prompt + completion;
+	}
+	return Math.max(total, prompt + completion);
+}
+
+function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
+	if (!isApiUsage(parsed)) {
+		return undefined;
+	}
+	// Clamp sentinel negative values that some BYOK providers emit
+	// when the API hasn't reported a count yet (e.g. -1).
+	const prompt_tokens = Math.max(0, parsed.prompt_tokens);
+	const completion_tokens = Math.max(0, parsed.completion_tokens);
+	const cached = parsed.prompt_tokens_details?.cached_tokens;
+	return {
+		...parsed,
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, parsed.total_tokens),
+		...(cached !== undefined && cached >= 0
+			? {
+				prompt_tokens_details: {
+					...parsed.prompt_tokens_details,
+					cached_tokens: cached,
+				},
+			}
+			: {}),
+	};
+}
+
+function apiUsageFromLanguageModelUsagePart(usage: vscode.LanguageModelUsagePart): APIUsage {
+	const prompt_tokens = Math.max(0, usage.promptTokens);
+	const completion_tokens = Math.max(0, usage.completionTokens);
+	const cached = usage.cachedInputTokens;
+	return {
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, usage.totalTokens),
+		...(cached !== undefined
+			? { prompt_tokens_details: { cached_tokens: Math.max(0, cached) } }
+			: {}),
+	};
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
@@ -389,4 +461,50 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vsco
 		}
 	}
 	return apiMessages;
+}
+
+/**
+ * Classifies errors from extension-contributed (BYOK) language model providers
+ * into more specific {@link ChatFetchResponseType} values.
+ *
+ * Many BYOK providers (OpenAI, Anthropic, Gemini, etc.) return HTTP status codes
+ * or error messages that indicate rate limiting or quota exhaustion. Without this
+ * classification, all errors would be collapsed into `Failed`, making it impossible
+ * for callers to distinguish between transient errors (rate limit) and permanent
+ * errors (bad API key).
+ */
+function classifyExtensionContributedError(error: unknown, reason: string): ChatFetchResponseType.RateLimited | ChatFetchResponseType.QuotaExceeded | ChatFetchResponseType.Failed {
+	const message = (error as any)?.message ?? '';
+	const statusCode = (error as any)?.statusCode ?? (error as any)?.status;
+	const combinedText = (message + ' ' + reason).toLowerCase();
+
+	// Rate limiting: HTTP 429 or common rate-limit error phrases
+	if (statusCode === 429 ||
+		combinedText.includes('rate limit') ||
+		combinedText.includes('too many requests') ||
+		combinedText.includes('rate_limited') ||
+		combinedText.includes('rateLimited') ||
+		combinedText.includes('overloaded')) {
+		return ChatFetchResponseType.RateLimited;
+	}
+
+	// Quota exhaustion: HTTP 402/403 with quota-related messages
+	if ((statusCode === 402 || statusCode === 403) &&
+		(combinedText.includes('quota') ||
+			combinedText.includes('billing') ||
+			combinedText.includes('insufficient') ||
+			combinedText.includes('payment') ||
+			combinedText.includes('subscription'))) {
+		return ChatFetchResponseType.QuotaExceeded;
+	}
+
+	// Also match quota in the message regardless of status code (some providers
+	// return 400 or 500 with quota error messages)
+	if (combinedText.includes('quota exceeded') ||
+		combinedText.includes('quota_exceeded') ||
+		combinedText.includes('exceeded quota')) {
+		return ChatFetchResponseType.QuotaExceeded;
+	}
+
+	return ChatFetchResponseType.Failed;
 }

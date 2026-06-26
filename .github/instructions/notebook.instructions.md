@@ -2,6 +2,8 @@
 description: Architecture documentation for VS Code notebook and interactive window components. Use when working in `src/vs/workbench/contrib/notebook/`
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Notebook Architecture
 
 This document describes the internal architecture of VS Code's notebook implementation.

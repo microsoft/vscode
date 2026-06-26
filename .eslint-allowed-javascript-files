@@ -19,6 +19,9 @@ eslint.config.js
 extensions/copilot/.mocha-multi-reporters.js
 extensions/copilot/.mocharc.js
 extensions/copilot/.vscode-test.mjs
+extensions/dial-chat-model-provider/.vscode-test.mjs
+extensions/dial-chat-model-provider/eslint.config.mjs
+extensions/dial-chat-model-provider/webpack.config.js
 extensions/copilot/.vscode/extensions/visualization-runner/entry.js
 extensions/copilot/build/listBuildCacheFiles.js
 extensions/copilot/script/electron/simulationWorkbenchMain.js

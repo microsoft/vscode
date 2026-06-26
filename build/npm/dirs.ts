@@ -16,6 +16,7 @@ export const dirs = [
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/copilot',
+	'extensions/dial-chat-model-provider',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',
 	'extensions/debug-auto-launch',

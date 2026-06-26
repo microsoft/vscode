@@ -5,6 +5,8 @@ argument-hint: Optionally specify a focus area or pattern to document for agents
 disable-model-invocation: true
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 The purpose of this command is to create or update chat customization files
 - the agent instructions file (`.github/copilot-instructions.md` or `AGENTS.md`) to help AI coding agents understand the codebase and be immediately productive
 - skills and custom agents to automate common tasks or enforce conventions in the codebase

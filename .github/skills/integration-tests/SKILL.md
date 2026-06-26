@@ -3,6 +3,8 @@ name: integration-tests
 description: Use when running integration tests in the VS Code repo. Covers scripts/test-integration.sh (macOS/Linux) and scripts/test-integration.bat (Windows), their supported arguments for filtering, and the difference between node.js integration tests and extension host tests.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Running Integration Tests
 
 Integration tests in VS Code are split into two categories:

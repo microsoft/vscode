@@ -3,6 +3,8 @@ name: component-fixtures
 description: Use when creating or updating component fixtures for screenshot testing, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, and common pitfalls.
 ---
 
+> **Fork notice:** This is [sergey-zinchenko/vscode](https://github.com/sergey-zinchenko/vscode), not vanilla [microsoft/vscode](https://github.com/microsoft/vscode). Read [FORK.md](../../../FORK.md) before making changes. Key fork areas: DIAL (`extensions/dial-chat-model-provider/`), BYOK (`src/vs/workbench/contrib/chat/`, `extensions/copilot/`).
+
 # Component Fixtures
 
 Component fixtures render isolated UI components for visual screenshot testing via the component explorer. Fixtures live in `src/vs/workbench/test/browser/componentFixtures/` and are auto-discovered by the Vite dev server using the glob `src/**/*.fixture.ts`.

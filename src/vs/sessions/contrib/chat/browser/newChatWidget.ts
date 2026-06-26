@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,7 +19,7 @@ import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/a
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
-import { IPreferredSessionType } from './sessionTypePicker.js';
+import { IPreferredSessionType, IPickedSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { sessionHasNoSelectableModel } from './modelPicker.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -27,6 +27,8 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
 // #region --- New Chat Widget ---
 
@@ -67,6 +69,8 @@ export class NewChatWidget extends Disposable {
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
@@ -127,9 +131,29 @@ export class NewChatWidget extends Disposable {
 			await this._onWorkspaceSelected(folderUri);
 			this._newChatInput.focus();
 		}));
-		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async () => {
-			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri);
+		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async (pick) => {
+			if (pick) {
+				await this._onSessionTypeSelected(pick);
+			}
 			this._newChatInput.focus();
+		}));
+
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			if (!session || session.isCreated.read(reader)) {
+				return;
+			}
+			const folderUri = session.workspace.read(reader)?.folders[0]?.root;
+			if (!folderUri) {
+				return;
+			}
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider) {
+				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+			}
+			observableSignalFromEvent(this, this.languageModelsService.onDidChangeLanguageModels).read(reader);
+			observableSignalFromEvent(this, this.chatEntitlementService.onDidChangeEntitlement).read(reader);
+			this._maybeUpgradeDraftToLocalForByok(folderUri, session);
 		}));
 	}
 
@@ -199,9 +223,9 @@ export class NewChatWidget extends Disposable {
 			&& t.sessionType.id === pick.sessionTypeId);
 	}
 
-	private _createNewSession(folderUri: URI): void {
+	private _createNewSession(folderUri: URI, explicitPick?: IPickedSessionType): void {
 		this._pendingPreferredUpgrade.clear();
-		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
+		const userPick = explicitPick ?? this._newChatInput.sessionTypePicker.getEffectiveUserPickedSessionType(folderUri);
 		const created = this._createSessionNow(folderUri, userPick);
 		// Keep the draft in sync with late-registering providers. Agent hosts
 		// connect lazily, so there is no timeout — the listener lives until the
@@ -239,9 +263,34 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	private _maybeUpgradeDraftToLocalForByok(folderUri: URI, session: ISession): void {
+		if (this._newChatInput.sessionTypePicker.hasExplicitNonLocalPickThisSession()) {
+			return;
+		}
+		const preferred = this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
+		if (!preferred || preferred.sessionTypeId !== 'local') {
+			return;
+		}
+		if (session.providerId === preferred.providerId && session.sessionType === preferred.sessionTypeId) {
+			return;
+		}
+		if (!preferred.providerId) {
+			return;
+		}
+		const currentProvider = this.sessionsProvidersService.getProvider(session.providerId);
+		if ((currentProvider?.getModels(session.sessionId) ?? []).length > 0) {
+			return;
+		}
+		const localProvider = this.sessionsProvidersService.getProvider(preferred.providerId);
+		if ((localProvider?.getModels(session.sessionId) ?? []).length === 0) {
+			return;
+		}
+		this._createSessionNow(folderUri, preferred);
+	}
+
 	private _scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void {
 		const store = new DisposableStore();
-		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+		const tryRecreate = () => {
 			if (created) {
 				const active = this._session.get();
 				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
@@ -261,7 +310,10 @@ export class NewChatWidget extends Disposable {
 				}
 			}
 			this._createNewSession(folderUri);
-		}));
+		};
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(tryRecreate));
+		store.add(this.languageModelsService.onDidChangeLanguageModels(tryRecreate));
+		store.add(this.chatEntitlementService.onDidChangeEntitlement(tryRecreate));
 		this._pendingPreferredUpgrade.value = store;
 	}
 
@@ -440,6 +492,26 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		this._newChatInput.focus();
+	}
+
+	private async _onSessionTypeSelected(pick: IPickedSessionType): Promise<void> {
+		this._pendingPreferredUpgrade.clear();
+
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		if (!folderUri) {
+			return;
+		}
+
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (resolved?.workspace.requiresWorkspaceTrust) {
+			if (!await this._requestFolderTrust(folderUri)) {
+				return;
+			}
+		}
+
+		if (!this._store.isDisposed) {
+			this._createSessionNow(folderUri, pick);
+		}
 	}
 
 	/**

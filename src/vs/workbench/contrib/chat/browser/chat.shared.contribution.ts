@@ -156,6 +156,7 @@ import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOu
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { HasByokModelsContribution } from './hasByokModelsContribution.js';
+import { EnableCopilotForByokContribution } from './enableCopilotForByokContribution.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatWidget } from './widget/chatWidget.js';
@@ -202,7 +203,8 @@ import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
-import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
+import { EmbeddingModelContribution } from './embeddingModelContribution.js';
+import { RiskAssessmentModelContribution, UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { browserChatToolReferenceNames } from '../../browserView/common/browserChatToolReferenceNames.js';
 
@@ -1191,8 +1193,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ToolRiskAssessmentModel]: {
 			type: 'string',
-			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
-			default: 'copilot-utility-small',
+			description: nls.localize('chat.tools.riskAssessment.model', "The language model used to generate tool risk assessments. Should be a small, fast model. Leave empty to use the default model."),
+			default: '',
+			enum: RiskAssessmentModelContribution.modelIds,
+			enumItemLabels: RiskAssessmentModelContribution.modelLabels,
+			markdownEnumDescriptions: RiskAssessmentModelContribution.modelDescriptions,
 			tags: ['experimental', 'advanced'],
 			experiment: {
 				mode: 'auto'
@@ -1229,6 +1234,14 @@ configurationRegistry.registerConfiguration({
 			enum: UtilitySmallModelContribution.modelIds,
 			enumItemLabels: UtilitySmallModelContribution.modelLabels,
 			markdownEnumDescriptions: UtilitySmallModelContribution.modelDescriptions
+		},
+		[ChatConfiguration.EmbeddingModel]: {
+			type: 'string',
+			description: nls.localize('chat.embeddingModel.description', "Override the embedding model used by built-in embedding flows (code search, context retrieval, etc.). Select from any embedding model registered by installed extensions. Leave empty to use the default model."),
+			default: '',
+			enum: EmbeddingModelContribution.modelIds,
+			enumItemLabels: EmbeddingModelContribution.modelLabels,
+			markdownEnumDescriptions: EmbeddingModelContribution.modelDescriptions
 		},
 		[ChatConfiguration.RequestQueueingDefaultAction]: {
 			type: 'string',
@@ -2397,6 +2410,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(EnableCopilotForByokContribution.ID, EnableCopilotForByokContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
