@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -51,7 +51,7 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
+import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
@@ -201,8 +201,16 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	supportedAgentsResult: AgentInfo[] | undefined = undefined;
 	mcpServerStatusResult: McpServerStatus[] | undefined = undefined;
 
+	/** Phase 19 — programmable native model enumeration. */
+	supportedModelsResult: ModelInfo[] = [];
+	supportedModelsCallCount = 0;
+	readonly supportedModelsOptions: Options[] = [];
+
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
+
+	/** All queries produced by {@link query} (native model enumeration). */
+	readonly enumerationQueries: FakeQuery[] = [];
 
 	/**
 	 * Programmable rejection for {@link listSessions}. Set per test to
@@ -325,6 +333,18 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return warm;
 	}
 
+	async query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> {
+		if (params.options) {
+			this.supportedModelsOptions.push(params.options);
+		}
+		if (typeof params.prompt === 'string') {
+			throw new Error('FakeClaudeAgentSdkService.query: enumeration always passes an AsyncIterable prompt');
+		}
+		const query = new FakeQuery(params.prompt, this);
+		this.enumerationQueries.push(query);
+		return query;
+	}
+
 	/**
 	 * Optional async hook invoked inside {@link startup} after the call is
 	 * counted but before resolving. Tests use it to stage a race where
@@ -425,6 +445,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	interruptCount = 0;
 	returnCount = 0;
 	throwCount = 0;
+	closeCount = 0;
 
 	/** Modes recorded by `setPermissionMode` calls in plan/turn order. */
 	readonly recordedPermissionModes: PermissionMode[] = [];
@@ -490,6 +511,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		this.recordedPermissionModes.push(mode);
 	}
 	async setModel(model?: string): Promise<void> { this.recordedModels.push(model); }
+	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
@@ -497,7 +519,10 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	supportedCommands(): never {
 		return Promise.resolve(this._sdk.supportedCommandsResult) as never;
 	}
-	supportedModels(): never { throw new Error('FakeQuery: supportedModels not modeled'); }
+	supportedModels(): Promise<ModelInfo[]> {
+		this._sdk.supportedModelsCallCount++;
+		return Promise.resolve(this._sdk.supportedModelsResult);
+	}
 	supportedAgents(): never {
 		if (this._sdk.supportedAgentsResult === undefined) { throw new Error('FakeQuery: supportedAgents not modeled'); }
 		return Promise.resolve(this._sdk.supportedAgentsResult) as never;
@@ -534,7 +559,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
 	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
 	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
-	close(): void { /* no-op */ }
+	close(): void { this.closeCount++; }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
 
@@ -668,7 +693,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown> },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -702,6 +727,11 @@ function createTestContext(
 		[IProductService, FakeProductService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+	// Phase 19: seed root config (e.g. `claudeUseCopilotProxy`) BEFORE the agent
+	// resolves its transport mode in the constructor.
+	if (overrides?.rootConfig) {
+		configService.updateRootConfig(overrides.rootConfig);
+	}
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 	return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 }
@@ -754,6 +784,17 @@ function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [type
 	];
 }
 
+/**
+ * A real {@link AgentConfigurationService} backed by a fresh
+ * {@link AgentHostStateManager} for minimal test {@link ServiceCollection}s
+ * that don't otherwise build one. `ClaudeAgent` always receives this service
+ * via DI in production, so tests must register it too.
+ */
+function createTestAgentConfigService(disposables: Pick<DisposableStore, 'add'>): AgentConfigurationService {
+	const logService = new NullLogService();
+	return disposables.add(new AgentConfigurationService(disposables.add(new AgentHostStateManager(logService)), logService));
+}
+
 // #endregion
 
 suite('ClaudeAgent', () => {
@@ -789,6 +830,90 @@ suite('ClaudeAgent', () => {
 	test('models observable is empty before authenticate', () => {
 		const { agent } = createTestContext(disposables);
 		assert.deepStrictEqual(agent.models.get(), []);
+	});
+
+	test('fromSdkModelInfo projects ModelInfo without commercial metadata and reuses the effort schema', () => {
+		const projected = fromSdkModelInfo(
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: 'desc', supportedEffortLevels: ['low', 'high'] },
+			'claude',
+		);
+		assert.deepStrictEqual({
+			provider: projected.provider,
+			id: projected.id,
+			name: projected.name,
+			supportsVision: projected.supportsVision,
+			hasConfigSchema: projected.configSchema !== undefined,
+			hasPolicyState: projected.policyState !== undefined,
+			hasMeta: projected._meta !== undefined,
+		}, {
+			provider: 'claude',
+			id: 'claude-sonnet-4-5-20250929',
+			name: 'Claude Sonnet 4.5',
+			supportsVision: false,
+			hasConfigSchema: true,
+			hasPolicyState: false,
+			hasMeta: false,
+		});
+	});
+
+	test('native transport: getProtectedResources omits the Copilot resource', () => {
+		const { agent } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		assert.deepStrictEqual(
+			agent.getProtectedResources().map(r => r.resource),
+			['https://api.github.com/repos'],
+		);
+	});
+
+	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
+		const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		let capiModelsCalls = 0;
+		api.models = async () => { capiModelsCalls++; return []; };
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
+		];
+		// The constructor kicks off an initial native refresh; `_fetchNativeModels`
+		// awaits a real `mkdtemp` before enumerating, so poll until it lands.
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		assert.deepStrictEqual({
+			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
+			proxyStarts: proxy.startCalls.length,
+			supportedModelsCalls: sdk.supportedModelsCallCount,
+			capiModelsCalls,
+		}, {
+			models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' }],
+			proxyStarts: 0,
+			supportedModelsCalls: 1,
+			capiModelsCalls: 0,
+		});
+	});
+
+	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
+		const { sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		// The constructor kicks off the initial native enumeration; wait for it.
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		assert.deepStrictEqual({
+			queries: sdk.enumerationQueries.length,
+			closed: sdk.enumerationQueries[0]?.closeCount,
+		}, {
+			queries: 1,
+			closed: 1,
+		});
+	});
+
+	test('native transport: authenticate never starts the proxy', async () => {
+		const { agent, proxy } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		const accepted = await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
 	});
 
 	test('createSession before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {
@@ -1057,6 +1182,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
@@ -1120,6 +1246,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
@@ -1188,6 +1315,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, createNullSessionDataService()],
@@ -2974,6 +3102,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
@@ -3045,6 +3174,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
@@ -3129,6 +3259,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
@@ -3176,6 +3307,7 @@ suite('ClaudeAgent', () => {
 
 		const services = new ServiceCollection(
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new FakeClaudeProxyService()],
 			[ISessionDataService, sessionData],
@@ -3320,6 +3452,7 @@ suite('ClaudeAgent', () => {
 			listSessions: async () => [{ sessionId: 's', summary: 's', lastModified: 1 }],
 			getSessionInfo: async () => undefined,
 			startup: async () => { throw new Error('TestableClaudeAgentSdkService: startup not modeled'); },
+			query: () => { throw new Error('not modeled'); },
 			getSessionMessages: async () => [],
 			listSubagents: async () => [],
 			getSubagentMessages: async () => [],
@@ -3366,6 +3499,7 @@ suite('ClaudeAgent', () => {
 			listSessions: async () => [],
 			getSessionInfo: async () => undefined,
 			startup: async () => { throw new Error('not used'); },
+			query: () => { throw new Error('not modeled'); },
 			getSessionMessages: async () => [],
 			listSubagents: async (sessionId, options) => {
 				listCalls.push({ sessionId, options });
@@ -3493,6 +3627,7 @@ suite('ClaudeAgent', () => {
 		const services = new ServiceCollection(
 			...claudeFileEnvServices(disposables),
 			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
 			[ICopilotApiService, new FakeCopilotApiService()],
 			[IClaudeProxyService, new RecordingProxyService()],
 			[ISessionDataService, createNullSessionDataService()],
@@ -3923,7 +4058,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			instantiationService,
 		));
 		await session.materialize({
-			proxyHandle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } },
+			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } },
 			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
 			isResume: false,
 		});

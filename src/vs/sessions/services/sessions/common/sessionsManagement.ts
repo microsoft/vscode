@@ -8,7 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -218,6 +218,14 @@ export interface ISessionsManagementService {
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	/**
+	 * Fires when the in-progress new session is discarded via
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
+	 */
+	readonly onDidDiscardNewSession: Event<ISession>;
 
 	// -- New Session --
 
@@ -327,7 +335,7 @@ export interface ISessionsManagementService {
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
 	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

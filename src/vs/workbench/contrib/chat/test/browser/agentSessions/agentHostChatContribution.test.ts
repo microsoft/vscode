@@ -31,7 +31,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
@@ -615,7 +615,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
-	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService));
+	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService)));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByType = new Map<string, IObservable<readonly ClientPluginCustomization[]>>();
 	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]> }): IDisposable => {
@@ -2258,12 +2258,14 @@ suite('AgentHostChatContribution', () => {
 			);
 		}));
 
-		test('subagent credits are accumulated into parent turn usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('subagent credits surface on the subagent tool without re-aggregating into parent usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			// Parent turn reports its own usage.
+			// Parent turn reports its own usage. For hosts that fold subagent usage
+			// into the parent turn aggregate, this value already includes the subagent;
+			// the client emits it as-is and never re-adds subagent credits itself.
 			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { cost: 2.0 } } } as ChatAction);
 
 			// Spawn a subagent tool call.
@@ -2302,11 +2304,25 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
-			// The parent usage should include both the parent's own credits (2.0) and the subagent's (5.0).
+			// The parent session cost is emitted as-is — the client does not re-add the
+			// subagent's credits (the host folds them into the parent turn aggregate when
+			// applicable, so re-aggregating here would double-count).
 			const usageParts = collected.flat().filter((p): p is IChatUsage => p.kind === 'usage');
 			const lastUsage = usageParts.at(-1);
 			assert.ok(lastUsage, 'should have emitted usage');
-			assert.strictEqual(lastUsage!.copilotCredits, 7.0, 'session cost should sum parent + subagent credits');
+			assert.strictEqual(lastUsage!.copilotCredits, 2.0, 'parent session cost is not re-aggregated on the client');
+
+			// The subagent's own credits are recorded on its tool call so they can be
+			// shown on the subagent tool's hover.
+			const subagentInvocation = collected.flat()
+				.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
+				.find(p => p.toolSpecificData?.kind === 'subagent');
+			assert.ok(subagentInvocation, 'should have a subagent tool invocation');
+			assert.strictEqual(
+				(subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData).credits,
+				5.0,
+				'subagent credits should be recorded on the subagent tool',
+			);
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -26,7 +26,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -53,7 +53,16 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
-	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandListResult: {
+		commands: Array<{
+			name: string;
+			kind: 'builtin' | 'skill' | 'client';
+			description: string;
+			allowDuringAgentExecution: boolean;
+			aliases?: string[];
+			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
+		}>;
+	} = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
@@ -527,6 +536,25 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('memoizes the event reconstruction across getMessages/getSubagentMessages and invalidates on log changes', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let getEventsCalls = 0;
+		mockSession.getEvents = async () => { getEventsCalls++; return mockSession.messages; };
+
+		// A single resume wave reads + reconstructs the event log once, shared
+		// by the parent turns and every subagent lookup.
+		await session.getMessages();
+		await session.getSubagentMessages('tc-x');
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 1, 'event log should be read once for the whole resume wave');
+
+		// A log-mutating event drops the memo so a later read rebuilds from
+		// fresh events instead of serving stale turns.
+		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
+	});
+
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
 		const symbolUri = URI.file('/workspace/missing.ts');
 		const { session, mockSession } = await createAgentSession(disposables, {
@@ -785,7 +813,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
@@ -827,11 +855,87 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/env', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
+		});
+	});
+
+	test('`/env` forwards trailing text as runtime command input', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'done' };
+
+		await session.send('/env details please', undefined, 'turn-env-input');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
+			turnComplete: ['turn-env-input'],
+		});
+	});
+
+	test('invokes non-local runtime slash commands via commands API', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'focus',
+				aliases: ['f'],
+				kind: 'builtin',
+				description: 'Focus on a scope',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Focus done' };
+
+		await session.send('/f src/vs/platform', undefined, 'turn-focus');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
+			turnComplete: ['turn-focus'],
 		});
 	});
 
@@ -868,13 +972,23 @@ suite('CopilotAgentSession', () => {
 		}, {
 			env: true,
 			review: true,
-			skill: false,
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			skill: true,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 		});
 	});
 
-	test('`/review` forwards as a prompt-invoked command', async () => {
+	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'review',
+				kind: 'builtin',
+				description: 'Run code review agent to analyze changes',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Review done' };
 
 		await session.send('/review focus on tests', undefined, 'turn-review');
 
@@ -882,19 +996,27 @@ suite('CopilotAgentSession', () => {
 			commandListCalls: mockSession.commandListCalls,
 			commandInvokeCalls: mockSession.commandInvokeCalls,
 			sendRequests: mockSession.sendRequests,
-			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
-			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+			responseParts: getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: getActions(signals)
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [],
-			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
-			responseParts: [],
-			turnComplete: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
+			turnComplete: ['turn-review'],
 		});
 	});
 
-	test('`/security-review` forwards as a prompt-invoked command', async () => {
+	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
 
 		await session.send('/security-review', undefined, 'turn-security-review');
 
@@ -905,7 +1027,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
@@ -960,6 +1082,66 @@ suite('CopilotAgentSession', () => {
 					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
+		]);
+	});
+
+	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+
+		// Map the subagent's agentId to its parent tool call id.
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// Parent agent usage (no agentId) only contributes to the parent aggregate.
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// Subagent usage (its agentId) is reported twice: folded into the parent
+		// aggregate AND emitted to the subagent's child session as its component.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const usageSignals = signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
+				return [];
+			}
+			return [{
+				parentToolCallId: signal.parentToolCallId,
+				model: signal.action.usage.model,
+				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
+			}];
+		});
+
+		assert.deepStrictEqual(usageSignals, [
+			// Parent-only call → parent aggregate.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', totalNanoAiu: 500_000_000 },
+			// First subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 700_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 200_000_000 },
+			// Second subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 500_000_000 },
 		]);
 	});
 

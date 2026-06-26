@@ -59,7 +59,8 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 				group: '2_settings',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}]
+			}],
+			f1: true
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {

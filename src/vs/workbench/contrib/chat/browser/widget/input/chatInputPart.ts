@@ -907,6 +907,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			|| hasModelsTargetingSession(this.getAllMergedModels(), sessionType);
 	}
 
+	/**
+	 * Returns the persisted model for the current session type, if it exists in the current model pool.
+	 */
+	private _getRememberedSessionTypeModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const sessionType = this._currentSessionType;
+		if (!sessionType || !this.sessionTypeHasOwnModelPool(sessionType)) {
+			return undefined;
+		}
+		const persisted = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		if (!persisted) {
+			return undefined;
+		}
+		return this.getModels().find(m => m.identifier === persisted);
+	}
+
 	private initSelectedModel() {
 		// initSelectedModel is scoped to the current storage key/session type.
 		// Do not let a delayed restore from a previous session type apply later.
@@ -1324,6 +1339,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!state && this._chatSessionIsEmpty) {
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
+				// Seed model/config from the last-used selection for this session type (configured default still wins).
+				const rememberedSessionTypeModel = this._getRememberedSessionTypeModel();
+				if (rememberedSessionTypeModel) {
+					const base = state ?? this.getCurrentInputState();
+					const rememberedModelConfiguration = this._modelConfigStore.getModelConfiguration(rememberedSessionTypeModel.identifier);
+					state = { ...base, selectedModel: rememberedSessionTypeModel, modelConfiguration: rememberedModelConfiguration };
+				}
 				// A configured default model (e.g. set by enterprise policy via
 				// `chat.defaultModel`) starts every NEW conversation and
 				// must win over the remembered empty-input draft model. `initSelectedModel`
@@ -3269,6 +3291,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 							this.permissionWidget?.refresh();
 						},
+						isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;

@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -2132,6 +2132,60 @@ suite('AgentService (node dispatcher)', () => {
 			// Should have the final markdown
 			const mdParts = state!.turns[0].responseParts.filter((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
+		});
+
+		test('eagerly registers subagent child sessions during parent restore', async () => {
+			// An agent that surfaces its subagent children from the parent's
+			// reconstructed history, exercising the eager-registration path.
+			class EagerSubagentMockAgent extends MockAgent {
+				async getSubagentSessions(session: URI): Promise<readonly IRestoredSubagentSession[]> {
+					if (parseSubagentSessionUri(session)) {
+						return [];
+					}
+					const parent = session.toString();
+					const out: IRestoredSubagentSession[] = [];
+					const seen = new Set<string>();
+					for (const rec of this.sessionMessages) {
+						if (rec.type === 'subagent_started' && !seen.has(rec.toolCallId)) {
+							seen.add(rec.toolCallId);
+							const childUri = buildSubagentSessionUri(parent, rec.toolCallId);
+							const turns = await this.getSessionMessages(URI.parse(childUri));
+							if (turns.length > 0) {
+								out.push({ resource: URI.parse(childUri), toolCallId: rec.toolCallId, title: rec.agentDisplayName, turns });
+							}
+						}
+					}
+					return out;
+				}
+			}
+
+			const agent = new EagerSubagentMockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessions = await agent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner-1', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found 3 issues' }] } },
+			];
+
+			await service.restoreSession(sessionResource);
+
+			// The subagent child state must already exist WITHOUT any client
+			// subscribing to it: parent restore registered it eagerly.
+			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), 'tc-sub');
+			const childState = service.stateManager.getSessionState(childSessionUri);
+			assert.ok(childState, 'subagent child should be eagerly registered during parent restore');
+			assert.strictEqual(childState!.turns.length, 1, 'child should have its reconstructed turn');
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'child should contain the inner tool call');
 		});
 
 		test('inner assistant messages from subagent route via envelope agentId (fixture)', async () => {

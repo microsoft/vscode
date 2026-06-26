@@ -67,6 +67,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -603,6 +604,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
@@ -731,6 +733,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});
+
+	// Workspace trust stubs so chat-input fixtures can instantiate the model
+	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
+	// Reports the workspace as trusted so the picker renders normally.
+	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override onDidChangeTrust = Event.None;
+		override readonly workspaceTrustInitialized = Promise.resolve();
+		override isWorkspaceTrusted() { return true; }
+	}());
+	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+		override async requestWorkspaceTrust() { return true; }
+	}());
 }
 
 

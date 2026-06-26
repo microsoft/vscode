@@ -267,6 +267,63 @@ suite('claudeReplayMapper', () => {
 		assert.strictEqual(turns[1].id, 'u2');
 		assert.strictEqual(turns[1].message.text, 'how about now');
 	});
+
+	test('Fixture 10: prompt-less subagent transcript (inner messages) maps to one turn', () => {
+		// A subagent transcript from `getSubagentMessages` carries a
+		// `parent_tool_use_id` on every envelope and has NO synthetic spawning
+		// user prompt, so it opens directly with an assistant message. The
+		// builder must synthesize an empty-prompt turn rather than dropping the
+		// inner assistant content (which would lose the whole transcript on
+		// replay). Shape mirrors a real captured subagent transcript.
+		const parent = 'toolu_parent';
+		const messages: SessionMessage[] = [
+			{
+				type: 'assistant', uuid: 'sa1', session_id: 'sess-1', parent_tool_use_id: parent,
+				message: { id: 'msg_sa1', role: 'assistant', content: [{ type: 'thinking', thinking: 'planning', signature: 'sig' }] },
+			},
+			{
+				type: 'assistant', uuid: 'sa2', session_id: 'sess-1', parent_tool_use_id: parent,
+				message: { id: 'msg_sa2', role: 'assistant', content: [{ type: 'tool_use', id: 'tu_inner', name: 'Bash', input: { command: 'ls' } }] },
+			},
+			{
+				type: 'user', uuid: 'sa3', session_id: 'sess-1', parent_tool_use_id: parent,
+				message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu_inner', content: 'file-a.txt\nfile-b.txt' }] },
+			},
+			{
+				type: 'assistant', uuid: 'sa4', session_id: 'sess-1', parent_tool_use_id: parent,
+				message: { id: 'msg_sa4', role: 'assistant', content: [{ type: 'text', text: 'Done. SUBAGENT_ONLY_MARKER_xyz' }] },
+			},
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1, 'inner assistant messages must form a single synthesized turn');
+		assert.strictEqual(turns[0].id, 'sa1', 'turn id anchors on the first inner assistant envelope');
+		assert.strictEqual(turns[0].message.text, '', 'subagent turn has no user prompt');
+		assert.strictEqual(turns[0].state, TurnState.Complete, 'tool_result drains the pending tool_use');
+		const markdown = turns[0].responseParts.filter(p => p.kind === ResponsePartKind.Markdown);
+		assert.ok(markdown.some(p => p.kind === ResponsePartKind.Markdown && p.content.includes('SUBAGENT_ONLY_MARKER_xyz')),
+			'the subagent final text (with marker) must survive replay');
+		const toolCall = turns[0].responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
+		assert.ok(toolCall && toolCall.kind === ResponsePartKind.ToolCall && toolCall.toolCall.status === ToolCallStatus.Completed,
+			'inner Bash tool call must be reconstructed as Completed');
+	});
+
+	test('Fixture 10b: top-level assistant before any user message is still dropped', () => {
+		// Guard the narrow behavior: a top-level (non-inner) assistant envelope
+		// arriving before any user message remains anomalous and is dropped, so
+		// the synthesize-on-open path is scoped strictly to subagent transcripts.
+		const messages: SessionMessage[] = [
+			makeAssistantText('a1', 'orphan reply'),
+			makeUser('u1', 'hello'),
+			makeAssistantText('a2', 'world'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1, 'the orphan top-level assistant must NOT synthesize a turn');
+		assert.strictEqual(turns[0].id, 'u1');
+	});
 });
 
 suite('resolveForkAnchorUuid', () => {

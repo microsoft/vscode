@@ -1076,6 +1076,128 @@ suite('LanguageModels - Per-Model Configuration', function () {
 	});
 });
 
+suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups', function () {
+
+	let languageModelsService: LanguageModelsService;
+	let providerGroups: ILanguageModelsProviderGroup[];
+	let updateCalls: { from: ILanguageModelsProviderGroup; to: ILanguageModelsProviderGroup }[];
+	let addCalls: ILanguageModelsProviderGroup[];
+	const disposables = new DisposableStore();
+
+	function makeModel(group: string, id: string): { metadata: ILanguageModelChatMetadata; identifier: string } {
+		return {
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: id,
+				vendor: 'customendpoint',
+				family: id,
+				version: '1.0',
+				id,
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				configurationSchema: {
+					type: 'object',
+					properties: {
+						reasoningEffort: { type: 'string', default: 'medium' }
+					}
+				}
+			} satisfies ILanguageModelChatMetadata,
+			identifier: `customendpoint/${group}/${id}`
+		};
+	}
+
+	setup(async function () {
+		// Two groups sharing the same `vendor`, each defining a different model.
+		providerGroups = [
+			{ vendor: 'customendpoint', name: 'DeepSeek' },
+			{ vendor: 'customendpoint', name: 'MyCustom' }
+		];
+		updateCalls = [];
+		addCalls = [];
+
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return providerGroups;
+				}
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					updateCalls.push({ from, to });
+					providerGroups = providerGroups.map(group => group === from ? to : group);
+					return to;
+				}
+				override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					addCalls.push(group);
+					providerGroups = [...providerGroups, group];
+					return group;
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		);
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{
+				vendor: 'customendpoint',
+				displayName: 'Custom Endpoint',
+				// Cast needed: TypeFromJsonSchema resolves the configuration field to
+				// `undefined`, but a configurable vendor is required so models are
+				// resolved per group.
+				configuration: { type: 'object', properties: {} } as unknown as undefined,
+				managementCommand: undefined,
+				when: undefined
+			}
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('customendpoint', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (options.group === 'DeepSeek') {
+					return [makeModel('DeepSeek', 'deepseek-v4-pro')];
+				}
+				if (options.group === 'MyCustom') {
+					return [makeModel('MyCustom', 'gpt-5.5')];
+				}
+				return [];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('setModelConfiguration writes to the group that defines the model, not the first group of the vendor (#322872)', async function () {
+		await languageModelsService.setModelConfiguration('customendpoint/MyCustom/gpt-5.5', { reasoningEffort: 'high' });
+
+		assert.strictEqual(addCalls.length, 0, 'should update the existing group, not create a new one');
+		assert.strictEqual(updateCalls.length, 1);
+		assert.strictEqual(updateCalls[0].from.name, 'MyCustom', 'config must be written to the MyCustom group');
+		assert.deepStrictEqual(updateCalls[0].to.settings, { 'gpt-5.5': { reasoningEffort: 'high' } });
+
+		const deepSeek = providerGroups.find(g => g.name === 'DeepSeek');
+		assert.strictEqual(deepSeek?.settings, undefined, 'the DeepSeek group must be left untouched');
+	});
+});
+
 suite('LanguageModels - Provider Group Management', function () {
 
 	class TestInputBox extends mock<IInputBox>() {
