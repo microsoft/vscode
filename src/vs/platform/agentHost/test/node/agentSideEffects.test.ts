@@ -194,6 +194,13 @@ suite('AgentSideEffects', () => {
 		});
 	}
 
+	async function waitForSendMessageCalls(count: number): Promise<void> {
+		if (agent.sendMessageCalls.length >= count) {
+			return;
+		}
+		await Event.toPromise(Event.filter(agent.onDidSendMessage, () => agent.sendMessageCalls.length >= count));
+	}
+
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const memFs = disposables.add(new InMemoryFileSystemProvider());
@@ -235,8 +242,7 @@ suite('AgentSideEffects', () => {
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
 
-			// sendMessage is async but fire-and-forget; wait a tick
-			await new Promise(r => setTimeout(r, 10));
+			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined }]);
 		});
@@ -276,7 +282,7 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('parses protocol attachment URI strings before passing them to the agent', () => {
+		test('parses protocol attachment URI strings before passing them to the agent', async () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/test.ts');
 			const action: ChatAction = {
@@ -286,6 +292,7 @@ suite('AgentSideEffects', () => {
 			};
 
 			sideEffects.handleAction(sessionUri.toString(), action);
+			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
@@ -294,7 +301,7 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('passes protocol selection attachment range straight through to the agent', () => {
+		test('passes protocol selection attachment range straight through to the agent', async () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/selection.ts');
 			const action: ChatAction = {
@@ -319,6 +326,7 @@ suite('AgentSideEffects', () => {
 			};
 
 			sideEffects.handleAction(sessionUri.toString(), action);
+			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
@@ -825,7 +833,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
 		});
 
-		test('syncs queued message to agent on ChatPendingMessageSet', () => {
+		test('syncs queued message to agent on ChatPendingMessageSet', async () => {
 			setupSession();
 
 			const action = {
@@ -843,11 +851,12 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
 
 			// Session was idle, so the queued message is consumed immediately
+			await waitForSendMessageCalls(1);
 			assert.strictEqual(agent.sendMessageCalls.length, 1);
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'queued message');
 		});
 
-		test('parses queued protocol attachment URI strings before passing them to the agent', () => {
+		test('parses queued protocol attachment URI strings before passing them to the agent', async () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/queued.ts');
 			const action: ChatAction = {
@@ -859,6 +868,7 @@ suite('AgentSideEffects', () => {
 
 			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), action);
+			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
@@ -948,7 +958,7 @@ suite('AgentSideEffects', () => {
 
 	suite('queued message consumption', () => {
 
-		test('auto-starts turn from queued message on idle', () => {
+		test('auto-starts turn from queued message on idle', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -982,6 +992,7 @@ suite('AgentSideEffects', () => {
 			assert.ok(turnStarted, 'should dispatch session/turnStarted for queued message');
 			assert.strictEqual((turnStarted!.action as { queuedMessageId?: string }).queuedMessageId, 'q-auto');
 
+			await waitForSendMessageCalls(1);
 			assert.strictEqual(agent.sendMessageCalls.length, 1);
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'auto queued');
 
@@ -1024,7 +1035,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-after-abort');
 		});
 
-		test('intercepts queued /rename and drains the message queued behind it', () => {
+		test('intercepts queued /rename and drains the message queued behind it', async () => {
 			setupSession();
 			// `/rename` persists the new title, so use a side effects instance
 			// whose `openDatabase` returns a real database (the suite default
@@ -1061,6 +1072,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			// The `/rename` must not reach the agent; only the message behind it does
+			await waitForSendMessageCalls(1);
 			assert.strictEqual(agent.sendMessageCalls.length, 1);
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'after rename');
 
@@ -1070,7 +1082,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.title, 'Queued Title');
 		});
 
-		test('drains a peer chat queued message to the owning session with the chat arg', () => {
+		test('drains a peer chat queued message to the owning session with the chat arg', async () => {
 			setupSession();
 			const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-q'));
 			stateManager.addChat(sessionUri.toString(), chatUri.toString());
@@ -1099,6 +1111,7 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.ChatTurnComplete, turnId: 'pturn-1' },
 			});
 
+			await waitForSendMessageCalls(1);
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'peer queued',
