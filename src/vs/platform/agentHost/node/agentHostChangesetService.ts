@@ -27,13 +27,14 @@ import {
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
 	readSessionGitState,
+	isDefaultChatUri,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
-import { computeSessionDiffs, computeTurnDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
 import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -756,14 +757,40 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// working dir or not a git work tree). Fall back to the
 				// edit-tracker aggregator — for the session changeset the
 				// SDK-tracked edits are the best available approximation.
-				let incremental: IIncrementalDiffOptions | undefined;
-				if (changedTurnId) {
-					const previousDiffs = this._readPreviousChangesetDiffs(changesetUri);
-					if (previousDiffs) {
-						incremental = { changedTurnId, previousDiffs: [...previousDiffs] };
+				//
+				// In multi-chat sessions each peer chat records its file
+				// edits into its OWN database (the chat URI is used as the
+				// session URI for that chat's edit tracker). Union the
+				// session DB with every peer chat DB so peer-chat edits roll
+				// up into the session-level changes.
+				const peerSources = this._openPeerChatSources(session);
+				try {
+					if (peerSources.length > 0) {
+						const sources: ISessionDiffSource[] = [
+							{ sessionUri: session, db: ref.object },
+							...peerSources.map(p => ({ sessionUri: p.sessionUri, db: p.ref.object })),
+						];
+						// TODO (debt): multi-chat always does a full recompute
+						// (the incremental `changedTurnId`/`previousDiffs` path is
+						// only used for single-chat below). A follow-up can make
+						// `computeUnionedDiffs` incremental — see its doc comment
+						// and the tracking issue.
+						diffs = await computeUnionedDiffs(sources, this._diffComputeService);
+					} else {
+						let incremental: IIncrementalDiffOptions | undefined;
+						if (changedTurnId) {
+							const previousDiffs = this._readPreviousChangesetDiffs(changesetUri);
+							if (previousDiffs) {
+								incremental = { changedTurnId, previousDiffs: [...previousDiffs] };
+							}
+						}
+						diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
+					}
+				} finally {
+					for (const peer of peerSources) {
+						peer.ref.dispose();
 					}
 				}
-				diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs);
@@ -875,6 +902,64 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
+	 * Opens the databases for every non-default (peer) chat in a multi-chat
+	 * session. Each peer chat records its file edits into its own database
+	 * keyed by the chat URI, so the session changeset must union those
+	 * databases with the session DB. Returns an empty array for single-chat
+	 * sessions. Callers MUST dispose every returned `ref`.
+	 */
+	private _openPeerChatSources(session: ProtocolURI): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
+		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		for (const chat of chats) {
+			if (isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			try {
+				const ref = this._sessionDataService.openDatabase(URI.parse(chat.resource));
+				sources.push({ sessionUri: chat.resource, ref });
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
+			}
+		}
+		return sources;
+	}
+
+	/**
+	 * Returns the turn id whose checkpoint best represents the latest state of
+	 * the session's shared working tree. For single-chat sessions this is the
+	 * default chat's last turn. For multi-chat sessions it is the last turn of
+	 * the most-recently-modified chat (peer-chat turn checkpoints are stored
+	 * under the session URI keyed by their turn id). Returns `undefined` when
+	 * no chat has any turns.
+	 */
+	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
+		const sessionState = this._stateManager.getSessionState(session);
+		if (!sessionState) {
+			return undefined;
+		}
+
+		const chats = sessionState.chats ?? [];
+		if (chats.length <= 1) {
+			return sessionState.turns.at(-1)?.id;
+		}
+
+		let bestTurnId: string | undefined;
+		let bestModifiedAt = '';
+		for (const chat of chats) {
+			const turns = isDefaultChatUri(chat.resource)
+				? sessionState.turns
+				: this._stateManager.getChatState(chat.resource)?.turns;
+			const lastTurnId = turns?.at(-1)?.id;
+			if (lastTurnId && chat.modifiedAt >= bestModifiedAt) {
+				bestModifiedAt = chat.modifiedAt;
+				bestTurnId = lastTurnId;
+			}
+		}
+		return bestTurnId;
+	}
+
+	/**
 	 * Computes diffs for a static changeset by shelling out to git.
 	 * Returns the diff list when the session has a working directory and
 	 * that directory is a git work tree; returns `undefined` otherwise so
@@ -902,8 +987,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		// Session
 		if (kind === 'session') {
-			// Get session checkpoints
-			const latestTurnId = this._stateManager.getSessionState(session)?.turns.at(-1)?.id;
+			// Get session checkpoints. In multi-chat sessions the working tree
+			// is shared and each chat's turn checkpoints are stored under the
+			// session URI keyed by their turn id, so the most-recently-modified
+			// chat's last turn captures the full working-tree delta.
+			const latestTurnId = this._latestTurnIdAcrossChats(session);
 			if (!latestTurnId) {
 				return undefined;
 			}

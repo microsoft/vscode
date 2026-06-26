@@ -310,6 +310,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
+	private readonly toolOriginalPositionByCallId = new Map<string, { element: HTMLElement; originalParent: HTMLElement }>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -327,6 +328,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
+	private readonly _singleItemPromotionRetry = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -1106,23 +1108,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Only check the persisted cache when re-rendering
-		// (all tool invocations are serialized), not during live streaming.
-		const allSerialized = this.toolInvocations.length > 0
-			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
-		if (allSerialized) {
-			// Fallback: check the persisted title cache using the last tool call (non-local sessions only)
-			if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-				const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
-				if (lastToolInvocation) {
-					const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
-					if (cachedTitle) {
-						this.currentTitle = cachedTitle;
-						this.content.generatedTitle = cachedTitle;
-						this.setGeneratedTitleOnAllParts(cachedTitle);
-						this.setFinalizedTitle(cachedTitle);
-						return;
-					}
+		// Only check the persisted cache when re-rendering (tool invocations are
+		// serialized), not during live streaming. Reasoning-only blocks (no tools)
+		// are keyed off the stable thinking part id so their generated headers are
+		// also restored on reload (non-local sessions only).
+		const allToolsSerialized = this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
+		if (allToolsSerialized && !LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+			const cacheId = this.getTitleCacheId();
+			if (cacheId) {
+				const cachedTitle = this.getCachedTitle(cacheId);
+				if (cachedTitle) {
+					this.currentTitle = cachedTitle;
+					this.content.generatedTitle = cachedTitle;
+					this.setGeneratedTitleOnAllParts(cachedTitle);
+					this.setFinalizedTitle(cachedTitle);
+					return;
 				}
 			}
 		}
@@ -1151,10 +1151,39 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				}
 			}
-			// Only restore if the tool is complete so the progress spinner is resolved
-			const toolIsComplete = !this.singleItemInfo?.toolInvocation || IChatToolInvocation.isComplete(this.singleItemInfo.toolInvocation);
-			if (toolIsComplete && this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
-				return;
+			// If singleItemInfo was cleared (eager render or transient sibling), reconstruct it from the sole tool's recorded original position.
+			if (!this.singleItemInfo && this.toolInvocations.length === 1) {
+				const soleTool = this.toolInvocations[0];
+				const recorded = this.toolOriginalPositionByCallId.get(soleTool.toolCallId);
+				if (recorded) {
+					this.singleItemInfo = {
+						element: recorded.element,
+						originalParent: recorded.originalParent,
+						originalNextSibling: this.domNode,
+						toolInvocation: soleTool
+					};
+				}
+			}
+			// Only restore once the tool is complete; if it completes after finalize, retry promotion.
+			if (this.singleItemInfo) {
+				const toolInvocation = this.singleItemInfo.toolInvocation;
+				if (!toolInvocation || IChatToolInvocation.isComplete(toolInvocation)) {
+					if (this.restoreSingleItemToOriginalPosition()) {
+						return;
+					}
+				} else {
+					this._singleItemPromotionRetry.value = autorun(reader => {
+						const pending = this.singleItemInfo;
+						if (this._store.isDisposed || !pending?.toolInvocation) {
+							return;
+						}
+						if (IChatToolInvocation.isComplete(pending.toolInvocation, reader)) {
+							this.restoreSingleItemToOriginalPosition();
+							this._singleItemPromotionRetry.clear();
+						}
+					});
+					return;
+				}
 			}
 		}
 
@@ -1198,19 +1227,32 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	private getTitleCacheKey(toolCallId: string): string {
-		return `${chatSessionResourceToId(this.element.sessionResource)}:${toolCallId}`;
+	private getTitleCacheKey(id: string): string {
+		return `${chatSessionResourceToId(this.element.sessionResource)}:${id}`;
 	}
 
-	private getCachedTitle(toolCallId: string): string | undefined {
-		const entry = this.loadTitleCache()[this.getTitleCacheKey(toolCallId)];
+	/**
+	 * Stable id used to persist/restore the generated title. Tool-based blocks
+	 * key off the last tool call id; reasoning-only blocks fall back to the
+	 * thinking part id so their headers also survive a session reload.
+	 */
+	private getTitleCacheId(): string | undefined {
+		const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+		if (lastTool) {
+			return lastTool.toolCallId;
+		}
+		return this.allThinkingParts.find(t => t.id)?.id ?? this.content.id;
+	}
+
+	private getCachedTitle(id: string): string | undefined {
+		const entry = this.loadTitleCache()[this.getTitleCacheKey(id)];
 		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
 			return undefined;
 		}
 		return entry.title;
 	}
 
-	private setCachedTitle(toolCallId: string, title: string): void {
+	private setCachedTitle(id: string, title: string): void {
 		const cache = this.loadTitleCache();
 		const now = Date.now();
 
@@ -1221,7 +1263,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		cache[this.getTitleCacheKey(toolCallId)] = { title, storedAt: now };
+		cache[this.getTitleCacheKey(id)] = { title, storedAt: now };
 
 		// Cap size by dropping oldest entries
 		const keys = Object.keys(cache);
@@ -1395,9 +1437,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 				// Persist to storage for non-local sessions only
 				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-					const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
-					if (lastTool) {
-						this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+					const cacheId = this.getTitleCacheId();
+					if (cacheId) {
+						this.setCachedTitle(cacheId, generatedTitle);
 					}
 				}
 
@@ -1419,12 +1461,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		const { element, originalParent, originalNextSibling, toolInvocation } = this.singleItemInfo;
-
-		// don't restore it to original position - it contains multiple rendered elements
-		if (element.childElementCount > 1) {
-			this.singleItemInfo = undefined;
-			return false;
-		}
 
 		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
 			originalParent.insertBefore(element, originalNextSibling);
@@ -1570,6 +1606,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
+		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
 		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
@@ -1717,6 +1754,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
+		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		// make sure to remove any lazy item as well
 		const lazyIndex = this.lazyItems.findIndex(item =>
@@ -2063,6 +2101,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
 			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
 			this.toolIconsByCallId.set(toolInvocationOrMarkdown.toolCallId, iconElement);
+			if (originalParent) {
+				this.toolOriginalPositionByCallId.set(toolInvocationOrMarkdown.toolCallId, { element: content, originalParent });
+			}
 		}
 
 		this.appendToWrapper(itemWrapper);

@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -28,6 +29,8 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -103,6 +106,9 @@ export interface IVoiceSessionController {
 	 * client state, environment info). Returns success/failure.
 	 */
 	submitFeedback(feedbackText: string): Promise<{ ok: boolean; error?: string }>;
+
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void;
 }
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
@@ -154,8 +160,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Short-tap threshold: if the key is held for less than this, enter
 	 *  toggle mode where a second tap finishes the recording. */
 	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
+
+	/** Debounce before re-entering listening after assistant stops speaking. */
+	private static readonly _AUTO_LISTEN_QUIET_MS = 1200;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoSendSilenceTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoListenTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
+	/** Guards auto re-listen: only re-arm after a reply has actually played. */
+	private _replyPlayedSinceSend = false;
+	/** Set after send_to_chat; blocks auto-listen until the reply TTS starts. */
+	private _awaitingReplyAudio = false;
+	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
+	/** Enter listening immediately after greeting finishes (no debounce). */
+	private _autoListenAfterGreeting = false;
+	/** Tracks whether the initial listen cue has been played after connecting. */
+	private _hasPlayedInitialListenCue = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -197,6 +217,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	/** Model refs eagerly loaded for sessions awaiting input (no UI focus needed). */
 	private readonly _eagerModelRefs = new Map<string, IChatModelReference>();
+
+	/** Sessions with an in-flight eager model load, to dedupe concurrent loads. */
+	private readonly _eagerModelLoading = new Set<string>();
+
+	/**
+	 * Sessions whose ``idle`` transition is being deferred until their chat
+	 * model loads, so the narration can include ``last_response_summary``.
+	 * While a session id is in this set we suppress emitting a premature,
+	 * summary-less ``idle`` to the backend (see _buildSessionContext).
+	 */
+	private readonly _pendingIdleNarration = new Set<string>();
 
 	// --- Telemetry tracking ---
 	private _telemetrySessionIndex = 0;
@@ -250,6 +281,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -548,6 +581,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (this._pttWaitingForPlayback) {
 						this._scheduleDelayedMicStop();
 					}
+					// Hands-free: enter listening after audio finishes.
+					if (this._isAutoSendEnabled() && !this._awaitingReplyAudio) {
+						if (this._autoListenAfterGreeting) {
+							this._autoListenAfterGreeting = false;
+							this._enterAutoListen();
+						} else if (this._replyPlayedSinceSend) {
+							this._scheduleAutoListen();
+						}
+					}
 				}
 			}
 		}));
@@ -632,9 +674,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 				// Reactive session context autorun
 				const sessionChangeListener = this.agentSessionsService.model.onDidChangeSessions(() => {
-					this._sendContext();
-					// Also check state changes for sessions without a loaded model
+					// Check state changes first so any deferred idle narration is
+					// registered (and premature idle suppressed) before we flush
+					// the session context to the backend.
 					this._checkSessionStateChanges();
+					this._sendContext();
 				});
 				const autorunDisposable = autorun(reader => {
 					const agentSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
@@ -646,6 +690,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// --- Helper: subscribe to a chat model's observables and detect state changes ---
 					const processModel = (model: IChatModel, resource: URI, label: string) => {
 						const sessionId = resource.toString();
+						// The model is now resident so its idle transition will carry a
+						// proper summary; drop any pending deferral/suppression.
+						this._pendingIdleNarration.delete(sessionId);
 						const lastReq = model.lastRequestObs.read(reader);
 						if (lastReq?.response) {
 							lastReq.response.isIncomplete.read(reader);
@@ -718,6 +765,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 							const prev = this._prevSessionStates.get(sessionId);
 							const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
+
+							// Remote/Copilot sessions don't keep their model resident, so a
+							// coarse ``idle`` transition would carry no last_response_summary
+							// and the backend would narrate an empty completion. Defer the
+							// transition: eagerly load the model and let the autorun re-fire
+							// with the summary once it resolves. Do not record the idle state
+							// yet so the transition is still detected after the model loads.
+							if (isStateTransition && currentState === 'idle') {
+								this._deferIdleNarrationUntilModelLoaded(s.resource);
+								continue;
+							}
+
 							if (isStateTransition) {
 								const cancelExpiry = this._userCancelledSessions.get(sessionId);
 								if (cancelExpiry) {
@@ -831,13 +890,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
+
+				if (!isResuming && this._isAutoSendEnabled()) {
+					this._autoListenAfterGreeting = true;
+				}
 			} else if (this._isConnected.get()) {
 				this._onConnectionLost();
 			} else if (this._isReconnecting.get()) {
 				this._isReconnecting.set(false, undefined);
 				this._voiceState.set('idle', undefined);
 				this._statusText.set('Tap to start', undefined);
-			} else if (!this._isConnecting.get()) {
+			} else if (this._isConnecting.get()) {
+				// Connection failed during initial handshake (e.g. fatal WS close).
+				// Clear isConnecting so callers awaiting the state settle properly.
+				this._isConnecting.set(false, undefined);
+				this._voiceState.set('idle', undefined);
+				this._statusText.set('Tap to start', undefined);
+			} else {
 				this._voiceState.set('idle', undefined);
 			}
 		}));
@@ -845,6 +914,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
+			this._clearAutoSendSilenceTimer();
+			this._clearAutoListenTimer();
 			this.ttsPlaybackService.stopPlayback();
 			this._audioQueue.length = 0;
 			this._currentPlaybackSessionId = null;
@@ -865,14 +936,34 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
 				this._telemetryFirstTranscriptionMs = Date.now();
 			}
-			this._updateUserTurn(e.text, e.committed ?? '', e.status === 'partial');
+
+			let text = e.text;
+
+			// Check for send keyword trigger in toggle mode.
+			if (this._pttToggleMode && this._pttHeld) {
+				const strippedText = this._checkSendKeyword(text);
+				if (strippedText !== undefined) {
+					text = strippedText;
+					this._updateUserTurn(text, e.committed ?? '', false);
+					this._persistTurn('user', text);
+					this._pttToggleMode = false;
+					this._finishPtt();
+					return;
+				}
+			}
+
+			this._updateUserTurn(text, e.committed ?? '', e.status === 'partial');
 			if (e.status !== 'partial') {
 				if (!this._pttHeld) {
 					this._voiceState.set('processing', undefined);
 					this._statusText.set('Processing...', undefined);
 				}
 				// Persist the user's final transcript (local-only, no backend coordination).
-				this._persistTurn('user', e.text);
+				this._persistTurn('user', text);
+			}
+			// Restart silence countdown for auto-send in toggle mode.
+			if (this._pttToggleMode && this._pttHeld) {
+				this._scheduleAutoSendOnSilence();
 			}
 		}));
 
@@ -912,12 +1003,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				'focus_session',
 			];
 			if (e.name === 'send_to_chat') {
-				const text = typeof e.args?.['text'] === 'string' ? (e.args['text'] as string) : '';
+				let text = typeof e.args?.['text'] === 'string' ? (e.args['text'] as string) : '';
+				// Strip send keyword if present (backend includes full transcript)
+				const stripped = this._checkSendKeyword(text);
+				if (stripped !== undefined) {
+					text = stripped;
+				}
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
 					toolArgs: e.args,
 				});
+				this._setAwaitingReply();
 				const sendPromise = text.trim()
 					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
@@ -942,6 +1039,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						approved: e.name === 'approve_confirmation',
 					});
 				}
+				// Exit listening mode so the response audio isn't suppressed.
+				if (this._pttHeld) {
+					this._finishPtt();
+				}
+				this._suppressIncomingAudio = false;
+				this._setAwaitingReply();
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
@@ -999,6 +1102,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
 		this._transcriptTurns.set([], undefined);
+		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
+		this._clearAwaitingReply();
+		this._autoListenAfterGreeting = false;
+		this._hasPlayedInitialListenCue = false;
+		this._replyPlayedSinceSend = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1010,11 +1119,50 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._confirmationFlushWatchdogs.clear();
 		for (const ref of this._eagerModelRefs.values()) { ref.dispose(); }
 		this._eagerModelRefs.clear();
+		this._eagerModelLoading.clear();
+		this._pendingIdleNarration.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
 		this._pendingPriorTimeline = [];
 		this._stopReplay();
 		this._sessionAudioCache.clear();
+	}
+
+	/** DEV ONLY: Simulate a connected session with fake transcript for UI testing. */
+	simulateConnection(): void {
+		this._isConnected.set(true, undefined);
+		this._isConnecting.set(false, undefined);
+		this._voiceState.set('idle', undefined);
+		this._statusText.set('Hold to speak...', undefined);
+
+		// Simulate a user speaking after 1s
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._voiceState.set('listening', undefined);
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a', committed: '', isPartial: true }], undefined);
+		}, 1000));
+
+		// Partial grows
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component', committed: 'Create a ', isPartial: true }], undefined);
+		}, 2000));
+
+		// Final user turn
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false }], undefined);
+			this._voiceState.set('idle', undefined);
+		}, 3000));
+
+		// Assistant response
+		this._voiceEventDisposables.add(disposableTimeout(() => {
+			if (!this._isConnected.get()) { return; }
+			this._transcriptTurns.set([
+				{ speaker: 'user', text: 'Create a new React component for the dashboard', committed: 'Create a new React component for the dashboard', isPartial: false },
+				{ speaker: 'assistant', text: 'I\'ll create a Dashboard component with some widgets...', committed: '', isPartial: false },
+			], undefined);
+		}, 4500));
 	}
 
 	private _onConnectionLost(): void {
@@ -1035,6 +1183,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	pttDown(): void {
 		if (!this._isConnected.get()) { return; }
 
+		this._clearAutoSendSilenceTimer();
+
 		// Toggle mode: second tap finishes recording
 		if (this._pttToggleMode) {
 			this._pttToggleMode = false;
@@ -1044,6 +1194,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { return; }
 		this._pttHeld = true;
+		this._autoListenAfterGreeting = false;
+		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttWaitingForPlayback = false;
 		this._telemetryPttDownMs = Date.now();
@@ -1080,10 +1232,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._pttHeld = false;
 			this._statusText.set('Microphone denied', undefined);
 			this._voiceState.set('error', undefined);
+			// Disconnect entirely so the user isn't stuck in a connected state
+			// with no way to record. The notification from micCaptureService
+			// tells them how to fix permissions.
+			if (this._pttMaxDurationTimer) {
+				clearTimeout(this._pttMaxDurationTimer);
+				this._pttMaxDurationTimer = undefined;
+			}
+			this.disconnect();
 		});
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
+		// Audible cue: for non-screen-reader users, only play on the first
+		// listen after connecting. For screen reader users, play every time.
+		if (this._isAutoSendEnabled()) {
+			if (!this._hasPlayedInitialListenCue) {
+				this._hasPlayedInitialListenCue = true;
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			} else if (this.accessibilityService.isScreenReaderOptimized()) {
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			}
+		}
 
 		this._pttMaxDurationTimer = setTimeout(() => {
 			if (this._pttHeld) {
@@ -1108,6 +1278,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _finishPtt(): void {
 		if (!this._pttHeld) { return; }
+		this._clearAutoSendSilenceTimer();
+		this._clearAutoListenTimer();
 		this._pttHeld = false;
 		this._telemetryPttUpMs = Date.now();
 		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
@@ -1118,7 +1290,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._voiceState.set('processing', undefined);
 		this._statusText.set('Processing...', undefined);
+		this._replyPlayedSinceSend = false;
+		this._clearAwaitingReply();
+		this._suppressIncomingAudio = false;
 		this.micCaptureService.pttUp();
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
+		}
 	}
 
 	markUserCancelled(sessionId: string): void {
@@ -1153,6 +1331,110 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, 1000);
 	}
 
+	private _isAutoSendEnabled(): boolean {
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		return typeof delayMs === 'number' && delayMs >= 0;
+	}
+
+	/**
+	 * Check if the transcript text ends with the configured send keyword.
+	 * Returns the text with the keyword stripped if found, or undefined if not.
+	 */
+	private _checkSendKeyword(text: string): string | undefined {
+		const keyword = this.configurationService.getValue<string>('agents.voice.sendKeyword')?.trim();
+		if (!keyword) {
+			return undefined;
+		}
+		// Strip trailing punctuation that speech recognizers often append
+		const trimmed = text.trimEnd().replace(/[.,!?;:]+$/, '').trimEnd();
+		const keywordLower = keyword.toLowerCase();
+		if (trimmed.toLowerCase().endsWith(keywordLower)) {
+			const stripped = trimmed.slice(0, trimmed.length - keyword.length).trimEnd();
+			return stripped || undefined; // return undefined if nothing left (don't send empty)
+		}
+		return undefined;
+	}
+
+	/** Re-enter listening via synthetic short tap. */
+	private _enterAutoListen(): void {
+		this._clearAutoListenTimer();
+		if (!this._isConnected.get() || this._pttHeld) {
+			return;
+		}
+		// Don't enter listening if audio is still playing or queued.
+		if (this.ttsPlaybackService.isPlaying || this._audioQueue.length > 0 || this._currentPlaybackSessionId !== null) {
+			return;
+		}
+		this.pttDown();
+		this.pttUp();
+	}
+
+	/** Debounced re-listen after assistant stops speaking. */
+	private _scheduleAutoListen(): void {
+		this._clearAutoListenTimer();
+		this._autoListenTimer = setTimeout(() => {
+			this._autoListenTimer = undefined;
+			// Re-check: don't enter listening if we're now awaiting reply audio.
+			if (this._awaitingReplyAudio) { return; }
+			this._enterAutoListen();
+		}, VoiceSessionController._AUTO_LISTEN_QUIET_MS);
+	}
+
+	private _clearAutoListenTimer(): void {
+		if (this._autoListenTimer) {
+			clearTimeout(this._autoListenTimer);
+			this._autoListenTimer = undefined;
+		}
+	}
+
+	/** Auto-finish recording after configured silence in toggle mode. */
+	private _scheduleAutoSendOnSilence(): void {
+		this._clearAutoSendSilenceTimer();
+		const delayMs = this.configurationService.getValue<number>('agents.voice.autoSendDelay');
+		if (typeof delayMs !== 'number' || delayMs < 0) {
+			return;
+		}
+		this._autoSendSilenceTimer = setTimeout(() => {
+			this._autoSendSilenceTimer = undefined;
+			if (this._pttToggleMode && this._pttHeld) {
+				this._pttToggleMode = false;
+				this._finishPtt();
+			}
+		}, delayMs);
+	}
+
+	private _clearAutoSendSilenceTimer(): void {
+		if (this._autoSendSilenceTimer) {
+			clearTimeout(this._autoSendSilenceTimer);
+			this._autoSendSilenceTimer = undefined;
+		}
+	}
+
+	/** Block auto-listen until reply audio arrives (with 30s watchdog). */
+	private _setAwaitingReply(): void {
+		this._awaitingReplyAudio = true;
+		this._clearAutoListenTimer();
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+		}
+		this._awaitingReplyWatchdog = setTimeout(() => {
+			this._awaitingReplyWatchdog = undefined;
+			this._awaitingReplyAudio = false;
+			// No reply came — re-enter listening if eligible.
+			if (this._isAutoSendEnabled() && !this._pttHeld) {
+				this._enterAutoListen();
+			}
+		}, 30_000);
+	}
+
+	private _clearAwaitingReply(): void {
+		this._awaitingReplyAudio = false;
+		if (this._awaitingReplyWatchdog) {
+			clearTimeout(this._awaitingReplyWatchdog);
+			this._awaitingReplyWatchdog = undefined;
+		}
+	}
+
 	/**
 	 * Send transcription text to the target session or active chat.
 	 * If a target session is selected, sends directly via chatService.
@@ -1161,26 +1443,62 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		const target = this._targetSession.get();
 		if (target) {
-			// Try switching to the session via the workbench chat pane first
-			const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
-			if (switched) {
-				// Small delay to let the widget load the session model
-				await new Promise(resolve => setTimeout(resolve, 200));
+			// Check if target is the currently visible session
+			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+			const isTargetVisible = currentSession === target.toString();
+
+			if (isTargetVisible) {
+				// Target is visible — send via the chat pane directly
 				await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
-					this.logService.warn('[voice] acceptInput failed after switch:', err);
+					this.logService.warn('[voice] acceptInput failed for visible target:', err);
 				});
 			} else {
-				// Not in workbench chat — try agents window openAndSend
-				const handled = await this.commandService.executeCommand<boolean>('_sessions.voice.openAndSend', target.toString(), text).catch(() => false);
-				if (!handled) {
-					// Last resort: try sendRequest directly
-					this.chatService.sendRequest(target, text).then(result => {
-						if (result.kind === 'rejected') {
-							this.logService.warn('[voice] Failed to send transcription to target session:', result.reason);
+				// Target is NOT visible — ensure session is loaded, then send
+				const cts = new CancellationTokenSource();
+				const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, cts.token, 'voice-send').catch(err => {
+					this.logService.warn('[voice] Failed to load target session:', err);
+					return undefined;
+				});
+				cts.dispose();
+				if (!ref) {
+					this.logService.warn('[voice] Could not load target session, falling back to switch');
+					// Fallback: switch to the session and send via the UI
+					const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
+					if (switched) {
+						await new Promise(resolve => setTimeout(resolve, 200));
+						await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(() => { });
+					}
+					return;
+				}
+				const result = await this.chatService.sendRequest(target, text).catch(err => {
+					this.logService.warn('[voice] Error sending transcription to target session:', err);
+					return undefined;
+				});
+				if (result && result.kind !== 'rejected') {
+					// Surface response in floating window
+					this._watchResponseForFloatingWindow(target);
+					// Open the floating window so user can see the response
+					this.commandService.executeCommand('_agentsVoice.openWindow').catch(() => { /* ignore */ });
+					// Keep the session model loaded until the response completes
+					// so the autorun can observe state transitions and trigger narration.
+					const model = this.chatService.getSession(target);
+					if (model) {
+						const lastReq = model.getRequests().at(-1);
+						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
+							const responseDisposable = lastReq.response.onDidChange(() => {
+								if (lastReq.response!.isComplete || lastReq.response!.isCanceled) {
+									responseDisposable.dispose();
+									ref.dispose();
+								}
+							});
+						} else {
+							ref.dispose();
 						}
-					}).catch(err => {
-						this.logService.warn('[voice] Error sending transcription to target session:', err);
-					});
+					} else {
+						ref.dispose();
+					}
+				} else {
+					ref.dispose();
 				}
 			}
 		} else {
@@ -1224,10 +1542,77 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					});
 				}
 			}
+
+			// Ensure the chat view is visible so the user sees/hears the response
+			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		}
+	}
+
+	/**
+	 * Watch a session's latest response and surface it in the floating window
+	 * transcript. Called when voice sends to a non-visible session so the user
+	 * can see the reply without switching the chat panel.
+	 */
+	private _watchResponseForFloatingWindow(sessionResource: URI): void {
+		const model = this.chatService.getSession(sessionResource);
+		if (!model) {
+			return;
 		}
 
-		// Ensure the chat view is visible so the user sees/hears the response
-		this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
+		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
+		// and includes last_response_summary in the patch.
+		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '' });
+		this._sendContext();
+
+		const disposables = new DisposableStore();
+		let lastText = '';
+
+		const updateFromResponse = () => {
+			const lastReq = model.lastRequest;
+			const response = lastReq?.response;
+			if (!response) {
+				return;
+			}
+
+			const markdown = response.response.getMarkdown();
+			// Only first ~200 chars for the floating window transcript preview
+			const previewText = markdown.length > 200 ? markdown.slice(0, 200) + '…' : markdown;
+			if (previewText && previewText !== lastText) {
+				const isFirst = lastText === '';
+				lastText = previewText;
+				this._setAssistantTurn(previewText, { startNewTurn: isFirst });
+			}
+
+			if (response.isComplete || response.isCanceled) {
+				// Notify the voice backend of the state transition so it can
+				// narrate the response for this non-focused session.
+				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '' });
+				this._sendContext();
+				this.voiceClientService.flushSessionContext();
+				disposables.dispose();
+			}
+		};
+
+		// Listen for response changes
+		const checkResponse = () => {
+			const lastReq = model.lastRequest;
+			if (lastReq?.response) {
+				disposables.add(lastReq.response.onDidChange(() => updateFromResponse()));
+				updateFromResponse();
+			}
+		};
+
+		// The response may not exist yet — listen for model changes
+		disposables.add(model.onDidChange(e => {
+			if (e.kind === 'addResponse') {
+				checkResponse();
+			}
+		}));
+		checkResponse();
+
+		// Safety: dispose after 5 minutes in case the response never completes
+		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
+		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
 	// --- Transcript buffer helpers ---
@@ -1484,6 +1869,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 
+		if (isFirstChunk) {
+			this._clearAwaitingReply();
+		}
+
 		// If nothing is playing and queue is empty, or same session is playing, play immediately
 		const nothingPlaying = this._currentPlaybackSessionId === null;
 		const sameSession = !nothingPlaying && this._currentPlaybackSessionId === sessionId;
@@ -1529,15 +1918,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
 		if (ttsEnabled && audio) {
+			this._clearAutoListenTimer();
+			this._replyPlayedSinceSend = true;
 			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
 		} else if (!ttsEnabled) {
-			// TTS disabled — skip audio but still complete the playback cycle
+			this._replyPlayedSinceSend = true;
 			if (isFinal) {
 				this._currentPlaybackSessionId = null;
 				this._processQueue();
+				if (this._isAutoSendEnabled()) {
+					this._scheduleAutoListen();
+				}
 			}
 		} else {
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
@@ -1667,6 +2061,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				currentState = info.state;
 				detail = info.detail;
 				lastResponseSummary = info.last_response_summary;
+				// Model is resident now; drop any pending idle deferral/suppression.
+				this._pendingIdleNarration.delete(sessionId);
 			} else {
 				currentState = s.status === AgentSessionStatus.InProgress ? 'thinking'
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
@@ -1680,6 +2076,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const prev = this._prevSessionStates.get(sessionId);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
 			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+
+			// Defer summary-less idle transitions for remote/Copilot sessions until
+			// their model loads (see _deferIdleNarrationUntilModelLoaded).
+			if (!model && currentState === 'idle' && isStateChange) {
+				this._deferIdleNarrationUntilModelLoaded(s.resource);
+				continue;
+			}
+
 			if (isStateChange || isDetailChange) {
 				const cancelExpiry = this._userCancelledSessions.get(sessionId);
 				if (cancelExpiry) {
@@ -1758,23 +2162,36 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		});
 
+		const targetSessionId = this._targetSession.get()?.toString();
+
 		const sessionList = sessions.map(s => {
 			const model = this.chatService.getSession(s.resource);
+			const isActive = s.resource.toString() === targetSessionId;
 			if (!model) {
-				const fallbackState = s.status === AgentSessionStatus.InProgress ? 'thinking'
+				const sessionIdStr = s.resource.toString();
+				let fallbackState = s.status === AgentSessionStatus.InProgress ? 'thinking'
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 						: s.status === AgentSessionStatus.Completed ? 'idle'
 							: 'unknown';
+				// If this idle transition is deferred until the model loads, keep
+				// reporting the prior state so the backend doesn't narrate a
+				// premature, summary-less completion. See _pendingIdleNarration.
+				if (fallbackState === 'idle' && this._pendingIdleNarration.has(sessionIdStr)) {
+					const prev = this._prevSessionStates.get(sessionIdStr);
+					if (prev?.state) {
+						fallbackState = prev.state;
+					}
+				}
 				return {
-					id: s.resource.toString(),
-					is_active: false,
+					id: sessionIdStr,
+					is_active: isActive,
 					agent_state: fallbackState,
 				};
 			}
 			const stateInfo = this._getAgentStateInfo(model);
 			return {
 				id: s.resource.toString(),
-				is_active: false,
+				is_active: isActive,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
@@ -1796,7 +2213,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			sessionList.push({
 				id: key,
-				is_active: false,
+				is_active: key === targetSessionId,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
@@ -1830,21 +2247,46 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _ensureModelLoaded(resource: URI): void {
 		const key = resource.toString();
-		if (this._eagerModelRefs.has(key) || this.chatService.getSession(resource)) {
+		// Skip if already loaded, resident in the UI, or a load is in flight.
+		// The in-flight guard prevents repeated onDidChangeSessions/autorun
+		// cycles from starting concurrent loads whose refs would overwrite each
+		// other in _eagerModelRefs and leak the prior ref.
+		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
 			return;
 		}
 		this.logService.info(`[voice] eagerly loading model for session ${key.slice(-32)}`);
+		this._eagerModelLoading.add(key);
 		const cts = new CancellationTokenSource();
 		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token, 'VoiceSessionController#eagerLoad').then(ref => {
+			this._eagerModelLoading.delete(key);
 			if (ref) {
-				if (!this._isConnected.get()) {
+				const existing = this._eagerModelRefs.get(key);
+				if (!this._isConnected.get() || existing) {
 					ref.dispose();
+					if (!this._isConnected.get()) {
+						this._pendingIdleNarration.delete(key);
+					}
 				} else {
 					this._eagerModelRefs.set(key, ref);
 				}
+			} else {
+				// Load failed; stop suppressing the coarse idle for this session.
+				this._pendingIdleNarration.delete(key);
 			}
 			cts.dispose();
-		}, () => { cts.dispose(); });
+		}, () => { this._eagerModelLoading.delete(key); this._pendingIdleNarration.delete(key); cts.dispose(); });
+	}
+
+	/**
+	 * Defer narrating a session's ``idle`` transition until its chat model is
+	 * resident, so the narration can include ``last_response_summary``. Remote/
+	 * Copilot sessions don't keep their model loaded, so without this the
+	 * backend would only ever see a summary-less completion. Eagerly loads the
+	 * model; once it resolves the autorun re-fires and narrates with the summary.
+	 */
+	private _deferIdleNarrationUntilModelLoaded(resource: URI): void {
+		this._pendingIdleNarration.add(resource.toString());
+		this._ensureModelLoaded(resource);
 	}
 
 	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string } {
@@ -1946,7 +2388,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.toString() ?? '';
+		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 

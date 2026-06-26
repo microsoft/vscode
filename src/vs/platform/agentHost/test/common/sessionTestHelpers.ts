@@ -171,10 +171,9 @@ export function encodeString(text: string): Uint8Array {
  * exercise the {@link AgentService} but don't care about git state.
  * Tests that DO care about git state should pass their own implementation.
  */
-export function createNoopGitService(): import('../../node/agentHostGitService.js').IAgentHostGitService {
+export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
 	return {
 		_serviceBrand: undefined,
-		isInsideWorkTree: async () => false,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
 		getBranches: async () => [],
@@ -188,7 +187,8 @@ export function createNoopGitService(): import('../../node/agentHostGitService.j
 		commitAll: async () => { },
 		restore: async () => { },
 		hasUpstream: async () => false,
-		pushBranch: async () => { },
+		pull: async () => { },
+		push: async () => { },
 		getSessionGitState: async () => undefined,
 		computeSessionFileDiffs: async () => undefined,
 		showBlob: async () => undefined,
