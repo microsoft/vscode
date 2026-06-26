@@ -366,11 +366,24 @@ export abstract class BaseLayoutController extends Disposable {
 				}
 			}
 
+			// Let subclasses record the resulting side-pane state. The [D2]
+			// per-session capture listener stays suppressed while `_togglingSidePane`
+			// is set, so subclasses that care must observe the change here instead.
+			this._onSidePaneToggled();
+
 			return !isCurrentlyVisible;
 		} finally {
 			this._togglingSidePane = false;
 		}
 	}
+
+	/**
+	 * Hook invoked at the end of {@link toggleSidePane}, while
+	 * {@link _togglingSidePane} is still set, so subclasses can record the
+	 * resulting side-pane state (which the [D2] capture listener deliberately
+	 * ignores). The base implementation does nothing.
+	 */
+	protected _onSidePaneToggled(): void { }
 
 	/**
 	 * [B4] Hook that lets a subclass snapshot the active session's view state when

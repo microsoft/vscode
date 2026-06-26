@@ -350,6 +350,28 @@ export class LayoutController extends BaseLayoutController {
 		this._captureViewState(sessionResource);
 	}
 
+	/**
+	 * [D9b] Closing or opening the whole side pane on a new (uncreated) session is
+	 * recorded as the shared new-session aux-bar choice, so a later restore (D3b)
+	 * never re-opens an aux bar the user closed — neither when the same new
+	 * session re-syncs (e.g. once it gains a workspace) nor when the next new
+	 * session is created. For created sessions this stays a non-choice (D9), so
+	 * reopening the Changes editor reveals the side pane again (D8).
+	 */
+	protected override _onSidePaneToggled(): void {
+		if (this.multipleSessionsVisibleObs.get()) {
+			return;
+		}
+		if (this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isCreated.get()) {
+			return;
+		}
+		this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+	}
+
 	// --- Auxiliary bar [D1] ---
 
 	private _captureViewState(sessionResource: URI): void {
