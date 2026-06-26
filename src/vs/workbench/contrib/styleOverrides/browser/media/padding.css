@@ -61,6 +61,12 @@
 
 .style-override.monaco-workbench .agent-sessions-viewer {
 	.pane-body & .monaco-scrollable-element {
-		padding: 0px 10px;
+		padding: 0px 6px;
+	}
+}
+
+.style-override.monaco-workbench .chat-viewpane {
+	.agent-session-item .agent-session-title-toolbar .actions-container {
+		gap: 4px;
 	}
 }
