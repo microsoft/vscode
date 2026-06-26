@@ -1208,10 +1208,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		let group: ILanguageModelsProviderGroup | undefined;
 
-		// First try to find a group that already has config for this model
+		// First try to find a group that already has config for this model.
 		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
-		// If not found, find any group for this vendor
+		// Otherwise find the group that actually *defines* this model. Several
+		// groups can share the same `vendor` (e.g. multiple `customendpoint`
+		// providers like DeepSeek and MyCustom), so matching by vendor alone would
+		// write the config to the first group of that vendor — not the one the
+		// model belongs to. Resolve via the model→group map instead. See #322872.
+		if (!group) {
+			const vendorGroups = this._modelsGroups.get(metadata.vendor);
+			const containingGroup = vendorGroups?.find(vg => vg.modelIdentifiers.includes(modelId) && vg.group)?.group;
+			if (containingGroup) {
+				group = allGroups.find(g => g.vendor === containingGroup.vendor && g.name === containingGroup.name) ?? containingGroup;
+			}
+		}
+
+		// As a last resort (model not yet resolved into any group), fall back to
+		// any group for this vendor.
 		if (!group) {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}

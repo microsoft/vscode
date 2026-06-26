@@ -60,6 +60,7 @@ interface ISessionLayoutEntry {
 	readonly sessionResource: string;
 	readonly viewState?: ISessionViewState;
 	readonly editorWorkingSet?: IEditorWorkingSet;
+	readonly editorPartHidden?: boolean;
 }
 
 /** New unified storage key for all per-session layout state. */
@@ -83,6 +84,12 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelVisibilityBySession = new ResourceMap<boolean>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
+	/**
+	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
+	 * Panel while keeping editors open) for a session, captured on switch-away so
+	 * restoring the session's working set does not force the editor part open.
+	 */
+	protected readonly _editorPartHiddenBySession = new ResourceMap<boolean>();
 	private readonly _workingSetSequencer = new Sequencer();
 
 	protected readonly activeSessionResourceObs;
@@ -246,6 +253,7 @@ export abstract class BaseLayoutController extends Disposable {
 				for (const session of [...e.removed, ...archivedSessions]) {
 					this._deleteWorkingSet(session.resource);
 					this._viewStateBySession.delete(session.resource);
+					this._editorPartHiddenBySession.delete(session.resource);
 				}
 			}));
 		}));
@@ -413,6 +421,9 @@ export abstract class BaseLayoutController extends Disposable {
 					if (entry.editorWorkingSet) {
 						this._workingSets.set(resource, entry.editorWorkingSet);
 					}
+					if (entry.editorPartHidden !== undefined) {
+						this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
+					}
 					if (entry.viewState) {
 						this._viewStateBySession.set(resource, entry.viewState);
 					}
@@ -467,6 +478,7 @@ export abstract class BaseLayoutController extends Disposable {
 		const allResources = new ResourceMap<true>();
 		this._workingSets.forEach((_, r) => allResources.set(r, true));
 		this._viewStateBySession.forEach((_, r) => allResources.set(r, true));
+		this._editorPartHiddenBySession.forEach((_, r) => allResources.set(r, true));
 
 		if (allResources.size === 0) {
 			this._storageService.remove(SESSION_LAYOUT_STATE_KEY, StorageScope.WORKSPACE);
@@ -479,6 +491,7 @@ export abstract class BaseLayoutController extends Disposable {
 				sessionResource: resource.toString(),
 				editorWorkingSet: this._workingSets.get(resource),
 				viewState: this._viewStateBySession.get(resource),
+				editorPartHidden: this._editorPartHiddenBySession.get(resource),
 			});
 		});
 		this._storageService.store(SESSION_LAYOUT_STATE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -500,7 +513,13 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Editor working sets [B2] ---
 
 	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
-		const preserveFocus = this._layoutService.hasFocus(Parts.PANEL_PART);
+		// Restoring a session's editor working set must never pull keyboard focus
+		// into the editor area. Focus during a session switch is owned by the
+		// switch itself (it moves focus into the active session's chat input, or
+		// leaves it on the panel); letting the editor restore grab focus would
+		// steal it from the chat input whenever the target session has editors
+		// open.
+		const preserveFocus = true;
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';
@@ -539,12 +558,17 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 
-			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			// The user may have hidden the editor part for this session (e.g. by
+			// closing the Side Panel while keeping editors open). Restore it as
+			// left instead of forcing the editor part back open on switch.
+			const editorPartHidden = sessionResource ? this._editorPartHiddenBySession.get(sessionResource) === true : false;
+
+			if (!isModal && !editorPartHidden && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!isModal && !editorPartHidden && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
 			}
 		});
@@ -552,6 +576,14 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _saveWorkingSet(sessionResource: URI): void {
 		this._deleteWorkingSet(sessionResource);
+
+		// Remember the editor part's hidden state so restoring the session does
+		// not force it back open (see _applyWorkingSet). Skipped while multiple
+		// sessions are visible: the editor area is shared across them, so its
+		// visibility is not a per-session choice.
+		if (this._sessionsService.visibleSessions.get().length <= 1) {
+			this._editorPartHiddenBySession.set(sessionResource, !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
+		}
 
 		if (this._editorService.visibleEditors.length > 0) {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;
