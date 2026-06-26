@@ -43,8 +43,8 @@ export const COPILOT_MODEL_KEY = 'model';
  * `telemetry` block from the cross-client managed-settings schema (see the CLI
  * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
  * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
- * The `telemetry.headers` / `telemetry.resourceAttributes` map fields require structured-key
- * handling (see {@link STRUCTURED_MANAGED_SETTINGS}); `telemetry.serviceName` is a scalar.
+ * The `telemetry.resourceAttributes` map field is structured (a {@link STRUCTURED_MANAGED_SETTINGS}
+ * row carries it as a JSON-encoded object under a nested key); `telemetry.serviceName` is a scalar.
  */
 
 /** Managed-settings key for enterprise OTel enablement. */
@@ -64,6 +64,9 @@ export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureConte
 
 /** Managed-settings key for the OTel `service.name` resource attribute. */
 export const COPILOT_OTEL_SERVICE_NAME_KEY = 'telemetry.serviceName';
+
+/** Managed-settings key for additional OTel resource attributes (a `{ [k]: string }` map). */
+export const COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttributes';
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
@@ -284,7 +287,63 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
 		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
 	},
+	{
+		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
+		// primitive values are coerced to strings; non-primitive values are dropped.
+		key: COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY,
+		encode: value => {
+			if (!isObject(value)) {
+				return undefined;
+			}
+			const out: Record<string, string> = {};
+			for (const [k, v] of Object.entries(value)) {
+				if (isString(v)) {
+					out[k] = v;
+				} else if (typeof v === 'number' || typeof v === 'boolean') {
+					out[k] = String(v);
+				}
+			}
+			return out;
+		},
+	},
 ];
+
+/**
+ * Read a (possibly nested) dot-separated key from a parsed managed-settings object, e.g.
+ * `telemetry.resourceAttributes`. Returns `undefined` if any path segment is missing or not an
+ * object. Single-segment keys behave like a plain property read.
+ */
+function readNestedManagedKey(obj: Record<string, unknown>, dottedKey: string): unknown {
+	let current: unknown = obj;
+	for (const segment of dottedKey.split('.')) {
+		if (!isObject(current)) {
+			return undefined;
+		}
+		current = (current as Record<string, unknown>)[segment];
+	}
+	return current;
+}
+
+/**
+ * Return a copy of `obj` with the (possibly nested) dot-separated key removed, cloning only the
+ * objects along the touched path so the original (and any shared sub-objects) stay untouched. The
+ * spread-then-`delete` shape matches a destructuring rest: it copies own enumerable keys (including
+ * an own `__proto__`) without triggering the inherited `__proto__` setter.
+ */
+function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: string): Record<string, unknown> {
+	const dot = dottedKey.indexOf('.');
+	if (dot === -1) {
+		const clone = { ...obj };
+		delete clone[dottedKey];
+		return clone;
+	}
+	const head = dottedKey.slice(0, dot);
+	const child = obj[head];
+	if (!isObject(child)) {
+		return obj;
+	}
+	return { ...obj, [head]: withNestedManagedKeyDeleted(child as Record<string, unknown>, dottedKey.slice(dot + 1)) };
+}
 
 /**
  * Normalize a parsed managed-settings object (from the server `managed_settings` API, a file on
@@ -309,16 +368,17 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn?: (msg: string) => void): ManagedSettingsData {
 	// Spread + delete (not for..in + assignment) so the scalar remainder keeps exact `{ ...rest }`
 	// semantics: it never triggers the inherited `__proto__` setter for a source-sent own
-	// `__proto__` key, matching a destructuring rest.
-	const scalarRest: Record<string, unknown> = { ...parsed };
+	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
+	// `telemetry.resourceAttributes`), so removal clones only the touched path.
+	let scalarRest: Record<string, unknown> = { ...parsed };
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
-		delete scalarRest[setting.key];
+		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
 
 	const result: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(scalarRest) };
 
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
-		const encoded = setting.encode(parsed[setting.key], onWarn);
+		const encoded = setting.encode(readNestedManagedKey(parsed, setting.key), onWarn);
 		if (encoded !== undefined) {
 			result[setting.key] = JSON.stringify(encoded);
 		}

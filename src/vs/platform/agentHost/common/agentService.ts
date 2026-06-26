@@ -297,6 +297,8 @@ export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.capture
 export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
 /** Policy-only delivery slot for the enterprise-managed OTel `service.name` (no user UI). */
 export const AgentHostOTelServiceNameSettingId = 'chat.agentHost.otel.serviceName';
+/** Policy-only delivery slot for enterprise-managed OTel resource attributes (no user UI). */
+export const AgentHostOTelResourceAttributesSettingId = 'chat.agentHost.otel.resourceAttributes';
 /** When true, ALL spans are persisted to a local SQLite store regardless of `exporterType`. */
 export const AgentHostOTelDbSpanExporterEnabledSettingId = 'chat.agentHost.otel.dbSpanExporter.enabled';
 
@@ -330,6 +332,7 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
+	ResourceAttributes: 'OTEL_RESOURCE_ATTRIBUTES',
 	DbSpanExporterEnabled: 'COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED',
 } as const);
 
@@ -345,6 +348,7 @@ export interface IAgentHostOTelSettings {
 	readonly captureContent?: boolean;
 	readonly outfile?: string;
 	readonly serviceName?: string;
+	readonly resourceAttributes?: Record<string, string>;
 	readonly dbSpanExporterEnabled?: boolean;
 }
 
@@ -377,6 +381,7 @@ export function readAgentHostOTelPolicySettings(configurationService: IConfigura
 		captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
 		outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
 		serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+		resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
 	};
 }
 
@@ -392,6 +397,18 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 	const record = raw as Record<string, unknown>;
 	const asString = (value: unknown): string | undefined => typeof value === 'string' ? value : undefined;
 	const asBoolean = (value: unknown): boolean | undefined => typeof value === 'boolean' ? value : undefined;
+	const asStringRecord = (value: unknown): Record<string, string> | undefined => {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) {
+			return undefined;
+		}
+		const out: Record<string, string> = {};
+		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			if (typeof v === 'string') {
+				out[k] = v;
+			}
+		}
+		return out;
+	};
 	return {
 		enabled: asBoolean(record.enabled),
 		exporterType: asString(record.exporterType),
@@ -400,7 +417,23 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		captureContent: asBoolean(record.captureContent),
 		outfile: asString(record.outfile),
 		serviceName: asString(record.serviceName),
+		resourceAttributes: asStringRecord(record.resourceAttributes),
 	};
+}
+
+/**
+ * Serialize an OTel resource-attribute map into the `OTEL_RESOURCE_ATTRIBUTES` env-var format
+ * (`key1=value1,key2=value2`, W3C Baggage style). Returns `undefined` for an empty/absent map so
+ * callers can skip emitting the env var. Empty keys and non-string values are dropped.
+ */
+function serializeResourceAttributes(attributes: Record<string, string> | undefined): string | undefined {
+	if (!attributes) {
+		return undefined;
+	}
+	const parts = Object.entries(attributes)
+		.filter(([key, value]) => key !== '' && typeof value === 'string')
+		.map(([key, value]) => `${key}=${value}`);
+	return parts.length > 0 ? parts.join(',') : undefined;
 }
 
 /**
@@ -436,6 +469,7 @@ export function buildAgentHostOTelEnv(
 	setIfMissing(AgentHostOTelEnvVars.ExporterType, settings.exporterType);
 	setIfMissing(AgentHostOTelEnvVars.OtlpEndpoint, settings.otlpEndpoint);
 	setIfMissing(AgentHostOTelEnvVars.ServiceName, settings.serviceName);
+	setIfMissing(AgentHostOTelEnvVars.ResourceAttributes, serializeResourceAttributes(settings.resourceAttributes));
 	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
 	if (settings.captureContent !== undefined) {
 		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
@@ -475,6 +509,10 @@ export function buildAgentHostOTelEnv(
 	}
 	if (policySettings.serviceName !== undefined && policySettings.serviceName !== '') {
 		setPolicy(AgentHostOTelEnvVars.ServiceName, policySettings.serviceName);
+	}
+	const policyResourceAttributes = serializeResourceAttributes(policySettings.resourceAttributes);
+	if (policyResourceAttributes !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.ResourceAttributes, policyResourceAttributes);
 	}
 	return out;
 }

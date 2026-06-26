@@ -5356,6 +5356,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.resourceAttributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelResourceAttributes"
+            },
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Configurable in user settings only. Merged per-key with `OTEL_RESOURCE_ATTRIBUTES` env (env wins over the setting); enterprise policy wins over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.maxAttributeSizeChars": {
             "type": "integer",
             "default": 0,

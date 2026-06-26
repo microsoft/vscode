@@ -57,6 +57,22 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('flattens scalar telemetry leaves and carries resourceAttributes as a single JSON key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: {
+				enabled: true,
+				serviceName: 'acme-copilot',
+				resourceAttributes: { 'deployment.environment': 'prod', 'service.namespace': 'acme' },
+			},
+		}), {
+			managedSettings: {
+				'telemetry.enabled': true,
+				'telemetry.serviceName': 'acme-copilot',
+				'telemetry.resourceAttributes': '{"deployment.environment":"prod","service.namespace":"acme"}',
+			},
+		});
+	});
+
 	test('encodes github marketplaces as a { name: shorthand } JSON dict', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {

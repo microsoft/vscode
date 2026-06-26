@@ -122,6 +122,24 @@ suite('buildAgentHostOTelEnv', () => {
 		// The builder returns only overrides; leaving the key out preserves the inherited env value.
 		assert.strictEqual(env[AgentHostOTelEnvVars.ServiceName], undefined);
 	});
+
+	test('managed resource attributes serialize into OTEL_RESOURCE_ATTRIBUTES', () => {
+		const env = buildAgentHostOTelEnv(
+			{},
+			{ [AgentHostOTelEnvVars.ResourceAttributes]: 'service.namespace=env' },
+			{ resourceAttributes: { 'deployment.environment': 'prod', 'service.namespace': 'acme' } },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.ResourceAttributes], 'deployment.environment=prod,service.namespace=acme');
+	});
+
+	test('empty managed resource attributes emit no override', () => {
+		const env = buildAgentHostOTelEnv(
+			{},
+			{ [AgentHostOTelEnvVars.ResourceAttributes]: 'service.namespace=env' },
+			{ resourceAttributes: {} },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.ResourceAttributes], undefined);
+	});
 });
 
 suite('readAgentHostOTelPolicySettings', () => {
@@ -143,6 +161,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			'chat.agentHost.otel.captureContent': false,
 			'chat.agentHost.otel.outfile': '/tmp/o.jsonl',
 			'chat.agentHost.otel.serviceName': 'my-service',
+			'chat.agentHost.otel.resourceAttributes': { 'service.namespace': 'acme' },
 		});
 		assert.deepStrictEqual(readAgentHostOTelPolicySettings(cfg), {
 			enabled: true,
@@ -152,6 +171,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			captureContent: false,
 			outfile: '/tmp/o.jsonl',
 			serviceName: 'my-service',
+			resourceAttributes: { 'service.namespace': 'acme' },
 		});
 	});
 
@@ -164,6 +184,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			captureContent: undefined,
 			outfile: undefined,
 			serviceName: undefined,
+			resourceAttributes: undefined,
 		});
 	});
 });
@@ -182,6 +203,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				captureContent: false,
 				outfile: '/tmp/o.jsonl',
 				serviceName: 'my-service',
+				resourceAttributes: { 'service.namespace': 'acme', dropped: 7 },
 				bogus: 123,
 			}),
 			{
@@ -192,6 +214,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				captureContent: false,
 				outfile: '/tmp/o.jsonl',
 				serviceName: 'my-service',
+				resourceAttributes: { 'service.namespace': 'acme' },
 			},
 		);
 	});
@@ -199,7 +222,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 	test('mistyped fields are dropped to undefined', () => {
 		assert.deepStrictEqual(
 			sanitizeAgentHostOTelPolicySettings({ enabled: 'yes', otlpEndpoint: 42, captureContent: 1 }),
-			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined, serviceName: undefined },
+			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined, serviceName: undefined, resourceAttributes: undefined },
 		);
 	});
 

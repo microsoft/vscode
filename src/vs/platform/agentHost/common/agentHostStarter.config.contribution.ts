@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -23,6 +23,7 @@ import {
 	AgentHostOTelOtlpEndpointSettingId,
 	AgentHostOTelOtlpProtocolSettingId,
 	AgentHostOTelOutfileSettingId,
+	AgentHostOTelResourceAttributesSettingId,
 	AgentHostOTelServiceNameSettingId,
 } from './agentService.js';
 
@@ -332,6 +333,32 @@ configurationRegistry.registerConfiguration({
 					description: {
 						key: 'chat.agentHost.otel.serviceName.policy',
 						value: nls.localize('chat.agentHost.otel.serviceName.policy', "Controls the enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export."),
+					}
+				},
+			},
+		},
+		[AgentHostOTelResourceAttributesSettingId]: {
+			// Policy-only delivery slot — no user-writable surface (mirrors `chat.plugins.extraMarketplaces`).
+			// Carried as a `{ [key]: string }` object; the starters serialize it into `OTEL_RESOURCE_ATTRIBUTES`.
+			type: 'object',
+			additionalProperties: { type: ['string'] as ['string'] },
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental', 'advanced'],
+			markdownDescription: nls.localize('chat.agentHost.otel.resourceAttributes', "Enterprise-managed OTel resource attributes for Copilot OpenTelemetry export. Policy-only: there is no user-facing setting; it carries the managed `telemetry.resourceAttributes` map so the agent host's `OTEL_RESOURCE_ATTRIBUTES` includes the deployment's attributes."),
+			policy: {
+				name: 'CopilotOtelResourceAttributes',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.resourceAttributes.policy',
+						value: nls.localize('chat.agentHost.otel.resourceAttributes.policy', "Controls the enterprise-managed OTel resource attributes for Copilot OpenTelemetry export."),
 					}
 				},
 			},

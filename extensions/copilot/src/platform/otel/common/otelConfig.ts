@@ -100,6 +100,10 @@ export interface OTelConfigInput {
 	settingServiceName?: string;
 	/** Enterprise-managed `service.name` (raw `telemetry.serviceName`). */
 	policyServiceName?: string;
+	/** Resource attributes from VS Code setting (`github.copilot.chat.otel.resourceAttributes`). */
+	settingResourceAttributes?: Record<string, string>;
+	/** Enterprise-managed resource attributes (raw `telemetry.resourceAttributes`). */
+	policyResourceAttributes?: Record<string, string>;
 	extensionVersion: string;
 	sessionId: string;
 	vscodeTelemetryLevel?: string;
@@ -233,8 +237,12 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		?? (input.settingServiceName || undefined)
 		?? 'copilot-chat';
 
-	// Resource attributes
-	const resourceAttributes = parseResourceAttributes(env['OTEL_RESOURCE_ATTRIBUTES']);
+	// Resource attributes: merged per-key with precedence policy > env > setting.
+	const resourceAttributes = {
+		...(input.settingResourceAttributes ?? {}),
+		...parseResourceAttributes(env['OTEL_RESOURCE_ATTRIBUTES']),
+		...(input.policyResourceAttributes ?? {}),
+	};
 
 	return Object.freeze({
 		enabled: true,
