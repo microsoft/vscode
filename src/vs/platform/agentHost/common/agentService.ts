@@ -282,6 +282,13 @@ export const AgentHostCodexAgentBinaryArgsEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_
 export const AgentHostOTelEnabledSettingId = 'chat.agentHost.otel.enabled';
 /** Exporter type for the SDK's OTel pipeline. One of: `otlp-http`, `otlp-grpc`, `console`, `file`. */
 export const AgentHostOTelExporterTypeSettingId = 'chat.agentHost.otel.exporterType';
+/**
+ * OTLP wire protocol (`http/json`, `http/protobuf`, `grpc`). Policy-only delivery slot (no user UI):
+ * carries the enterprise-managed `telemetry.protocol` so it can be threaded into the agent host's
+ * `OTEL_EXPORTER_OTLP_PROTOCOL` env, which the runtime needs to distinguish protobuf from json
+ * (the `exporterType` setting only models transport, not the HTTP wire encoding).
+ */
+export const AgentHostOTelOtlpProtocolSettingId = 'chat.agentHost.otel.otlpProtocol';
 /** OTLP endpoint URL when `exporterType` is `otlp-http` or `otlp-grpc`. */
 export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpoint';
 /** Whether to include prompt/response content in span attributes (privacy-sensitive). */
@@ -314,6 +321,8 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
 	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
 	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpTracesProtocol: 'OTEL_EXPORTER_OTLP_TRACES_PROTOCOL',
+	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
@@ -328,6 +337,7 @@ export const AgentHostOTelEnvVars = Object.freeze({
 export interface IAgentHostOTelSettings {
 	readonly enabled?: boolean;
 	readonly exporterType?: string;
+	readonly otlpProtocol?: string;
 	readonly otlpEndpoint?: string;
 	readonly captureContent?: boolean;
 	readonly outfile?: string;
@@ -385,6 +395,13 @@ export function buildAgentHostOTelEnv(
 	if (policySettings.exporterType !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
 		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+	}
+	if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
+		// Mirror the CLI: thread the managed protocol into the generic AND per-signal protocol
+		// env vars so it wins over any user-provided OTEL_EXPORTER_OTLP_{,TRACES_,METRICS_}PROTOCOL.
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
 	}
 	if (policySettings.otlpEndpoint !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession, isAgentEnabled } from '../../common/agentService.js';
+import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled } from '../../common/agentService.js';
 
 suite('AgentSession namespace', () => {
 
@@ -65,4 +65,41 @@ suite('isAgentEnabled', () => {
 			assert.strictEqual(isAgentEnabled(envValue, defaultEnabled), expected);
 		});
 	}
+});
+
+suite('buildAgentHostOTelEnv', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('enterprise policy wins over inherited env', () => {
+		const env = buildAgentHostOTelEnv(
+			{ enabled: false },
+			{ [AgentHostOTelEnvVars.OtlpEndpoint]: 'http://user:4318' },
+			{ enabled: true, otlpEndpoint: 'http://enterprise:4318' },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.Enabled], 'true');
+		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpEndpoint], 'http://enterprise:4318');
+	});
+
+	test('managed protocol sets the generic and per-signal protocol env vars', () => {
+		const env = buildAgentHostOTelEnv(
+			{},
+			{ [AgentHostOTelEnvVars.OtlpProtocol]: 'http/json' },
+			{ otlpProtocol: 'http/protobuf' },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpProtocol], 'http/protobuf');
+		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpTracesProtocol], 'http/protobuf');
+		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpMetricsProtocol], 'http/protobuf');
+	});
+
+	test('policy-disabled blanks endpoint and file export', () => {
+		const env = buildAgentHostOTelEnv(
+			{ enabled: true, otlpEndpoint: 'http://user:4318' },
+			{},
+			{ enabled: false },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.Enabled], 'false');
+		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpEndpoint], '');
+		assert.strictEqual(env[AgentHostOTelEnvVars.FilePath], '');
+	});
 });

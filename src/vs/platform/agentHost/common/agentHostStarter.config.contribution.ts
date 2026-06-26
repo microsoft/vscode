@@ -21,6 +21,7 @@ import {
 	AgentHostOTelEnabledSettingId,
 	AgentHostOTelExporterTypeSettingId,
 	AgentHostOTelOtlpEndpointSettingId,
+	AgentHostOTelOtlpProtocolSettingId,
 	AgentHostOTelOutfileSettingId,
 } from './agentService.js';
 
@@ -200,6 +201,32 @@ configurationRegistry.registerConfiguration({
 						{ key: 'chat.agentHost.otel.protocol.policy.console', value: nls.localize('chat.agentHost.otel.protocol.policy.console', "Console exporter is not selected by enterprise managed settings."), },
 						{ key: 'chat.agentHost.otel.protocol.policy.file', value: nls.localize('chat.agentHost.otel.protocol.policy.file', "File exporter is not selected by enterprise managed settings."), },
 					],
+				},
+			},
+		},
+		[AgentHostOTelOtlpProtocolSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.agentHost.otel.otlpProtocol', "Enterprise-managed OTLP wire protocol (`http/json`, `http/protobuf`, or `grpc`) for Copilot OpenTelemetry export. Policy-only: there is no user-facing setting; it carries the managed `telemetry.protocol` so the agent host's `OTEL_EXPORTER_OTLP_PROTOCOL` distinguishes protobuf from json."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			// Policy-only delivery slot — no user-writable surface (mirrors `chat.plugins.extraMarketplaces`).
+			included: false,
+			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelOtlpProtocol`; passes the raw managed `telemetry.protocol` through so the
+			// starters can set `OTEL_EXPORTER_OTLP_PROTOCOL` (the `exporterType` policy only carries transport).
+			policy: {
+				name: 'CopilotOtelOtlpProtocol',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_PROTOCOL_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_PROTOCOL_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.otlpProtocol.policy',
+						value: nls.localize('chat.agentHost.otel.otlpProtocol.policy', "Controls the enterprise-managed OTLP wire protocol (protobuf vs JSON) for Copilot OpenTelemetry export."),
+					}
 				},
 			},
 		},
