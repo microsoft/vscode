@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -372,12 +373,16 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidChangeSessionGitState = Event.None;
+	readonly onDidRunSessionGitStateRefresh = Event.None;
+
 	readonly refreshed: string[] = [];
 
 	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
 		this.refreshed.push(sessionKey);
 		return undefined;
 	}
+	async refreshSessionGitState2(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }
