@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { AsyncIterableObject, AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema } from '../../common/languageModels.js';
+import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -53,6 +59,8 @@ suite('LanguageModels', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		languageModels.deltaLanguageModelChatProviderDescriptors([
@@ -434,6 +442,8 @@ suite('LanguageModels - When Clause', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
@@ -497,6 +507,8 @@ suite('LanguageModels - Model Change Events', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		// Register the vendor first
@@ -841,6 +853,8 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 	});
 
@@ -963,6 +977,8 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1164,6 +1180,8 @@ suite('LanguageModels - Provider Group Management', function () {
 			secretStorageService,
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1327,6 +1345,8 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1399,6 +1419,8 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1460,6 +1482,8 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1505,6 +1529,120 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			{ localDetail: local?.detail, remoteDetail: remote?.detail },
 			{ localDetail: 'Detailed (Local)', remoteDetail: 'Detailed (Remote)' }
 		);
+	});
+});
+
+suite('LanguageModels - Provider Deprecation Notice', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class RecordingNotificationService extends TestNotificationService {
+		readonly prompts: { message: string; choices: IPromptChoice[]; options?: IPromptOptions }[] = [];
+		override prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
+			this.prompts.push({ message, choices, options });
+			return super.prompt(severity, message, choices, options);
+		}
+	}
+
+	async function createService(vendor: string, displayName: string, link: string | undefined, opened: string[]): Promise<{ service: LanguageModelsService; modelId: string; notifications: RecordingNotificationService }> {
+		const notifications = new RecordingNotificationService();
+		const service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			notifications,
+			new class extends mock<IOpenerService>() {
+				override async open(resource: string | URI) {
+					opened.push(resource.toString());
+					return true;
+				}
+			},
+		));
+
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined, deprecation: link ? { link } : undefined }
+		], []);
+
+		disposables.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => ([{
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Deprecation Model',
+					vendor,
+					family: 'deprecation-family',
+					version: '1.0',
+					id: `${vendor}/deprecation-model`,
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefaultForLocation: {}
+				} satisfies ILanguageModelChatMetadata,
+				identifier: `${vendor}/deprecation-model`
+			}]),
+			sendChatRequest: async () => ({ stream: AsyncIterableObject.EMPTY, result: Promise.resolve(undefined) }),
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const models = await service.selectLanguageModels({ id: `${vendor}/deprecation-model` });
+		assert.strictEqual(models.length, 1);
+		return { service, modelId: models[0], notifications };
+	}
+
+	function sendChat(service: LanguageModelsService, modelId: string): Promise<unknown> {
+		return service.sendChatRequest(modelId, nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }], {}, CancellationToken.None);
+	}
+
+	test('prompts to install the replacement when a deprecated provider services a request', async function () {
+		const opened: string[] = [];
+		const { service, modelId, notifications } = await createService('ollama', 'Ollama (Deprecated)', 'vscode:extension/Ollama.ollama', opened);
+
+		await sendChat(service, modelId);
+
+		assert.strictEqual(notifications.prompts.length, 1);
+		const prompt = notifications.prompts[0];
+		assert.ok(prompt.message.includes('Ollama') && !prompt.message.includes('(Deprecated)'), `unexpected message: ${prompt.message}`);
+		assert.strictEqual(prompt.options?.neverShowAgain?.id, 'chat.providerDeprecation.ollama');
+
+		prompt.choices[0].run();
+		assert.deepStrictEqual(opened, ['vscode:extension/Ollama.ollama']);
+	});
+
+	test('shows the deprecation notice at most once per session', async function () {
+		const { service, modelId, notifications } = await createService('ollama', 'Ollama (Deprecated)', 'vscode:extension/Ollama.ollama', []);
+
+		await sendChat(service, modelId);
+		await sendChat(service, modelId);
+
+		assert.strictEqual(notifications.prompts.length, 1);
+	});
+
+	test('does not prompt for a provider without a deprecation link', async function () {
+		const { service, modelId, notifications } = await createService('openai', 'OpenAI', undefined, []);
+
+		await sendChat(service, modelId);
+
+		assert.strictEqual(notifications.prompts.length, 0);
 	});
 });
 
