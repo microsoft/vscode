@@ -1164,12 +1164,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					};
 				}
 			}
-			// Only restore once the tool is complete so its progress spinner is resolved.
-			// finalizeTitleIfDefault is one-shot (markAsInactive follows), so if the tool
-			// hasn't reported completion yet we must not give up permanently — otherwise the
-			// lone tool stays stuck inside the thinking part. Instead, observe the tool's
-			// state and promote it to its original position once it completes, regardless of
-			// the tool type.
+			// Only restore once the tool is complete; if it completes after finalize, retry promotion.
 			if (this.singleItemInfo) {
 				const toolInvocation = this.singleItemInfo.toolInvocation;
 				if (!toolInvocation || IChatToolInvocation.isComplete(toolInvocation)) {
