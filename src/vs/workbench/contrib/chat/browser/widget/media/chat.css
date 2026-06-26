@@ -4433,7 +4433,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.active {
 	opacity: 1;
-	outline: 1px solid var(--vscode-contrastActiveBorder, var(--vscode-contrastBorder));
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-contrastBorder));
 }
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker.chat-scrollbar-prompt-marker-lane-left {
