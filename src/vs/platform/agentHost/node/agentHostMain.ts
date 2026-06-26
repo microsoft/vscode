@@ -26,6 +26,7 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { ClaudeUsageService, IClaudeUsageService } from './claude/claudeUsageService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
@@ -166,6 +167,8 @@ async function startAgentHost(): Promise<void> {
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
 		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
+		const claudeUsageService = disposables.add(instantiationService.createInstance(ClaudeUsageService));
+		diServices.set(IClaudeUsageService, claudeUsageService);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);

@@ -18,6 +18,8 @@ import {
 } from '../../node/shared/copilotApiService.js';
 import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { markAsSingleton } from '../../../../base/common/lifecycle.js';
+import { ClaudeUsageService, IClaudeUsageService } from '../../node/claude/claudeUsageService.js';
 
 /**
  * Asserts a `/v1/messages` error envelope was re-emitted with all fields
@@ -337,8 +339,8 @@ function makeStreamEvents(model: string): Anthropic.MessageStreamEvent[] {
 
 // #region Service builder
 
-function createProxyService(fakeApi: FakeCopilotApiService): ClaudeProxyService {
-	return new ClaudeProxyService(new NullLogService(), fakeApi);
+function createProxyService(fakeApi: FakeCopilotApiService, usage: IClaudeUsageService = markAsSingleton(new ClaudeUsageService())): ClaudeProxyService {
+	return new ClaudeProxyService(new NullLogService(), fakeApi, usage);
 }
 
 const TOKEN = 'gh-test-token';
@@ -735,7 +737,7 @@ suite('ClaudeProxyService', () => {
 
 	suite('Credits reporting', () => {
 
-		test('streaming: copilot_usage.total_nano_aiu fires onDidReportCredits with the session id', async () => {
+		test('streaming: copilot_usage.total_nano_aiu records session usage with the session id', async () => {
 			const fake = new FakeCopilotApiService();
 			const events = makeStreamEvents('claude-opus-4.6');
 			// Attach CAPI billing to the message_delta, mirroring the real
@@ -744,9 +746,8 @@ suite('ClaudeProxyService', () => {
 			const delta = events.find(e => e.type === 'message_delta')!;
 			(delta as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 750_000_000 };
 			fake.messagesResult = { kind: 'stream', events };
-			const service = createProxyService(fake);
-			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
+			const usage = markAsSingleton(new ClaudeUsageService());
+			const service = createProxyService(fake, usage);
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchSse(`${handle.baseUrl}/v1/messages`, {
@@ -757,22 +758,20 @@ suite('ClaudeProxyService', () => {
 					},
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8, stream: true }),
 				});
-				assert.deepStrictEqual(reports, [{ sessionId: 'sess-42', totalNanoAiu: 750_000_000 }]);
+				assert.strictEqual(usage.peek('sess-42'), 750_000_000);
 			} finally {
-				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
 		});
 
-		test('non-streaming: copilot_usage.total_nano_aiu fires onDidReportCredits', async () => {
+		test('non-streaming: copilot_usage.total_nano_aiu records session usage', async () => {
 			const fake = new FakeCopilotApiService();
 			const message = makeMessage('claude-opus-4.6', 'hi');
 			(message as unknown as { copilot_usage: { total_nano_aiu: number } }).copilot_usage = { total_nano_aiu: 250_000_000 };
 			fake.messagesResult = { kind: 'message', message };
-			const service = createProxyService(fake);
-			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
+			const usage = markAsSingleton(new ClaudeUsageService());
+			const service = createProxyService(fake, usage);
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchJson(`${handle.baseUrl}/v1/messages`, {
@@ -783,20 +782,18 @@ suite('ClaudeProxyService', () => {
 					},
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
 				});
-				assert.deepStrictEqual(reports, [{ sessionId: 'sess-7', totalNanoAiu: 250_000_000 }]);
+				assert.strictEqual(usage.peek('sess-7'), 250_000_000);
 			} finally {
-				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
 		});
 
-		test('no copilot_usage in the response → no credits report', async () => {
+		test('no copilot_usage in the response → no credits recorded', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.messagesResult = { kind: 'message', message: makeMessage('claude-opus-4.6', 'hi') };
-			const service = createProxyService(fake);
-			const reports: { sessionId: string; totalNanoAiu: number }[] = [];
-			const sub = service.onDidReportCredits(e => reports.push(e));
+			const usage = markAsSingleton(new ClaudeUsageService());
+			const service = createProxyService(fake, usage);
 			const handle = await service.start(TOKEN);
 			try {
 				await fetchJson(`${handle.baseUrl}/v1/messages`, {
@@ -807,9 +804,8 @@ suite('ClaudeProxyService', () => {
 					},
 					body: JSON.stringify({ model: 'claude-opus-4-6', messages: [], max_tokens: 8 }),
 				});
-				assert.deepStrictEqual(reports, []);
+				assert.strictEqual(usage.peek('sess-9'), 0);
 			} finally {
-				sub.dispose();
 				handle.dispose();
 				service.dispose();
 			}
@@ -1253,7 +1249,7 @@ suite('ClaudeProxyService', () => {
 				responses: () => Promise.reject(new Error('not used')),
 				utilityChatCompletion: () => Promise.reject(new Error('not used')),
 			};
-			const service = new ClaudeProxyService(new NullLogService(), wrapped);
+			const service = new ClaudeProxyService(new NullLogService(), wrapped, markAsSingleton(new ClaudeUsageService()));
 			const handle = await service.start(TOKEN);
 
 			try {
@@ -1322,7 +1318,7 @@ suite('ClaudeProxyService', () => {
 				responses: fake.responses.bind(fake),
 				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
 			};
-			const service = new ClaudeProxyService(new NullLogService(), wrapped);
+			const service = new ClaudeProxyService(new NullLogService(), wrapped, markAsSingleton(new ClaudeUsageService()));
 			const handle = await service.start(TOKEN);
 
 			const inflight = fetchJson(`${handle.baseUrl}/v1/messages`, {

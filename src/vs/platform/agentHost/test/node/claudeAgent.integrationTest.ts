@@ -60,6 +60,7 @@ import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { ClaudeUsageService, IClaudeUsageService } from '../../node/claude/claudeUsageService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import {
@@ -604,7 +605,8 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const capi = new StubCopilotApiService();
 		capi.streamEvents = makeCannedStream('claude-opus-4.6');
 
-		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const realUsage = disposables.add(new ClaudeUsageService());
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi, realUsage));
 		const sdk = new ProxyRoundTripSdkService();
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -614,6 +616,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[ILogService, logService],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
+			[IClaudeUsageService, realUsage],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, {
@@ -705,7 +708,8 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		// above fails — but this test guarantees the proxy itself
 		// rejects forged bearers regardless of the agent.
 		const capi = new StubCopilotApiService();
-		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const realUsage = disposables.add(new ClaudeUsageService());
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi, realUsage));
 		const handle = await realProxy.start('gh-int-test-token');
 		try {
 			const result = await postSseToProxy(
@@ -734,7 +738,8 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		// proxy is in the loop.
 		const capi = new StubCopilotApiService();
 		capi.streamEvents = makeCannedStream('claude-opus-4.6');
-		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const realUsage = disposables.add(new ClaudeUsageService());
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi, realUsage));
 		const sdk = new ProxyRoundTripSdkService();
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -744,6 +749,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[ILogService, logService],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
+			[IClaudeUsageService, realUsage],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, {
@@ -793,7 +799,8 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		// way the real subprocess would.
 		const capi = new StubCopilotApiService();
 		capi.streamEvents = makeCannedStream('claude-opus-4.6');
-		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const realUsage = disposables.add(new ClaudeUsageService());
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi, realUsage));
 		const sdk = new ProxyRoundTripSdkService();
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -803,6 +810,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[ILogService, logService],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
+			[IClaudeUsageService, realUsage],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, {

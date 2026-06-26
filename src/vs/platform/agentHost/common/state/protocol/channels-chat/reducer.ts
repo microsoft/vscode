@@ -486,14 +486,21 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			});
 
 
-		case ActionType.ChatUsage:
-			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+		case ActionType.ChatUsage: {
+			if (state.activeTurn && state.activeTurn.id === action.turnId) {
+				return {
+					...state,
+					activeTurn: { ...state.activeTurn, usage: action.usage },
+				};
+			}
+			const idx = state.turns.findIndex(t => t.id === action.turnId);
+			if (idx === -1) {
 				return state;
 			}
-			return {
-				...state,
-				activeTurn: { ...state.activeTurn, usage: action.usage },
-			};
+			const turns = state.turns.slice();
+			turns[idx] = { ...turns[idx], usage: action.usage };
+			return { ...state, turns };
+		}
 
 		case ActionType.ChatReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {

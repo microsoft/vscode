@@ -231,6 +231,51 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 	});
 });
 
+suite('chatReducer – ChatUsage credit attribution', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function startTurn(state: ChatState): ChatState {
+		return chatReducer(state, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+	}
+
+	function creditsUsage(totalNanoAiu: number) {
+		return { _meta: { copilotUsage: { totalNanoAiu } } };
+	}
+
+	test('credits flushed after a turn is cancelled are attributed to the terminal turn', () => {
+		let state = startTurn(makeChat());
+		// Turn ends (cancel) before any usage arrives — usage is flushed afterwards.
+		state = chatReducer(state, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(3_059_685_000) });
+
+		assert.deepStrictEqual(
+			{ activeTurn: state.activeTurn, turnUsage: state.turns.at(-1)?.usage },
+			{ activeTurn: undefined, turnUsage: creditsUsage(3_059_685_000) },
+		);
+	});
+
+	test('re-emitting a running total is idempotent (assign-last-wins, no overcount)', () => {
+		let state = startTurn(makeChat());
+		state = chatReducer(state, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(1_000_000_000) });
+		// A late credit lifts the running total; the report replaces (not adds).
+		state = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: creditsUsage(1_500_000_000) });
+
+		assert.deepStrictEqual(state.turns.at(-1)?.usage, creditsUsage(1_500_000_000));
+	});
+
+	test('usage for an unknown turn is ignored', () => {
+		const state = startTurn(makeChat());
+		const next = chatReducer(state, { type: ActionType.ChatUsage, turnId: 'no-such-turn', usage: creditsUsage(5) });
+		assert.strictEqual(next, state);
+	});
+});
+
 suite('changesetReducer', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

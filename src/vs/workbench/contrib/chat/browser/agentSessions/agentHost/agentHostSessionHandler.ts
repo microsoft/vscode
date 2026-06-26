@@ -540,6 +540,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
+	/**
+	 * Per-session store keeping the latest live turn's usage autorun alive past
+	 * the turn's completion, so a cancelled turn's billed credits (which settle
+	 * just after the response is eagerly finished) still update the cost footer.
+	 * Replaced — and the prior one disposed — when the next turn starts.
+	 */
+	private readonly _lateUsageStores = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
@@ -895,6 +902,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._activeSessions.delete(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
+				this._lateUsageStores.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
 				this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatKey);
 			},
@@ -1547,6 +1555,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		return new Promise<Turn | undefined>(resolve => {
 			const store = new DisposableStore();
+			// A cancelled turn's billed credits settle a beat after the response
+			// is eagerly completed, but the live progress reporter is gated on the
+			// cancellation token (and the response is already complete). Forward
+			// the turn's usage straight onto the response model instead, on a
+			// session-scoped store that outlives the turn; replacing the map entry
+			// disposes the previous turn's forwarder.
+			const lateUsageStore = new DisposableStore();
+			this._lateUsageStores.set(request.sessionResource, lateUsageStore);
+			this._forwardTurnUsage(lateUsageStore, request.sessionResource, session, chatKey, turnId);
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -1897,19 +1914,54 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		store.add(opts.cancellationToken.onCancellationRequested(() => {
-			// On cancellation the protocol turn has not been finalized yet
-			// (the `ChatTurnCancelled` dispatch round-trips asynchronously), so
-			// resolve with the current turn rather than `undefined`. This keeps
-			// the turn's accumulated `usage` so the response footer still shows
-			// the model and the credits consumed before the interruption.
-			// Mark it `Cancelled` so error-detail extraction treats it as a
-			// non-error terminal turn (an already-finalized turn keeps its own
-			// state).
+			// Eagerly finish the response on cancel instead of waiting for the
+			// `ChatTurnCancelled` dispatch to round-trip and terminalize the turn
+			// in state (which may never be echoed back, e.g. in tests). Resolve
+			// with the current turn marked `Cancelled` so the footer keeps the
+			// usage accumulated before the interruption; any credits that settle
+			// afterwards are reconciled onto the response by `_forwardTurnUsage`,
+			// whose store outlives this finish.
 			const current = turn$.get();
 			finish(current ? { state: TurnState.Cancelled, ...current } : undefined);
 		}));
 
 		return store;
+	}
+
+	/**
+	 * Forward a turn's usage onto its chat response's {@link IChatResponseModel.setUsage}
+	 * as it changes, on a `store` that outlives the turn. This is how a
+	 * cancelled turn's billed credits — which settle a beat after the response
+	 * is eagerly completed — reach the cost footer: the live progress reporter
+	 * is gated on the cancellation token (and the response is already complete),
+	 * but `setUsage` is an idempotent observable update with no such gate.
+	 * `turnId` equals the chat request id, so the matching response is found
+	 * directly; redundant updates while the turn is live are deduped by
+	 * `setUsage` itself.
+	 */
+	private _forwardTurnUsage(store: DisposableStore, sessionResource: URI, backendSession: URI, chatChannel: string, turnId: string): void {
+		const sessionKey = backendSession.toString();
+		const sessionState$ = observableFromSubscription(this, this._ensureSessionSubscription(sessionKey));
+		const chatState$ = observableFromSubscription(this, this._ensureChatSubscription(sessionKey, chatChannel));
+		const usage$ = derived(reader => {
+			const session = sessionState$.read(reader);
+			if (!session) {
+				return undefined;
+			}
+			const merged = mergeSessionWithDefaultChat(session, chatState$.read(reader));
+			const turn = merged.activeTurn?.id === turnId
+				? merged.activeTurn
+				: merged.turns.find(t => t.id === turnId);
+			return turn?.usage;
+		});
+		store.add(autorun(reader => {
+			const usage = usageInfoToChatUsage(usage$.read(reader));
+			if (!usage) {
+				return;
+			}
+			const response = this._chatService.getSession(sessionResource)?.getRequests().find(r => r.id === turnId)?.response;
+			response?.setUsage(usage);
+		}));
 	}
 
 	private _setupMarkdownPart(

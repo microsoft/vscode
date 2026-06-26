@@ -7,7 +7,6 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { once } from 'events';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import {
@@ -33,6 +32,7 @@ import {
 } from './anthropicErrors.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { parseProxyBearer } from './claudeProxyAuth.js';
+import { IClaudeUsageService } from './claudeUsageService.js';
 
 // #region Public types
 
@@ -55,32 +55,8 @@ export interface IClaudeProxyHandle extends ILoopbackProxyHandle {
 	readonly nonce: string;
 }
 
-/**
- * A per-request credits report. CAPI returns the actual billed credits
- * for a `/v1/messages` request as `copilot_usage.total_nano_aiu` on the
- * Anthropic SSE stream. The Claude SDK subprocess strips this field from
- * its `result` message, so the proxy — which sees the raw CAPI response —
- * is the only place the real billed amount survives. `sessionId` is
- * decoded from the proxy Bearer token (`<nonce>.<sessionId>`) so consumers
- * can attribute credits to the originating session/turn.
- */
-export interface IClaudeProxyCreditsReport {
-	readonly sessionId: string;
-	/** Billed credits for the request, in nano-AIU (1 credit = 1e9 nano-AIU). */
-	readonly totalNanoAiu: number;
-}
-
 export interface IClaudeProxyService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Fires once per completed CAPI `/v1/messages` request that reported
-	 * `copilot_usage.total_nano_aiu`. Consumers accumulate per turn to
-	 * surface real per-turn Copilot credits (the SDK-computed
-	 * `total_cost_usd` is an Anthropic-list-price estimate, not the
-	 * amount CAPI actually bills).
-	 */
-	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -154,12 +130,10 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
-	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
-
 	constructor(
 		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IClaudeUsageService private readonly _usageService: IClaudeUsageService,
 	) {
 		super(PROXY_USER_FACING_NAME, logService);
 	}
@@ -183,7 +157,6 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 
 	override dispose(): void {
 		super.dispose();
-		this._onDidReportCredits.dispose();
 	}
 
 	protected override writeInternalError(res: http.ServerResponse): void {
@@ -191,8 +164,8 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 	}
 
 	/**
-	 * Fire {@link onDidReportCredits} for a completed request. No-op when
-	 * the request carried no credits (`copilot_usage` absent) or the
+	 * Record a completed request's billed credits against its session. No-op
+	 * when the request carried no credits (`copilot_usage` absent) or the
 	 * Bearer token lacked a session id (shouldn't happen post-auth).
 	 */
 	private _reportCredits(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
@@ -200,7 +173,21 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 			return;
 		}
 		this._logService.trace(`[${PROXY_USER_FACING_NAME}] credits: session=${sessionId} totalNanoAiu=${totalNanoAiu}`);
-		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
+		this._usageService.addUsage(sessionId, totalNanoAiu);
+	}
+
+	/**
+	 * Report credits the proxy already observed on a `/v1/messages` stream that
+	 * was then abandoned (client cancel / disconnect) before a clean end. When
+	 * `copilot_usage` was already on the wire CAPI has billed the request, so
+	 * surfacing it is correct and cannot overcount — and not surfacing it would
+	 * undercount the turn. No-op when no usage was seen yet (cancel landed before
+	 * CAPI reported `copilot_usage`).
+	 */
+	private _reportCreditsOnCancel(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
+		if (totalNanoAiu !== undefined) {
+			this._reportCredits(sessionId, totalNanoAiu);
+		}
 	}
 
 	// #region Dispatch
@@ -494,6 +481,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 				reportedNanoAiu = readCopilotUsageNanoAiu(first.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(first.value);
 				if (!ok) {
+					this._reportCreditsOnCancel(sessionId, reportedNanoAiu);
 					return;
 				}
 			}
@@ -503,6 +491,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 					next = await stream.next();
 				} catch (err) {
 					if (entry.ac.signal.aborted) {
+						this._reportCreditsOnCancel(sessionId, reportedNanoAiu);
 						if (!entry.clientGone && !res.writableEnded) {
 							res.destroy();
 						}
@@ -528,6 +517,7 @@ export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, s
 				reportedNanoAiu = readCopilotUsageNanoAiu(next.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(next.value);
 				if (!ok) {
+					this._reportCreditsOnCancel(sessionId, reportedNanoAiu);
 					return;
 				}
 			}
