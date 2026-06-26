@@ -12,7 +12,7 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRequestCompleteEvent, IRequestService } from '../../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { GitHubApiClient } from '../../browser/githubApiClient.js';
 
 /**
@@ -41,8 +41,13 @@ class FakeRequestService extends Disposable implements Partial<IRequestService> 
 class FakeAuthenticationService implements Partial<IAuthenticationService> {
 	readonly _serviceBrand: undefined;
 
-	async getSessions(): Promise<readonly { scopes: readonly string[]; accessToken: string }[]> {
-		return [{ scopes: ['repo'], accessToken: 'token-123' }];
+	async getSessions(): Promise<readonly AuthenticationSession[]> {
+		return [{
+			id: 'session-1',
+			accessToken: 'token-123',
+			account: { id: 'account-1', label: 'octocat' },
+			scopes: ['repo'],
+		}];
 	}
 }
 
