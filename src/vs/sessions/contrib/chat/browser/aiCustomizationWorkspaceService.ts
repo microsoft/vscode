@@ -7,7 +7,7 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -105,10 +105,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
 	];
-
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		return this.harnessService.getStorageSourceFilter(type);
-	}
 
 	readonly isSessionsWindow = true;
 
@@ -270,7 +266,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const allCommands = await this.promptsService.getPromptSlashCommands(token);
 		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.type);
+			const filter = this.harnessService.getActiveDescriptor().getStorageSourceFilter(cmd.type);
 			return applyStorageSourceFilter([cmd], filter).length > 0;
 		});
 	}

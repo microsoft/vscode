@@ -60,118 +60,7 @@ suite('applyStorageSourceFilter', () => {
 		});
 	});
 
-	suite('includedUserFileRoots filtering', () => {
-		test('undefined includedUserFileRoots keeps all user files', () => {
-			const items = [
-				item('/home/.copilot/a.md', AICustomizationSources.user),
-				item('/home/.vscode/b.md', AICustomizationSources.user),
-				item('/home/.claude/c.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.user],
-				// includedUserFileRoots not set = allow all
-			};
-			assert.strictEqual(applySourceFilter(items, filter).length, 3);
-		});
-
-		test('includedUserFileRoots filters user files by root', () => {
-			const items = [
-				item('/home/.copilot/instructions/a.md', AICustomizationSources.user),
-				item('/home/.vscode/instructions/b.md', AICustomizationSources.user),
-				item('/home/.claude/rules/c.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot'), URI.file('/home/.claude')],
-			};
-			const result = applySourceFilter(items, filter);
-			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0].uri.toString(), URI.file('/home/.copilot/instructions/a.md').toString());
-			assert.strictEqual(result[1].uri.toString(), URI.file('/home/.claude/rules/c.md').toString());
-		});
-
-		test('includedUserFileRoots does not affect non-user items', () => {
-			const items = [
-				item('/w/a.md', AICustomizationSources.local),
-				item('/e/b.md', AICustomizationSources.extension),
-				item('/home/.copilot/c.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.local, AICustomizationSources.extension, AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot')],
-			};
-			const result = applySourceFilter(items, filter);
-			// local + extension kept (not affected by user root filter), user kept (matches root)
-			assert.strictEqual(result.length, 3);
-		});
-
-		test('empty includedUserFileRoots removes all user files', () => {
-			const items = [
-				item('/w/a.md', AICustomizationSources.local),
-				item('/home/.copilot/b.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.local, AICustomizationSources.user],
-				includedUserFileRoots: [], // explicit empty = no user files allowed
-			};
-			const result = applySourceFilter(items, filter);
-			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].source, AICustomizationSources.local);
-		});
-
-		test('user file at exact root is included', () => {
-			const items = [
-				item('/home/.copilot', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot')],
-			};
-			assert.strictEqual(applySourceFilter(items, filter).length, 1);
-		});
-
-		test('user file outside all roots is excluded', () => {
-			const items = [
-				item('/other/path/a.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot'), URI.file('/home/.claude')],
-			};
-			assert.strictEqual(applySourceFilter(items, filter).length, 0);
-		});
-
-		test('deeply nested user file under root is included', () => {
-			const items = [
-				item('/home/.copilot/instructions/sub/deep/a.md', AICustomizationSources.user),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot')],
-			};
-			assert.strictEqual(applySourceFilter(items, filter).length, 1);
-		});
-	});
-
 	suite('combined filtering', () => {
-		test('source filter + user root filter applied together', () => {
-			const items = [
-				item('/w/a.md', AICustomizationSources.local),
-				item('/home/.copilot/b.md', AICustomizationSources.user),
-				item('/home/.vscode/c.md', AICustomizationSources.user),
-				item('/e/d.md', AICustomizationSources.extension),
-				item('/p/e.md', AICustomizationSources.plugin),
-			];
-			const filter: IStorageSourceFilter = {
-				sources: [AICustomizationSources.local, AICustomizationSources.user],
-				includedUserFileRoots: [URI.file('/home/.copilot')],
-			};
-			const result = applySourceFilter(items, filter);
-			// local (kept), .copilot user (kept), .vscode user (excluded by root),
-			// extension (excluded by source), plugin (excluded by source)
-			assert.strictEqual(result.length, 2);
-		});
-
 		test('sessions-like filter: hooks show only local', () => {
 			const items = [
 				item('/w/.github/hooks/pre.json', AICustomizationSources.local),
@@ -185,23 +74,19 @@ suite('applyStorageSourceFilter', () => {
 			assert.strictEqual(result[0].source, AICustomizationSources.local);
 		});
 
-		test('sessions-like filter: instructions show only CLI roots', () => {
+		test('show multiple sources together', () => {
 			const items = [
-				item('/w/.github/instructions/a.md', AICustomizationSources.local),
-				item('/home/.copilot/instructions/b.md', AICustomizationSources.user),
-				item('/home/.claude/rules/c.md', AICustomizationSources.user),
-				item('/home/.vscode-profile/instructions/d.md', AICustomizationSources.user),
+				item('/w/a.md', AICustomizationSources.local),
+				item('/home/.copilot/b.md', AICustomizationSources.user),
+				item('/home/.vscode/c.md', AICustomizationSources.user),
+				item('/e/d.md', AICustomizationSources.extension),
+				item('/p/e.md', AICustomizationSources.plugin),
 			];
 			const filter: IStorageSourceFilter = {
 				sources: [AICustomizationSources.local, AICustomizationSources.user],
-				includedUserFileRoots: [
-					URI.file('/home/.copilot'),
-					URI.file('/home/.claude'),
-					URI.file('/home/.agents'),
-				],
 			};
 			const result = applySourceFilter(items, filter);
-			// local + .copilot + .claude pass; .vscode-profile excluded
+			// local + all users kept, extension + plugin excluded
 			assert.strictEqual(result.length, 3);
 		});
 
