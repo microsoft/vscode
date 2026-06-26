@@ -58,3 +58,9 @@
 .style-override.monaco-workbench .part > .title > .title-label {
 	padding-left: var(--vscode-spacing-size80, 8px);
 }
+
+.style-override.monaco-workbench .agent-sessions-viewer {
+	.pane-body & .monaco-scrollable-element {
+		padding: 0px 10px;
+	}
+}
