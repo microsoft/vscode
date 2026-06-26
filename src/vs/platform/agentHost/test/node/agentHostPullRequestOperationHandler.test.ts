@@ -15,7 +15,7 @@ import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, Mes
 import type { IAgentHostGitService, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import type { AutoMergeMethod, CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -101,7 +101,8 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	existingAfterCreateFailure: CreatedPullRequest | undefined;
 	createError: Error | undefined;
 	findAfterCreateError: Error | undefined;
-	created: CreatedPullRequest = { url: 'https://github.com/microsoft/vscode/pull/123', number: 123 };
+	autoMergeError: Error | undefined;
+	created: CreatedPullRequest = { url: 'https://github.com/microsoft/vscode/pull/123', number: 123, nodeId: 'PR_node_123' };
 	lastTitle: string | undefined;
 	lastBody: string | undefined;
 
@@ -124,6 +125,12 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 		}
 		return this.existing;
 	}
+	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
+		this.calls.push(`enablePullRequestAutoMerge:${pullRequestId}:${mergeMethod}`);
+		if (this.autoMergeError) {
+			throw this.autoMergeError;
+		}
+	}
 }
 
 function createAgentService(withCopilotToken = false): IAgentService {
@@ -140,7 +147,7 @@ function createAgentService(withCopilotToken = false): IAgentService {
 	} as IAgentService;
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[] }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, octoKitService: TestOctoKitService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: AutoMergeMethod }): { handler: AgentHostPullRequestOperationHandler; session: URI; createdEvents: string[]; copilotApiService: TestCopilotApiService } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -167,7 +174,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
-			false,
+			options?.draft ?? false,
+			options?.autoMergeMethod,
 			sessionKey => {
 				const state = stateManager.getSessionState(sessionKey);
 				if (state && options?.turns) {
@@ -405,6 +413,68 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
 			title: 'feature: test',
 			body: 'Created from `feature/test` targeting `main`.',
+		});
+	});
+
+	// The auto-merge variants create the PR and then ask GitHub to enable
+	// auto-merge with the requested merge method, reporting it in the result.
+	test('enables auto-merge with the requested merge method after creating the pull request', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		const { handler, session, createdEvents } = setup(disposables, gitService, octoKitService, { autoMergeMethod: 'SQUASH' });
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_SQUASH }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			octoCalls: octoKitService.calls,
+			createdEvents,
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123) with auto-merge (squash) enabled.' },
+			octoCalls: [
+				'findPullRequestByHeadBranch:feature/test',
+				'createPullRequest:false',
+				'enablePullRequestAutoMerge:PR_node_123:SQUASH',
+			],
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	// Enabling auto-merge is best-effort: a failure (e.g. the repository does
+	// not allow the merge method) must not fail PR creation.
+	test('reports but does not fail when auto-merge cannot be enabled', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		octoKitService.autoMergeError = new Error('Auto-merge is not allowed for this repository');
+		const { handler, session, createdEvents } = setup(disposables, gitService, octoKitService, { autoMergeMethod: 'MERGE' });
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_MERGE }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			createdEvents,
+		}, {
+			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123), but auto-merge could not be enabled: Auto-merge is not allowed for this repository' },
+			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
+		});
+	});
+
+	// Without a pull request node id we cannot issue the GraphQL mutation, so
+	// auto-merge is reported as not enabled rather than silently skipped.
+	test('reports when the pull request node id is missing for auto-merge', async () => {
+		const gitService = new TestGitService();
+		const octoKitService = new TestOctoKitService();
+		octoKitService.created = { url: 'https://github.com/microsoft/vscode/pull/55', number: 55 };
+		const { handler, session } = setup(disposables, gitService, octoKitService, { autoMergeMethod: 'REBASE' });
+
+		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_REBASE }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			enableCalled: octoKitService.calls.some(call => call.startsWith('enablePullRequestAutoMerge:')),
+		}, {
+			message: { markdown: 'Created pull request [#55](https://github.com/microsoft/vscode/pull/55), but auto-merge could not be enabled: the pull request identifier was not returned by GitHub.' },
+			enableCalled: false,
 		});
 	});
 });
