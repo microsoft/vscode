@@ -975,7 +975,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				// `OpenModelPickerAction` (the "Auto" model picker) is at order 3
 				// in the same menu — sit just before it so the mode pill renders
-				// to the left of "Pick Model".
+				// to the left of the model picker.
 				order: 2,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),

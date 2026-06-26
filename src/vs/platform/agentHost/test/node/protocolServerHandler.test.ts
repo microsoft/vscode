@@ -114,8 +114,8 @@ class MockAgentService implements IAgentService {
 			provider: config?.provider ?? 'copilot',
 			title: '',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			workingDirectory: config?.workingDirectory?.toString(),
 		});
@@ -245,8 +245,8 @@ suite('ProtocolServerHandler', () => {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}

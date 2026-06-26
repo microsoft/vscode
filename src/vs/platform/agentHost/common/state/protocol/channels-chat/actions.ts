@@ -258,9 +258,10 @@ export type ChatToolCallConfirmedAction =
  * Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
  * if `requiresResultConfirmation` is `true`.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action with the execution result. The server
- * SHOULD reject this action if the dispatching client does not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action with the execution result. The server SHOULD reject this action if the
+ * dispatching client does not match the contributor's `clientId`.
  *
  * Servers waiting on a client tool call MAY time out after a reasonable duration
  * if the implementing client disconnects or becomes unresponsive, and dispatch
@@ -300,10 +301,11 @@ export interface ChatToolCallResultConfirmedAction extends ToolCallActionBase {
  * use this to display live feedback (e.g. a terminal reference) before the
  * tool completes.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action to stream intermediate content while
- * executing. The server SHOULD reject this action if the dispatching client does
- * not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action to stream intermediate content while executing. The server SHOULD
+ * reject this action if the dispatching client does not match the contributor's
+ * `clientId`.
  *
  * @category Chat Actions
  * @version 1
@@ -527,6 +529,31 @@ export interface ChatQueuedMessagesReorderedAction {
 	order: string[];
 }
 
+// ─── Draft Actions ───────────────────────────────────────────────────────────
+
+/**
+ * The chat's draft input changed.
+ *
+ * Clients MAY periodically sync their local input state — the message the user
+ * is composing, including its {@link Message.model | model} /
+ * {@link Message.agent | agent} selection and attachments — into the chat's
+ * {@link ChatState.draft | `draft`} so it survives reloads and is visible to
+ * other clients viewing the same chat. Eager syncing is **not** required;
+ * clients SHOULD debounce and MAY sync only at convenient points. Set `draft`
+ * to `undefined` to clear it (e.g. once the message is sent).
+ *
+ * A client is only allowed to draft {@link MessageKind.User} messages.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatDraftChangedAction {
+	type: ActionType.ChatDraftChanged;
+	/** New draft message, or `undefined` to clear it */
+	draft?: Message;
+}
+
 // ─── Session Input Actions ──────────────────────────────────────────────────
 
 /**
@@ -605,6 +632,7 @@ export type ChatAction =
 	| ChatPendingMessageSetAction
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
+	| ChatDraftChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

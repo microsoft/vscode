@@ -76,7 +76,6 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | Property / Method | Core VS Code | Agent Sessions Window |
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | All sections except Models |
-| `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
 | `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
 | `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
@@ -87,7 +86,7 @@ A harness represents the AI execution environment that consumes customizations.
 Storage answers "where did this come from?"; harness answers "who consumes it?".
 
 The service is defined in `common/customizationHarnessService.ts` which also provides:
-- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list, and `getStorageSourceFilter` dispatch.
+- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list
 - **`ISectionOverride`** — per-section UI customization: `commandId` (command invocation), `rootFile` + `label` (root-file creation), `typeLabel` (custom type name), `fileExtension` (override default), `rootFileShortcuts` (dropdown shortcuts).
 - **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[AICustomizationSources.extension, AICustomizationSources.builtin]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[AICustomizationSources.builtin]`.
 - **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
@@ -130,13 +129,11 @@ Key properties on the harness descriptor:
 
 ### IStorageSourceFilter
 
-A unified per-type filter controlling which storage sources and user file roots are visible.
-Replaces the old `visibleStorageSources`, `getVisibleStorageSources(type)`, and `excludedUserFileRoots`.
+A per-type filter controlling which storage sources are visible.
 
 ```typescript
 interface IStorageSourceFilter {
-  sources: readonly PromptsStorage[];         // Which storage groups to display
-  includedUserFileRoots?: readonly URI[];     // Allowlist for user roots (undefined = all)
+  sources: readonly PromptsStorage[];  // Which storage groups to display
 }
 ```
 
@@ -144,31 +141,31 @@ The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri,
 
 **Sessions filter behavior (CLI harness):**
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin, builtin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin, builtin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin, builtin]` |
+| Agents, Skills, Instructions | `[local, user, plugin, builtin]` |
 
 **Core VS Code filter behavior:**
 
-Local harness: all types use `[local, user, extension, plugin, builtin]` with no user root filter. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
+Local harness: all types use `[local, user, extension, plugin, builtin]`. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
 
 CLI harness (core):
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin]` |
+| Agents, Skills, Instructions | `[local, user, plugin]` |
 
 Claude harness (core):
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.claude]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin]` |
+| Agents, Skills, Instructions | `[local, user, plugin]` |
 
 Claude additionally applies:
 - `hiddenSections: [Prompts, Plugins]`

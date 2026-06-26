@@ -20,7 +20,7 @@ import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } 
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
@@ -40,7 +40,7 @@ import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
-import { IClaudeProxyHandle } from './claudeProxyService.js';
+import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
@@ -55,7 +55,7 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
  * agent's per-session lookup, and the resume-vs-fresh discriminator).
  */
 export interface IMaterializeContext {
-	readonly proxyHandle: IClaudeProxyHandle;
+	readonly transport: ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
 	/**
@@ -208,6 +208,14 @@ export class ClaudeAgentSession extends Disposable {
 	private _currentTurnNanoAiu = 0;
 
 	/**
+	 * Transport the session materialized under (Phase 19). Defaults to `proxy`
+	 * until {@link materialize} resolves it from {@link IMaterializeContext}.
+	 * Gates {@link _enrichSignalWithCredits} so native turns never carry a
+	 * Copilot credits overlay (the proxy is the only credit source).
+	 */
+	private _transportKind: ClaudeTransport['kind'] = 'proxy';
+
+	/**
 	 * Accumulate proxy-reported billed credits for the in-flight turn.
 	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
 	 * routed to this session. Ignores non-positive / non-finite values.
@@ -225,7 +233,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * All other signals pass through untouched.
 	 */
 	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
-		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+		if (this._transportKind !== 'proxy' || signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
 			return signal;
 		}
 		const usage = signal.action.usage;
@@ -288,6 +296,53 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
+	 * One-shot SDK assistant-message uuid that the next materialize / rebuild
+	 * resumes *up to and including* (the SDK's `Options.resumeSessionAt`).
+	 * Staged by {@link truncateToTurn}; read by the next build and cleared
+	 * only once that build *succeeds* (so a thrown / cancelled rebuild keeps
+	 * the anchor staged and the next send retries the truncation rather than
+	 * silently proceeding without it and undoing the checkpoint restore).
+	 */
+	private _pendingResumeSessionAt: string | undefined;
+
+	/**
+	 * In-place truncation to `turnId` ("Restore Checkpoint"): prune the
+	 * per-turn DB rows (file edits, checkpoint refs) past the boundary AND
+	 * stage the SDK resume anchor that the next rebuild applies via
+	 * `Options.resumeSessionAt`. These two halves are one invariant — pruning
+	 * without staging the anchor would drop DB rows while the SDK still
+	 * replays the truncated turns; staging without pruning would leave stale
+	 * rows — so they live behind a single call rather than two the caller
+	 * could half-invoke. The prune runs first because it is the fallible half:
+	 * a DB failure then rejects without leaving an anchor staged for the next
+	 * turn. `turnId` is the protocol turn id (DB key); `resumeAnchorUuid` is
+	 * the SDK assistant-message uuid the agent resolved for it.
+	 */
+	async truncateToTurn(turnId: string, resumeAnchorUuid: string): Promise<void> {
+		await this._withDatabase(db => db.deleteTurnsAfter(turnId));
+		this._pendingResumeSessionAt = resumeAnchorUuid;
+	}
+
+	/** Prunes all per-turn DB rows (remove-all truncation). */
+	async pruneAllTurns(): Promise<void> {
+		await this._withDatabase(db => db.deleteAllTurns());
+	}
+
+	/**
+	 * Runs `fn` against a short-lived, ref-counted session DB handle so the
+	 * write is safe regardless of the pipeline's own dbRef lifecycle (the
+	 * ref-count keeps the shared DB alive; disposing only decrements).
+	 */
+	private async _withDatabase(fn: (db: ISessionDatabase) => Promise<void>): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(this.sessionUri);
+		try {
+			await fn(ref.object);
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
 	 * Bring the session up: build SDK `Options`, start the SDK, open the
 	 * session-scoped DB ref, construct the pipeline, and attach the
 	 * rematerializer used for yield-restart (e.g. after a client-tool
@@ -307,6 +362,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}
+		this._transportKind = ctx.transport.kind;
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
@@ -321,12 +377,13 @@ export class ClaudeAgentSession extends Disposable {
 				permissionMode,
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
+				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
 				agent: agentName,
 			},
-			ctx.proxyHandle,
+			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
 			msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 		);
@@ -360,6 +417,10 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
+		// The materialize succeeded with the staged anchor applied to `Options`
+		// — clear it now so it isn't re-applied. A throw before this point (e.g.
+		// `startup` / pipeline-create) leaves it staged for the next retry.
+		this._pendingResumeSessionAt = undefined;
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
@@ -380,6 +441,7 @@ export class ClaudeAgentSession extends Disposable {
 					customizationDirectory: this.workingDirectory,
 					model: this._provisionalModel,
 					permissionMode,
+					transport: ctx.transport.kind,
 				});
 			} catch (err) {
 				this._logService.error(`[Claude] Failed to persist customization directory; aborting materialize`, err);
@@ -411,17 +473,23 @@ export class ClaudeAgentSession extends Disposable {
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
 						isResume: true,
+						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
 						agent: rebuildAgentName,
 					},
-					ctx.proxyHandle,
+					ctx.transport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 					msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+				// Rebuild succeeded with the anchor applied — clear it so it
+				// isn't re-applied. A throw above keeps it staged (handled in the
+				// catch alongside the tool/customization diffs) so the next send
+				// retries the truncation instead of dropping the restore.
+				this._pendingResumeSessionAt = undefined;
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				this.toolDiff.markDirty();
@@ -497,6 +565,17 @@ export class ClaudeAgentSession extends Disposable {
 	get isResumed(): boolean { return this._requirePipeline().isResumed; }
 
 	/**
+	 * Abort the live SDK subprocess and await its full teardown so the
+	 * session id is released. No-op when the session was never materialized
+	 * (no subprocess to stop). Used by remove-all truncation before it
+	 * recreates a fresh session under the same id — the CLI keeps the id
+	 * locked until the old subprocess exits.
+	 */
+	async shutdownLiveQuery(): Promise<void> {
+		await this._pipeline?.shutdownAndWait();
+	}
+
+	/**
 	 * Seed the pipeline's current + applied config cache from
 	 * materialize-time `Options`. The SDK already starts with these
 	 * values, so the cache prevents a redundant first `setModel` /
@@ -535,7 +614,7 @@ export class ClaudeAgentSession extends Disposable {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
+		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference || this._pendingResumeSessionAt !== undefined) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this.sessionUri, this._permissionModeFallback));
