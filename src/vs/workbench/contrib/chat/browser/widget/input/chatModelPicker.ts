@@ -1555,12 +1555,13 @@ export class ModelPickerWidget extends Disposable {
 			}
 		}
 
-		// Aria
+		// Aria — name the control "Models" to match the visible label; the comma
+		// separates the control name from its current value / state.
 		this._domNode.ariaLabel = restrictedMode
-			? localize('chat.modelPicker.ariaLabelRestricted', "Pick Model, models unavailable while in Restricted mode")
+			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
-				? localize('chat.modelPicker.ariaLabelSetupRequired', "Pick Model, sign in to use Copilot")
-				: localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
+				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
+				: localize('chat.modelPicker.ariaLabel', "Models, {0}", fullLabel);
 	}
 
 	/**

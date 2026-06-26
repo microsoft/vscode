@@ -163,13 +163,17 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _getHoverContents(): IManagedHoverContent {
-		let label = localize('chat.modelPicker.label', "Pick Model");
+		// Keep the hover prefix in sync with the picker's visible "Models" label
+		// (the same localization key) so the hover doesn't read "Pick Model • …".
+		let label = localize('chat.modelPicker.modelsLabel', "Models");
 		const keybindingLabel = this.keybindingService.lookupKeybinding(this._action.id, this._contextKeyService)?.getLabel();
 		if (keybindingLabel) {
 			label += ` (${keybindingLabel})`;
 		}
 		if (this._pickerWidget.isRestrictedMode()) {
-			return localize('chat.modelPicker.restrictedHover', "{0} • Models unavailable while in Restricted mode. Trust Workspace to enable models.", label);
+			// Suffix avoids a leading "Models" so the hover doesn't stutter as
+			// "Models • Models unavailable…" once the prefix is "Models".
+			return localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label);
 		}
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
