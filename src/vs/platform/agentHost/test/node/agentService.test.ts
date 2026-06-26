@@ -1248,7 +1248,6 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: string[] = [];
 			const gitService = {
 				_serviceBrand: undefined,
-				isInsideWorkTree: async () => true,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranches: async () => [],
@@ -1343,7 +1342,6 @@ suite('AgentService (node dispatcher)', () => {
 		test('createSession skips git overlay when no working directory or no git state', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
-				isInsideWorkTree: async () => false,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranches: async () => [],

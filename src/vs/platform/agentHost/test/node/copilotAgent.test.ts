@@ -74,7 +74,6 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	existingBranches = new Set<string>();
 	dirtyWorkingDirectories = new Set<string>();
 
-	async isInsideWorkTree(): Promise<boolean> { return false; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
@@ -1107,7 +1106,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema omits contextSize when long_context tier has no surcharge', async () => {
+	test('configSchema shows only long context option when long_context tier has no surcharge', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'free-long-context',
@@ -1126,7 +1125,11 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			assert.strictEqual(models[0].configSchema?.properties?.contextSize, undefined);
+			const contextSize = models[0].configSchema?.properties?.contextSize;
+			assert.strictEqual(contextSize?.type, 'number');
+			assert.deepStrictEqual(contextSize?.enum, [1_000_000]);
+			assert.strictEqual(contextSize?.default, 1_000_000);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['1M']);
 		} finally {
 			await disposeAgent(agent);
 		}

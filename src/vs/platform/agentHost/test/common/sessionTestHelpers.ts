@@ -174,7 +174,6 @@ export function encodeString(text: string): Uint8Array {
 export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
 	return {
 		_serviceBrand: undefined,
-		isInsideWorkTree: async () => false,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
 		getBranches: async () => [],

@@ -61,6 +61,8 @@ import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandComp
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
+const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
  * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
@@ -442,10 +444,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
-			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-			hasRuntimeSlashCommand: async (sessionId, command) => this._sessions.get(sessionId)?.hasRuntimeSlashCommand(command) ?? false,
-		})));
+			getRuntimeSlashCommands: async (sessionId, options) => this._sessions.get(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+		}, RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. Both session sync (a client
@@ -939,10 +940,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same, always use the full context window and
-		// skip the picker entirely — there is no reason to restrict the user.
+		// When both tiers cost the same, show only the long-context option as
+		// a non-switchable indicator — the user always gets the full window.
 		if (!hasLongContextSurcharge(billing as ICAPIModelBilling | undefined)) {
-			return undefined;
+			return {
+				type: 'number',
+				title: localize('copilot.modelContextSize.title', "Context Size"),
+				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
+				default: longContextMax,
+				enum: [longContextMax],
+				enumLabels: [formatTokenCount(longContextMax)],
+				enumDescriptions: [
+					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
+				],
+			};
 		}
 
 		return {
@@ -2471,12 +2482,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
-		if (!await this._gitService.isInsideWorkTree(workingDirectory)) {
+		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(workingDirectory) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory) ?? currentBranch;
+		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
 		return { currentBranch, defaultBranch };
 	}
 
