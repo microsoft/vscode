@@ -10,17 +10,11 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 
 /**
  * Sessions-layer implementation of {@link IAutomationSessionTypeProvider}.
- * Wraps {@link ISessionsManagementService.getSessionTypesForFolder} to
- * expose the live session-type list to the Automations create/edit
- * dialog without forcing the workbench-side UI to depend on the
- * Sessions layer directly.
- *
- * When more than one provider can serve the same session type id for a
- * folder (e.g. two remote agent hosts both offering Copilot CLI) the
- * provider label is surfaced as a description so the user can tell
- * them apart in the dropdown.
+ * Decouples the workbench UI from the Sessions layer.
+ * When multiple providers offer the same session type for a folder, adds a
+ * provider label as description so the user can tell them apart.
  */
-export class SessionsAutomationSessionTypeProvider implements IAutomationSessionTypeProvider {
+export class AutomationSessionTypeProvider implements IAutomationSessionTypeProvider {
 
 	declare readonly _serviceBrand: undefined;
 

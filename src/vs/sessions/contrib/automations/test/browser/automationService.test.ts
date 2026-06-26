@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService } from '../../../browser/automations/automationService.js';
-import { IAutomationSchedule } from '../../../common/automations/automation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AutomationService } from '../../browser/automationService.js';
+import { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -249,7 +249,6 @@ suite('AutomationService', () => {
 		// before any commit.
 		assert.deepStrictEqual(service.automations.get(), []);
 
-		// On-disk blob must still be the original future-version data.
 		assert.strictEqual(storage.get('chat.automations.ledger', -1), futureLedger);
 	});
 
@@ -259,7 +258,6 @@ suite('AutomationService', () => {
 		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		assert.strictEqual(service.automations.get().length, 1);
 
-		// Simulate another (newer) window writing a v999 ledger.
 		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, revision: 99, automations: [], runs: [] }), -1, 1);
 
 		// The onDidChangeValue refresh must NOT clear our observables to

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { AutomationLeaderElection } from '../../../browser/automations/automationLeaderElection.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { AutomationLeaderElection } from '../../browser/automationLeaderElection.js';
 
 suite('AutomationLeaderElection', () => {
 
@@ -118,7 +118,6 @@ suite('AutomationLeaderElection', () => {
 			}
 		}
 		const storage = teardown.add(new RacyStorage());
-		// Set up a competing record that will overwrite ours.
 		storage.competitor = JSON.stringify({ instanceId: 'window-b', heartbeatAt: 1_000, nonce: 'b-nonce' });
 		const a = createElection(storage, () => 1_000, 'window-a');
 		// Even though A claimed the slot, the readback saw B's record

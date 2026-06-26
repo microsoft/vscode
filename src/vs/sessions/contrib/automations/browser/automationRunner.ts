@@ -14,30 +14,12 @@ import { publishAutomationRun, publishAutomationRunError } from '../../../../wor
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
- * Sessions-layer runner that turns an automation kickoff into a real
- * Agents-window chat session.
- *
- * Lifecycle of a single `runOnce`:
- *   1. If another run for the same automation is already pending or
- *      running, skip (per-automation idempotency).
- *   2. Record a `pending` run row, immediately flip it to `running`.
- *   3. Call `createAndSendNewChatRequest` with the automation's
- *      required `folderUri`. The service returns the committed session
- *      directly, avoiding event-listener races with concurrent sends.
- *   4. On success, update the run row to `completed`, stamp the
- *      returned `sessionId`, and return. The session itself keeps
- *      running independently; this run row records the kickoff, not
- *      the session's eventual outcome.
- *   5. On failure or cancellation, update the run row to `failed`
- *      (with the error message or "Cancelled") and swallow the error
- *      (runners must never throw).
- *
- * The token is re-checked after the send returns so a scheduler
- * cancellation that lands mid-flight surfaces as `failed`/`Cancelled`
- * rather than `completed`. The session itself cannot be aborted
- * post-commit, but the run row reflects the intended outcome.
+ * Sessions-layer runner that turns an automation kickoff into a chat session.
+ * The run row records the kickoff only — the session runs independently thereafter.
+ * Token is re-checked post-send so mid-flight cancellations surface as `failed`, not `completed`.
+ * Never throws; failures are recorded on the run row.
  */
-export class SessionsAutomationRunner implements IAutomationRunner {
+export class AutomationRunner implements IAutomationRunner {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -54,14 +36,11 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 		leaderWindowId: number,
 		token: CancellationToken = CancellationToken.None,
 	): Promise<void> {
-		// Outer defensive guard: this method MUST NOT throw per the
-		// `IAutomationRunner` contract. Any unexpected throw from the
-		// inner try/catch (e.g. storage failure inside the error path
-		// itself) is logged and swallowed here.
+		// Must not throw per IAutomationRunner contract; unexpected errors from the inner path are swallowed here.
 		try {
 			await this._runOnceInner(automation, trigger, leaderWindowId, token);
 		} catch (err) {
-			this.logService.error(`[SessionsAutomationRunner] unexpected error in runOnce for ${automation.id}`, err);
+			this.logService.error(`[AutomationRunner] unexpected error in runOnce for ${automation.id}`, err);
 		}
 	}
 
@@ -72,7 +51,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 		token: CancellationToken,
 	): Promise<void> {
 		if (this.automationService.getActiveRunFor(automation.id)) {
-			this.logService.trace(`[SessionsAutomationRunner] skipping ${automation.id}: active run already exists.`);
+			this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
 			return;
 		}
 
@@ -103,7 +82,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				}
 				: undefined;
 
-			this.logService.trace(`[SessionsAutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
+			this.logService.trace(`[AutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
 
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions);
 
@@ -117,21 +96,15 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				return;
 			}
 
-			// Apply the automation's own name as the session title so
-			// scheduled runs are visually distinguishable from manually
-			// started sessions in the list. The watch glyph (U+231A, an
-			// emoji escape to keep this source ASCII per the repo's
-			// hygiene rule) doubles as a "scheduled" badge. Naming is
-			// best-effort — a provider that rejects the rename must not
-			// fail the run, since the session itself already kicked off
-			// successfully.
+			// Name the session with a watch badge (\u231A, Unicode escape to stay ASCII).
+			// Best-effort — a rename failure must not fail the run.
 			if (session) {
 				try {
 					const chatUri = session.mainChat.get().resource;
 					const title = localize('automationRunner.sessionTitle', "\u231A {0}", automation.name);
 					await this.sessionsManagementService.renameChat(session, chatUri, title);
 				} catch (renameErr) {
-					this.logService.warn(`[SessionsAutomationRunner] renameChat failed for ${automation.id}`, renameErr);
+					this.logService.warn(`[AutomationRunner] renameChat failed for ${automation.id}`, renameErr);
 				}
 			}
 
@@ -142,10 +115,8 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 			});
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
-			this.logService.error(`[SessionsAutomationRunner] run for ${automation.id} failed`, err);
-			// Defensive nested try/catch: the error path itself awaits
-			// `updateRun` and emits telemetry, and must not propagate a
-			// secondary failure to the outer caller.
+			this.logService.error(`[AutomationRunner] run for ${automation.id} failed`, err);
+			// Defensive: the error path must not propagate secondary failures to the outer caller.
 			try {
 				const errorMessage = err instanceof Error ? err.message : String(err);
 				if (runId) {
@@ -158,7 +129,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
 				publishAutomationRunError(this.telemetryService, { trigger, automation, errorMessage });
 			} catch (innerErr) {
-				this.logService.error(`[SessionsAutomationRunner] error recording failure for ${automation.id}`, innerErr);
+				this.logService.error(`[AutomationRunner] error recording failure for ${automation.id}`, innerErr);
 			}
 		}
 	}
@@ -172,7 +143,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 			});
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
-			this.logService.error(`[SessionsAutomationRunner] error recording cancellation for ${automation.id}`, err);
+			this.logService.error(`[AutomationRunner] error recording cancellation for ${automation.id}`, err);
 		}
 	}
 }

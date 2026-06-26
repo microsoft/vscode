@@ -46,11 +46,7 @@ export interface IAutomation {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 
-	/**
-	 * Workspace folder the spawned session should open in. Required —
-	 * automations always run in a specific folder so the launched
-	 * session has the right project context.
-	 */
+	/** Workspace folder for the spawned session. Required. */
 	readonly folderUri: URI;
 
 	/**
@@ -72,20 +68,10 @@ export interface IAutomation {
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;
 
-	/**
-	 * Optional builtin chat mode for the scheduled session — one of
-	 * `agent`, `ask`, `edit` (see `ChatModeKind`). When omitted the
-	 * provider's default applies. Custom modes are not yet supported here.
-	 */
+	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
 	readonly mode?: string;
 
-	/**
-	 * Optional permission level applied to the scheduled session — one of
-	 * `default`, `autoApprove`, `autopilot` (see `ChatPermissionLevel`).
-	 * Lets users opt scheduled runs into auto-approval without changing
-	 * the workspace-wide default. When omitted the provider's default
-	 * applies.
-	 */
+	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;

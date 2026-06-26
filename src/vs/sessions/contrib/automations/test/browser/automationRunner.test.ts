@@ -11,11 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService } from '../../../../../workbench/contrib/chat/browser/automations/automationService.js';
+import { AutomationService } from '../../browser/automationService.js';
 import { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionsAutomationRunner } from '../../browser/sessionsAutomationRunner.js';
+import { AutomationRunner } from '../../browser/automationRunner.js';
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -60,7 +60,7 @@ function fakeSession(sessionId: string): ISession {
 	return upcastPartial<ISession>({ sessionId });
 }
 
-suite('SessionsAutomationRunner', () => {
+suite('AutomationRunner', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -69,7 +69,7 @@ suite('SessionsAutomationRunner', () => {
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		const runner = new SessionsAutomationRunner(service, sessionsMgmt, log, NullTelemetryService);
+		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService);
 		return { service, sessionsMgmt, runner };
 	}
 
@@ -127,8 +127,6 @@ suite('SessionsAutomationRunner', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await service.recordRunStart(a.id, 'manual', 1);
 		await runner.runOnce(a, 'schedule', 2);
-
-		// Only the pre-existing pending row should be in the ledger.
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
@@ -178,7 +176,6 @@ suite('SessionsAutomationRunner', () => {
 
 	test('completes the run even when the service returns undefined', async () => {
 		const { service, runner } = setup();
-		// nextSession left undefined -> service returns no session.
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 1, CancellationToken.None);
@@ -246,5 +243,16 @@ suite('SessionsAutomationRunner', () => {
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		assert.strictEqual(sessionsMgmt.calls[0].createOptions, undefined);
+	});
+
+	test('does not throw if the automation is deleted mid-run', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
+		await service.deleteAutomation(a.id);
+		// recordRunStart throws "Automation not found"; the runner must swallow
+		// it, never start a session, and produce no run rows.
+		await runner.runOnce(a, 'manual', 1);
+		assert.strictEqual(sessionsMgmt.calls.length, 0);
+		assert.deepStrictEqual(service.runs.get(), []);
 	});
 });

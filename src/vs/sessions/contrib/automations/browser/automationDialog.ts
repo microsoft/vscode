@@ -3,52 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from '../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IButton } from '../../../../../base/browser/ui/button/button.js';
-import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
-import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { ISelectOptionItem, SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { hasNativeContextMenu } from '../../../../../platform/window/common/window.js';
-// Automation dialog reuses the sessions-layer workspace picker until a shared surface is available
-// eslint-disable-next-line local/code-import-patterns
-import { WorkspacePicker } from '../../../../../sessions/contrib/chat/browser/sessionWorkspacePicker.js';
-// Automation dialog reuses the sessions-layer workspace picker until a shared surface is available
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../sessions/services/sessions/common/session.js';
-import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
-import { IGitService } from '../../../git/common/gitService.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
-import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
-import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
-import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
-import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
-import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
-import { IChatWidget, ISessionTypePickerDelegate } from '../chat.js';
-import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../widget/input/chatInputPart.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IButton } from '../../../../base/browser/ui/button/button.js';
+import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
+import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ChatAgentLocation, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 
 const $ = DOM.$;
 
@@ -59,173 +51,14 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
 ];
 
-// Recognizes popup containers (context views, quick picks, menus, hovers) so the dialog's
-// focus-trap doesn't dismiss them.
-function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
+// Popup containers (context views, quick picks, menus, hovers) must not trip the dialog's focus-trap.
+export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
 	return !!relatedTarget.closest(
 		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
 	);
 }
 
-export interface IShowAutomationDialogOptions {
-	readonly existing?: IAutomation;
-}
-
-export type IAutomationDialogResult =
-	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }
-	| { readonly kind: 'update'; readonly id: string; readonly value: IUpdateAutomationOptions };
-
-export async function showAutomationDialog(
-	instantiationService: IInstantiationService,
-	contextKeyService: IContextKeyService,
-	contextViewService: IContextViewService,
-	configurationService: IConfigurationService,
-	keybindingService: IKeybindingService,
-	layoutService: ILayoutService,
-	hostService: IHostService,
-	sessionTypeProvider: IAutomationSessionTypeProvider,
-	options: IShowAutomationDialogOptions,
-): Promise<IAutomationDialogResult | undefined> {
-	const disposables = new DisposableStore();
-
-	const initial = options.existing;
-	const isEdit = !!initial;
-
-	const state: IFormState = {
-		name: initial?.name ?? '',
-		interval: initial?.schedule.interval ?? 'daily',
-		hour: initial?.schedule.scheduleHour ?? 9,
-		minute: initial?.schedule.scheduleMinute ?? 0,
-		day: initial?.schedule.scheduleDay ?? 1,
-		folderUri: initial?.folderUri,
-		providerId: initial?.providerId,
-		sessionTypeId: initial?.sessionTypeId,
-		enabled: initial?.enabled ?? true,
-	};
-
-	const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined };
-
-	let saveButton: IButton | undefined;
-	let revalidate: () => void = () => { /* assigned below */ };
-	let getPrompt: () => string = () => initial?.prompt ?? '';
-	let getMode: () => string | undefined = () => initial?.mode;
-	let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
-	let getModelId: () => string | undefined = () => initial?.modelId;
-
-	const title = isEdit
-		? localize('automation.dialog.editTitle', "Edit automation")
-		: localize('automation.dialog.createTitle', "New automation");
-
-	const buttonLabels = [
-		isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create"),
-		localize('automation.dialog.cancel', "Cancel"),
-	];
-
-	const dialog = disposables.add(new Dialog(
-		layoutService.activeContainer,
-		title,
-		buttonLabels,
-		createWorkbenchDialogOptions({
-			type: 'none',
-			extraClasses: ['automation-dialog'],
-			cancelId: 1,
-			isExternalFocusAllowed: isAutomationDialogPopupTarget,
-			// Suppress textLinkForeground to prevent inline style stamping on chat input picker chips.
-			dialogStyles: { ...defaultDialogStyles, textLinkForeground: undefined },
-			buttonOptions: [
-				{
-					styleButton: button => {
-						saveButton = button;
-						revalidate();
-					},
-				},
-			],
-			renderBody: container => {
-				container.classList.add('automation-dialog-body');
-
-				const titlebar = DOM.append(container, $('.automation-titlebar'));
-				titlebar.setAttribute('aria-hidden', 'true');
-				titlebar.textContent = title;
-
-				const description = DOM.append(container, $('.automation-description'));
-				description.textContent = isEdit
-					? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-					: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected folder.");
-
-				const formPane = DOM.append(container, $('.automation-form-pane'));
-				const form = DOM.append(formPane, $('.automation-form'));
-				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, contextKeyService, contextViewService, configurationService, layoutService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
-				getPrompt = handle.getPrompt;
-				getMode = handle.getMode;
-				getPermissionLevel = handle.getPermissionLevel;
-				getModelId = handle.getModelId;
-				revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt);
-				revalidate();
-			},
-		}, keybindingService, layoutService, hostService),
-	));
-
-	try {
-		const result = await dialog.show();
-		if (result.button !== 0) {
-			return undefined;
-		}
-		// Re-validate in case user submitted with invalid state via Enter.
-		revalidate();
-		if (validation.nameError || validation.promptError || validation.folderError) {
-			return undefined;
-		}
-		if (!state.folderUri) {
-			return undefined;
-		}
-
-		const schedule: IAutomationSchedule = {
-			interval: state.interval,
-			scheduleHour: state.hour,
-			scheduleMinute: state.minute,
-			scheduleDay: state.day,
-		};
-
-		const prompt = getPrompt();
-		const mode = getMode();
-		const permissionLevel = getPermissionLevel();
-		const modelId = getModelId();
-
-		if (isEdit && initial) {
-			const patch: IUpdateAutomationOptions = {
-				name: state.name,
-				prompt,
-				schedule,
-				folderUri: state.folderUri,
-				providerId: state.providerId ?? null,
-				sessionTypeId: state.sessionTypeId ?? null,
-				modelId: modelId ?? null,
-				mode: mode ?? null,
-				permissionLevel: permissionLevel ?? null,
-				enabled: state.enabled,
-			};
-			return { kind: 'update', id: initial.id, value: patch };
-		}
-
-		const create: ICreateAutomationOptions = {
-			name: state.name,
-			prompt,
-			schedule,
-			folderUri: state.folderUri,
-			providerId: state.providerId,
-			sessionTypeId: state.sessionTypeId,
-			modelId,
-			mode,
-			permissionLevel,
-			enabled: state.enabled,
-		};
-		return { kind: 'create', value: create };
-	} finally {
-		disposables.dispose();
-	}
-}
-
-interface IFormState {
+export interface IFormState {
 	name: string;
 	interval: AutomationInterval;
 	hour: number;
@@ -237,7 +70,7 @@ interface IFormState {
 	enabled: boolean;
 }
 
-interface IValidationState {
+export interface IValidationState {
 	nameError: string | undefined;
 	promptError: string | undefined;
 	folderError: string | undefined;
@@ -286,7 +119,6 @@ function createSessionTypeBinder(
 		state.sessionTypeId = def?.sessionTypeId;
 	};
 
-	// Initialize for the current folder before the chip renders.
 	validateOrDefault(state.folderUri);
 
 	return {
@@ -325,7 +157,7 @@ function createSessionTypeBinder(
 	};
 }
 
-function renderForm(
+export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
 	options: IShowAutomationDialogOptions,
@@ -343,7 +175,6 @@ function renderForm(
 	initialPermissionLevel: string | undefined,
 	initialModelId: string | undefined,
 ): IRenderFormHandle {
-	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
@@ -358,11 +189,9 @@ function renderForm(
 		revalidate();
 	}));
 
-	// --- Schedule (interval + inline time + inline day) ---
 	const scheduleRow = DOM.append(form, $('.automation-form-row.automation-form-schedule-row'));
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
-	// Interval picker
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('label.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
 	const intervalOptions: ISelectOptionItem[] = INTERVALS.map(item => ({ text: item.label }));
@@ -377,7 +206,6 @@ function renderForm(
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
 
-	// Time picker (15-minute increments, 12-hour labels)
 	const timeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-time-group'));
 	DOM.append(timeGroup, $('label.automation-form-label', undefined, localize('automation.form.time', "Time")));
 	const timeOptions = buildTimeOptions();
@@ -399,7 +227,6 @@ function renderForm(
 		state.minute = opt.minute;
 	}));
 
-	// Day-of-week picker
 	const dayGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-day-group'));
 	DOM.append(dayGroup, $('label.automation-form-label', undefined, localize('automation.form.day', "Day of week")));
 	const dayOptions: ISelectOptionItem[] = DAYS_OF_WEEK.map(d => ({ text: d }));
@@ -428,7 +255,6 @@ function renderForm(
 		applyIntervalVisibility();
 	}));
 
-	// --- Folder selection ---
 	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(AutomationsWorkspacePicker));
@@ -443,13 +269,11 @@ function renderForm(
 		revalidate();
 	}));
 
-	// Adopt picker's resolved folder if dialog opened without one.
 	if (!state.folderUri && workspacePicker.selectedFolderUri) {
 		state.folderUri = workspacePicker.selectedFolderUri;
 		sessionTypeBinder.setFolder(state.folderUri);
 	}
 
-	// --- Isolation + branch (read-only preview) ---
 	const isolationGroup = $('span.automation-form-isolation-group');
 	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip.automation-form-isolation-chip-disabled')) as HTMLSpanElement;
 	folderChip.setAttribute('role', 'img');
@@ -507,7 +331,6 @@ function renderForm(
 		updateBranchForFolder(uri);
 	}));
 
-	// --- Prompt ---
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
@@ -539,8 +362,6 @@ function renderForm(
 	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
 	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
 
-	// Narrow cast: only the fields ChatInputPart reads in dialog mode
-	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const stubWidget: IMinimalChatWidget = {
 		onDidChangeViewModel: Event.None,
 		viewModel: undefined,
@@ -595,7 +416,7 @@ function renderForm(
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
-	// Reset to default model; on edit, try to apply the saved model (with late-arrival retry).
+	// On edit, apply the saved model with late-arrival retry if needed.
 	chatInput.resetLanguageModelToDefault(/* storeSelection */ false);
 
 	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
@@ -630,7 +451,6 @@ function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
 	const enabledLabelText = localize('automation.form.enabled', "Enabled (the scheduler runs this automation when due)");
 	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
@@ -688,7 +508,7 @@ function nearestTimeOptionIndex(hour: number, minute: number): number {
 	return carriedHour * 4 + slot;
 }
 
-function updateSaveButtonState(
+export function updateSaveButtonState(
 	saveButton: IButton | undefined,
 	state: IFormState,
 	validation: IValidationState,

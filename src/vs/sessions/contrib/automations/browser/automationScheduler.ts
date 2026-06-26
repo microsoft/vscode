@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer, raceTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { stringHash } from '../../../../../base/common/hash.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IAutomation } from '../../common/automations/automation.js';
-import { IAutomationRunner } from '../../common/automations/automationRunner.js';
-import { IAutomationService } from '../../common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../common/automations/automationsEnabled.js';
+import { IntervalTimer, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { stringHash } from '../../../../base/common/hash.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AutomationLeaderElection, IAutomationLeaderElection } from './automationLeaderElection.js';
 
 export const DEFAULT_SCHEDULER_TICK_MS = 60_000;

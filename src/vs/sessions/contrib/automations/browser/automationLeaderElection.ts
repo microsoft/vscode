@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from '../../../../../base/common/async.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IntervalTimer } from '../../../../base/common/async.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 const LEADER_KEY = 'chat.automations.leader';
 
@@ -92,7 +92,6 @@ export class AutomationLeaderElection extends Disposable {
 			return;
 		}
 
-		// TODO(review): Nonce verification narrows dual-leader window but adds complexity — heartbeat alone provides eventual consistency. Worth the trade-off?
 		// Write a nonce and verify we won by reading it back (narrows dual-leader window).
 		const nonce = generateUuid();
 		const writeOk = this.writeLeader({ instanceId: this._instanceId, heartbeatAt: now, nonce });

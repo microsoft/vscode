@@ -6,13 +6,13 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -27,16 +27,120 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
-import { AutomationService } from '../../../browser/automations/automationService.js';
-import { IAutomation, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
+import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
 import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
-import { IAutomationService } from '../../../common/automations/automationService.js';
-import { IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider } from '../../../common/automations/automationSessionTypes.js';
+import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
+import { IAutomationDialogService } from '../../../common/automations/automationDialogService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+}
+
+/**
+ * In-memory IAutomationService for the widget tests. Replaces the concrete
+ * AutomationService, which now lives in the sessions layer — importing it from
+ * a workbench-layer test trips the `code-import-patterns` rule. The widget only
+ * reads the `automations`/`runs` observables and drives create/update/delete,
+ * so this fake keeps an unpersisted reactive store with just those mutations
+ * plus the run-recording the tests exercise directly.
+ */
+class FakeAutomationService extends mock<IAutomationService>() {
+
+	private readonly _automations = observableValue<readonly IAutomation[]>(this, []);
+	private readonly _runs = observableValue<readonly IAutomationRun[]>(this, []);
+	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
+
+	override readonly automations: IObservable<readonly IAutomation[]> = this._automations;
+	override readonly runs: IObservable<readonly IAutomationRun[]> = this._runs;
+
+	override getAutomation(id: string): IAutomation | undefined {
+		return this._automations.get().find(a => a.id === id);
+	}
+
+	override runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
+		let cached = this._runsForCache.get(automationId);
+		if (!cached) {
+			cached = derived(this, reader => this._runs.read(reader).filter(r => r.automationId === automationId));
+			this._runsForCache.set(automationId, cached);
+		}
+		return cached;
+	}
+
+	override async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+		const now = new Date().toISOString();
+		const automation: IAutomation = Object.freeze({
+			id: generateUuid(),
+			name: options.name,
+			prompt: options.prompt,
+			schedule: options.schedule,
+			folderUri: options.folderUri,
+			providerId: options.providerId,
+			sessionTypeId: options.sessionTypeId,
+			modelId: options.modelId,
+			mode: options.mode,
+			permissionLevel: options.permissionLevel,
+			enabled: options.enabled ?? true,
+			createdAt: now,
+			updatedAt: now,
+			lastRunAt: undefined,
+			nextRunAt: undefined,
+		});
+		this._automations.set([automation, ...this._automations.get()], undefined);
+		return automation;
+	}
+
+	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+		const current = this.getAutomation(id);
+		if (!current) {
+			throw new Error(`Automation not found: ${id}`);
+		}
+		const updated: IAutomation = Object.freeze({
+			...current,
+			name: patch.name ?? current.name,
+			prompt: patch.prompt ?? current.prompt,
+			schedule: patch.schedule ?? current.schedule,
+			enabled: patch.enabled ?? current.enabled,
+			updatedAt: new Date().toISOString(),
+		});
+		this._automations.set(this._automations.get().map(a => a.id === id ? updated : a), undefined);
+		return updated;
+	}
+
+	override async deleteAutomation(id: string): Promise<void> {
+		this._automations.set(this._automations.get().filter(a => a.id !== id), undefined);
+		this._runsForCache.delete(id);
+	}
+
+	override async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
+		const run: IAutomationRun = Object.freeze({
+			id: generateUuid(),
+			automationId,
+			status: 'pending',
+			trigger,
+			startedAt: new Date().toISOString(),
+			leaderWindowId,
+		});
+		this._runs.set([run, ...this._runs.get()], undefined);
+		return run;
+	}
+
+	override async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
+		const current = this._runs.get().find(r => r.id === runId);
+		if (!current) {
+			return undefined;
+		}
+		const merged: IAutomationRun = Object.freeze({
+			...current,
+			status: patch.status ?? current.status,
+			sessionId: patch.sessionId ?? current.sessionId,
+			completedAt: patch.completedAt ?? current.completedAt,
+			errorMessage: patch.errorMessage ?? current.errorMessage,
+		});
+		this._runs.set(this._runs.get().map(r => r.id === runId ? merged : r), undefined);
+		return merged;
+	}
 }
 
 class RecordingRunner extends mock<IAutomationRunner>() {
@@ -97,9 +201,8 @@ suite('AutomationsListWidget', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup() {
-		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = new FakeAutomationService();
 		const runner = new RecordingRunner();
 		const dialog = new FakeDialogService();
 
@@ -108,7 +211,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IAutomationRunner, runner);
 		instantiation.stub(IDialogService, dialog);
 		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({ showOpenDialog: async () => undefined }));
-		instantiation.stub(IAutomationSessionTypeProvider, new PlaceholderAutomationSessionTypeProvider());
+		instantiation.stub(IAutomationDialogService, upcastPartial<IAutomationDialogService>({ showAutomationDialog: async () => undefined }));
 		instantiation.stub(IHoverService, NullHoverService);
 		const workspace = new FakeWorkspaceContextService();
 		teardown.add({ dispose: () => workspace.dispose() });
