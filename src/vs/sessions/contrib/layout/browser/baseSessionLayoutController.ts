@@ -366,9 +366,7 @@ export abstract class BaseLayoutController extends Disposable {
 				}
 			}
 
-			// Let subclasses record the resulting side-pane state. The [D2]
-			// per-session capture listener stays suppressed while `_togglingSidePane`
-			// is set, so subclasses that care must observe the change here instead.
+			// Let subclasses record the resulting side-pane state ([D2] capture is suppressed while toggling).
 			this._onSidePaneToggled();
 
 			return !isCurrentlyVisible;
