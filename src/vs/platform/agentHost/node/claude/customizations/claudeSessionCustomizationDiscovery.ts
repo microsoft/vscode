@@ -11,10 +11,11 @@ import { IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsedAgent, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CustomizationLoadStatus, customizationId, type AgentCustomization, type Customization, type DirectoryCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
+import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
 import { CLAUDE_BUILTIN_AGENTS, buildClaudeBuiltinSkillsContainer, buildSdkBuiltinSkillsContainer } from './claudeBuiltinCommands.js';
 
 /**
@@ -33,7 +34,7 @@ export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
  */
 const CLAUDE_INTERNAL_SCHEME = 'claude-internal';
 
-function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization)[]): DirectoryCustomization {
+function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization | HookCustomization)[]): DirectoryCustomization {
 	const uri = URI.joinPath(base, '.claude', sub).toString();
 	return {
 		type: CustomizationType.Directory,
@@ -45,6 +46,42 @@ function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent
 		writable: true,
 		load: { kind: CustomizationLoadStatus.Loaded },
 		children: [...children],
+	};
+}
+
+/**
+ * Projects a resolved Claude-native plugin into a top-level
+ * {@link PluginCustomization} (its own protocol container type — *not* a
+ * per-scope {@link DirectoryCustomization}, mirroring how MCP servers are
+ * top-level). The container `uri` is the real plugin root directory; its
+ * `name` is the `enabledPlugins` id (the manifest carries no display name
+ * through {@link IResolvedNativePlugin}). Children are the plugin's bundled
+ * components, deduped by id (a plugin's hooks share one settings-file
+ * customization, so the groups would otherwise repeat).
+ */
+function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
+	const uri = plugin.root.toString();
+	const children: ChildCustomization[] = [];
+	const seen = new Set<string>();
+	const push = (child: ChildCustomization) => {
+		if (!seen.has(child.id)) {
+			seen.add(child.id);
+			children.push(child);
+		}
+	};
+	for (const agent of plugin.parsed.agents) { push(agent.customization); }
+	for (const skill of plugin.parsed.skills) { push(skill.customization); }
+	for (const rule of plugin.parsed.instructions) { push(rule.customization); }
+	for (const hook of plugin.parsed.hooks) { push(hook.customization); }
+	for (const mcp of plugin.parsed.mcpServers) { push(mcp.customization); }
+	return {
+		type: CustomizationType.Plugin,
+		id: customizationId(uri),
+		uri,
+		name: plugin.id,
+		enabled: true,
+		load: { kind: CustomizationLoadStatus.Loaded },
+		children,
 	};
 }
 
@@ -82,12 +119,14 @@ function scopeOf(uri: URI, workingDirectory: URI | undefined): ClaudeCustomizati
 export function mapDiscoveredCustomizations(
 	discovered: readonly (IParsedAgent | IParsedSkill | IParsedRule)[],
 	mcpServers: readonly McpServerCustomization[],
+	hooks: readonly HookCustomization[],
+	nativePlugins: readonly IResolvedNativePlugin[],
 	workingDirectory: URI | undefined,
 	userHome: URI,
 ): readonly Customization[] {
-	const buckets = new Map<ClaudeCustomizationScope, { agents: AgentCustomization[]; skills: SkillCustomization[]; rules: RuleCustomization[] }>([
-		[ClaudeCustomizationScope.Workspace, { agents: [], skills: [], rules: [] }],
-		[ClaudeCustomizationScope.User, { agents: [], skills: [], rules: [] }],
+	const buckets = new Map<ClaudeCustomizationScope, { agents: AgentCustomization[]; skills: SkillCustomization[]; rules: RuleCustomization[]; hooks: HookCustomization[] }>([
+		[ClaudeCustomizationScope.Workspace, { agents: [], skills: [], rules: [], hooks: [] }],
+		[ClaudeCustomizationScope.User, { agents: [], skills: [], rules: [], hooks: [] }],
 	]);
 	for (const d of discovered) {
 		const bucket = buckets.get(scopeOf(d.uri, workingDirectory))!;
@@ -98,6 +137,12 @@ export function mapDiscoveredCustomizations(
 		} else {
 			bucket.rules.push(d.customization);
 		}
+	}
+	// Hooks arrive already projected (one per declaring settings file); they
+	// carry no `IParsed*` wrapper, so attribute them to scope via their source
+	// settings-file uri.
+	for (const hook of hooks) {
+		buckets.get(scopeOf(URI.parse(hook.uri), workingDirectory))!.hooks.push(hook);
 	}
 
 	const result: Customization[] = [];
@@ -121,6 +166,15 @@ export function mapDiscoveredCustomizations(
 		if (bucket.rules.length > 0) {
 			result.push(makeDirectory(base, 'rules', CustomizationType.Rule, bucket.rules));
 		}
+		if (bucket.hooks.length > 0) {
+			result.push(makeDirectory(base, 'hooks', CustomizationType.Hook, bucket.hooks));
+		}
+	}
+
+	// Native plugins are top-level entries (like MCP servers), each carrying
+	// its bundled components as children.
+	for (const plugin of nativePlugins) {
+		result.push(makePlugin(plugin));
 	}
 
 	result.push(...mcpServers);
@@ -221,19 +275,63 @@ export async function resolveClaudeAgentName(
 export function buildDiscoveredCustomizations(
 	discovered: readonly (IParsedAgent | IParsedSkill | IParsedRule)[],
 	mcpServers: readonly McpServerCustomization[],
+	hooks: readonly HookCustomization[],
+	nativePlugins: readonly IResolvedNativePlugin[],
 	workingDirectory: URI | undefined,
 	userHome: URI,
 	sdk: ISdkResolvedCustomizations | undefined,
 ): readonly Customization[] {
+	// Native plugins the live session actually loaded → surfaced as top-level
+	// containers (passed to the mapper at the end). The SDK `init.plugins`
+	// reports each loaded plugin's `source` (its `<plugin>@<marketplace>` id)
+	// and a `path`. Match on `source` against the resolved plugin id first — it
+	// is exact and stable — and fall back to a normalized `path` match (older
+	// SDKs without `source`). The `path` alone is unreliable: for a
+	// workspace-`local`-scoped plugin the SDK can report a non-cache path that
+	// never matches the resolved root. The plugin is the atomic filtering unit.
+	//
+	// A plugin's bundled components are ALSO reported by the live SDK as
+	// agents / commands / MCP servers. Collect each surfaced plugin's own
+	// parsed component names so those SDK entries are suppressed from the
+	// standalone fallbacks below — each component then appears once, under its
+	// plugin container, not also loose in the per-scope lists (Decision PB-10).
+	// The SDK names plugin components inconsistently (agents namespaced as
+	// `<plugin>:<name>`, skills usually bare), so both forms are registered.
+	// Only *surfaced* plugins contribute, so a loaded-but-unsurfaced plugin's
+	// components are never silently dropped. A single pass matches each native
+	// plugin to its SDK entry, building the visible set and the suppression
+	// name sets together (no second `find`).
+	const visiblePlugins: IResolvedNativePlugin[] = [];
+	const pluginAgentNames = new Set<string>();
+	const pluginSkillNames = new Set<string>();
+	const pluginMcpNames = new Set<string>();
+	if (sdk) {
+		for (const p of nativePlugins) {
+			const sdkPlugin = sdk.plugins.find(s => s.source === p.id || URI.file(s.path).fsPath === p.root.fsPath);
+			if (!sdkPlugin) {
+				continue;
+			}
+			visiblePlugins.push(p);
+			const ns = sdkPlugin.name;
+			const add = (set: Set<string>, name: string) => { set.add(name); if (ns) { set.add(`${ns}:${name}`); } };
+			for (const a of p.parsed.agents) { add(pluginAgentNames, a.name); }
+			for (const s of p.parsed.skills) { add(pluginSkillNames, s.name); }
+			for (const m of p.parsed.mcpServers) { add(pluginMcpNames, m.name); }
+		}
+	} else {
+		visiblePlugins.push(...nativePlugins);
+	}
+
 	// The read-only "Built-in" skills container: pre-materialize the curated
-	// list, post-materialize the live SDK command set minus the disk skills.
+	// list, post-materialize the live SDK command set minus the disk skills
+	// (and minus plugin-contributed skills, which belong to a plugin container).
 	// Appended to whichever projection is returned below so the SDK-vs-curated
 	// decision for built-in skills sits next to the one for built-in agents.
 	const diskSkillNames = new Set(
 		discovered.filter(d => d.customization.type === CustomizationType.Skill).map(d => d.name)
 	);
 	const builtinSkills = sdk
-		? buildSdkBuiltinSkillsContainer(sdk.commands, diskSkillNames)
+		? buildSdkBuiltinSkillsContainer(sdk.commands.filter(c => !pluginSkillNames.has(c.name)), diskSkillNames)
 		: buildClaudeBuiltinSkillsContainer(diskSkillNames);
 	const withBuiltinSkills = (list: readonly Customization[]): readonly Customization[] =>
 		builtinSkills ? [...list, builtinSkills] : list;
@@ -251,7 +349,7 @@ export function buildDiscoveredCustomizations(
 		const builtinAgents = CLAUDE_BUILTIN_AGENTS
 			.filter(a => a.name !== CLAUDE_SDK_DEFAULT_AGENT_NAME && !diskAgentNames.has(a.name))
 			.map(a => toParsedAgent({ uri: nonEditableUri('agent', a.name), name: a.name, description: a.description() }));
-		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, workingDirectory, userHome));
+		return withBuiltinSkills(mapDiscoveredCustomizations([...discovered, ...builtinAgents], mcpServers, hooks, nativePlugins, workingDirectory, userHome));
 	}
 
 	const agentNames = new Set(sdk.agents.map(a => a.name));
@@ -291,7 +389,7 @@ export function buildDiscoveredCustomizations(
 	// (Skills get no such fallback — see the doc comment: a non-openable
 	// skill entry is only ever a dead link.)
 	for (const agent of sdk.agents) {
-		if (agent.name === CLAUDE_SDK_DEFAULT_AGENT_NAME || seenAgents.has(agent.name)) {
+		if (agent.name === CLAUDE_SDK_DEFAULT_AGENT_NAME || seenAgents.has(agent.name) || pluginAgentNames.has(agent.name)) {
 			continue;
 		}
 		entries.push(toParsedAgent({ uri: nonEditableUri('agent', agent.name), name: agent.name, ...(agent.description ? { description: agent.description } : {}) }));
@@ -310,13 +408,15 @@ export function buildDiscoveredCustomizations(
 		servers.push({ ...server, state: deriveMcpState(sdkServer.status) });
 	}
 	for (const [name, sdkServer] of mcpByName) {
-		if (seenMcp.has(name)) {
+		if (seenMcp.has(name) || pluginMcpNames.has(name)) {
 			continue;
 		}
 		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
 	}
 
-	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, workingDirectory, userHome));
+	// Native plugins were matched to the live SDK set at the top of this
+	// function (`visiblePlugins`); surface them as top-level containers.
+	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, hooks, visiblePlugins, workingDirectory, userHome));
 }
 
 /**

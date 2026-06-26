@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import '../media/onboardingTarget.css';
 
 /**
  * Attribute used to mark a DOM element as an onboarding spotlight target.
@@ -13,6 +14,8 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
  * classes to locate a target (see the sessions "DOM Traversal & Intent" rule).
  */
 export const ONBOARDING_TARGET_ATTR = 'data-onboarding-id';
+
+export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
 
 /**
  * Marks `element` as the onboarding target identified by `id`.
@@ -29,6 +32,16 @@ export function markOnboardingTarget(element: HTMLElement, id: string): IDisposa
 }
 
 /**
+ * Applies the standard onboarding pulse treatment to `element`.
+ *
+ * @returns A disposable that removes the pulse again.
+ */
+export function pulseOnboardingTarget(element: HTMLElement): IDisposable {
+	element.classList.add(ONBOARDING_TARGET_PULSE_CLASS);
+	return toDisposable(() => element.classList.remove(ONBOARDING_TARGET_PULSE_CLASS));
+}
+
+/**
  * Resolves the element marked with the given onboarding target id within the
  * provided window's document. Returns `undefined` if no such element exists
  * (e.g. the feature is not currently rendered).
@@ -39,5 +52,18 @@ export function markOnboardingTarget(element: HTMLElement, id: string): IDisposa
 export function findOnboardingTarget(targetWindow: Window, id: string): HTMLElement | undefined {
 	const selector = `[${ONBOARDING_TARGET_ATTR}="${CSS.escape(id)}"]`;
 	// eslint-disable-next-line no-restricted-syntax -- matching only our own onboarding attribute (never foreign classes/structure) is the whole point of this helper
-	return targetWindow.document.querySelector<HTMLElement>(selector) ?? undefined;
+	const targets = Array.from(targetWindow.document.querySelectorAll<HTMLElement>(selector));
+	return targets.find(target => isVisibleOnboardingTarget(targetWindow, target));
+}
+
+function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
+	if (!target.isConnected) {
+		return false;
+	}
+	const style = targetWindow.getComputedStyle(target);
+	if (style.display === 'none' || style.visibility === 'hidden') {
+		return false;
+	}
+	const rect = target.getBoundingClientRect();
+	return rect.width > 0 && rect.height > 0;
 }

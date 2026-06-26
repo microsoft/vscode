@@ -9,8 +9,17 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
-import type { ISessionGitState } from '../../common/state/sessionState.js';
+import type { ISessionGitHubState, ISessionGitState } from '../../common/state/sessionState.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
+
+const nullGitStateService = new class implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+	async refreshSessionGitState(): Promise<ISessionGitState | undefined | null> { return undefined; }
+	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
+	async setSessionGitHubState(): Promise<void> { }
+	async attachSessionGitHubPullRequest(): Promise<void> { }
+};
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
 	hasGitHubRemote: true,
@@ -26,6 +35,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		return disposables.add(new AgentHostPullRequestOperationContribution(
 			disposables.add(new AgentHostStateManager(new NullLogService())),
 			disposables.add(new InstantiationService()),
+			nullGitStateService,
 		));
 	}
 
@@ -34,7 +44,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {
@@ -46,16 +56,5 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		];
 
 		assert.deepStrictEqual(actual, [undefined, undefined]);
-	});
-
-	test('hides PR operations immediately after handler reports PR creation', () => {
-		const provider = createContribution();
-
-		provider.onPullRequestCreated({ sessionKey: 'agent:/session', branchName: 'feature/test' });
-		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
-
-		assert.deepStrictEqual({ operations }, {
-			operations: undefined,
-		});
 	});
 });

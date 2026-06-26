@@ -244,7 +244,7 @@ suite('AgentSideEffects', () => {
 		test('logs telemetry when sending a direct user message', () => {
 			setupSession();
 			const activeClientAction: SessionAction = {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'test-client',
 					tools: [{ name: 'testTool', inputSchema: { type: 'object' } }],
@@ -707,7 +707,7 @@ suite('AgentSideEffects', () => {
 				}
 				return e.action.agents[0]?.models.length === 1;
 			}));
-			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }]);
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, maxOutputTokens: 16000, maxPromptTokens: 112000, supportsVision: false }]);
 			await envelope;
 
 			const actions = envelopes.map(e => e.action).filter(action => action.type === ActionType.RootAgentsChanged);
@@ -718,6 +718,8 @@ suite('AgentSideEffects', () => {
 				provider: 'mock',
 				name: 'mock Model',
 				maxContextWindow: 128000,
+				maxOutputTokens: 16000,
+				maxPromptTokens: 112000,
 				supportsVision: false,
 				policyState: undefined,
 				configSchema: undefined,
@@ -1135,9 +1137,9 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/activeClientChanged ----------------------
+	// ---- handleAction: session/activeClientSet ----------------------
 
-	suite('handleAction — session/activeClientChanged', () => {
+	suite('handleAction — session/activeClientSet', () => {
 
 		setup(() => {
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1155,7 +1157,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const action: SessionAction = {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'test-client',
 					tools: [],
@@ -1187,7 +1189,7 @@ suite('AgentSideEffects', () => {
 			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true };
 			let currentCustomizations: readonly Customization[] = [];
 			agent.getSessionCustomizations = async () => currentCustomizations;
-			agent.setClientCustomizations = async (session, clientId, customizations) => {
+			agent.syncClientCustomizations = (session, clientId, customizations) => {
 				agent.setClientCustomizationsCalls.push({ clientId, customizations });
 				const loading: PluginCustomization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loading } };
 				currentCustomizations = [loading];
@@ -1199,17 +1201,19 @@ suite('AgentSideEffects', () => {
 						customizations: [...currentCustomizations],
 					},
 				});
-				await new Promise(resolve => setTimeout(resolve, 0));
-				const loaded: PluginCustomization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } };
-				currentCustomizations = [loaded];
-				agent.fireProgress({
-					kind: 'action',
-					session,
-					action: {
-						type: ActionType.SessionCustomizationUpdated,
-						customization: loaded,
-					},
-				});
+				void (async () => {
+					await new Promise(resolve => setTimeout(resolve, 0));
+					const loaded: PluginCustomization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } };
+					currentCustomizations = [loaded];
+					agent.fireProgress({
+						kind: 'action',
+						session,
+						action: {
+							type: ActionType.SessionCustomizationUpdated,
+							customization: loaded,
+						},
+					});
+				})();
 				return currentCustomizations.map(customization => ({ customization: customization as PluginCustomization }));
 			};
 
@@ -1217,7 +1221,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'test-client',
 					tools: [],
@@ -1249,7 +1253,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const action: SessionAction = {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'test-client',
 					tools: []
@@ -1270,18 +1274,17 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('clears client customizations when activeClient is null', () => {
+		test('removes the active client when it is removed', () => {
 			setupSession();
 
 			const action: SessionAction = {
-				type: ActionType.SessionActiveClientChanged,
-				activeClient: null,
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'test-client',
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
 
-			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
-				clientId: '',
-				customizations: [],
+			assert.deepStrictEqual(agent.removeActiveClientCalls, [{
+				clientId: 'test-client',
 			}]);
 		});
 	});
@@ -1836,6 +1839,39 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-bypass-shell-1', approved: true },
 			]);
+		});
+
+		test('does NOT auto-approve a shell command that opted out of the sandbox, even in bypass mode', () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-sandboxbypass-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-sandboxbypass-1', toolName: '', displayName: '',
+					invocationMessage: 'Run cat ~/something.txt', toolInput: 'cat ~/something.txt',
+					confirmationTitle: 'Run command', edits: undefined,
+				},
+				permissionKind: 'shell', permissionPath: undefined,
+				requestSandboxBypass: true,
+			});
+
+			// A read-only command like `cat` (or even session-level bypass)
+			// would normally auto-approve, but opting out of the sandbox is an
+			// elevation of privilege the user must confirm, so no auto-approval
+			// response is sent.
+			assert.deepStrictEqual(agent.respondToPermissionCalls, []);
 		});
 
 		test('marks pending client tool approval for client-side auto-approval in bypass mode', async () => {

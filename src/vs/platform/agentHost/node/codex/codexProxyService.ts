@@ -73,6 +73,14 @@ type ICodexProxyRuntime = ILoopbackProxyRuntime<ICodexProxyState>;
 const PROXY_USER_FACING_NAME = 'CodexProxyService';
 
 /**
+ * User-agent prefix applied to outbound CAPI requests so the codex proxy's
+ * traffic is identifiable server-side. Mirrors `oaiLanguageModelServer.ts`
+ * in the Copilot Chat extension, which tags Codex requests with the same
+ * prefix.
+ */
+const USER_AGENT_PREFIX = 'vscode_codex';
+
+/**
  * When set to an absolute directory path, every `/v1/responses` request body
  * and its full upstream response stream are written to that directory as
  * `req-NNN-<ts>.json` and `res-NNN-<ts>.txt` so we can diff bodies / decode
@@ -274,9 +282,11 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 		// whatever `runtime.state.githubToken` has been rotated to.
 		const dispatchedToken = runtime.state.githubToken;
 
+		const headers = buildOutboundHeaders(req.headers);
+
 		try {
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] forwarding to CAPI responses...`);
-			const upstream = await this._copilotApiService.responses(dispatchedToken, body, { signal: entry.ac.signal });
+			const upstream = await this._copilotApiService.responses(dispatchedToken, body, { headers, signal: entry.ac.signal, suppressIntegrationId: true });
 			const contentType = upstream.headers.get('content-type') ?? 'application/json';
 			const upstreamHeaders = [...upstream.headers.entries()].map(([k, v]) => `${k}: ${v}`).join(', ');
 			this._logService.info(`[${PROXY_USER_FACING_NAME}] <<< CAPI response: status=${upstream.status}, contentType=${contentType}, headers=[${upstreamHeaders}]`);
@@ -345,4 +355,39 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 			runtime.inFlight.delete(entry);
 		}
 	}
+}
+
+/**
+ * Build the headers forwarded to {@link ICopilotApiService.responses} from the
+ * inbound codex request. Currently forwards `user-agent` (transformed via
+ * {@link transformUserAgent}); the remaining outbound headers are supplied by
+ * the API service itself.
+ */
+function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string, string> {
+	const out: Record<string, string> = {};
+	const userAgent = inbound['user-agent'];
+	if (typeof userAgent === 'string' && userAgent.length > 0) {
+		out['User-Agent'] = transformUserAgent(userAgent);
+	}
+	return out;
+}
+
+/**
+ * Transform an incoming user-agent string by replacing the client name portion
+ * (before the first `/`) with {@link USER_AGENT_PREFIX}. This mirrors the
+ * transform in `oaiLanguageModelServer.ts` in the Copilot Chat extension,
+ * ensuring all Codex requests are tagged with a consistent prefix for
+ * server-side identification.
+ *
+ * Examples:
+ * - `codex/1.2.3` → `vscode_codex/1.2.3`
+ * - `OpenAI/Python/1.0` → `vscode_codex/Python/1.0`
+ * - `unknown` → `vscode_codex/unknown`
+ */
+function transformUserAgent(userAgent: string): string {
+	const slashIndex = userAgent.indexOf('/');
+	if (slashIndex === -1) {
+		return `${USER_AGENT_PREFIX}/${userAgent}`;
+	}
+	return `${USER_AGENT_PREFIX}${userAgent.substring(slashIndex)}`;
 }

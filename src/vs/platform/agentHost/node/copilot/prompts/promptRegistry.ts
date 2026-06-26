@@ -183,7 +183,7 @@ export class AgentHostPromptRegistry {
 	 * for a contributor's full `replace` prompt (which owns the entire system
 	 * message and intentionally drops the SDK foundation) and for `append` mode.
 	 * A `replace` contributor that wants the universal guidance re-includes it
-	 * itself by calling `appendUniversalToolInstructions` (in `toolInstructions.ts`)
+	 * itself by rendering `universalToolInstructions` (in `toolInstructions.ts`)
 	 * from its `resolveFullSystemPrompt`, mirroring how the extension's full-prompt
 	 * models inline the same lines.
 	 *
@@ -198,9 +198,7 @@ export class AgentHostPromptRegistry {
 		if (!toolInstructions) {
 			return config;
 		}
-		// Spread into a fresh object so the shared `COPILOT_AGENT_HOST_SYSTEM_MESSAGE`
-		// constant (returned by the fallback paths above) is never mutated.
-		return sectionOverrides({ ...config.sections, tool_instructions: toolInstructions });
+		return { ...config, sections: { ...config.sections, tool_instructions: toolInstructions } };
 	}
 }
 

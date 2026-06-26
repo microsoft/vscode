@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -44,10 +44,17 @@ export interface IClaudeAgentSdkService {
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	/**
+	 * 1:1 with the SDK's top-level `query` export. Returns a `Query` whose
+	 * subprocess starts lazily; callers drive control requests on it (e.g.
+	 * `supportedModels()` for model enumeration) and `close()` it when done.
+	 * Async only because the SDK module itself is loaded lazily.
+	 */
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query>;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
-
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -80,9 +87,11 @@ export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Query;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -133,6 +142,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return sdk.startup(params);
 	}
 
+	async query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> {
+		const sdk = await this._getSdk();
+		return sdk.query(params);
+	}
+
 	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSessionMessages(sessionId, options);
@@ -146,6 +160,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSubagentMessages(sessionId, agentId, options);
+	}
+
+	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
+		const sdk = await this._getSdk();
+		return sdk.forkSession(sessionId, options);
 	}
 
 	async createSdkMcpServer(options: {
