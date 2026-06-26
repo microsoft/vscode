@@ -939,17 +939,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// If reconnecting to an active turn, wire up an ongoing state
-			// listener to stream new progress into the session's progressObs.
-			// This must wait until the chat model has been registered:
-			// reconnecting re-invokes any client tool the turn is blocked on,
-			// and `LanguageModelToolsService.invokeTool` throws `Tool called
-			// for unknown chat session` when the model for this session is not
-			// registered yet. Running synchronously here (before the model is
-			// created) would strand the turn with no completion dispatched
-			// back. Mirror the snapshot-controller pattern above and keep the
-			// listener alive until our session matches, since `Event.once`
-			// could be consumed by an unrelated model created first.
+			// Reconnecting re-invokes the blocked client tool, which throws
+			// `Tool called for unknown chat session` until the model is
+			// registered; defer until it exists to avoid stranding the turn.
 			if (activeTurnId && initialProgress !== undefined) {
 				if (this._chatService.getSession(sessionResource)) {
 					this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
