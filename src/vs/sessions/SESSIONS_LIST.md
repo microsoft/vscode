@@ -15,6 +15,8 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
 | `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionGroupsService.ts` | `ISessionGroupsService` — user-created groups and session→group membership (UI-only) |
+| `services/sessions/browser/sessionSectionOrderService.ts` | `ISessionSectionOrderService` — manual top-level order of groups + workspace sections and workspace promotion (UI-only) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
 ---
@@ -37,15 +39,18 @@ Each session row displays:
 Sessions are organized into sections with fixed priority:
 
 ```
-1. Pinned        ← always first
-2. Regular       ← grouped by workspace or date
-3. Done/Archived ← always last
+1. Pinned        ← always first, not reorderable
+2. Groups        ← user-created groups, user-ordered (see below)
+3. Regular       ← grouped by workspace or date
+4. Done/Archived ← always last, not reorderable
 ```
 
 Two grouping modes (user-switchable):
 
-- **By Workspace** (default) — one section per workspace label, sorted alphabetically. "Unknown" workspace sorts last.
-- **By Date** — sections: Today, Yesterday, Last 7 Days, Older.
+- **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
+- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Today, Yesterday, Last 7 Days, Older). Groups never mix into the date sections.
+
+User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions).
 
 Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned.
 
@@ -54,13 +59,13 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 - **By Created** (default) — `createdAt` descending
 - **By Updated** — `updatedAt` descending
 
-### Workspace Group Capping
+### Workspace and User Group Capping
 
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
 - Remaining workspaces collapse behind a "+N more workspaces" toggle
-- Within each workspace, sessions beyond 5 also show a "Show more" toggle
+- Within each workspace or user-created group, sessions beyond 5 (configurable by the same assignment treatment) also show a "Show more" toggle and then a "Show less" toggle once expanded
 - The find widget bypasses all capping
 
 ### Filtering
@@ -87,17 +92,35 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 
 ### Manual Reordering (Drag & Drop)
 
-Regular sessions can be reordered by dragging them up or down within the list. An insertion line is shown between rows while dragging.
+Two things can be reordered by dragging: **sessions** (within a section/group) and **top-level headers** (user groups and workspace sections). An insertion line is shown between rows/headers while dragging.
+
+#### Reordering sessions
+
+Regular sessions can be reordered by dragging them up or down within the list. Pinned sessions can be reordered within the Pinned section.
 
 - **Storage** — reordering stores a synthetic numeric *sort key* per session in `ISessionsListModelService` (persisted locally, not synced). It is used **only** for sorting; the provider's real `createdAt`/`updatedAt` are never modified. A separate override map is kept for each sort mode (Created vs Updated).
 - **Sort key** — on drop, the new key is the midpoint between the effective keys of the sessions immediately above and below the drop point. Dropping above the first session uses the current time (so it sorts to the top). Dropping below the last session steps below the last key.
 - **Dropping the fake value** — if a session's natural timestamp already sorts it into the dropped slot (e.g. after dragging it down and back), the stored override is removed so the list falls back to natural ordering.
 - **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Today").
 - **Grouping by Workspace** — reordering is restricted to within the same workspace group; drops onto another workspace are rejected.
-- **Scope** — only regular sessions reorder. Drops onto the Pinned and Done sections, section headers, and "show more" rows are rejected.
+- **Pinned** — dropping a non-archived session on the Pinned header pins it and lets it sort naturally. Dropping it on a pinned session shows an insertion line, pins it, and stores the sort key needed to place it at that location.
+- **User groups** — dropping a non-archived session on a group header adds or moves it into the group and lets it sort naturally. Dropping it on a session inside the group shows an insertion line for the exact slot and highlights only the group header to indicate the receiving group.
+- **Scope** — archived (Done) sessions do not reorder or move into groups. Drops onto the Done section, unsupported section headers, and "show more" rows are rejected.
 - **Multi-selection** — dragging multiple selected sessions moves them as a contiguous block, preserving their relative order. The drag label reads `"N sessions"`. Dragging sessions into the sessions grid opens all of them.
 
+#### Reordering groups and workspaces
+
+Dragging a **group header** or a **workspace section header** over another reorderable header shows an insertion line above/below it and moves the dragged header to that slot on drop.
+
+- **Storage** — the top-level order is owned by `ISessionSectionOrderService` (persisted locally, not synced) as a flat list of identities (`group:<id>` and `workspace:<label>`). Identities the user has never moved fall back to the list's default order, so new groups/workspaces appear in their natural place until dragged. Stale identities (deleted groups, vanished workspaces) are garbage-collected.
+- **By Workspace** — groups and workspace sections share one order and can be freely intermixed. Dragging a workspace also **promotes** it so it stays visible (escapes the "+N more workspaces" capping).
+- **By Date** — only group headers are draggable; they reorder within the groups block. Workspace order changes made in the other mode are preserved. The date sections are fixed and are not drop targets.
+- **Invariants** — the Pinned section is always first and the Done section always last; neither (nor the date sections, nor "show more" rows) is draggable or a valid header drop target.
+- **Shared order** — the relative order of groups is the same in both grouping modes, and also drives the "Add to Group" / "Move to Group" menu order.
+
 The insertion line relies on the base list widget's `drop-target-before`/`drop-target-after` feedback (colored by `list.dropBetweenBackground`). The widget converts an "after" indicator on row *i* into a "before" indicator on row *i+1*, so hovering the bottom half of the upper row and the top half of the lower row render the exact same DOM line with no shift.
+
+Archived sessions do not show the session group context menu actions ("Create Group", "Add to Group", "Move to Group", or "Remove from Group").
 
 ### Read / Unread
 
@@ -140,6 +163,12 @@ The sessions list defines menu IDs that contributions can target to add actions.
 |------|----------|------------------|---------|
 | `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace" and "Mark All as Done". The Done section restores sessions individually (or via multi-selection) rather than with a section-wide action. Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
+### Group Header Menu
+
+| Menu | Constant | Where it appears | Use for |
+|------|----------|------------------|---------|
+| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "New Session" (opens the new-session composer and joins the started session to the group), "Rename", and "Delete Group". The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
+
 ### View Title Menus
 
 | Menu | Constant | Where it appears | Use for |
@@ -160,7 +189,7 @@ registerAction2(class MySessionAction extends Action2 {
             menu: {
                 id: SessionItemContextMenuId,
                 group: '1_edit',
-                when: ContextKeyExpr.equals('chatSessionType', 'my-session-type'),
+                when: ContextKeyExpr.equals('sessionType', 'my-session-type'),
             },
         });
     }
@@ -184,8 +213,8 @@ Context keys available for `when` clauses when contributing to session list menu
 | `sessionIsArchived` | boolean | Whether the session is archived |
 | `sessionIsRead` | boolean | Whether the session has been read |
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
-| `chatSessionType` | string | Session type ID (use to scope actions to specific providers) |
-| `chatSessionProviderId` | string | Provider ID |
+| `sessionType` | string | Session type ID (use to scope actions to specific providers) |
+| `sessionProviderId` | string | Provider ID |
 
 ### Per-Section
 
@@ -199,4 +228,4 @@ Context keys available for `when` clauses when contributing to session list menu
 |-----|------|-------------|
 | `sessionsViewPane.grouping` | string | Current grouping mode (`'workspace'` or `'date'`) |
 | `sessionsViewPane.sorting` | string | Current sorting mode (`'created'` or `'updated'`) |
-| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace groups are capped (primary-only) or fully expanded |
+| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace sections and user groups are capped or fully expanded |

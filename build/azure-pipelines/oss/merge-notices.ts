@@ -116,6 +116,62 @@ function parseNoticeFile(filePath: string): NoticeEntry[] {
 	return entries;
 }
 
+/**
+ * Compute the packages NOT accounted for in the final merged NOTICE. A package
+ * is "unaccounted" if EITHER:
+ *   (a) the scanner tried to resolve it but created no row (it appears in the
+ *       `unresolved` sibling) AND its name is absent from the final merged map
+ *       (name-only match avoids version-drift false positives, and correctly
+ *       excludes packages rescued downstream via a cglicenses.json override), OR
+ *   (b) it IS a row in the final notice but its license body is empty/whitespace.
+ *
+ * Pure and exported for unit testing. Informational only — never affects exit code.
+ */
+export function computeUnaccounted(
+	merged: Map<string, NoticeEntry>,
+	unresolved: Array<{ name: string; version: string; reason: string }>
+): Array<{ name: string; version: string; reason: string }> {
+	const presentNamesLower = new Set([...merged.values()].map(e => e.name.toLowerCase()));
+	const out: Array<{ name: string; version: string; reason: string }> = [];
+
+	// (a) Genuinely absent: scanner failed AND the name never landed in the notice.
+	for (const item of unresolved) {
+		if (!presentNamesLower.has(item.name.toLowerCase())) {
+			out.push({ name: item.name, version: item.version, reason: item.reason });
+		}
+	}
+
+	// (b) Present but with an empty license body.
+	for (const entry of merged.values()) {
+		if (!entry.licenseText || entry.licenseText.trim() === '') {
+			out.push({ name: entry.name, version: entry.version, reason: 'no-license-text' });
+		}
+	}
+
+	// Dedupe by `<name>@<version>` (a pkg may appear from both sources).
+	const seen = new Set<string>();
+	const deduped: Array<{ name: string; version: string; reason: string }> = [];
+	for (const u of out) {
+		const key = `${u.name.toLowerCase()}@${u.version || ''}`;
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		deduped.push(u);
+	}
+
+	deduped.sort((a, b) => {
+		const an = a.name.toLowerCase();
+		const bn = b.name.toLowerCase();
+		if (an !== bn) {
+			return an.localeCompare(bn);
+		}
+		return (a.version || '').localeCompare(b.version || '');
+	});
+
+	return deduped;
+}
+
 async function mainAsync(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	const cgPath = args['cg'] || '';
@@ -409,19 +465,92 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 
 	const sizeMB = (output.length / 1024 / 1024).toFixed(2);
 
-	console.log('=== Merge Summary ===');
-	console.log(`  Total packages: ${sorted.length}`);
-	console.log(`    From CG: ${cgCount}`);
-	console.log(`    From extension scanner: ${extAdded}`);
-	console.log(`    Cargo stub-overrides (beat CG): ${extStubOverridden}`);
-	console.log(`    Extension duplicates skipped: ${extSkipped}`);
-	if (cglicensesPath) {
-		console.log(`    cglicenses overrides applied: ${overridesApplied} (${overrideEntryCount} merged entries updated)`);
-		console.log(`    cglicenses overrides injected: ${overridesInjected}`);
-		console.log(`    cglicenses overrides stale (skipped, warn-only): ${staleOverrides.length}`);
-		console.log(`    cglicenses overrides unmatched (no usable text): ${unmatchedOverrides.length}`);
+	// Reconcile the numbers so the summary is self-explaining. Only three inputs
+	// ADD a row to the final NOTICE: CG packages, brand-new extension-scanner
+	// packages, and injected overrides. Everything else either lands on a package
+	// CG already covers (folded -> no new row) or edits an existing row in place
+	// (count-neutral). "Found" is the gross discovery count across all sources;
+	// "included" is what actually ships after folding the overlaps.
+	const extScannerFound = extAdded + extStubOverridden + extSkipped;
+	const totalFound = cgCount + extScannerFound + overridesInjected;
+	const totalFolded = extSkipped + extStubOverridden;
+	const totalIncluded = sorted.length;
+
+	// Load the scanner's unresolved index (packages it tried to resolve but
+	// produced no row for). Cross-checked against the final merged notice below so
+	// packages rescued downstream (e.g. a cglicenses.json override) are excluded.
+	// Never throws — a missing/garbled sibling just yields an empty list.
+	const unresolvedPath = args['unresolved'] || (extPath ? extPath + '.unresolved.json' : '');
+	let unresolvedList: Array<{ name: string; version: string; reason: string }> = [];
+	if (unresolvedPath && fs.existsSync(unresolvedPath)) {
+		try {
+			const raw: unknown = JSON.parse(fs.readFileSync(unresolvedPath, 'utf8'));
+			if (Array.isArray(raw)) {
+				unresolvedList = (raw as Array<{ name?: unknown; version?: unknown; reason?: unknown }>)
+					.filter(item => item && typeof item.name === 'string')
+					.map(item => ({
+						name: item.name as string,
+						version: typeof item.version === 'string' ? item.version : '',
+						reason: typeof item.reason === 'string' ? item.reason : 'unresolved',
+					}));
+			}
+		} catch (err) {
+			console.warn(`  WARN: could not read unresolved index ${unresolvedPath}: ${(err as Error).message}`);
+		}
 	}
+
+	console.log('=== Merge Summary ===');
+	console.log('');
+	console.log('  Packages found (gross, across all sources):');
+	console.log(`    Component Governance:                 ${cgCount}`);
+	console.log(`    Extension scanner:                    ${extScannerFound}  (${extAdded} new, ${extSkipped} already in CG, ${extStubOverridden} stub-overrides)`);
+	if (cglicensesPath) {
+		console.log(`    cglicenses.json injected:             ${overridesInjected}  (present-but-unlicensed, added by override)`);
+	}
+	console.log(`    Total packages found:                 ${totalFound}`);
+	console.log('');
+	console.log('  Folded during merge (scanner hit a package CG already had -- no new row):');
+	console.log(`    Duplicates skipped (CG text kept):    ${extSkipped}`);
+	console.log(`    Stub-overrides (CG text replaced):    ${extStubOverridden}`);
+	console.log(`    Total folded:                         ${totalFolded}`);
+	console.log('');
+	if (cglicensesPath) {
+		console.log('  Edited in place (count-neutral):');
+		console.log(`    cglicenses overrides applied:         ${overridesApplied}  (${overrideEntryCount} entries updated)`);
+		console.log(`    cglicenses overrides stale (skipped): ${staleOverrides.length}  (warn-only)`);
+		console.log(`    cglicenses overrides unmatched:       ${unmatchedOverrides.length}  (no usable text)`);
+		console.log('');
+	}
+	console.log(`  Total packages included in shipping ThirdPartyNotices: ${totalIncluded}`);
+	console.log(`    (${totalFound} found - ${totalFolded} folded = ${totalIncluded})`);
+
+	const unaccounted = computeUnaccounted(merged, unresolvedList);
+	console.log('');
+	if (unaccounted.length > 0) {
+		// Surface as warnings so they show up in the ADO build log's warning count
+		// and any warning-count tooling. Informational only -- never fails the build.
+		console.warn(`  Packages NOT accounted for in the final NOTICE: ${unaccounted.length}`);
+		console.warn('  (genuinely absent, or present with an empty license body -- need a cglicenses.json override or upstream fix)');
+		for (const u of unaccounted) {
+			console.warn(`    ! ${u.name}@${u.version || '(no version)'} -- ${u.reason}`);
+		}
+	} else {
+		// Zero is good news, not a warning.
+		console.log(`  Packages NOT accounted for in the final NOTICE: ${unaccounted.length}`);
+	}
+
+	// Defensive: if a future code path mutates the merged map without updating a
+	// counter, this catches the drift instead of silently shipping a wrong total.
+	if (totalFound - totalFolded !== totalIncluded) {
+		console.warn(`  WARN: merge accounting mismatch -- found(${totalFound}) - folded(${totalFolded}) = ${totalFound - totalFolded}, but the final NOTICE has ${totalIncluded} packages. A source or override path is uncounted.`);
+	}
+
+	console.log('');
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
 }
 
-mainAsync().catch(err => { console.error(err); process.exit(1); });
+// Only run mainAsync() when merge-notices is the entry point -- not when a test
+// or another module imports the exported helpers (mirrors scan-licenses.ts).
+if (/merge-notices(\.[jt]s)?$/.test(process.argv[1] || '')) {
+	mainAsync().catch(err => { console.error(err); process.exit(1); });
+}

@@ -337,7 +337,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
-						parts.push({ kind: 'thinking', value: rp.content });
+						parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
 					}
 					break;
 				case ResponsePartKind.SystemNotification:
@@ -593,7 +593,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			case ResponsePartKind.Reasoning:
 				if (rp.content) {
-					parts.push({ kind: 'thinking', value: rp.content });
+					parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
 				}
 				break;
 			case ResponsePartKind.ToolCall: {
@@ -1318,6 +1318,8 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent.agentName,
+			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
+			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
 		};
 		// toolSpecificData is a plain property — notify state observers
 		// so ChatSubagentContentPart re-reads the updated metadata.
@@ -1331,7 +1333,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', description, agentName };
+			existing.toolSpecificData = { kind: 'subagent', description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1405,6 +1407,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				description: getSubagentTaskDescription(tc),
 				agentName: subagentContent.agentName,
 				result: resultText,
+				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -1414,6 +1418,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),
+				credits: invocation.toolSpecificData.credits,
+				modelName: invocation.toolSpecificData.modelName,
 			};
 		}
 	}

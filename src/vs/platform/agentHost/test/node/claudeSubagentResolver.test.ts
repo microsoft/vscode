@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { GetSessionMessagesOptions, GetSubagentMessagesOptions, ListSubagentsOptions, Options, SDKSessionInfo, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { GetSessionMessagesOptions, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKSessionInfo, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -44,6 +44,7 @@ class FakeSdkService implements IClaudeAgentSdkService {
 	async listSessions(): Promise<readonly SDKSessionInfo[]> { return []; }
 	async getSessionInfo(_id: string): Promise<SDKSessionInfo | undefined> { return undefined; }
 	async startup(_p: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> { throw new Error('not used'); }
+	async query(_params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> { throw new Error('not used'); }
 	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
 		this.getSessionMessagesCalls.push({ sessionId, options });
 		if (this.getSessionMessagesRejection) { throw this.getSessionMessagesRejection; }
@@ -59,6 +60,7 @@ class FakeSdkService implements IClaudeAgentSdkService {
 		if (this.getSubagentMessagesRejection) { throw this.getSubagentMessagesRejection; }
 		return this.subagentMessages.get(`${sessionId}::${agentId}`) ?? [];
 	}
+	async forkSession(): Promise<never> { throw new Error('not implemented in test fake'); }
 	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in test fake'); }
 	async tool(): Promise<never> { throw new Error('not implemented in test fake'); }
 }
