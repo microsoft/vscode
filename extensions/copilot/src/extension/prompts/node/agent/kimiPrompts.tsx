@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
+import { isKimiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
@@ -14,11 +15,6 @@ import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, GenericEditingTips, McpToolInstructions, NotebookInstructions } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
-
-function isKimiModel(model: string): boolean {
-	const normalized = model.toLowerCase();
-	return normalized === 'kimi-k2.6' || normalized === 'kimi-k2.7-code';
-}
 
 class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
@@ -86,6 +82,17 @@ class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
 
+			{tools[ToolName.ReplaceString] && !tools[ToolName.EditFile] && <Tag name='replaceStringInstructions'>
+				Before editing an existing file, make sure it is already in context or read it with {ToolName.ReadFile}.<br />
+				{tools[ToolName.MultiReplaceString]
+					? <>Use {ToolName.ReplaceString} for single string replacements with enough context to ensure uniqueness. Prefer {ToolName.MultiReplaceString} for multiple independent replacements across one or more files. Do not announce which tool you're using.<br /></>
+					: <>Use {ToolName.ReplaceString} to edit files. Include sufficient surrounding context so the replacement is unique. You can use this tool multiple times per file.<br /></>}
+				Group changes by file.<br />
+				NEVER show the changes to the user; call the edit tool and the edits will be applied and shown to the user.<br />
+				NEVER print a codeblock that represents a change to a file. Use {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? ` or ${ToolName.MultiReplaceString}` : ''} instead.<br />
+				For each file, give a short description of what needs to be changed, then use the edit tool.<br />
+			</Tag>}
+
 			{tools[ToolName.EditFile] && !tools[ToolName.ApplyPatch] && <Tag name='editFileInstructions'>
 				{tools[ToolName.ReplaceString] ?
 					<>
@@ -131,7 +138,7 @@ class KimiPromptResolver implements IAgentPrompt {
 	static readonly familyPrefixes = ['kimi-k2.6', 'kimi-k2.7-code'];
 
 	static matchesModel(endpoint: IChatEndpoint): boolean {
-		return isKimiModel(endpoint.family) || isKimiModel(endpoint.model);
+		return isKimiFamily(endpoint) || isKimiFamily(endpoint.model);
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
