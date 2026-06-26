@@ -3853,7 +3853,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming {
-			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			background-color: var(--vscode-sideBar-background);
 			border-radius: var(--vscode-cornerRadius-medium);
 			overflow: hidden;
@@ -3895,7 +3895,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
-			border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
 		}
 
 		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child:hover {

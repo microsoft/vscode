@@ -55,19 +55,20 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 
 		const cancelButton = this._cancelButton = dom.append(container, dom.$('a.action-label.chat-restore-checkpoint-cancel'));
 		cancelButton.setAttribute('role', 'button');
-		cancelButton.tabIndex = 0;
+		// Keep the cancel affordance out of the tab order so it does not break
+		// the ActionBar roving-tabindex pattern; keyboard users can use Escape to
+		// cancel the inline confirmation.
+		cancelButton.tabIndex = -1;
 		dom.reset(cancelButton, ...renderLabelWithIcons(`$(close)`));
-		cancelButton.title = localize('chat.restoreCheckpoint.cancelTooltip', "Cancel restoring this checkpoint");
+		const cancelLabel = localize('chat.restoreCheckpoint.cancelTooltip', "Cancel restoring this checkpoint");
+		cancelButton.title = cancelLabel;
+		cancelButton.setAttribute('aria-label', cancelLabel);
 		this._register(dom.addDisposableListener(cancelButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._setConfirming(false);
-		}));
-		this._register(dom.addDisposableListener(cancelButton, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(e, true);
-				this._setConfirming(false);
-			}
+			// The cancel button is hidden once confirmation is dismissed, so move
+			// focus back to the main action label to avoid losing keyboard focus.
+			this.label?.focus();
 		}));
 
 		// The action bar runs the action directly on keyboard trigger (Enter /
@@ -79,14 +80,10 @@ export class ChatRestoreCheckpointActionViewItem extends MenuEntryActionViewItem
 			if (!event.equals(KeyCode.Enter) && !event.equals(KeyCode.Space)) {
 				return;
 			}
-			// Let the cancel button handle its own keyboard activation.
-			if (this._cancelButton && (e.target === this._cancelButton || this._cancelButton.contains(e.target as Node))) {
-				return;
-			}
 			if (this._confirming) {
 				dom.EventHelper.stop(e, true);
 				this._setConfirming(false);
-				super.onClick(new MouseEvent('click'));
+				void super.onClick(new MouseEvent('click'));
 				return;
 			}
 			if (this._needsConfirmation(this._context)) {
