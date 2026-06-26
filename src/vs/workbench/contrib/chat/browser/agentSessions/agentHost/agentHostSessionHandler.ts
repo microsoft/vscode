@@ -3377,10 +3377,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _installDraftSync(sessionResource: URI, chatModel: IChatModel, backendSession: URI, chatKey: string, store: DisposableStore): void {
+		const inputModel = chatModel.inputModel;
+		if (!inputModel) {
+			return;
+		}
 		const delayer = store.add(new Delayer<void>(AgentHostSessionHandler.DRAFT_SYNC_DEBOUNCE_MS));
 		let lastDraft = this._getSessionState(backendSession.toString(), chatKey)?.draft;
 		store.add(autorun(reader => {
-			const state = chatModel.inputModel.state.read(reader);
+			const state = inputModel.state.read(reader);
 			delayer.trigger(() => {
 				const draft = this._inputStateToDraft(sessionResource, state);
 				if (equals(lastDraft, draft)) {
