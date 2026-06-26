@@ -53,6 +53,19 @@ suite('ChatMarkdownRenderer', () => {
 		});
 	});
 
+	test('only renders strikethrough with double tildes', () => {
+		const md = new MarkdownString('Keep ~single tildes~ but strike ~~double tildes~~.');
+		const result = store.add(testRenderer.render(md, { markedOptions: { gfm: true } }));
+
+		assert.deepStrictEqual({
+			outerHTML: result.element.outerHTML,
+			textContent: result.element.textContent,
+		}, {
+			outerHTML: '<div class="rendered-markdown"><p>Keep ~single tildes~ but strike <del>double tildes</del>.</p></div>',
+			textContent: 'Keep ~single tildes~ but strike double tildes.',
+		});
+	});
+
 	test('supportHtml with one-line markdown', async () => {
 		const md = new MarkdownString('**hello**');
 		md.supportHtml = true;
