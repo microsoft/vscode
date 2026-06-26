@@ -1002,6 +1002,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
+	/**
+	 * Switch the current session to its "Auto" model, if one is available in
+	 * the session's model pool. Returns true if Auto was found and selected.
+	 *
+	 * Resolves Auto by its well-known metadata id (see
+	 * {@link ILanguageModelChatMetadata.isAutoModel}) rather than a fixed
+	 * identifier, so it works across session types whose Auto model carries a
+	 * host-specific identifier (e.g. the Copilot CLI agent host's
+	 * `copilotcli:auto`). Because {@link getModels} is already filtered to the
+	 * current session's pool, this selects the Auto model valid for that
+	 * session.
+	 */
+	public switchToAutoModel(): boolean {
+		const model = this.getModels().find(m => ILanguageModelChatMetadata.isAutoModel(m.metadata));
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
+	}
+
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
 		const models = this.getModels();
 		for (const qualifiedModelName of qualifiedModelNames) {

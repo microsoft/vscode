@@ -6,7 +6,7 @@
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
-import { AUTO_MODEL_IDENTIFIER, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
 
 /**
  * Storage key prefix for persisted model selections.
@@ -194,15 +194,16 @@ export function isSelectedModelCopilot(
 }
 
 /**
- * Returns whether the currently selected chat model is the Copilot "Auto"
- * model.
+ * Returns whether the currently selected chat model is the "Auto" model.
  *
  * Resolves the selection to registered metadata (handling both the short,
  * lower-cased `chatModelId` context-key value and the fully-qualified,
- * persisted identifier). Models are registered under their `${vendor}/${id}`
- * identifier, so the selection is "Auto" when that identifier matches
- * {@link AUTO_MODEL_IDENTIFIER}. Returns `false` when no model is selected or
- * the selection cannot be resolved to a registered model.
+ * persisted identifier) and tests it with
+ * {@link ILanguageModelChatMetadata.isAutoModel}. Matching on the well-known
+ * metadata id (rather than a fixed identifier) means this also recognizes the
+ * Auto model of session types whose identifier is host-specific, e.g. the
+ * Copilot CLI agent host's `copilotcli:auto`. Returns `false` when no model is
+ * selected or the selection cannot be resolved to a registered model.
  */
 export function isSelectedModelAuto(
 	contextKeyService: IContextKeyService,
@@ -210,5 +211,5 @@ export function isSelectedModelAuto(
 	languageModelsService: ILanguageModelsService,
 ): boolean {
 	const metadata = getSelectedModelMetadata(contextKeyService, storageService, languageModelsService);
-	return !!metadata && `${metadata.vendor}/${metadata.id}` === AUTO_MODEL_IDENTIFIER;
+	return !!metadata && ILanguageModelChatMetadata.isAutoModel(metadata);
 }

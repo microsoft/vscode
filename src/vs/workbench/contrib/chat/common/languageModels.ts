@@ -44,6 +44,18 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  */
 export const COPILOT_VENDOR_ID = 'copilot';
 
+/**
+ * The well-known metadata `id` of the synthetic "Auto" model, which
+ * dynamically routes to the best backend.
+ *
+ * This is stable across session types even though the fully qualified model
+ * identifier is vendor/host specific (e.g. `copilot/auto` for the default
+ * Copilot panel vs. `copilotcli:auto` for the Copilot CLI agent host). Use
+ * {@link ILanguageModelChatMetadata.isAutoModel} to test a model rather than
+ * comparing a fully qualified identifier.
+ */
+export const AUTO_MODEL_ID = 'auto';
+
 export const enum ChatMessageRole {
 	System,
 	User,
@@ -243,6 +255,16 @@ export namespace ILanguageModelChatMetadata {
 	export function suitableForAgentMode(metadata: ILanguageModelChatMetadata): boolean {
 		const supportsToolsAgent = typeof metadata.capabilities?.agentMode === 'undefined' || metadata.capabilities.agentMode;
 		return supportsToolsAgent && !!metadata.capabilities?.toolCalling;
+	}
+
+	/**
+	 * Whether the given model is the synthetic "Auto" model, identified by its
+	 * well-known {@link AUTO_MODEL_ID} metadata id. This works across session
+	 * types whose Auto model carries a session-specific fully qualified
+	 * identifier (e.g. `copilot/auto` vs. `copilotcli:auto`).
+	 */
+	export function isAutoModel(metadata: ILanguageModelChatMetadata): boolean {
+		return metadata.id === AUTO_MODEL_ID;
 	}
 
 	export function asQualifiedName(metadata: ILanguageModelChatMetadata): string {
@@ -641,7 +663,7 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  * The identifier for the Auto model which dynamically routes to the best backend.
  * Auto should never appear in user-curated lists (MRU, pinned).
  */
-export const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
+const AUTO_MODEL_IDENTIFIER = `${COPILOT_VENDOR_ID}/${AUTO_MODEL_ID}`;
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 

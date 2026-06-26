@@ -245,6 +245,12 @@ suite('ChatQuotaNotificationContribution', () => {
 				if (id === 'copilot/auto') {
 					return { id: 'auto', vendor: 'copilot', family: 'auto', isBYOK: false } as ILanguageModelChatMetadata;
 				}
+				// Agent-host models (e.g. the Copilot CLI harness) are registered
+				// under a `${vendor}:${id}` identifier and are CAPI-backed (not BYOK).
+				if (id.includes(':')) {
+					const [modelVendor, modelId] = id.split(':');
+					return { id: modelId, vendor: modelVendor, family: modelId, isBYOK: false } as ILanguageModelChatMetadata;
+				}
 				const [modelVendor, modelId] = id.includes('/') ? id.split('/') : [vendor, id];
 				return { id: modelId, vendor: modelVendor, family: modelId, isBYOK: modelVendor !== 'copilot' } as ILanguageModelChatMetadata;
 			},
@@ -253,11 +259,12 @@ suite('ChatQuotaNotificationContribution', () => {
 		const switchedModels: string[] = [];
 		const chatWidget = {
 			input: {
-				switchModelByIdentifier(identifier: string) {
-					if (identifier !== 'copilot/auto') {
+				switchToAutoModel() {
+					const autoId = modelIds.find(id => languageModelsService.lookupLanguageModel(id)?.id === 'auto');
+					if (!autoId) {
 						return false;
 					}
-					switchedModels.push(identifier);
+					switchedModels.push(autoId);
 					return true;
 				},
 			},
@@ -781,6 +788,39 @@ suite('ChatQuotaNotificationContribution', () => {
 					premiumChat: makeQuotaSnapshot(72),
 				},
 			}, { selectedModelId: 'copilot/auto', trajectoryTreatment: true, telemetryService });
+
+			await flushPromises();
+
+			const notification = notificationMock.getNotification();
+			assert.ok(notification);
+			const message = notification.message;
+			const learnMoreLink = createMarkdownCommandLink({
+				text: 'Learn about optimizing usage',
+				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
+				tooltip: 'Learn about optimizing usage',
+			});
+			assert.deepStrictEqual({
+				message: typeof message === 'string' ? message : message.value,
+				enrollmentTelemetry: telemetryService.events[0],
+			}, {
+				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}.`,
+				enrollmentTelemetry: {
+					name: 'chatQuotaTrajectoryNudgeEnrolled',
+					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'alreadyAuto' },
+				},
+			});
+		});
+
+		test('omits Try auto link when the Copilot CLI Auto model is already selected', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { selectedModelId: 'copilotcli:auto', trajectoryTreatment: true, telemetryService });
 
 			await flushPromises();
 

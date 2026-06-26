@@ -19,7 +19,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { isSelectedModelAuto, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { AUTO_MODEL_IDENTIFIER, ILanguageModelsService } from '../common/languageModels.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
@@ -394,7 +394,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _handleTryAutoCommand(): void {
 		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeTryAutoClickedClassification>('chatQuotaTrajectoryNudgeTryAutoClicked');
-		this._chatWidgetService.lastFocusedWidget?.input.switchModelByIdentifier(AUTO_MODEL_IDENTIFIER);
+		this._chatWidgetService.lastFocusedWidget?.input.switchToAutoModel();
 		queueMicrotask(() => this._hideNotification());
 	}
 
