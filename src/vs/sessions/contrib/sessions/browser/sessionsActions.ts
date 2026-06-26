@@ -9,9 +9,11 @@ import { hash } from '../../../../base/common/hash.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -24,13 +26,14 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
+import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 
 // -- Show Sessions Picker --
 
@@ -404,23 +407,21 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
-// The "New Chat" toolbar entry starts a new chat in the session. It is shown in
-// the session header while the session has at most one committed chat (so it
-// stays available even when an in-composer draft has surfaced the tab strip).
-// Once the session has more than one committed chat this toolbar slot shows the
-// "Conversations" dropdown instead; the tab strip also renders its own "New
-// Chat" button at the end of the tabs whenever it is visible.
+// "New Chat" starts a new chat. Hidden once the session has more than one open
+// chat, since the chat tab strip then offers New Chat at the end of the tabs.
+const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
+
 registerAction2(class AddChatToSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.addChat',
+			id: ADD_CHAT_TO_SESSION_ACTION_ID,
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
 			menu: {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext.negate()),
+				order: 0,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleOpenChatsContext.negate()),
 			},
 		});
 	}
@@ -436,13 +437,37 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 	}
 });
 
+export class SessionNewChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.newChatActionViewItem';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		super();
+
+		// Fire once after registering so a header toolbar that was already built
+		// (e.g. for a session restored before this contribution runs) re-renders and
+		// picks up this factory; otherwise New Chat stays icon-only until its menu
+		// next changes.
+		const onDidRegister = this._register(new Emitter<void>());
+		this._register(actionViewItemService.register(Menus.SessionBarToolbar, ADD_CHAT_TO_SESSION_ACTION_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
+		}, onDidRegister.event));
+		onDidRegister.fire();
+	}
+}
+
 // The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
 // opens with a "New Chat" entry (registered by SessionConversationsMenuContribution
 // below), then lists every chat in the session with a checkbox. Checked chats are
 // shown as tabs; unchecked chats are closed (hidden from the tab strip). Toggling
 // an entry closes or reopens the corresponding chat. The main chat is always shown
-// and cannot be closed, so its entry is checked and disabled. It replaces the "New
-// Chat" toolbar button once the session has more than one committed chat.
+// and cannot be closed, so its entry is checked and disabled. It is shown in the
+// session header toolbar once the session has more than one committed chat.
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Conversations"),
