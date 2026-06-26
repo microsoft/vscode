@@ -65,7 +65,7 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 //#region < --- Sessions Picker --- >
 
-export const SessionsPickerVisibleContext = new RawContextKey<boolean>('sessionsPickerVisible', false, localize('sessionsPickerVisible', "Whether the sessions picker (recently opened sessions) is visible"));
+export const SessionsPickerVisibleContext = new RawContextKey<boolean>('sessionsPickerVisible', false, localize('sessionsPickerVisible', "Whether the sessions picker is visible"));
 
 //#endregion
 
