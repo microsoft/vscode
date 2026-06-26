@@ -59,3 +59,62 @@ Two tiers in the canonical `telemetry` schema:
   branch which wrongly nested it under `telemetry`.
 - **Scalars need no structured-table change.** `telemetry.{enabled,endpoint,protocol,captureContent,lockCaptureContent}`
   flatten to dot-path bag keys automatically via `flattenManagedSettings`.
+
+- **Desktop agent host wasn't receiving managed OTel policy (fixed).** `AccountPolicyService`
+  (server / native-MDM / file managed settings) is added to the policy service only in the
+  **renderer** (`desktop.main.ts` `MultiplexPolicyService([policyChannel, accountPolicy])`). The
+  agent-host starter (`ElectronAgentHostStarter`) runs in **electron-main**, whose config service
+  lacks that layer, so `inspect(key).policyValue` for `chat.agentHost.otel.*` was always `undefined`
+  and the host spawned with no managed OTel env (endpoint/protocol/enabled) — the extension worked
+  because the extension host mirrors the renderer config. Fix threads the renderer-resolved policy to
+  the starter over the existing renderer→main connection seam (`AgentHostOTelPolicyIpcChannel`;
+  `readAgentHostOTelPolicySettings` / `sanitizeAgentHostOTelPolicySettings`; renderer sends before
+  `acquirePort`, starter uses it as `buildAgentHostOTelEnv` `policySettings`, falling back to
+  main-process policy). Verified e2e: agent host env got `4318` + `http/protobuf`; Aspire
+  `service.name=github-copilot`.
+
+## Follow-ups (not in this sprint)
+
+- **Deferred map/serviceName fields** — `headers` / `resourceAttributes` / `serviceName`. Spike
+  (against the CLI runtime source) revised the plan — see **Spike: where the agent host gets OTel
+  config** below. Net: deliver them VS Code-only (no runtime change) via the env vars the runtime's
+  `build_resource` already reads (`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`) plus the
+  extension's own exporter; **agent-host `headers` stay deferred** (secret-in-env leaks to tool
+  subprocesses — needs the runtime's `applyManagedTelemetry`).
+- **Agent-host OTel env is fixed at spawn; no re-apply on later policy change.** The agent host is a
+  singleton utility process whose OTel env is computed once in `start()`. If managed OTel policy
+  changes (or first syncs) **after** the host has already spawned, the running host keeps the stale
+  env — same class of problem as the extension requiring a "Reload Window". Follow-up: detect a
+  managed-OTel-policy change in the renderer and either (a) re-spawn the agent host, or (b) surface a
+  restart affordance, so the new policy takes effect without a full quit/relaunch. Today the host
+  must first spawn *after* policy sync to pick up managed OTel settings.
+
+## Spike: where the agent host gets OTel config (for `headers`/`resourceAttributes`/`serviceName`)
+
+Traced through the CLI runtime (`copilot-agent-runtime`):
+
+- The headless/agent-host runtime resolves OTel from **env only** (`OtelLifecycle` → `resolveOtelConfig`).
+  Its env reader (`readOtelEnv`) maps only the scalar `COPILOT_OTEL_*`/`OTEL_*` vars — it does **not**
+  read headers/resourceAttributes/serviceName into the config object.
+- Those three only flow through the **structured** path: `mergeManagedOtelConfig(managed, env)` →
+  `OtelLifecycle.applyManagedTelemetry(managed)` (headers stamped out-of-env by `ManagedHeaderClient`).
+  That path is invoked **interactive-CLI-only** (`expectManagedTelemetry` gated on `!isNonInteractiveMode`;
+  TUI fetches via `app.tsx onAuthChange → fetchManagedSettings`). The SDK *does* expose
+  `applyManagedTelemetry`/`expectManagedTelemetry` on `LocalSessionHost`, but the headless agent-host
+  entry never calls them and nothing wires VS Code's block in.
+- **However**, the runtime's `build_resource` (otel_sdk.rs) reads standard env as resource precedence:
+  managed `service_name`/`resource_attributes` (1) → `OTEL_RESOURCE_ATTRIBUTES` (2) →
+  `OTEL_SERVICE_NAME` (3) → default. So VS Code **can** deliver `serviceName`/`resourceAttributes` to the
+  agent host via those env vars without any runtime change. `headers` via `OTEL_EXPORTER_OTLP_HEADERS`
+  env would also be read — but that's a secret that leaks into every tool subprocess the host spawns.
+
+### Revised plan (VS Code-only, no runtime change)
+
+| Field | Extension (`copilot-chat`) | Agent host (`github-copilot`) |
+| --- | --- | --- |
+| `serviceName` | programmatic (own resource) | env `OTEL_SERVICE_NAME` |
+| `resourceAttributes` | programmatic | env `OTEL_RESOURCE_ATTRIBUTES` |
+| `headers` (secret) | programmatic, out-of-env | **deferred** — needs runtime `applyManagedTelemetry` (env path leaks the token to tool subprocesses) |
+
+Sequencing (separate commits): (1) `serviceName`; (2) `resourceAttributes` (needs nested-key support in
+`STRUCTURED_MANAGED_SETTINGS`); (3) `headers` extension-only. Agent-host `headers` tracked under the runtime follow-up.
