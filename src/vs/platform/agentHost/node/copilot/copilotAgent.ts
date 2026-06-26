@@ -2393,7 +2393,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			sessionId,
 			message: prompt,
 			githubToken: this._githubToken,
-			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => false),
+			// Treat a failed existence check as a collision so we fall back to a
+			// suffixed branch name rather than risk `addWorktree` failing because
+			// the branch already exists.
+			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => true),
 		});
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });

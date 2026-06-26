@@ -19,8 +19,8 @@ export interface ICopilotBranchNameGeneratorRequest {
 	readonly signal?: AbortSignal;
 	/**
 	 * Optional predicate used to check whether a candidate branch name already
-	 * exists. When it reports a collision, a short random suffix is appended so
-	 * the generated branch name stays unique.
+	 * exists. When it reports a collision, a short suffix derived from the
+	 * session id is appended so the generated branch name stays unique.
 	 */
 	readonly branchExists?: (branchName: string) => Promise<boolean>;
 }
@@ -110,8 +110,8 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 			return `${COPILOT_BRANCH_PREFIX}${request.sessionId}`;
 		}
 
-		// Prefer the bare hint and only append a short random suffix when the
-		// branch name would collide with an existing branch.
+		// Prefer the bare hint and only append a short session-id suffix when
+		// the branch name would collide with an existing branch.
 		const branchName = `${COPILOT_BRANCH_PREFIX}${branchNameHint}`;
 		if (request.branchExists && await request.branchExists(branchName)) {
 			return `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`;

@@ -570,7 +570,7 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('appends a short random suffix when the branch name already exists', async () => {
+	test('appends a short session-id suffix when the branch name already exists', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.response = 'add-agent-host-config';
 		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
@@ -2644,7 +2644,7 @@ suite('CopilotAgent', () => {
 				//    before constructing the SDK session. Verifies that the
 				//    real production code path persists branch metadata and
 				//    queues the live announcement.
-				const expectedBranchName = `agents/add-feature-${sessionId.substring(0, 8)}`;
+				const expectedBranchName = `agents/add-feature`;
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
 					config: { isolation: 'worktree', branch: 'main' },
