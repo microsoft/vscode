@@ -443,11 +443,7 @@ export function getModelPickerUnavailableReason(context: {
 	if (!context.trustInitialized) {
 		return undefined;
 	}
-	// Restricted Mode wins over a live picker-offered model: an untrusted
-	// workspace disables every model provider, including BYOK and the harness
-	// session-scoped models that register without a trust gate. Checked before
-	// the live-model short-circuit below so untrusted always reports Restricted
-	// rather than falling back to a misleading "Auto".
+	// In Restricted Mode, report Restricted before considering live models.
 	if (!context.trusted) {
 		return ModelPickerUnavailableReason.Restricted;
 	}
