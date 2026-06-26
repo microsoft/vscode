@@ -534,6 +534,21 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(result, false, 'Second skip() should return false');
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
 		});
+
+		test('skip no-ops when the carousel was already resolved externally', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }
+			], true);
+			createWidget(carousel);
+
+			// Simulate an external resolution (e.g. a voice answer dismissing the
+			// carousel) after the part has already rendered interactively.
+			carousel.isUsed = true;
+
+			const result = widget.skip();
+			assert.strictEqual(result, false, 'skip() must not re-submit a carousel resolved elsewhere');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not overwrite the external answers');
+		});
 	});
 
 	suite('Ignore Functionality', () => {
@@ -570,6 +585,19 @@ suite('ChatQuestionCarouselPart', () => {
 			const result = widget.ignore();
 			assert.strictEqual(result, false, 'Second ignore() should return false');
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
+		});
+
+		test('ignore no-ops when the carousel was already resolved externally', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			carousel.isUsed = true;
+
+			const result = widget.ignore();
+			assert.strictEqual(result, false, 'ignore() must not re-submit a carousel resolved elsewhere');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not overwrite the external answers');
 		});
 
 		test('skip and ignore are mutually exclusive', () => {

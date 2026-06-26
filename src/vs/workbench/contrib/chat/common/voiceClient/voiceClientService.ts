@@ -16,12 +16,52 @@ export interface IVoiceSessionContext {
 		agent_state: string;
 		agent_state_detail?: string;
 		last_response_summary?: string;
+		pending?: IVoiceSessionPending | null;
 	}[];
 	active_session?: {
 		id: string;
 		last_message: string | null;
 	};
 	display_locale?: string;
+}
+
+/** A selectable option within a pending question, in displayed order. */
+export interface IVoicePendingOption {
+	ordinal: number;
+	label: string;
+	value: string;
+}
+
+/** A single question in a pending questionCarousel form. */
+export interface IVoicePendingQuestion {
+	id: string;
+	type: 'text' | 'singleSelect' | 'multiSelect';
+	title: string;
+	required: boolean;
+	allow_freeform: boolean;
+	options: IVoicePendingOption[];
+	freeform_ordinal?: number;
+}
+
+/**
+ * The structured "pending" payload for a coding session: the authoritative
+ * description of what the agent is waiting on (a multi-question form, a binary
+ * approval, or an elicitation) plus the exact routing ids the backend echoes
+ * back so the client can target the precise chat part when applying an answer.
+ */
+export interface IVoiceSessionPending {
+	type: 'questions' | 'approval' | 'elicitation';
+	/** Stable fingerprint for this pending instance (draft key + narration dedup). */
+	pending_id: string;
+	/** Id of the owning chat request (IChatRequestModel.id). */
+	request_id: string;
+	/** Carousel resolveId — questions only. */
+	resolve_id?: string;
+	/** Which approval UI this is — approval/elicitation only. */
+	approval_kind?: 'toolInvocation' | 'toolPostApproval' | 'confirmation' | 'elicitation2';
+	questions?: IVoicePendingQuestion[];
+	title?: string;
+	message?: string;
 }
 
 /**

@@ -22,6 +22,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
+import { IOrderedQuestionOption, getOptionsWithDefaultsFirst } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -45,11 +46,6 @@ export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
 	shouldAutoFocus?: boolean;
 }
-
-type IOrderedQuestionOption = {
-	option: NonNullable<IChatQuestion['options']>[number];
-	originalIndex: number;
-};
 
 export class ChatQuestionCarouselPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -508,7 +504,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns defaults for all questions.
 	 */
 	public skip(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 
@@ -529,7 +525,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns undefined to signal the carousel was ignored.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
@@ -1542,28 +1538,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQuestionOption[] {
-		const options = question.options ?? [];
-		const orderedOptions = options.map((option, index) => ({ option, originalIndex: index }));
-		const defaultOptionIds = Array.isArray(question.defaultValue)
-			? question.defaultValue
-			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
-
-		if (defaultOptionIds.length === 0) {
-			return orderedOptions;
-		}
-
-		const defaultIds = new Set(defaultOptionIds);
-		const defaults: IOrderedQuestionOption[] = [];
-		const nonDefaults: IOrderedQuestionOption[] = [];
-		for (const item of orderedOptions) {
-			if (defaultIds.has(item.option.id)) {
-				defaults.push(item);
-			} else {
-				nonDefaults.push(item);
-			}
-		}
-
-		return [...defaults, ...nonDefaults];
+		return getOptionsWithDefaultsFirst(question);
 	}
 
 	/**
