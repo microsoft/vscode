@@ -4476,5 +4476,5 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .hc-black .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker,
 .hc-light .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
-	border: 1px solid var(--vscode-contrastBorder);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
