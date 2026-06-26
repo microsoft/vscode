@@ -27,6 +27,7 @@ describe('buildSandboxConfigForCLI', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'on', undefined)).toEqual({
 					enabled: true,
+					allowBypass: true,
 					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
 				});
 			}
@@ -36,6 +37,7 @@ describe('buildSandboxConfigForCLI', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'allowNetwork', undefined)).toEqual({
 					enabled: true,
+					allowBypass: true,
 					userPolicy: { filesystem: {}, network: { allowOutbound: true } },
 				});
 			}
@@ -63,6 +65,7 @@ describe('buildSandboxConfigForCLI', () => {
 			};
 			expect(buildSandboxConfigForCLI('darwin', 'on', fsFor('darwin', fs))).toEqual({
 				enabled: true,
+				allowBypass: true,
 				userPolicy: {
 					filesystem: {
 						readwritePaths: ['/work'],
@@ -77,6 +80,7 @@ describe('buildSandboxConfigForCLI', () => {
 		it('omits filesystem lists that are empty', () => {
 			expect(buildSandboxConfigForCLI('darwin', 'on', { mac: {} })).toEqual({
 				enabled: true,
+				allowBypass: true,
 				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
 			});
 		});
@@ -127,49 +131,25 @@ describe('buildSandboxConfigForCLI', () => {
 	});
 
 	describe('network hosts', () => {
-		it('forwards allowedHosts and opens outbound even when sandbox is `on`', () => {
-			expect(buildSandboxConfigForCLI('linux', 'on', undefined, { allowedHosts: ['github.com'] })?.userPolicy?.network).toEqual({
-				allowOutbound: true,
-				allowedHosts: ['github.com'],
-			});
+		it('drops host lists and keeps outbound closed when sandbox is `on` (host lists disabled on all platforms)', () => {
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				expect(buildSandboxConfigForCLI(platform, 'on', undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
+					allowOutbound: false,
+				});
+			}
 		});
 
 		it('ignores host lists when sandbox is `allowNetwork` (allow all)', () => {
-			expect(buildSandboxConfigForCLI('linux', 'allowNetwork', undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] })?.userPolicy?.network).toEqual({
-				allowOutbound: true,
-			});
-		});
-
-		it('forwards blockedHosts and opens outbound when only blockedHosts is set (deny-list-only allows non-denied domains)', () => {
-			expect(buildSandboxConfigForCLI('linux', 'on', undefined, { blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
-				allowOutbound: true,
-				blockedHosts: ['evil.example'],
-			});
-		});
-
-		it('forwards both allowedHosts and blockedHosts together when sandbox is `on`', () => {
-			expect(buildSandboxConfigForCLI('linux', 'on', undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] })?.userPolicy?.network).toEqual({
-				allowOutbound: true,
-				allowedHosts: ['a.example'],
-				blockedHosts: ['b.example'],
-			});
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				expect(buildSandboxConfigForCLI(platform, 'allowNetwork', undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] })?.userPolicy?.network).toEqual({
+					allowOutbound: true,
+				});
+			}
 		});
 
 		it('ignores empty host lists', () => {
 			expect(buildSandboxConfigForCLI('linux', 'on', undefined, { allowedHosts: [], blockedHosts: [] })?.userPolicy?.network).toEqual({
 				allowOutbound: false,
-			});
-		});
-
-		it('drops host lists and keeps outbound closed on darwin (Seatbelt has no per-host filter)', () => {
-			expect(buildSandboxConfigForCLI('darwin', 'on', undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
-				allowOutbound: false,
-			});
-		});
-
-		it('darwin `allowNetwork` still opens outbound (host lists were already ignored)', () => {
-			expect(buildSandboxConfigForCLI('darwin', 'allowNetwork', undefined, { allowedHosts: ['github.com'] })?.userPolicy?.network).toEqual({
-				allowOutbound: true,
 			});
 		});
 	});

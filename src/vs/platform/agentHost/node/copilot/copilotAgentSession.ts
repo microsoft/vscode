@@ -1681,7 +1681,13 @@ export class CopilotAgentSession extends Disposable {
 			const deferred = new DeferredPromise<boolean>();
 			this._pendingPermissions.set(toolCallId, deferred);
 
-			if (isShellRequest && await this._isShellSandboxedByDefault()) {
+			// Auto-approve shell commands that run sandboxed by default, since the
+			// sandbox already contains them. Commands that opted OUT of the sandbox
+			// (`requestSandboxBypass`) are an elevation of privilege and must
+			// fall through to the normal confirmation flow — otherwise enabling
+			// `sandbox.allowBypass` would let the model escape the sandbox with no
+			// prompt at all.
+			if (isShellRequest && !request.requestSandboxBypass && await this._isShellSandboxedByDefault()) {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
@@ -1733,6 +1739,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				requestSandboxBypass: request.requestSandboxBypass,
 				parentToolCallId,
 			});
 
@@ -1786,9 +1793,10 @@ export class CopilotAgentSession extends Disposable {
 	 * terminal tool is enabled) or through the SDK's built-in shell tool wrapped
 	 * by the `sandboxConfig` we pushed via `session.options.update`.
 	 *
-	 * In both cases the shell tool prompts on its own when escalating to
-	 * unsandboxed execution, so the SDK's pre-call `shell` permission prompt
-	 * is redundant and we auto-approve it.
+	 * Callers use this to auto-approve shell permission prompts that the sandbox
+	 * already contains. Commands that explicitly opt out of the sandbox
+	 * (`requestSandboxBypass`) are excluded by the caller, since the
+	 * sandbox no longer contains them.
 	 *
 	 * Returns false when neither sandbox path is configured, so the standard
 	 * confirmation flow is preserved.
