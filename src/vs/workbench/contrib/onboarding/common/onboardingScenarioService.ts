@@ -16,8 +16,10 @@ export const ONBOARDING_ENABLED_CONFIG = 'onboarding.enabled';
  * Developer/advanced setting. A map of scenario/tour id to a boolean: when a
  * scenario's flag is `true`, that scenario bypasses usage-based eligibility
  * gating (e.g. the new-session tour's "first few sessions" check) so it can be
- * triggered on demand for testing. Tours are still shown at most once per window
- * session — use the "Reset Onboarding Shown State" command to replay them.
+ * triggered on demand for testing. The scenario is still shown at most once per
+ * window session (tracked in memory, not persisted), so reload the window to
+ * replay it — the "Reset Onboarding Shown State" command only clears the
+ * persisted state and does not affect developer-mode replays.
  *
  * The default value lists every registered scenario id set to `false`, so the
  * available ids are discoverable (and toggleable) in the settings editor.
