@@ -63,6 +63,7 @@ export {
 	type ChangesetStatusChangedAction,
 	type ChangesetFileSetAction,
 	type ChangesetFileRemovedAction,
+	type ChangesetContentChangedAction,
 	type ChangesetOperationsChangedAction,
 	type ChangesetClearedAction,
 	type AnnotationsSetAction,
