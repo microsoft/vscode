@@ -431,6 +431,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState, undefined);
 		});
 
+		test('built-in terminal tool in history falls back to tool success without structured status', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'bash',
+						toolInput: 'echo hi',
+						_meta: { toolKind: 'terminal' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'hi' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
 		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -942,6 +969,35 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'bad_cmd: command not found');
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
 			assert.strictEqual(termData.terminalCommandUri, undefined);
+		});
+
+		test('finalizes built-in terminal tool with success fallback when structured status is missing', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'echo hi',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				invocationMessage: 'Running `echo hi`',
+				toolInput: 'echo hi',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran `echo hi`',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'hi' },
+				],
+			});
+
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
 		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
