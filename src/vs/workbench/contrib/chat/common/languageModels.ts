@@ -672,7 +672,7 @@ export function createModelConfigurationActions(
 	const actions: IAction[] = [];
 
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
+		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 1) {
 			continue;
 		}
 		const currentValue = currentConfig[key] ?? propSchema.default;
