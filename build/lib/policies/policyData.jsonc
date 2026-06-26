@@ -39,6 +39,21 @@
     ],
     "policies": [
         {
+            "key": "chat.agentHost.otel.otlpProtocol",
+            "name": "CopilotOtelOtlpProtocol",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.otlpProtocol.policy",
+                    "value": "Controls the enterprise-managed OTLP wire protocol (protobuf vs JSON) for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false
+        },
+        {
             "key": "mcp.enterpriseManagedAuth.idp",
             "name": "McpEnterpriseManagedAuthIdp",
             "category": "InteractiveSession",
@@ -189,10 +204,7 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.enabled"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.exporterType",
@@ -231,10 +243,7 @@
                 "console",
                 "file"
             ],
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.exporterType"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.otlpEndpoint",
@@ -249,10 +258,7 @@
             },
             "type": "string",
             "default": "",
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.otlpEndpoint"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.captureContent",
@@ -267,10 +273,7 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.captureContent"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.outfile",
@@ -285,10 +288,7 @@
             },
             "type": "string",
             "default": "",
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.outfile"
-            ]
+            "included": true
         },
         {
             "key": "chat.defaultModel",
