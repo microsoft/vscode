@@ -4328,7 +4328,10 @@
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
             "default": "tag",
-            "enum": ["grep", "tag"],
+            "enum": [
+              "grep",
+              "tag"
+            ],
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
             "tags": [
               "experimental",
@@ -5295,6 +5298,24 @@
               "name": "CopilotOtelProtocol"
             },
             "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings only. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "http/json",
+              "http/protobuf",
+              "grpc"
+            ],
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOtlpProtocol"
+            },
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -7113,10 +7134,13 @@
     "@opentelemetry/api-logs": "^0.212.0",
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.214.0",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.214.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",

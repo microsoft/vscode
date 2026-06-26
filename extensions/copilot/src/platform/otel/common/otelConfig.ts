@@ -18,7 +18,7 @@ export interface OTelConfig {
 	readonly enabledVia: OTelEnabledVia;
 	readonly exporterType: OTelExporterType;
 	readonly otlpEndpoint: string;
-	readonly otlpProtocol: 'grpc' | 'http';
+	readonly otlpProtocol: 'grpc' | 'http/json' | 'http/protobuf';
 	readonly captureContent: boolean;
 	/**
 	 * Maximum size (in characters) for free-form content attributes (prompts,
@@ -87,11 +87,15 @@ export interface OTelConfigInput {
 	settingMaxAttributeSizeChars?: number;
 	settingOutfile?: string;
 	settingDbSpanExporter?: boolean;
+	/** OTLP wire protocol mirroring `OTEL_EXPORTER_OTLP_PROTOCOL` (`http/json`, `http/protobuf`, `grpc`). */
+	settingProtocol?: string;
 	policyEnabled?: boolean;
 	policyExporterType?: OTelExporterType;
 	policyOtlpEndpoint?: string;
 	policyCaptureContent?: boolean;
 	policyOutfile?: string;
+	/** Enterprise-managed OTLP wire protocol (raw `telemetry.protocol`). */
+	policyProtocol?: string;
 	extensionVersion: string;
 	sessionId: string;
 	vscodeTelemetryLevel?: string;
@@ -149,13 +153,25 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		enabledVia = 'dbSpanExporterOnly';
 	}
 
-	// Protocol: policy > env > default
+	// Protocol (transport): policy > env > default
 	const rawProtocol = input.policyExporterType === 'otlp-grpc'
 		? 'grpc'
 		: input.policyExporterType === 'otlp-http'
 			? 'http'
 			: env['OTEL_EXPORTER_OTLP_PROTOCOL'] ?? env['COPILOT_OTEL_PROTOCOL'];
 	const protocol: 'grpc' | 'http' = rawProtocol === 'grpc' ? 'grpc' : 'http';
+
+	// Wire protocol (json vs protobuf within http): policy > env > setting > default(http/json).
+	// grpc transport always reports 'grpc'.
+	const rawWireProtocol = input.policyProtocol
+		?? env['OTEL_EXPORTER_OTLP_PROTOCOL']
+		?? env['COPILOT_OTEL_PROTOCOL']
+		?? input.settingProtocol;
+	const otlpProtocol: OTelConfig['otlpProtocol'] = protocol === 'grpc'
+		? 'grpc'
+		: rawWireProtocol === 'http/protobuf'
+			? 'http/protobuf'
+			: 'http/json';
 
 	// Endpoint: policy > COPILOT_OTEL env > OTEL env > setting > default
 	const rawEndpoint = input.policyOtlpEndpoint
@@ -219,7 +235,7 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		enabledVia,
 		exporterType,
 		otlpEndpoint,
-		otlpProtocol: protocol,
+		otlpProtocol,
 		captureContent,
 		maxAttributeSizeChars: maxAttributeSizeChars < 0 ? 0 : maxAttributeSizeChars,
 		fileExporterPath,
@@ -240,7 +256,7 @@ function createDisabledConfig(input: OTelConfigInput): OTelConfig {
 		enabledVia: 'disabled' as const,
 		exporterType: 'otlp-http' as const,
 		otlpEndpoint: '',
-		otlpProtocol: 'http' as const,
+		otlpProtocol: 'http/json' as const,
 		captureContent: false,
 		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,

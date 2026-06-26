@@ -249,6 +249,25 @@ export class NodeOTelService implements IOTelService {
 			};
 		}
 
+		// otlp-http with protobuf wire encoding
+		if (config.otlpProtocol === 'http/protobuf' && !dbOnlyMode) {
+			const [
+				{ OTLPTraceExporter },
+				{ OTLPLogExporter },
+				{ OTLPMetricExporter },
+			] = await Promise.all([
+				import('@opentelemetry/exporter-trace-otlp-proto'),
+				import('@opentelemetry/exporter-logs-otlp-proto'),
+				import('@opentelemetry/exporter-metrics-otlp-proto'),
+			]);
+			const base = config.otlpEndpoint.replace(/\/$/, '');
+			return {
+				spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces` }),
+				logExporter: new OTLPLogExporter({ url: `${base}/v1/logs` }),
+				metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics` }),
+			};
+		}
+
 		// Default: otlp-http (or noop when in db-only mode)
 		if (dbOnlyMode) {
 			const metricsSDK = await import('@opentelemetry/sdk-metrics');

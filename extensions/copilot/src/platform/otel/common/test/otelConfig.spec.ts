@@ -365,5 +365,30 @@ describe('resolveOTelConfig', () => {
 			}));
 			expect(config.captureContent).toBe(false);
 		});
+
+		it('policy protocol http/protobuf selects the protobuf wire encoding', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyProtocol: 'http/protobuf',
+			}));
+			expect(config.otlpProtocol).toBe('http/protobuf');
+		});
+
+		it('policy protocol http/json keeps the json wire encoding', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyProtocol: 'http/json',
+			}));
+			expect(config.otlpProtocol).toBe('http/json');
+		});
+
+		it('grpc exporter reports grpc regardless of wire protocol', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyExporterType: 'otlp-grpc',
+				policyProtocol: 'http/protobuf',
+			}));
+			expect(config.otlpProtocol).toBe('grpc');
+		});
 	});
 });

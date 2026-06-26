@@ -299,11 +299,13 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
+		settingProtocol: otelSettings.get<string>('protocol') || undefined,
 		policyEnabled: policyValue<boolean>('enabled'),
 		policyExporterType: policyValue<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
 		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
 		policyCaptureContent: policyValue<boolean>('captureContent'),
 		policyOutfile: policyValue<string>('outfile'),
+		policyProtocol: policyValue<string>('protocol'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});
