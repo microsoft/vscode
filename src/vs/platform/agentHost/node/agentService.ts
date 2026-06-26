@@ -264,7 +264,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 
-		this._gitStateService = instantiationService.createInstance(AgentHostGitStateService, this._stateManager);
+		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService, this._stateManager));
 		services.set(IAgentHostGitStateService, this._gitStateService);
 
 		// The checkpoint service is constructed in the outer agent-host

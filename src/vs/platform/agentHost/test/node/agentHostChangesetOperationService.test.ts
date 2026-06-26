@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
@@ -63,9 +64,14 @@ class TestContribution implements IChangesetOperationContribution {
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidChangeSessionGitState = Event.None;
+	readonly onDidRunSessionGitStateRefresh = Event.None;
+
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
 		return undefined;
 	}
+
+	async refreshSessionGitState2(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
