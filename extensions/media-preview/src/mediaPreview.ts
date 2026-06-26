@@ -106,9 +106,9 @@ export abstract class MediaPreview extends Disposable {
 
 	protected async getResourceVersion(): Promise<string> {
 		try {
-			return getMediaResourceVersion(this._resource, await vscode.workspace.fs.stat(this._resource));
+			return getMediaResourceVersion(await vscode.workspace.fs.stat(this._resource));
 		} catch {
-			return getMediaResourceVersion(this._resource, undefined);
+			return getMediaResourceVersion(undefined);
 		}
 	}
 

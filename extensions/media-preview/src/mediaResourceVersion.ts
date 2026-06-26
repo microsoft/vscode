@@ -8,13 +8,11 @@ export interface MediaResourceStat {
 	readonly size: number;
 }
 
-export interface MediaResource {
-	toString(): string;
-}
+let fallbackVersion = 0;
 
-export function getMediaResourceVersion(resource: MediaResource, stat: MediaResourceStat | undefined): string {
+export function getMediaResourceVersion(stat: MediaResourceStat | undefined): string {
 	if (!stat) {
-		return resource.toString();
+		return `fallback-${fallbackVersion++}`;
 	}
 	return `${stat.mtime}-${stat.size}`;
 }
