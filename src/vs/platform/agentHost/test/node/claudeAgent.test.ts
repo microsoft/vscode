@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, McpSdkServerConfigWithInstance, McpServerStatus, ModelInfo, Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, Settings, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
@@ -22,7 +22,7 @@ import {
 	makeTextDelta,
 	makeThinkingDelta,
 } from './claudeMapSessionEventsTestUtils.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -191,6 +191,14 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	queryAdvance: ((index: number) => Promise<void>) | undefined;
 
 	/**
+	 * Optional gate awaited by {@link FakeQuery.return}. Models the SDK's
+	 * teardown awaiting the subprocess's actual exit, so tests can assert
+	 * remove-all defers `deleteSession` until the live query has fully torn
+	 * down. Resolves immediately when undefined.
+	 */
+	queryReturnGate: Promise<void> | undefined;
+
+	/**
 	 * Phase 16 — programmable live SDK customization snapshot, read by
 	 * {@link FakeQuery.supportedCommands} / `supportedAgents` /
 	 * `mcpServerStatus`. `supportedCommands` defaults to `[]`; the other two
@@ -315,6 +323,20 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 			throw this.forkSessionRejection;
 		}
 		return this.forkSessionResult ?? { sessionId: `forked-${sessionId}` };
+	}
+
+	/**
+	 * Programmable session deletion (remove-all truncation). Tests
+	 * capture the deleted ids; `deleteSessionRejection` simulates SDK throw.
+	 */
+	deleteSessionCalls: string[] = [];
+	deleteSessionRejection: Error | undefined;
+
+	async deleteSession(sessionId: string, _options?: SessionMutationOptions): Promise<void> {
+		this.deleteSessionCalls.push(sessionId);
+		if (this.deleteSessionRejection) {
+			throw this.deleteSessionRejection;
+		}
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -493,6 +515,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 
 	async return(_value: void): Promise<IteratorResult<SDKMessage, void>> {
 		this.returnCount++;
+		if (this._sdk.queryReturnGate) {
+			await this._sdk.queryReturnGate;
+		}
 		return { done: true, value: undefined };
 	}
 
@@ -1570,6 +1595,205 @@ suite('ClaudeAgent', () => {
 		await agent.createSession({ fork: { session: AgentSession.uri('claude', sourceId), turnIndex: 1, turnId: 'u2' } });
 
 		assert.deepStrictEqual(sdk.forkSessionCalls[0], { sessionId: sourceId, options: { upToMessageId: 'a2' } });
+	});
+
+	test('truncateSession(turnId) resolves the anchor, restarts at it on the same id, and prunes the DB', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk } = createTestContext(disposables, { database });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(sessionId, forkSourceMessages(sessionId));
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		await agent.truncateSession(created.session, 'u1');
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildResumeAt: sdk.capturedStartupOptions[1]?.resumeSessionAt,
+			sameUri: agent.getSessionForTesting(created.session)?.sessionUri.toString() === created.session.toString(),
+			prunedAfter: database.deleteTurnsAfterCalls,
+			getMessagesCall: sdk.getSessionMessagesCalls.at(-1),
+		}, {
+			startupCount: 2,
+			rebuildResume: sessionId,
+			rebuildResumeAt: 'a1',
+			sameUri: true,
+			prunedAfter: ['u1'],
+			getMessagesCall: { sessionId, options: { includeSystemMessages: true } },
+		});
+	});
+
+	test('truncateSession cold-resumes an unloaded session, then applies the anchor on the next turn', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(sessionId, forkSourceMessages(sessionId));
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		// Unload the session from memory; the transcript stays resumable.
+		await agent.disposeSession(created.session);
+		assert.strictEqual(agent.getSessionForTesting(created.session), undefined, 'unloaded');
+		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
+
+		await agent.truncateSession(created.session, 'u1');
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		const last = sdk.capturedStartupOptions.at(-1);
+		assert.deepStrictEqual({
+			resume: last?.resume,
+			resumeAt: last?.resumeSessionAt,
+			sessionPresent: agent.getSessionForTesting(created.session) !== undefined,
+		}, {
+			resume: sessionId,
+			resumeAt: 'a1',
+			sessionPresent: true,
+		});
+	});
+
+	test('truncateSession throws when the turn is not in the transcript', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(sessionId, forkSourceMessages(sessionId));
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		await assert.rejects(() => agent.truncateSession(created.session, 'no-such-turn'), /turn no-such-turn not found/);
+	});
+
+	test('truncateSession on a provisional session is a no-op', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+
+		await agent.truncateSession(created.session, 'u1');
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			getMessagesCalls: sdk.getSessionMessagesCalls.length,
+		}, {
+			startupCount: 0,
+			getMessagesCalls: 0,
+		});
+	});
+
+	test('truncateSession() with no turnId clears the session in place (deleteSession + fresh same id)', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk } = createTestContext(disposables, { database });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		await agent.truncateSession(created.session);
+
+		// The next turn materializes FRESH (non-resume) on the SAME id.
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		const last = sdk.capturedStartupOptions.at(-1);
+		assert.deepStrictEqual({
+			deleted: sdk.deleteSessionCalls,
+			allTurnsPruned: database.deleteAllTurnsCalls,
+			lastSessionId: last?.sessionId,
+			lastResume: last?.resume,
+			lastResumeAt: last?.resumeSessionAt,
+			sessionPresent: agent.getSessionForTesting(created.session) !== undefined,
+		}, {
+			deleted: [sessionId],
+			allTurnsPruned: 1,
+			lastSessionId: sessionId,
+			lastResume: undefined,
+			lastResumeAt: undefined,
+			sessionPresent: true,
+		});
+	});
+
+	test('truncateSession() with no turnId awaits the live query teardown (subprocess exit) before deleteSession', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		// Block the live query's teardown (models `transport.waitForExit()` —
+		// the subprocess not yet exited / still flushing the transcript).
+		const exitGate = new DeferredPromise<void>();
+		sdk.queryReturnGate = exitGate.p;
+
+		const truncated = agent.truncateSession(created.session);
+		await timeout(0);
+		// deleteSession MUST NOT run while the subprocess is still alive: a
+		// premature delete would race the dying writer re-flushing `<id>.jsonl`.
+		assert.deepStrictEqual(sdk.deleteSessionCalls, [], 'deleteSession ran before the subprocess exited');
+
+		exitGate.complete();
+		await truncated;
+		assert.deepStrictEqual(sdk.deleteSessionCalls, [sessionId]);
+	});
+
+	test('truncateSession() with no turnId on an UNLOADED session deletes + recreates fresh on the same id, preserving the overlay (cold remove-all)', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk, instantiationService } = createTestContext(disposables, { database });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+
+		// Unload the session from memory; the transcript stays on disk. The
+		// remove-all path then has no live `existing` and must read the cwd
+		// from `getSessionInfo` before deleting + recreating.
+		await agent.disposeSession(created.session);
+		assert.strictEqual(agent.getSessionForTesting(created.session), undefined, 'unloaded');
+		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
+
+		// Seed a permissionMode overlay the cold recreate must carry forward.
+		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+		await metaStore.write(created.session, { permissionMode: 'plan' });
+
+		await agent.truncateSession(created.session);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		const last = sdk.capturedStartupOptions.at(-1);
+		assert.deepStrictEqual({
+			deleted: sdk.deleteSessionCalls,
+			cwdConsulted: sdk.getSessionInfoCalls.includes(sessionId),
+			allTurnsPruned: database.deleteAllTurnsCalls,
+			lastSessionId: last?.sessionId,
+			lastResume: last?.resume,
+			lastResumeAt: last?.resumeSessionAt,
+			permissionMode: last?.permissionMode,
+			sessionPresent: agent.getSessionForTesting(created.session) !== undefined,
+		}, {
+			deleted: [sessionId],
+			cwdConsulted: true,
+			allTurnsPruned: 1,
+			lastSessionId: sessionId,
+			lastResume: undefined,
+			lastResumeAt: undefined,
+			permissionMode: 'plan',
+			sessionPresent: true,
+		});
 	});
 
 	test('createSession({ fork }) inherits the source permissionMode overlay', async () => {
@@ -3457,6 +3681,7 @@ suite('ClaudeAgent', () => {
 			listSubagents: async () => [],
 			getSubagentMessages: async () => [],
 			forkSession: async () => { throw new Error('not modeled'); },
+			deleteSession: async () => { throw new Error('not modeled'); },
 			createSdkMcpServer: () => { throw new Error('not modeled'); },
 			tool: () => { throw new Error('not modeled'); },
 		};
@@ -3510,6 +3735,7 @@ suite('ClaudeAgent', () => {
 				return [{ uuid: 'u1' } as unknown as SessionMessage];
 			},
 			forkSession: async () => { throw new Error('not modeled'); },
+			deleteSession: async () => { throw new Error('not modeled'); },
 			createSdkMcpServer: () => { throw new Error('not modeled'); },
 			tool: () => { throw new Error('not modeled'); },
 		};
@@ -3792,6 +4018,112 @@ suite('ClaudeAgent', () => {
 			firstMcp: false,
 			secondMcpToolNames: ['echo'],
 		});
+	});
+
+	test('a pending truncation anchor reaches the next rebuild as Options.resumeSessionAt, consumed once', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Pause after the first result so the pipeline doesn't auto-rebind on its own.
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
+
+		// Stage a pending truncation anchor, then send again. The pending anchor
+		// alone (no tool/customization diff) must force an anchored rebuild.
+		await agent.getSessionForTesting(created.session)!.truncateToTurn('turn-1', 'anchor-uuid');
+		sdk.queryAdvance = undefined;
+		advance.complete();
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			firstResumeAt: sdk.capturedStartupOptions[0].resumeSessionAt,
+			secondResumeAt: sdk.capturedStartupOptions[1]?.resumeSessionAt,
+		}, {
+			startupCount: 2,
+			firstResumeAt: undefined,
+			secondResumeAt: 'anchor-uuid',
+		});
+	});
+
+	test('the truncation anchor is applied exactly once and not leaked to later rebuilds', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		await agent.getSessionForTesting(created.session)!.truncateToTurn('turn-1', 'anchor-uuid');
+		await agent.sendMessage(created.session, 'second', undefined, 'turn-2');
+		// A later tool-driven rebind must NOT resurrect the consumed anchor.
+		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		await agent.sendMessage(created.session, 'third', undefined, 'turn-3');
+
+		const anchored = sdk.capturedStartupOptions.filter(o => o.resumeSessionAt === 'anchor-uuid');
+		assert.deepStrictEqual({
+			anchoredCount: anchored.length,
+			lastResumeAt: sdk.capturedStartupOptions.at(-1)?.resumeSessionAt,
+		}, {
+			anchoredCount: 1,
+			lastResumeAt: undefined,
+		});
+	});
+
+	test('a rebuild that fails after reading the anchor keeps it staged so the next send retries the truncation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		await agent.getSessionForTesting(created.session)!.truncateToTurn('turn-1', 'anchor-uuid');
+
+		// The anchor-carrying rebuild fails at startup (one-shot). The anchor
+		// must NOT be cleared — losing it would silently proceed without
+		// `resumeSessionAt`, undoing the checkpoint restore.
+		sdk.startupRejection = new Error('transient startup failure');
+		await assert.rejects(() => agent.sendMessage(created.session, 'second', undefined, 'turn-2'));
+
+		// Retry: the staged anchor is re-applied on the next (now-succeeding) send.
+		await agent.sendMessage(created.session, 'second-retry', undefined, 'turn-2b');
+		assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.resumeSessionAt, 'anchor-uuid');
+	});
+
+	test('truncateToTurn / pruneAllTurns reach the session database', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk } = createTestContext(disposables, { database });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		const session = agent.getSessionForTesting(created.session)!;
+
+		await session.truncateToTurn('turn-1', 'anchor-uuid');
+		await session.pruneAllTurns();
+
+		assert.deepStrictEqual(
+			{ afterCalls: database.deleteTurnsAfterCalls, allCalls: database.deleteAllTurnsCalls },
+			{ afterCalls: ['turn-1'], allCalls: 1 },
+		);
 	});
 
 	test('setClientTools with an equal snapshot does NOT restart', async () => {
