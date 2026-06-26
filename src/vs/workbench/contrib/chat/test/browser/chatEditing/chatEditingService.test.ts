@@ -185,7 +185,7 @@ suite('ChatEditingService', function () {
 		const request = model.getRequests().at(-1);
 		assertType(request);
 
-		const diff = await waitForState(session.getDiffsForFilesInRequest(request.id).map(diffs => diffs.find(candidate => !candidate.isBusy && isEqual(candidate.modifiedURI, uri))));
+		const diff = await waitForState(session.getDiffsForFilesInRequest(request.id).map(diffs => diffs.length === 1 && !diffs[0].isBusy ? diffs[0] : undefined));
 
 		assert.deepStrictEqual({
 			added: diff.added,
