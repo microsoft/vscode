@@ -9,7 +9,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { formatArrayValue } from '../../common/promptSyntax/utils/promptEditHelper.js';
@@ -22,7 +22,7 @@ export class PromptFileRewriter {
 	) {
 	}
 
-	public async openAndRewriteTools(uri: URI, newTools: IToolAndToolSetEnablementMap | undefined, token: CancellationToken): Promise<void> {
+	public async openAndRewriteTools(uri: URI, newTools: ToolAndToolSetEnablementMap | undefined, token: CancellationToken): Promise<void> {
 		const editor = await this._codeEditorService.openCodeEditor({ resource: uri }, this._codeEditorService.getFocusedCodeEditor());
 		if (!editor || !editor.hasModel()) {
 			return;
@@ -48,7 +48,7 @@ export class PromptFileRewriter {
 		}
 	}
 
-	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
+	public rewriteTools(model: ITextModel, newTools: ToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
 		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
 		const newEntries = newToolNames.map(toolName => formatArrayValue(toolName)).join(', ');
 		const newValue = isString ? newEntries : `[${newEntries}]`;

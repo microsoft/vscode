@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -37,6 +37,7 @@ import { Composite } from '../composite.js';
 import { ViewsSubMenu } from './views/viewPaneContainer.js';
 import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 
@@ -129,6 +130,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private globalToolBar: MenuWorkbenchToolBar | undefined;
 	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
+	private floatingLayoutDimension: Dimension | undefined;
 
 	constructor(
 		readonly partId: SINGLE_WINDOW_PARTS,
@@ -155,6 +157,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super(
 			notificationService,
@@ -590,7 +593,27 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return;
 		}
 
+		// Remember the dimension as provided by the grid (before the floating inset is
+		// applied) so relayouts triggered by internal changes (title/header/footer) feed
+		// back this original dimension instead of a repeatedly shrunk one.
+		this.floatingLayoutDimension = new Dimension(width, height);
+
+		// When the floating panels experiment is enabled, shrink the content to
+		// leave room for the card margin and border applied via CSS on the part.
+		const floatingInset = this.getFloatingInset();
+		if (floatingInset.width > 0 || floatingInset.height > 0) {
+			width = Math.max(0, width - floatingInset.width);
+			height = Math.max(0, height - floatingInset.height);
+		}
+
 		this.contentDimension = new Dimension(width, height);
+
+		// Reflect which window edges this part is the outermost floating card on so the
+		// matching doubled outer gutter can be applied in CSS (kept in sync with
+		// `getFloatingInset`).
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
+		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
@@ -600,6 +623,46 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Add empty pane message
 		this.layoutEmptyMessage();
+	}
+
+	/**
+	 * The window edges on which this part is the outermost floating card and therefore
+	 * adopts a doubled outer gutter, so its contents do not hug the window edge. Applies
+	 * to the primary side bar, the secondary side bar and the panel; a horizontal panel
+	 * can own both edges at once.
+	 */
+	private getFloatingOuterGutterEdges(): { left: boolean; right: boolean } {
+		return getFloatingOuterGutterEdges(this.layoutService, this.partId);
+	}
+
+	protected override getRelayoutDimension(): Dimension | undefined {
+		return this.floatingLayoutDimension ?? super.getRelayoutDimension();
+	}
+
+	/**
+	 * Amount (in pixels) to subtract from each axis when the floating panels
+	 * experiment is enabled: a margin on each side plus a 1px border on each side
+	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
+	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
+	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
+	 * margin, so its width inset is larger on that side.
+	 */
+	private getFloatingInset(): { width: number; height: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { width: 0, height: 0 };
+		}
+
+		const borderTotal = 2; // 1px border on each side
+		const margin = FLOATING_PANEL_MARGIN;
+		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		const leftMargin = outerGutter.left ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		return {
+			width: leftMargin + rightMargin + borderTotal,
+			height: topMargin + margin + borderTotal
+		};
 	}
 
 	private layoutCompositeBar(): void {

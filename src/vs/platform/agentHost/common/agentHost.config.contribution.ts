@@ -22,6 +22,11 @@ import { AgentHostEnabledSettingId } from './agentService.js';
 //     (loaded transitively from `app.ts`).
 //   - `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts`
 //     (renderer registration for the settings UI).
+//
+// The `policy` block for `chat.agentHost.enabled` is added in the browser
+// layer (`agentHost/browser/agentHost.config.contribution.ts`) via
+// `updateConfigurations` because the `value` callback cannot be
+// structured-cloned over Electron IPC.
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -34,6 +39,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',

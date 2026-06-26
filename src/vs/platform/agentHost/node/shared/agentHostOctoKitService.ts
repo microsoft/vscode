@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LRUCache } from '../../../../base/common/map.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 
@@ -23,6 +24,12 @@ export interface CreatedPullRequest {
 interface GitHubPullRequestResponseItem {
 	readonly html_url?: unknown;
 	readonly number?: unknown;
+}
+
+export interface IGitHubApiResponse<T> {
+	readonly data: T | undefined;
+	readonly statusCode: number;
+	readonly etag?: string;
 }
 
 /**
@@ -78,6 +85,11 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	private readonly _fetch: FetchFunction;
 
+	/**
+	 * A cache of ETags for pull request search results.
+	 */
+	private readonly pullRequestSearchEtags = new LRUCache<string, string>(100);
+
 	constructor(
 		fetchFn: FetchFunction | undefined,
 		@ILogService private readonly _logService: ILogService,
@@ -96,7 +108,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		token: string,
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest> {
-		const response = await this._makeGHAPIRequest(
+		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem>(
 			`repos/${owner}/${repo}/pulls`,
 			'POST',
 			token,
@@ -104,8 +116,8 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			{ title, body, head, base, draft },
 		);
 
-		const html_url = (response as { html_url?: unknown } | undefined)?.html_url;
-		const number = (response as { number?: unknown } | undefined)?.number;
+		const number = response.data?.number;
+		const html_url = response.data?.html_url;
 		if (typeof html_url !== 'string' || typeof number !== 'number') {
 			throw new Error(`Failed to create pull request for ${owner}/${repo}`);
 		}
@@ -114,16 +126,24 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	}
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
-		const response = await this._makeGHAPIRequest(
-			`repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`,
-			'GET',
-			token,
-			signal,
-		);
-		if (!Array.isArray(response) || response.length === 0) {
+		const routeSlug = `repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+
+		const etag = this.pullRequestSearchEtags.get(routeSlug);
+		const response = await this._makeGHAPIRequest<GitHubPullRequestResponseItem[]>(routeSlug, 'GET', token, signal, undefined, etag);
+
+		if (response.etag) {
+			this.pullRequestSearchEtags.set(routeSlug, response.etag);
+		}
+
+		if (
+			response.statusCode === 304 ||
+			!Array.isArray(response.data) ||
+			response.data.length === 0
+		) {
 			return undefined;
 		}
-		const first = response[0] as GitHubPullRequestResponseItem | undefined;
+
+		const first = response.data[0];
 		const html_url = first?.html_url;
 		const number = first?.number;
 		return typeof html_url === 'string' && typeof number === 'number'
@@ -131,19 +151,23 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			: undefined;
 	}
 
-	private async _makeGHAPIRequest(
+	private async _makeGHAPIRequest<T>(
 		routeSlug: string,
 		method: 'GET' | 'POST',
 		token: string,
 		signal: AbortSignal,
 		body?: Record<string, unknown>,
-	): Promise<unknown> {
+		etag?: string
+	): Promise<IGitHubApiResponse<T>> {
 		const url = `${GITHUB_API_HOST}/${routeSlug}`;
 		const headers: Record<string, string> = {
 			'Accept': 'application/vnd.github+json',
 			'Authorization': `Bearer ${token}`,
 			'X-GitHub-Api-Version': GITHUB_API_VERSION,
 		};
+		if (etag) {
+			headers['If-None-Match'] = etag;
+		}
 		if (body) {
 			headers['Content-Type'] = 'application/json';
 		}
@@ -164,6 +188,25 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			throw err;
 		}
 
+		// Inspect rate limit header
+		const rateLimitHeader = response.headers.get('x-ratelimit-remaining');
+		if (rateLimitHeader) {
+			const rateLimitRemaining = parseRateLimitHeader(rateLimitHeader);
+			if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
+				this._logService.warn(`[AgentHostOctoKitService] ${method} ${url} - GitHub API rate limit low: ${rateLimitRemaining} remaining`);
+			}
+		}
+
+		const statusCode = response.status ?? 0;
+		const responseETag = response.headers.get('etag') ?? undefined;
+
+		if (
+			statusCode === 204 /* No Content */ ||
+			statusCode === 304 /* Not Modified */
+		) {
+			return { data: undefined, statusCode, etag: responseETag };
+		}
+
 		if (!response.ok) {
 			const errorText = await response.text().catch(() => undefined);
 			const errorDetail = this._formatErrorResponseBody(errorText);
@@ -172,7 +215,8 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		}
 
 		try {
-			return await response.json();
+			const data = await response.json();
+			return { data, statusCode, etag: responseETag };
 		} catch (err) {
 			this._logService.error(`[AgentHostOctoKit] ${method} ${url} - Failed to parse JSON`, err);
 			throw err;
@@ -188,4 +232,13 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			? `${normalized.substring(0, MAX_ERROR_RESPONSE_BODY_LENGTH)}...`
 			: normalized;
 	}
+}
+
+function parseRateLimitHeader(value: string | string[] | undefined): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const str = Array.isArray(value) ? value[0] : value;
+	const parsed = parseInt(str, 10);
+	return isNaN(parsed) ? undefined : parsed;
 }

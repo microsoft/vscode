@@ -12,7 +12,8 @@ import { FileEditKind, MessageKind, ResponsePartKind, ToolResultContentType } fr
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
-import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEventsToHistoryRecords', () => {
 
@@ -83,7 +84,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Reviewed index.html.' } } },
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEvents(session, undefined, toSessionEvents(events));
 		assert.deepStrictEqual(result.turns.map(turn => ({
 			message: turn.message,
 			state: turn.state,
@@ -99,7 +100,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			state: 'complete',
 			parts: [
 				{ kind: ResponsePartKind.ToolCall, toolName: 'view' },
-				{ kind: ResponsePartKind.Markdown, content: 'Reviewed index.html.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Reviewed index.html.' },
 			],
 		}]);
 	});
@@ -110,7 +111,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task-complete', success: true, result: { content: 'Done.' } } },
 		];
 
-		const result = await mapSessionEvents(session, undefined, events);
+		const result = await mapSessionEvents(session, undefined, toSessionEvents(events));
 		assert.deepStrictEqual(result.turns, []);
 	});
 

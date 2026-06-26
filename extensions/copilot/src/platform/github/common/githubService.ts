@@ -83,6 +83,7 @@ export interface IGithubRepositoryService {
 }
 
 export interface IOctoKitUser {
+	id: number;
 	login: string;
 	name: string | null;
 	avatar_url: string;
