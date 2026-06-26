@@ -500,6 +500,15 @@ describe('NextEditProvider Caching', () => {
 		const second = await nextEditProvider.getNextEdit(docA.id, context, logContext, cancellationToken, tb2.nesBuilder);
 		tb2.dispose();
 
+		// Tear down the provider (which registers autoruns/watchers on `openDocuments` in its
+		// constructor) and the documents so each scenario run is self-contained and does not
+		// accumulate observers across the cross-file tests. Dispose the provider first so its
+		// autoruns no longer react to the documents being removed; document disposal is
+		// idempotent, so re-disposing `docB` after `disposeTargetBeforeSecondRequest` is safe.
+		nextEditProvider.dispose();
+		docA.dispose();
+		docB.dispose();
+
 		return { first, second, docBId, getCallCount };
 	}
 
