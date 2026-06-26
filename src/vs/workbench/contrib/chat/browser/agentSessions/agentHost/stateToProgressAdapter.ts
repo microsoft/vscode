@@ -16,7 +16,7 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/ag
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -164,6 +164,50 @@ export interface TurnModelLookup {
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+}
+
+/** The agent host's synthetic "Auto" model id; each turn's `usage.model` reports the model it resolved to. */
+export const AGENT_HOST_AUTO_MODEL_ID = 'auto';
+
+/** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
+export interface ITurnResponseModel {
+	readonly name: string;
+	readonly id: string;
+	readonly pricing?: string;
+}
+
+/**
+ * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
+ * `model` is the resolved language model and `rawModelId` is the turn's `usage.model`. When Auto ran,
+ * the turn reports the concrete model it resolved to (e.g. `raptor-mini`), shown as `Auto (raptor-mini)`.
+ * Returns `undefined` when the model is unknown.
+ */
+export function formatTurnResponseDetails(
+	model: ITurnResponseModel | undefined,
+	rawModelId: string | undefined,
+	usage: UsageInfo | undefined,
+): string | undefined {
+	if (!model) {
+		return undefined;
+	}
+	const displayName = formatTurnModelName(model, rawModelId);
+	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
+	if (credits !== undefined) {
+		const formatted = formatCopilotCredits(credits);
+		const creditDetails = formatted === '1'
+			? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
+			: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
+		return [displayName, creditDetails].join(' • ');
+	}
+	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/** Expands the synthetic Auto model to `Auto (<resolved model id>)` when the turn reported one. */
+function formatTurnModelName(model: ITurnResponseModel, rawModelId: string | undefined): string {
+	if (model.id === AGENT_HOST_AUTO_MODEL_ID && rawModelId && rawModelId !== AGENT_HOST_AUTO_MODEL_ID) {
+		return localize('agentHost.responseDetails.autoModel', "{0} ({1})", model.name, rawModelId);
+	}
+	return model.name;
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {

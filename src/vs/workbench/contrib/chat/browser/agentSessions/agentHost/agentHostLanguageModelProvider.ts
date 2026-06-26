@@ -11,6 +11,7 @@ import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agent
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { AGENT_HOST_AUTO_MODEL_ID } from './stateToProgressAdapter.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -65,7 +66,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
-				const isAuto = m.id === 'auto';
+				const isAuto = m.id === AGENT_HOST_AUTO_MODEL_ID;
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].

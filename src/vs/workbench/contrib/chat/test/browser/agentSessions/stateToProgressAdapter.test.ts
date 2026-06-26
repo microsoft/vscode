@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1692,6 +1692,47 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('formatTurnResponseDetails', () => {
+
+		const auto = { name: 'Auto', id: 'auto' };
+
+		test('expands the synthetic Auto model with the concrete turn model id', () => {
+			// Auto reports the concrete model it resolved to (e.g. "raptor-mini"), shown as "Auto (raptor-mini)".
+			const result = {
+				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
+				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				echoedAuto: formatTurnResponseDetails(auto, 'auto', undefined),
+				noTurnModel: formatTurnResponseDetails(auto, undefined, undefined),
+			};
+
+			assert.deepStrictEqual(result, {
+				resolvedModel: 'Auto (raptor-mini)',
+				withPricing: 'Auto (raptor-mini) · 0x',
+				withCredits: 'Auto (raptor-mini) • 2 credits',
+				oneCredit: 'Auto (raptor-mini) • 1 credit',
+				echoedAuto: 'Auto',
+				noTurnModel: 'Auto',
+			});
+		});
+
+		test('uses the registered model name as-is for non-Auto models and undefined for unknown', () => {
+			const sonnet = { name: 'Claude Sonnet 4.5', id: 'claude-sonnet-4.5', pricing: '1x' };
+			const result = {
+				concrete: formatTurnResponseDetails(sonnet, 'claude-sonnet-4.5', undefined),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, 'claude-sonnet-4.5', { _meta: { cost: 2 } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
+			};
+
+			assert.deepStrictEqual(result, {
+				concrete: 'Claude Sonnet 4.5 · 1x',
+				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
+				unknown: undefined,
+			});
 		});
 	});
 });

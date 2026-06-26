@@ -50,7 +50,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -72,7 +72,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -3453,21 +3453,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
-			toResponseDetails: (rawModelId, usage) => {
-				const model = lookupModel(rawModelId);
-				if (!model) {
-					return undefined;
-				}
-				const credits = usageInfoToChatUsage(usage)?.copilotCredits;
-				if (credits !== undefined) {
-					const formatted = formatCopilotCredits(credits);
-					const creditDetails = formatted === '1'
-						? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
-						: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
-					return [model.name, creditDetails].join(' • ');
-				}
-				return [model.name, model.pricing].filter(Boolean).join(' · ');
-			},
+			toResponseDetails: (rawModelId, usage) =>
+				formatTurnResponseDetails(lookupModel(rawModelId), rawModelId, usage),
 		};
 	}
 
