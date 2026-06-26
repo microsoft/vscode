@@ -561,8 +561,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (typeof this.credits === 'number' && this.credits > 0) {
 			const formatted = formatCopilotCredits(this.credits);
 			parts.push(formatted === '1'
-				? localize('chat.subagent.creditTooltip', 'Cost: {0} credit', formatted)
-				: localize('chat.subagent.creditsTooltip', 'Cost: {0} credits', formatted));
+				? localize('chat.subagent.creditTooltip', '{0} credit', formatted)
+				: localize('chat.subagent.creditsTooltip', '{0} credits', formatted));
 		}
 
 		if (parts.length === 0) {
