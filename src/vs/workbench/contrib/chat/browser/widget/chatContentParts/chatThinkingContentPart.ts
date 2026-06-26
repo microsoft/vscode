@@ -1151,11 +1151,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				}
 			}
-			// The lone tool may already be rendered while `singleItemInfo` is undefined —
-			// e.g. it was rendered eagerly, or a second item briefly arrived and cleared it
-			// before being removed. Reconstruct from the sole tool's recorded original
-			// position so we still promote it instead of getting `undefined` back and leaving
-			// it stuck inside the thinking part.
+			// If singleItemInfo was cleared (eager render or transient sibling), reconstruct it from the sole tool's recorded original position.
 			if (!this.singleItemInfo && this.toolInvocations.length === 1) {
 				const soleTool = this.toolInvocations[0];
 				const recorded = this.toolOriginalPositionByCallId.get(soleTool.toolCallId);
