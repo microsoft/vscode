@@ -420,10 +420,9 @@ export const enum ModelPickerUnavailableReason {
  * - models registered for other surfaces such as agent-host session-scoped models
  *   (live in the global registry but not offered by this picker).
  *
- * Restricted Mode takes precedence over everything: an untrusted workspace is
- * always reported as Restricted, even when a live picker-offered model exists,
- * because Restricted Mode disables all model providers. This matters because a
- * harness's session-scoped models (e.g. `claude-code`, `copilotcli`) register
+	 * Once trust has initialized, Restricted Mode takes precedence: an untrusted workspace is
+	 * reported as Restricted even when a live picker-offered model exists, because Restricted Mode disables all model providers. This matters because a
+	 * harness's session-scoped models (e.g. `claude-code`, `copilotcli`) register
  * without a trust gate and stay live while untrusted, which would otherwise mask
  * the Restricted state behind a misleading "Auto". In a *trusted* workspace, a
  * live, picker-offered model (e.g. BYOK) wins over setup, so BYOK and anonymous
