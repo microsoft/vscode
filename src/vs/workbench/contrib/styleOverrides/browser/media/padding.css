@@ -34,7 +34,7 @@
 /* Header: inset the section title / actions to line up with the rows below. */
 .style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
 	padding-left: var(--vscode-spacing-size80, 8px);
-	padding-right: var(--vscode-spacing-size80, 8px);
+	padding-right: var(--vscode-spacing-size40, 4px);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
@@ -69,4 +69,8 @@
 	.agent-session-item .agent-session-title-toolbar .actions-container {
 		gap: 4px;
 	}
+}
+
+.style-override.monaco-workbench .monaco-pane-view .pane > .pane-header > .actions {
+	margin-right: 0px;
 }
