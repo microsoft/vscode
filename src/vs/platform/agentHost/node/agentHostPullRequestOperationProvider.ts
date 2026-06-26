@@ -86,8 +86,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				},
 				{
 					id: 'create-pr-auto-rebase',
-					label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-rebase)"),
-					description: localize('agentHost.changeset.createPRAutoRebase.description', "Create a pull request and enable auto-merge with rebase so it merges automatically once checks pass."),
+					label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-Rebase)"),
 					icon: 'git-merge',
 					group: 'pull-request',
 					scopes: [ChangesetOperationScope.Changeset],
