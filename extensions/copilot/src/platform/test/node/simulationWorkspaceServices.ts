@@ -856,6 +856,8 @@ export class TestingTerminalService extends Disposable implements ITerminalServi
 	private _onDidChangeTerminalShellIntegration = this._register(new Emitter<vscode.TerminalShellIntegrationChangeEvent>());
 	onDidChangeTerminalShellIntegration: vscode.Event<vscode.TerminalShellIntegrationChangeEvent> = this._onDidChangeTerminalShellIntegration.event;
 
+	onDidStartTerminalShellExecution: vscode.Event<vscode.TerminalShellExecutionStartEvent> = Event.None;
+
 	private _onDidEndTerminalShellExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecutionEndEvent> = this._onDidEndTerminalShellExecution.event;
 

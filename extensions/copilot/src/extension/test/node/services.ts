@@ -87,6 +87,7 @@ import '../../tools/node/allTools';
 import { TestToolsService } from '../../tools/node/test/testToolsService';
 import { TestToolEmbeddingsComputer } from '../../tools/test/node/virtualTools/testVirtualTools';
 import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
+import { ITerminalMonitor, TerminalMonitor } from '../../xtab/common/terminalOutput';
 
 export interface ISimulationModelConfig {
 	chatModel?: string;
@@ -166,6 +167,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDebugFileLoggerService, new SyncDescriptor(NullChatDebugFileLoggerService));
 	testingServiceCollection.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	testingServiceCollection.define(ISimilarFilesContextService, new SyncDescriptor(NullSimilarFilesContextService));
+	testingServiceCollection.define(ITerminalMonitor, new SyncDescriptor(TerminalMonitor));
 	testingServiceCollection.define(IAutomodeService, new SyncDescriptor(NullAutomodeService));
 	testingServiceCollection.define(ISessionStore, new SessionStore(':memory:'));
 	testingServiceCollection.define(IClaudePluginService, new NullClaudePluginService());

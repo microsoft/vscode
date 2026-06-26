@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { Event, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, TerminalShellExecutionEndEvent, TerminalShellIntegrationChangeEvent, window, type TerminalDataWriteEvent } from 'vscode';
+import { Event, ExtensionTerminalOptions, Terminal, TerminalExecutedCommand, TerminalOptions, TerminalShellExecutionEndEvent, TerminalShellExecutionStartEvent, TerminalShellIntegrationChangeEvent, window, type TerminalDataWriteEvent } from 'vscode';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
@@ -43,6 +43,10 @@ export class TerminalServiceImpl extends Disposable implements ITerminalService 
 
 	get onDidChangeTerminalShellIntegration(): Event<TerminalShellIntegrationChangeEvent> {
 		return window.onDidChangeTerminalShellIntegration;
+	}
+
+	get onDidStartTerminalShellExecution(): Event<TerminalShellExecutionStartEvent> {
+		return window.onDidStartTerminalShellExecution;
 	}
 
 	get onDidEndTerminalShellExecution(): Event<TerminalShellExecutionEndEvent> {

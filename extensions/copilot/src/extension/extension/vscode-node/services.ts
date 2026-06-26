@@ -150,6 +150,7 @@ import { registerServices as registerCommonServices } from '../vscode/services';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { ITerminalMonitor, TerminalMonitor } from '../../xtab/common/terminalOutput';
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -267,6 +268,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IUndesiredModelsManager, new SyncDescriptor(UndesiredModels.Manager));
 	builder.define(ICopilotInlineCompletionItemProviderService, new SyncDescriptor(CopilotInlineCompletionItemProviderService));
 	builder.define(ISimilarFilesContextService, new SyncDescriptor(SimilarFilesContextService));
+	builder.define(ITerminalMonitor, new SyncDescriptor(TerminalMonitor));
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 

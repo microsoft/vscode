@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptOptions, PromptingStrategy } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { PromptPieces, constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, formatRecentTerminalErrors, getUserPrompt } from '../../common/promptCrafting';
 import { assert, describe, expect, it, suite, test } from 'vitest';
+
+import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
-import { Result } from '../../../../util/common/result';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
-import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringEdit';
-import { Position } from '../../../../util/vs/editor/common/core/position';
-import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
-import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { LintErrors } from '../../common/lintErrors';
-import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces } from '../../common/promptCrafting';
+import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
+import { ParsedTerminalError } from '../../common/terminalErrorParser';
+import { Position } from '../../../../util/vs/editor/common/core/position';
 import { PromptTags } from '../../common/tags';
-import { CurrentDocument } from '../../common/xtabCurrentDocument';
+import { Result } from '../../../../util/common/result';
+import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringEdit';
+import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 
 function nLines(n: number): StringText {
 	return new StringText(new Array(n).fill(0).map((_, i) => `${i + 1}`).join('\n'));
@@ -610,6 +612,7 @@ describe('getUserPrompt', () => {
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
 		aggressivenessLevel?: AggressivenessLevel;
+		recentTerminalErrors?: readonly ParsedTerminalError[];
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -650,6 +653,8 @@ describe('getUserPrompt', () => {
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			undefined,
+			opts.recentTerminalErrors,
 		);
 	}
 
@@ -817,6 +822,108 @@ describe('getUserPrompt', () => {
 
 			expect(prompt).toContain('<|aggressive|>medium<|/aggressive|>');
 		});
+	});
+
+	describe('recentTerminalErrors', () => {
+		const sampleErrors: readonly ParsedTerminalError[] = [
+			{ file: 'src/foo.ts', line: 10, column: 5, message: `Type 'string' is not assignable to type 'number'.`, source: 'tsc' },
+			{ file: 'src/bar.ts', line: 3, message: `'x' is assigned a value but never used`, source: 'eslint' },
+		];
+
+		test('omits the section when recentTerminalErrors is undefined', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.PatchBased02,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).not.toContain(PromptTags.TERMINAL_ERRORS.start);
+		});
+
+		test('omits the section when recentTerminalErrors is empty', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.PatchBased02,
+				recentTerminalErrors: [],
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).not.toContain(PromptTags.TERMINAL_ERRORS.start);
+		});
+
+		test('emits the section with bullet entries when populated', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.PatchBased02,
+				recentTerminalErrors: sampleErrors,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain(PromptTags.TERMINAL_ERRORS.start);
+			expect(prompt).toContain(PromptTags.TERMINAL_ERRORS.end);
+			expect(prompt).toContain('src/foo.ts:10:5 [tsc]');
+			expect(prompt).toContain('src/bar.ts:3 [eslint]');
+		});
+
+		test('PatchBased02 postscript gains a multi-file targeting reminder when errors are present', () => {
+			const without = getUserPrompt(createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.PatchBased02,
+			})).prompt;
+			const withErrors = getUserPrompt(createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.PatchBased02,
+				recentTerminalErrors: sampleErrors,
+			})).prompt;
+
+			expect(without).not.toContain('recent_terminal_errors` block lists');
+			expect(withErrors).toContain('recent_terminal_errors` block lists');
+		});
+
+		test('other prompting strategies do not get the postscript reminder', () => {
+			const { prompt } = getUserPrompt(createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275,
+				recentTerminalErrors: sampleErrors,
+			}));
+
+			// Section is still emitted regardless of strategy...
+			expect(prompt).toContain(PromptTags.TERMINAL_ERRORS.start);
+			// ...but the diff-patch-specific reminder is not.
+			expect(prompt).not.toContain('recent_terminal_errors` block lists');
+		});
+	});
+});
+
+describe('formatRecentTerminalErrors', () => {
+	test('truncates messages longer than 240 characters', () => {
+		const long = 'x'.repeat(500);
+		const out = formatRecentTerminalErrors([
+			{ file: 'a.ts', line: 1, message: long, source: 'tsc' },
+		]);
+		// 237 chars + '...' = 240
+		expect(out).toContain('x'.repeat(237) + '...');
+		expect(out).not.toContain('x'.repeat(238) + '...');
+	});
+
+	test('stops adding entries once the character budget is exhausted', () => {
+		const heavy: ParsedTerminalError[] = [];
+		for (let i = 0; i < 20; i++) {
+			heavy.push({ file: `file${i}.ts`, line: i + 1, message: 'm'.repeat(200), source: 'tsc' });
+		}
+		const out = formatRecentTerminalErrors(heavy);
+		// Budget is 1500 chars; we should see fewer than 20 entries.
+		const bulletCount = (out.match(/^- /gm) ?? []).length;
+		expect(bulletCount).toBeLessThan(20);
+		expect(bulletCount).toBeGreaterThan(0);
+	});
+
+	test('flattens multi-line messages onto a single line', () => {
+		const out = formatRecentTerminalErrors([
+			{ file: 'a.ts', line: 1, message: 'first\n  second\n\tthird', source: 'python' },
+		]);
+		expect(out).toContain('first second third');
+		expect(out).not.toContain('\n  second');
 	});
 });
 

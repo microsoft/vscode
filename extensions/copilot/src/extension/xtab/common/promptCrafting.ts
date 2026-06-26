@@ -22,6 +22,7 @@ import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighb
 import { INeighborFileSnippet } from './similarFilesContextService';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
+import { ParsedTerminalError } from './terminalErrorParser';
 
 export class PromptPieces {
 	constructor(
@@ -38,6 +39,7 @@ export class PromptPieces {
 		public readonly computeTokens: (s: string) => number,
 		public readonly opts: PromptOptions,
 		public readonly neighborSnippets?: readonly INeighborFileSnippet[],
+		public readonly recentTerminalErrors?: readonly ParsedTerminalError[],
 	) {
 	}
 }
@@ -51,7 +53,7 @@ export interface UserPromptResult {
 
 export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
-	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts, neighborSnippets } = promptPieces;
+	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts, neighborSnippets, recentTerminalErrors } = promptPieces;
 	const currentFileContent = taggedCurrentDocLines.join('\n');
 
 	let recentlyViewedCodeSnippets: string;
@@ -87,9 +89,14 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 	const currentFilePath = toUniquePath(activeDoc.id, activeDoc.workspaceRoot?.path);
 
-	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel) : '';
+	const hasTerminalErrors = recentTerminalErrors !== undefined && recentTerminalErrors.length > 0;
+	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel, hasTerminalErrors) : '';
 
 	const lintsWithNewLinePadding = opts.lintOptions ? `\n${lintErrors.getFormattedLintErrors(opts.lintOptions)}\n` : '';
+
+	const terminalErrorsWithNewLinePadding = hasTerminalErrors
+		? `\n${formatRecentTerminalErrors(recentTerminalErrors!, activeDoc.workspaceRoot?.path)}\n`
+		: '';
 
 	const basePrompt = `${PromptTags.RECENT_FILES.start}
 ${recentlyViewedCodeSnippets}
@@ -99,7 +106,7 @@ ${PromptTags.CURRENT_FILE.start}
 current_file_path: ${currentFilePath}
 ${currentFileContent}
 ${PromptTags.CURRENT_FILE.end}
-${lintsWithNewLinePadding}
+${lintsWithNewLinePadding}${terminalErrorsWithNewLinePadding}
 ${PromptTags.EDIT_HISTORY.start}
 ${editDiffHistory}
 ${PromptTags.EDIT_HISTORY.end}`;
@@ -326,7 +333,7 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 	return (base + '\n'.repeat(newLinesToAdd) + toAppend).trim();
 }
 
-function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel, hasTerminalErrors: boolean = false) {
 	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
 
 	let postScript: string | undefined;
@@ -338,6 +345,9 @@ function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath:
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
+			if (hasTerminalErrors) {
+				postScript += ` The \`recent_terminal_errors\` block lists files and lines that just failed a build/test/lint command; you may emit patches keyed by \`<filename>:<line number>\` targeting any of those files to fix the reported errors.`;
+			}
 			break;
 		case PromptingStrategy.UnifiedModel:
 			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Start your response with <EDIT>, <INSERT>, or <NO_CHANGE>. If you are making an edit, start with <EDIT> and then provide the rewritten code window followed by </EDIT>. If you are inserting new code, start with <INSERT> and then provide only the new code that will be inserted at the cursor position followed by </INSERT>. If no changes are necessary, reply only with <NO_CHANGE>. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors.`;
@@ -381,6 +391,38 @@ they would have made next. Provide the revised code that was between the \`${Pro
 
 	const formattedPostScript = postScript === undefined ? '' : `\n\n${postScript}`;
 	return formattedPostScript;
+}
+
+/**
+ * Soft cap on the total number of characters spent on the
+ * `<|recent_terminal_errors|>` section. The parser already caps the entry
+ * count, this guards against pathological multi-line messages.
+ */
+const MAX_TERMINAL_ERRORS_PROMPT_CHARS = 1500;
+
+export function formatRecentTerminalErrors(errors: readonly ParsedTerminalError[], workspaceRootPath?: string): string {
+	const lines: string[] = [PromptTags.TERMINAL_ERRORS.start];
+	let remaining = MAX_TERMINAL_ERRORS_PROMPT_CHARS;
+	const rootWithSlash = workspaceRootPath === undefined
+		? undefined
+		: (workspaceRootPath.endsWith('/') ? workspaceRootPath : `${workspaceRootPath}/`);
+	for (const e of errors) {
+		const relPath = rootWithSlash !== undefined && e.file.startsWith(rootWithSlash)
+			? e.file.substring(rootWithSlash.length)
+			: e.file;
+		const loc = e.column !== undefined ? `${relPath}:${e.line}:${e.column}` : `${relPath}:${e.line}`;
+		// Normalise multi-line messages onto a single line and bound length.
+		const flatMessage = e.message.replace(/\s+/g, ' ').trim();
+		const truncated = flatMessage.length > 240 ? `${flatMessage.slice(0, 237)}...` : flatMessage;
+		const line = `- ${loc} [${e.source}] ${truncated}`;
+		if (line.length > remaining) {
+			break;
+		}
+		lines.push(line);
+		remaining -= line.length + 1;
+	}
+	lines.push(PromptTags.TERMINAL_ERRORS.end);
+	return lines.join('\n');
 }
 
 function getRelatedInformation(langCtx: LanguageContextResponse | undefined): string {
