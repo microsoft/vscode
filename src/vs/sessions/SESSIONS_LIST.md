@@ -59,13 +59,13 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 - **By Created** (default) — `createdAt` descending
 - **By Updated** — `updatedAt` descending
 
-### Workspace Group Capping
+### Workspace and User Group Capping
 
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
 - Remaining workspaces collapse behind a "+N more workspaces" toggle
-- Within each workspace, sessions beyond 5 also show a "Show more" toggle
+- Within each workspace or user-created group, sessions beyond 5 (configurable by the same assignment treatment) also show a "Show more" toggle and then a "Show less" toggle once expanded
 - The find widget bypasses all capping
 
 ### Filtering
@@ -228,4 +228,4 @@ Context keys available for `when` clauses when contributing to session list menu
 |-----|------|-------------|
 | `sessionsViewPane.grouping` | string | Current grouping mode (`'workspace'` or `'date'`) |
 | `sessionsViewPane.sorting` | string | Current sorting mode (`'created'` or `'updated'`) |
-| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace groups are capped (primary-only) or fully expanded |
+| `sessionsViewPane.workspaceGroupCapped` | boolean | Whether workspace sections and user groups are capped or fully expanded |

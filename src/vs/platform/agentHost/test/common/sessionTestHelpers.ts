@@ -18,6 +18,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
+	deleteTurnsAfterCalls: string[] = [];
+	deleteAllTurnsCalls = 0;
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -102,9 +104,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
-	async deleteTurnsAfter(_turnId: string): Promise<void> { }
+	async deleteTurnsAfter(turnId: string): Promise<void> {
+		this.deleteTurnsAfterCalls.push(turnId);
+	}
 
-	async deleteAllTurns(): Promise<void> { }
+	async deleteAllTurns(): Promise<void> {
+		this.deleteAllTurnsCalls++;
+		this._edits.length = 0;
+	}
 
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
 
@@ -189,7 +196,6 @@ export function encodeString(text: string): Uint8Array {
 export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
 	return {
 		_serviceBrand: undefined,
-		isInsideWorkTree: async () => false,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
 		getBranches: async () => [],

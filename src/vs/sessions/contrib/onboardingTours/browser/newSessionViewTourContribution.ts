@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { findOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
@@ -102,7 +102,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 	private _isEligibleUser(): boolean {
 		// The developer setting bypasses the usage-based "first few requests" gate
 		// so the tour can be triggered on demand for testing.
-		if (this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true) {
+		if (isOnboardingDeveloperModeEnabled(this.configurationService, NEW_SESSION_VIEW_TOUR_ID)) {
 			return true;
 		}
 		const requestsSent = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);

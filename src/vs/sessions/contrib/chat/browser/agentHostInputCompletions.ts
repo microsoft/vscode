@@ -199,11 +199,12 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 				const referenceText = item.insertText.trimEnd();
 				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
-					label: item.insertText,
+					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
+					documentation: attachment.description,
 					detail: attachment.description,
 					command: {
 						id: ADD_REFERENCE_COMMAND,

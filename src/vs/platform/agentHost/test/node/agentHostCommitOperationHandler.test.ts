@@ -32,7 +32,6 @@ class TestGitService implements IAgentHostGitService {
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async isInsideWorkTree(): Promise<boolean> { return true; }
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<string | undefined> { return 'main'; }
 	async getBranches(): Promise<string[]> { return []; }

@@ -11,15 +11,13 @@ import {
 	parseChangesetUri,
 } from '../common/changesetUri.js';
 import { ISessionGitState } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -53,13 +51,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
-		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, this._stateManager));
+		this._register(this._changesetFileMonitor.onDidChangeSessionsRoot(activeSessions => this.onDidChangeSessionsRoot(activeSessions)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -115,15 +113,32 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * the base branch used by Branch Changes and fresh uncommitted counts, so
 	 * refresh both static changesets once the session has a working directory.
 	 */
-	onSessionGitStateChanged(sessionStr: string, gitState: ISessionGitState): void {
+	onSessionGitStateChanged(sessionStr: string, gitState?: ISessionGitState): void {
 		// Git state can provide the base branch used by Branch Changes and
 		// fresh uncommitted counts; recompute every changeset currently
 		// subscribed for the session (the service reads the exposed
 		// subscription list).
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
+	}
 
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
+	/**
+	 * Called after files in a directory have changed. In case of folder sessions
+	 * there may be multiple session that are associated with the same root directory.
+	 * The git state is updated to reflect the new state of the root directory. Then
+	 * we recompute the file list of the subscribed changesets and their respective
+	 * operations.
+	 */
+	async onDidChangeSessionsRoot(activeSessions: string[]): Promise<void> {
+		for (const sessionStr of activeSessions) {
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionStr)?.workingDirectory;
+			const workingDirectory = workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined;
+
+			// Refresh the git state for the session
+			const gitState = await this._gitStateService.refreshSessionGitState(sessionStr, workingDirectory);
+
+			// Update subscribed changesets and operations
+			this.onSessionGitStateChanged(sessionStr, gitState ?? undefined);
+		}
 	}
 
 	/**
@@ -165,21 +180,18 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -293,7 +305,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track

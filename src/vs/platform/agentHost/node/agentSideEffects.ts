@@ -766,6 +766,7 @@ export class AgentSideEffects extends Disposable {
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
+			requestSandboxBypass: e.requestSandboxBypass,
 		};
 		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
