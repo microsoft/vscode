@@ -401,12 +401,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
 
-		// When the active session becomes archived, return to the new-session view.
+		// When the active session becomes archived, return to the new-session view
+		// pre-selecting the same folder so the user stays in context.
 		let wasArchived = activeSession.isArchived.get();
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
-				this.openNewSession();
+				const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
+				this.openNewSession(folderUri ? { folderUri } : undefined);
 			}
 			wasArchived = isArchived;
 		}));
