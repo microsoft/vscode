@@ -23,8 +23,8 @@ describe('buildSandboxConfigForCLI', () => {
 			expect(buildSandboxConfigForCLI('win32', 'off', undefined)).toBeUndefined();
 		});
 
-		it('enables sandbox for `on` on every platform', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+		it('enables sandbox for `on` on non-Windows platforms', () => {
+			for (const platform of ['darwin', 'linux'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'on', undefined)).toEqual({
 					enabled: true,
 					allowBypass: true,
@@ -33,14 +33,20 @@ describe('buildSandboxConfigForCLI', () => {
 			}
 		});
 
-		it('enables sandbox and outbound network for `allowNetwork` on every platform', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+		it('enables sandbox and outbound network for `allowNetwork` on non-Windows platforms', () => {
+			for (const platform of ['darwin', 'linux'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'allowNetwork', undefined)).toEqual({
 					enabled: true,
 					allowBypass: true,
 					userPolicy: { filesystem: {}, network: { allowOutbound: true } },
 				});
 			}
+		});
+
+		it('ignores the enable setting on Windows', () => {
+			// The sandbox is not supported on Windows, so the enable setting is ignored.
+			expect(buildSandboxConfigForCLI('win32', 'on', undefined)).toBeUndefined();
+			expect(buildSandboxConfigForCLI('win32', 'allowNetwork', undefined)).toBeUndefined();
 		});
 	});
 
@@ -53,7 +59,8 @@ describe('buildSandboxConfigForCLI', () => {
 			};
 			expect(buildSandboxConfigForCLI('linux', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['/linux'] });
 			expect(buildSandboxConfigForCLI('darwin', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['/mac'] });
-			expect(buildSandboxConfigForCLI('win32', 'on', setting)?.userPolicy?.filesystem).toEqual({ readwritePaths: ['C:\\win'] });
+			// Windows is ignored entirely.
+			expect(buildSandboxConfigForCLI('win32', 'on', setting)).toBeUndefined();
 		});
 
 		it('maps each setting to the corresponding SDK list', () => {
@@ -132,7 +139,7 @@ describe('buildSandboxConfigForCLI', () => {
 
 	describe('network hosts', () => {
 		it('drops host lists and keeps outbound closed when sandbox is `on` (host lists disabled on all platforms)', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+			for (const platform of ['darwin', 'linux'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'on', undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] })?.userPolicy?.network).toEqual({
 					allowOutbound: false,
 				});
@@ -140,7 +147,7 @@ describe('buildSandboxConfigForCLI', () => {
 		});
 
 		it('ignores host lists when sandbox is `allowNetwork` (allow all)', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+			for (const platform of ['darwin', 'linux'] as const) {
 				expect(buildSandboxConfigForCLI(platform, 'allowNetwork', undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] })?.userPolicy?.network).toEqual({
 					allowOutbound: true,
 				});
