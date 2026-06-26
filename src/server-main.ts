@@ -5,6 +5,7 @@
 
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
@@ -166,7 +167,10 @@ function sanitizeStringArg(val: unknown): string | undefined {
  * `Unknown reconnection token` reconnection failures). The handlers tell apart a
  * self-exit (`beforeExit`), an external kill (`signal`) and a crash
  * (`uncaughtExceptionMonitor`). Gated behind the `VSCODE_SERVER_EXIT_DIAGNOSTICS`
- * env var (set by the smoke tests) so it adds no product noise.
+ * env var (set by the smoke tests) so it adds no product noise. Lines are
+ * appended synchronously to a `server-exit-diagnostics.log` file in the server's
+ * `--logsPath` directory so they survive process teardown (an async stdio write
+ * from an `exit` handler does not).
  */
 function installServerProcessExitDiagnostics(): void {
 	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
@@ -174,12 +178,35 @@ function installServerProcessExitDiagnostics(): void {
 	}
 
 	const startTime = Date.now();
+
+	// Append diagnostics synchronously to a file rather than relying on
+	// `console.error`: a process `exit` handler cannot flush an async pipe write
+	// (the server's stdio is piped through the test resolver, and on Windows
+	// additionally through a `cmd.exe`/batch wrapper) before the process dies,
+	// so the exit-time lines we care about most were being dropped. A synchronous
+	// `fs.appendFileSync` survives teardown. We target the server's `--logsPath`
+	// directory because it is captured as a smoke test artifact.
+	const rawLogsPath: unknown = parsedArgs['logsPath'];
+	const logsPath = typeof rawLogsPath === 'string' ? rawLogsPath : os.tmpdir();
+	const diagnosticsFile = path.join(logsPath, 'server-exit-diagnostics.log');
+	try {
+		fs.mkdirSync(logsPath, { recursive: true });
+	} catch {
+		// best effort: the directory is normally created by the server already
+	}
+
 	const log = (message: string) => {
-		// Use `console.error` so the line survives even if stdout is in a
-		// broken-pipe state. The test resolver forwards the server's stdio into
-		// its own output channel, so this ends up in the captured smoke logs.
+		const line = `[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`;
+		// File write is authoritative and survives process teardown.
 		try {
-			console.error(`[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`);
+			fs.appendFileSync(diagnosticsFile, `${line}\n`);
+		} catch {
+			// ignore logging failures while the process is tearing down
+		}
+		// Also mirror to stderr so the line is visible live in the test
+		// resolver's captured output channel during normal operation.
+		try {
+			console.error(line);
 		} catch {
 			// ignore logging failures while the process is tearing down
 		}
