@@ -72,9 +72,8 @@ export const enum AgentPluginDiscoveryPriority {
 	CopilotCli = 40,
 }
 
-export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, commandName: string): string {
-	const pluginSegment = basename(plugin.uri);
-	const prefix = normalizePluginToken(pluginSegment);
+export function getCanonicalPluginCommandId(plugin: { readonly uri: URI; readonly label?: string }, commandName: string): string {
+	const prefix = (plugin.label ? normalizePluginToken(plugin.label) : '') || normalizePluginToken(basename(plugin.uri));
 	const normalizedCommand = normalizePluginToken(commandName);
 	if (normalizedCommand.startsWith(`${prefix}:`)) {
 		return normalizedCommand;
@@ -121,4 +120,3 @@ class AgentPluginDiscoveryRegistry {
 }
 
 export const agentPluginDiscoveryRegistry = new AgentPluginDiscoveryRegistry();
-

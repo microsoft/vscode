@@ -230,6 +230,21 @@ suite('BrowserUrlBarWidget', () => {
 		);
 	});
 
+	test('clicking the already-focused display does not auto-open the picker', () => {
+		const { widget, picker, display } = makeHarness();
+		widget.focusUrlInput();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(picker.visible, false);
+	});
+
+	test('first click after mouse focus opens the picker', () => {
+		const { picker, display } = makeHarness();
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		display.focus();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(picker.visible, true);
+	});
+
 	test('accepting the "Go to" item navigates to the typed value', () => {
 		const { widget, picker, navigated } = makeHarness();
 		widget.openUrlPicker();

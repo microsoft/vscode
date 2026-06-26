@@ -779,7 +779,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					badgeTooltip: item.badgeTooltip,
 					extensionId: item.extensionId,
 					pluginUri: item.pluginUri ? URI.revive(item.pluginUri) : undefined,
+					pluginLabel: item.pluginLabel,
 					userInvocable: item.userInvocable,
+				}));
+			},
+			provideSourceFolders: async (sessionResource, type, token) => {
+				const folders = await this._proxy.$provideSourceFolders(handle, sessionResource, type, token);
+				if (!folders) {
+					return undefined;
+				}
+				return folders.map(folder => ({
+					uri: URI.revive(folder.uri),
+					label: folder.label,
 				}));
 			},
 		};

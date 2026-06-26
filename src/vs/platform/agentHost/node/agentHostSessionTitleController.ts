@@ -9,7 +9,8 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, ResponsePartKind, type ResponsePart, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
@@ -165,6 +166,61 @@ export class AgentHostSessionTitleController extends Disposable {
 		);
 	}
 
+	/**
+	 * Generates a title for a freshly forked session or chat from its
+	 * inherited conversation context. Forks copy the source history up to the
+	 * fork point, so neither {@link seedTitleFromFirstMessage} nor
+	 * {@link refineTitleFromFirstTurn} (which require an empty / single-turn
+	 * state) ever fire for them. This is the fork equivalent, run once at fork
+	 * time over the kept turns, so the new chat gets a content-derived title
+	 * instead of permanently inheriting the source's `Forked: …` title.
+	 *
+	 * `fallbackTitle` is the title the caller already applied to the new
+	 * session/chat (e.g. `Forked: <source>`); it is recorded as the
+	 * last-applied title so a concurrent manual rename suppresses the
+	 * generated title, and stays visible until generation completes. The
+	 * context is bounded to {@link MAX_TITLE_CONTEXT_CHARS} (middle-truncated),
+	 * so generation costs at most a single small-model call.
+	 */
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		const context = this._buildConversationContext(turns, sourceTitle);
+		if (!context) {
+			return;
+		}
+
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
+		if (isAdditionalChat) {
+			const key = chatChannel;
+			this._lastAppliedTitle.set(key, fallbackTitle);
+			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
+			this._generateTitleSoon(
+				key,
+				context,
+				true,
+				fallbackTitle,
+				apply,
+				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
+				title => this._persistSessionFlag(channel, `customChatTitle:${key}`, title),
+			);
+			return;
+		}
+
+		this._lastAppliedTitle.set(channel, fallbackTitle);
+		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.SessionTitleChanged,
+			title: t,
+		}));
+		this._generateTitleSoon(
+			channel,
+			context,
+			true,
+			fallbackTitle,
+			apply,
+			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			title => this._persistSessionFlag(channel, 'customTitle', title),
+		);
+	}
+
 	private _applyTitle(key: ProtocolURI, title: string, dispatch: (title: string) => void): void {
 		this._lastAppliedTitle.set(key, title);
 		dispatch(title);
@@ -269,6 +325,7 @@ export class AgentHostSessionTitleController extends Disposable {
 					'Aim for 3-6 words. Prefer the shortest accurate title.',
 					'Drop articles like "a", "an", and "the" unless needed for clarity.',
 					'Drop filler and generic framing like "help with", "question about", "request for", or "issue with".',
+					'Never describe the chat itself as forked, branched, or continued — title only the underlying topic.',
 					'Prefer short, concrete synonyms and omit unnecessary words.',
 					'Do not wrap the title in quotes or add trailing punctuation.',
 				].join(' '),
@@ -307,7 +364,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * title in that case).
 	 */
 	private _buildFirstTurnContext(turn: Turn): string | undefined {
-		const response = this._renderResponseText(turn.responseParts);
+		const response = renderResponseMarkdown(turn.responseParts);
 		if (!response) {
 			return undefined;
 		}
@@ -315,46 +372,37 @@ export class AgentHostSessionTitleController extends Disposable {
 		const userBudget = Math.floor(MAX_TITLE_CONTEXT_CHARS / 2);
 		let userRequest = turn.message.text.trim();
 		if (userRequest.length > userBudget) {
-			userRequest = this._truncateMiddle(userRequest, userBudget);
+			userRequest = truncateMiddle(userRequest, userBudget);
 		}
 		const userBlock = `User request:\n${userRequest}`;
 		const responseLabel = '\n\nAgent response:\n';
 
 		const responseBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - userBlock.length - responseLabel.length);
-		const trimmedResponse = response.length > responseBudget ? this._truncateMiddle(response, responseBudget) : response;
+		const trimmedResponse = response.length > responseBudget ? truncateMiddle(response, responseBudget) : response;
 
 		return trimmedResponse ? `${userBlock}${responseLabel}${trimmedResponse}` : userBlock;
 	}
 
-	private _renderResponseText(parts: readonly ResponsePart[]): string {
-		const segments: string[] = [];
-		for (const part of parts) {
-			if (part.kind === ResponsePartKind.Markdown) {
-				const text = part.content.trim();
-				if (text) {
-					segments.push(text);
-				}
-			}
-		}
-		return segments.join('\n\n');
-	}
-
 	/**
-	 * Truncates `text` to at most `maxChars` characters by removing the middle
-	 * and inserting a `...` marker, preserving the start and end.
+	 * Builds a conversation context string for forked-title generation by
+	 * concatenating each kept turn's user request and textual response. Only
+	 * normal text (markdown) response parts are considered — tool calls,
+	 * reasoning, and other parts are ignored, mirroring
+	 * {@link _buildFirstTurnContext}. When the fork's `sourceTitle` is known, a
+	 * short framing note is prepended so the model understands the conversation
+	 * is a branch continued from an earlier chat. The conversation is
+	 * middle-truncated to {@link MAX_TITLE_CONTEXT_CHARS} to bound model cost;
+	 * the framing note is always preserved in full.
+	 *
+	 * @returns the context string, or `undefined` when no turn carries any
+	 * text worth titling from.
 	 */
-	private _truncateMiddle(text: string, maxChars: number): string {
-		if (text.length <= maxChars) {
-			return text;
-		}
-		const marker = '\n...\n';
-		if (maxChars <= marker.length) {
-			return text.slice(0, maxChars);
-		}
-		const keep = maxChars - marker.length;
-		const head = Math.ceil(keep / 2);
-		const tail = keep - head;
-		return `${text.slice(0, head)}${marker}${text.slice(text.length - tail)}`;
+	private _buildConversationContext(turns: readonly Turn[], sourceTitle?: string): string | undefined {
+		const framedTitle = sourceTitle?.trim();
+		const framing = framedTitle
+			? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
+			: undefined;
+		return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {

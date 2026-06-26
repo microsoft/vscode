@@ -63,8 +63,13 @@ export interface SessionState {
 	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
 	serverTools?: ToolDefinition[];
-	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: SessionActiveClient;
+	/**
+	 * The clients currently providing tools and interactive capabilities to this
+	 * session. If multiple tools or customizations are provided by the same
+	 * active client, an agent host MAY deduplicate them when exposed to a model,
+	 * with a preference given to the client that started the turn.
+	 */
+	activeClients: SessionActiveClient[];
 	/** Catalog of chats in this session. */
 	chats: ChatSummary[];
 	/**
@@ -91,7 +96,7 @@ export interface SessionState {
 	 *   also appear as children of a container.
 	 *
 	 * Client-published plugins arrive via
-	 * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
 	 * and the host propagates them into this list (typically with the
 	 * container's `clientId` set and `children` populated). Clients
 	 * publish in container shape only; bare MCP servers at the top level
@@ -117,10 +122,11 @@ export interface SessionState {
 }
 
 /**
- * The client currently providing tools and interactive capabilities to a session.
+ * A client currently providing tools and interactive capabilities to a session.
  *
- * Only one client may be active per session at a time. The server SHOULD
- * automatically unset the active client if that client disconnects.
+ * A session MAY have several active clients at once; entries in
+ * {@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD
+ * automatically remove an active client when that client disconnects.
  *
  * @category Session State
  */
@@ -169,9 +175,11 @@ export interface ProjectInfo {
  *   `Error` — bits 0–4) from the
  *   {@link SessionState.defaultChat | default chat} when present, else from
  *   the most recently modified chat. **Promote** `InputNeeded` whenever any
- *   chat in the session needs input, and **promote** `Error` whenever any
- *   chat is in an error state — both override the default-chat bits. The
- *   orthogonal flag bits (`IsRead`, `IsArchived`) remain session-scoped.
+ *   chat in the session needs input, **promote** `Error` whenever any chat is
+ *   in an error state, and **promote** `InProgress` whenever any chat is
+ *   actively streaming — all override the default-chat bits, with precedence
+ *   `InputNeeded` > `Error` > `InProgress`. The orthogonal flag bits
+ *   (`IsRead`, `IsArchived`) remain session-scoped.
  * - `activity`: mirror the activity string of the default chat, or of the
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
