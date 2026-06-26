@@ -180,7 +180,6 @@ export const AdhocRequestEditor = (({ value, languageId, readOnly, initialHeight
 			}
 			myEditor.dispose();
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	React.useEffect(() => {
