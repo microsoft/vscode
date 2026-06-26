@@ -13,23 +13,17 @@ import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /**
  * A user-created group of sessions in the sessions list. Groups render like
- * section headers and can be reordered, renamed and deleted. Membership of a
- * session in a group is tracked separately (see {@link ISessionGroupsService}).
+ * section headers and can be reordered, renamed and deleted. Their order is
+ * owned by the section-order service and is fully user-managed; this type only
+ * carries identity, name and creation time. Membership of a session in a group
+ * is tracked separately (see {@link ISessionGroupsService}).
  */
 export interface ISessionGroup {
 	/** Stable identifier (uuid). */
 	readonly id: string;
 	/** User-provided display name. */
 	readonly name: string;
-	/**
-	 * Manual sort-key override applied when the user drags a group to reorder
-	 * it. `undefined` means the group falls back to its natural placement (the
-	 * best/highest sort key among its members). Expressed in the same numeric
-	 * space as session sort keys (timestamps) so groups interleave with the
-	 * date/workspace sections. Higher values sort higher in the list.
-	 */
-	readonly sortKeyOverride: number | undefined;
-	/** Creation timestamp (ms). Used to evict the oldest empty group. */
+	/** Creation timestamp (ms). Used to evict the oldest empty group and as the default order (newest first). */
 	readonly createdAt: number;
 }
 
@@ -90,10 +84,12 @@ export interface ISessionGroupsService {
 	getSessionIdsInGroup(groupId: string): string[];
 
 	/**
-	 * Persist a manual sort-key override for a group (or clear it with
-	 * `undefined`). Used when the user drags a group to reorder it.
+	 * Record that the next new session started from the composer should join the
+	 * given group. The intent is consumed when a new session is started (sent)
+	 * and cleared if the new session is abandoned without sending. No-op when the
+	 * group does not exist.
 	 */
-	setGroupSortKey(groupId: string, sortKeyOverride: number | undefined): void;
+	setPendingNewSessionGroup(groupId: string): void;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
@@ -123,6 +119,23 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
 
+	/**
+	 * Group that the composer's in-progress new session should join once sent,
+	 * or `undefined` when there is no pending intent. Set via
+	 * {@link setPendingNewSessionGroup} when the user picks "New Session" on a
+	 * group header, locked onto a specific draft when that draft is sent, and
+	 * cleared if the new session is abandoned.
+	 */
+	private _pendingNewSessionGroupId: string | undefined;
+
+	/**
+	 * Sends in flight: draft (or, after graduation, committed) sessionId ->
+	 * groupId. A grouped send is locked here the moment it is dispatched, so a
+	 * later intent or a failed/concurrent send can never rebind it. Consumed
+	 * when the session is started.
+	 */
+	private readonly _inFlightSessionGroups = new Map<string, string>();
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -137,6 +150,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			}
 			const changed = new Set<string>();
 			for (const session of e.removed) {
+				this._inFlightSessionGroups.delete(session.sessionId);
 				if (this._membership.delete(session.sessionId)) {
 					changed.add(session.sessionId);
 				}
@@ -146,6 +160,48 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				this.save();
 				this._onDidChange.fire({ groupsChanged: evicted, membershipChanged: changed });
 			}
+		}));
+
+		// Lock the pending group onto the specific draft at send-dispatch, before
+		// the async start completes, so a later arm or a failed/concurrent send
+		// can no longer rebind it. A send into an existing session discards the
+		// draft (firing the discard handler below) before this fires.
+		this._register(this.sessionsManagementService.onWillSendRequest(session => {
+			if (this._pendingNewSessionGroupId === undefined) {
+				return;
+			}
+			this._inFlightSessionGroups.set(session.sessionId, this._pendingNewSessionGroupId);
+			this._pendingNewSessionGroupId = undefined;
+		}));
+
+		// A draft graduates into a committed session with a new id; follow it.
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			if (from.sessionId === to.sessionId) {
+				return;
+			}
+			const groupId = this._inFlightSessionGroups.get(from.sessionId);
+			if (groupId !== undefined) {
+				this._inFlightSessionGroups.delete(from.sessionId);
+				this._inFlightSessionGroups.set(to.sessionId, groupId);
+			}
+		}));
+
+		// The started session carries the committed id; record its group now.
+		this._register(this.sessionsManagementService.onDidStartSession(session => {
+			const groupId = this._inFlightSessionGroups.get(session.sessionId);
+			if (groupId === undefined) {
+				return;
+			}
+			this._inFlightSessionGroups.delete(session.sessionId);
+			if (this._groups.has(groupId)) {
+				this.addToGroup(session.sessionId, groupId);
+			}
+		}));
+
+		// Abandoning the composer draft drops the not-yet-dispatched intent so it
+		// never binds an unrelated session created later.
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(() => {
+			this._pendingNewSessionGroupId = undefined;
 		}));
 	}
 
@@ -158,7 +214,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	createGroup(name: string, memberSessionIds?: Iterable<string>): ISessionGroup {
-		const group: ISessionGroup = { id: generateUuid(), name, sortKeyOverride: undefined, createdAt: Date.now() };
+		const group: ISessionGroup = { id: generateUuid(), name, createdAt: Date.now() };
 		this._groups.set(group.id, group);
 
 		const membershipChanged = new Set<string>();
@@ -187,6 +243,14 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	deleteGroup(groupId: string): void {
 		if (!this._groups.delete(groupId)) {
 			return;
+		}
+		if (this._pendingNewSessionGroupId === groupId) {
+			this._pendingNewSessionGroupId = undefined;
+		}
+		for (const [sessionId, gid] of this._inFlightSessionGroups) {
+			if (gid === groupId) {
+				this._inFlightSessionGroups.delete(sessionId);
+			}
 		}
 		const membershipChanged = new Set<string>();
 		for (const [sessionId, gid] of this._membership) {
@@ -233,14 +297,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return result;
 	}
 
-	setGroupSortKey(groupId: string, sortKeyOverride: number | undefined): void {
-		const group = this._groups.get(groupId);
-		if (!group || group.sortKeyOverride === sortKeyOverride) {
-			return;
-		}
-		this._groups.set(groupId, { ...group, sortKeyOverride });
-		this.save();
-		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	setPendingNewSessionGroup(groupId: string): void {
+		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
 	}
 
 	// -- Helpers --
@@ -279,24 +337,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	/**
-	 * Sort groups for display as a stable baseline: groups with a manual
-	 * `sortKeyOverride` first (highest key first), then the rest by creation
-	 * time (newest first). The list view computes the final interleaved
-	 * placement using member sort keys; this baseline is used where member keys
-	 * are not available (e.g. the "Add to Group" menu fallback).
+	 * Sort groups for display as a stable baseline: newest first (by creation
+	 * time). The final user-managed order is applied by the section-order
+	 * service; this baseline is used where that order is not available.
 	 */
 	private sortGroups(groups: ISessionGroup[]): ISessionGroup[] {
-		return groups.sort((a, b) => {
-			const aHas = a.sortKeyOverride !== undefined;
-			const bHas = b.sortKeyOverride !== undefined;
-			if (aHas && bHas) {
-				return b.sortKeyOverride! - a.sortKeyOverride!;
-			}
-			if (aHas !== bHas) {
-				return aHas ? -1 : 1;
-			}
-			return b.createdAt - a.createdAt;
-		});
+		return groups.sort((a, b) => b.createdAt - a.createdAt);
 	}
 
 	// -- Storage --
@@ -314,7 +360,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 						this._groups.set(group.id, {
 							id: group.id,
 							name: group.name,
-							sortKeyOverride: typeof group.sortKeyOverride === 'number' ? group.sortKeyOverride : undefined,
 							createdAt: typeof group.createdAt === 'number' ? group.createdAt : Date.now(),
 						});
 					}
@@ -343,18 +388,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		};
 		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
-}
-
-/**
- * Best (highest) sort key among a group's currently-visible members, used to
- * place the group among the other top-level list items. Returns `undefined`
- * when the group has no visible members.
- */
-export function groupSortKey(memberKeys: readonly number[]): number | undefined {
-	if (memberKeys.length === 0) {
-		return undefined;
-	}
-	return Math.max(...memberKeys);
 }
 
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);

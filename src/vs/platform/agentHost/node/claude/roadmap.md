@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16 → 17**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16 → 17 → 18 → 19**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -465,10 +465,9 @@ are therefore **invisible to other workbench clients** until materialised.
   pre-materialise persistence (Phase 5's `_provisionalSessions` map carries
   the in-memory state). The SDK starts lazily on first `sendMessage`
   (Phase 6).
-- **`createSession({ fork })` — deferred.** The fork branch throws
-  `TODO: Phase 6.5` with no side effects. See "Phase 6.5 — Fork (deferred)"
-  below for the structural reason, the reverted attempt, and the deferred
-  plan that lands alongside Phase 13's result-message mapper.
+- **`createSession({ fork })` — deferred to Phase 6.5 (now ✅ done).** At
+  Phase 5 the fork branch threw `TODO: Phase 6.5`; it now forks the SDK
+  transcript on demand. See "Phase 6.5 — Fork" below.
 - `disposeSession(session)` — tear down the session's `Query` (if alive),
   MCP gateway, in-flight aborts. Provisional sessions dispose by removing
   the in-memory record (no SDK / sidecar to clean up).
@@ -605,15 +604,22 @@ canned Anthropic stream → verify the resulting `AgentSignal` sequence.
 Exit criteria: a workbench client sends "hi" and sees a streamed assistant
 response in the UI.
 
-### Phase 6.5 — Fork (deferred — depends on Phase 13's result-message mapper)
+### Phase 6.5 — Fork ✅ **DONE**
 
-> **Status:** attempted, fully reverted, deferred. `createSession({ fork })`
-> currently throws `TODO: Phase 6.5` at
-> [`claudeAgent.ts:303`](./claudeAgent.ts) with no side effects.
+> **Status:** ✅ done. `createSession({ fork })` is implemented and
+> live-E2E verified (fork-and-continue + restart restore, 2026-06-24).
+> Implementation contract / retrospective:
+> [phase6.5-plan.md](./phase6.5-plan.md). The summary below stays
+> high-level for roadmap continuity; two design points shifted during
+> implementation (see the materialisation note and the plan's Drift
+> section): the turn→uuid lookup is a pure on-demand resolver
+> (`resolveForkAnchorUuid` in [claudeReplayMapper.ts](./claudeReplayMapper.ts)),
+> and fork **defers** the SDK `Query` to the first `sendMessage` rather
+> than materialising eagerly.
 >
 > **Sequencing note:** numbered 6.5 to stay consistent with the throw
-> message and `phase6-plan.md` §8.1, but **executes after Phase 13** because
-> the clean fix shares Phase 13's result-message mapper.
+> message and `phase6-plan.md` §8.1, but **executed after Phase 13** because
+> the clean fix shares Phase 13's transcript reconstruction.
 
 **Why deferred — structural mismatch.** Copilot's fork path
 ([`copilotAgent.ts:660-714`](../copilot/copilotAgent.ts)) calls
@@ -692,16 +698,24 @@ from the JSONL transcript, rather than persisting it.
 
 **Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
 provisional path), `forkSession` writes the forked SDK transcript file
-synchronously. Fork therefore *eagerly* fires `onDidMaterializeSession`
-from inside `createSession`, before returning — there is no provisional
-state to defer. The host's contract for fork is "materialise immediately,
-no separate sendMessage edge" (CONTEXT M9).
+synchronously, so the result is **non-provisional**. But — corrected
+during implementation — fork does **not** start the SDK `Query` or fire
+`onDidMaterializeSession` from inside `createSession`. Doing so raced
+ahead of `AgentService.createSession`'s own (synchronous, non-provisional)
+registration and produced `unknown session` warnings for both the
+materialize event and pipeline progress signals. Instead fork resolves
+the forked `workingDirectory` from `getSessionInfo` and returns; the
+`Query` materialises lazily on the first `sendMessage`, which resumes
+from disk via `_resumeSession`. This matches CONTEXT M9's "`forkSession`
+only writes the new session file; it does not start a `Query` … the SDK
+`Query` is still not started until the first `sendMessage`" and Copilot,
+whose resume path likewise never fires the materialize event.
 
-**Workbench client behavior in the interim.** The agent-host contract today
-is "fork rejects, no side effects" — any client invocation surfaces the
-throw as a session-creation error. Whether the workbench should hide or
-disable the fork affordance for Claude sessions until this phase lands is
-TBD with the workbench owners.
+**Workbench client behavior.** The Agents-window "Fork conversation from
+this point" affordance **is** wired for Claude and works end-to-end
+(verified live 2026-06-24): forking a turn produces a new "Forked: …"
+session truncated to that turn INCLUSIVE, which accepts new turns via
+`Options.resume` and survives an agent-host restart.
 
 Tests (when this phase lands): unit tests for the mapping ingest (turn end
 → persisted row), unit tests for `createSession({ fork })` looking up the
@@ -1500,7 +1514,18 @@ curated built-in agents/skills tier are generated declaratively inline,
 no stub files on disk); `createSession` lifecycle (provisional, cold) is
 unchanged. **Shipped.**
 
-### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan
+### Phase 17 — User/workspace hooks + Claude-native plugins via disk scan ✅ **DONE**
+
+> **Status:** both parts shipped. Part A (hooks) landed as PR #322637; Part B
+> (native plugins) landed as PR #322766. Both are surface-only (no
+> `Options.plugins` / `claudeSdkOptions.ts` change) — unit-tested,
+> council-reviewed, and live-E2E verified (real `telegram@claude-plugins-official`
+> + `github-inbox@vscode-team-kit` plugins surface under the customization modal
+> with their real cache roots, and a workspace `settings.local.json` disable
+> hides them via the watcher). See [phase17-plan.md](./phase17-plan.md) for the
+> full retrospective, including the post-E2E fixes (multi-format manifest
+> detection, `source`-based post-materialize match, and PB-10 standalone-fallback
+> suppression).
 
 > **Driver.** Phase 16's disk scan surfaces agents, skills, slash commands,
 > MCP servers, and rules — but **hooks** and **Claude-native plugins** that
@@ -1664,8 +1689,479 @@ the runtime (verified via the captured `init.plugins`) with **no**
 host-added `Options.plugins` entry; provisional sessions show the full
 disk set, materialized sessions hide native plugins the live session did
 not load; the `createSession` provisional/cold lifecycle (M9) is
-unchanged. Ships as two PRs: Part A (hooks) then Part B (native plugins).
-Detailed implementation contract: [phase17-plan.md](./phase17-plan.md).
+unchanged. Shipped as two PRs: Part A (hooks, #322637) then Part B
+(native plugins, #322766). Detailed implementation contract:
+[phase17-plan.md](./phase17-plan.md).
+
+### Phase 18 — Transport-branched model source (SDK discovery workaround) ✅ **DONE**
+
+> **Status:** ✅ done (revised 2026-06-24). The original "unify the model path on
+> `Query.supportedModels()` via the SDK's gateway model-discovery" approach
+> is **abandoned** — a confirmed Claude Agent SDK bug makes it unworkable
+> (below). Phase 18 is re-scoped to the small structural seam the eventual
+> unification slots into: a **single transport-branched model source**,
+> with the proxy hardcoded **on** and a `TODO(Phase 19)`. Proxied mode
+> keeps using `ICopilotApiService.models()` exactly as today.
+
+#### Why the original approach died — confirmed SDK bug
+
+The premise was: set `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` so the
+SDK discovers models from `ClaudeProxyService`'s `/v1/models`, and read them
+via `Query.supportedModels()` — one model call for both proxied and native
+modes. **It does not work on a brand-new query**, proven empirically against
+both the pinned SDK (`0.3.169`) and the latest (`0.3.191`, bundled CLI
+`2.1.191`):
+
+- **`initialize()` does not await gateway discovery.** Timing probe (gateway
+  `/v1/models` deliberately delayed): `startup()` resolves ~1.5s **before**
+  the `/v1/models` response arrives. Discovery is fire-and-forget; the
+  discovered models land in `~/.claude/cache/gateway-models.json` *after*
+  `this.initialization` has already resolved.
+- **`supportedModels()` is a one-shot snapshot** — `return (await
+  this.initialization).models` — and there is **no `models_changed` push**
+  to refresh it (even though `commands_changed` exists for exactly this
+  reason: the SDK's own docs admit `supportedCommands()` is "captured once
+  at initialize"). No refresh control request, no "wait for discovery" flag.
+- Net: a cold first query's `supportedModels()` returns only built-in
+  aliases (`default/sonnet/haiku/...`); discovered models appear only on a
+  **subsequent warm-cache startup**. Also `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+  (which proxied `buildOptions` sets) suppresses discovery entirely.
+
+A minimal standalone repro for the upstream team lives outside the repo at
+`~/claude-sdk-model-discovery-repro` (fake gateway + cold/warm `startup() →
+supportedModels()`; prints "BUG CONFIRMED"). The clean upstream fix is
+either (a) await discovery before resolving `initialize`, or (b) emit a
+`models_changed` push. **Until Anthropic ships one, we do not route any
+model list through `supportedModels()`-via-discovery.**
+
+#### The workaround (this phase)
+
+Establish the seam the future unification needs, and nothing more:
+
+- **One branch point** in `ClaudeAgent`: `_isProxyEnabled()` returns
+  `true` (hardcoded) with `// TODO(Phase 19): read RootConfigState
+  ClaudeUseCopilotProxy`. Phase 19 flips this to the real
+  `IAgentConfigurationService.getRootValue` read.
+- **Proxy branch → `ICopilotApiService.models()`** — today's
+  `_refreshModels` path, essentially unchanged (`isClaudeModel` filter +
+  `toAgentModelInfo` projection, CAPI-dotted `ModelSelection.id`, the
+  `is_chat_default` sort, the `tokenAtStart` stale-write guard). No SDK
+  bug exposure, no behavior change, no picker regression.
+- **Native branch → `Query.supportedModels()`** — **not built here**;
+  throws `TODO: Phase 19`. It is unreachable while `_isProxyEnabled()` is
+  hardcoded `true`. Phase 19 implements it (built-in catalogue, which
+  `supportedModels()` *does* return reliably — the bug only affects
+  gateway-*discovered* models, not the built-ins).
+- **Shared `→ IAgentModelInfo` projection (light):** keep
+  `toAgentModelInfo(CCAModel)` for the proxy branch; Phase 19 adds
+  `fromSdkModelInfo(ModelInfo)` for native. Both already target the same
+  `IAgentModelInfo` shape, and the effort-schema construction
+  (`createClaudeThinkingLevelSchema` / `isClaudeEffortLevel`) is factored
+  so both can share it. That shared target + the single branch point is
+  what makes the future unification cheap.
+
+**The future "couple lines" once Anthropic fixes the SDK:** point the
+**proxy** branch at `supportedModels()` too (through the proxy with
+discovery, now that `supportedModels()` is reliable) and delete the
+direct-CAPI list call — the native projection already exists, so the
+proxied path collapses onto it. Captured here so the intent survives.
+
+#### Scope
+
+- `ClaudeAgent._isProxyEnabled()` (hardcoded `true` + `TODO(Phase 19)`).
+- `_refreshModels` (or a renamed `_resolveModels`) branches on it: proxy →
+  existing CAPI path; native → `throw new Error('TODO: Phase 19')`.
+- Factor the effort/config-schema helpers so a future `ModelInfo`
+  projection can share them (no native projection built yet).
+- **No** gateway-discovery flag, **no** enumeration query, **no** proxy
+  `/v1/models` change, **no** picker-behavior change. Those are all
+  retired with the original approach.
+
+**Out of scope** (moved to Phase 19): the real `RootConfigState` toggle
+read, the native `supportedModels()` branch + `ModelInfo → IAgentModelInfo`
+projection, and (post-SDK-fix) collapsing proxied onto `supportedModels()`.
+
+#### Tests
+
+- `ClaudeAgent` proxied model path unchanged: `models` observable
+  populated from a stubbed `ICopilotApiService.models()`, filtered to
+  Claude family, default ordering + multiplier/policy metadata intact,
+  stale-write guard preserved (the existing
+  [claudeAgent.test.ts:757-820](../../test/node/claudeAgent.test.ts) suite
+  should pass essentially unchanged).
+- `_isProxyEnabled()` returns `true`; the native branch is unreachable
+  (a unit test that forces the native branch asserts it throws
+  `TODO: Phase 19`).
+
+#### Exit criteria
+
+The model source is selected at one transport-branch point with the proxy
+hardcoded on; proxied mode behaves **identically to today** (direct CAPI,
+no SDK bug exposure, no picker regression); the native branch is a typed
+`TODO: Phase 19` stub; and the effort-schema helpers are factored for
+reuse. Re-routing proxied onto `supportedModels()` is a documented
+couple-lines follow-up gated on the upstream SDK fix.
+
+### Phase 19 — Direct (non-proxied) Claude access (BYO Anthropic) ✅ **DONE**
+
+> **Status:** ✅ done. Native (BYO-Anthropic) turns authenticate on the user's
+> own credentials from the subprocess env — `ANTHROPIC_API_KEY`, or a
+> subscription OAuth token in `CLAUDE_CODE_OAUTH_TOKEN` (from `claude
+> setup-token`). The interactive `claude login` keychain session is NOT used in
+> headless/SDK mode (verified empirically). The Phase 19.1 native-binary-path
+> override was explored and removed — it only selects which `claude` build
+> runs, never the credentials. This is the first phase that lets the Claude
+> provider talk to Anthropic **without** the Copilot proxy in the path —
+> using whatever credentials the user already has (an `ANTHROPIC_API_KEY`,
+> a `claude login` OAuth session in `~/.claude`, or a Bedrock/Vertex
+> configuration). It also adds the agent-host config switch that selects
+> between the two transports and quarantines all proxy-only plumbing
+> behind it.
+
+#### Motivation
+
+Today the Claude provider is *Copilot-routed Claude*: every `/v1/messages`
+call is minted against a GitHub Copilot token, translated by
+`ClaudeProxyService`, and billed through CAPI. That is the right default
+for Copilot subscribers, but it excludes two populations:
+
+1. Users who have a **direct Anthropic relationship** (API key or Claude
+   subscription via `claude login`) and want to spend *that* quota, not
+   their Copilot entitlement.
+2. Users on networks / orgs where the Copilot CAPI path is unavailable but
+   Anthropic (or a Bedrock/Vertex endpoint) is reachable.
+
+This phase makes the proxy **optional**, selected by an agent-host config
+property, and proves the SDK runs end-to-end on its own credentials.
+
+#### The things that change when the proxy is removed
+
+The proxy is load-bearing in several places. The **model picker is no
+longer one of them** — Phase 18 already unified model acquisition on
+`supportedModels()`, so native mode inherits it (see sub-problem 2). The
+remaining concerns each need a native analogue or an explicit "not
+available in native mode" decision.
+
+1. **Transport + auth into Anthropic.**
+   - *Proxied (today):* `buildOptions` sets `settings.env.ANTHROPIC_BASE_URL`
+     = `proxyHandle.baseUrl`, `settings.env.ANTHROPIC_AUTH_TOKEN` =
+     `<nonce>.<sessionId>`, and `buildSubprocessEnv()` **strips**
+     `ANTHROPIC_API_KEY`. The SDK thinks it's talking to Anthropic; it's
+     really talking to `127.0.0.1:<port>` → CAPI.
+   - *Native (this phase):* do **not** set `ANTHROPIC_BASE_URL` /
+     `ANTHROPIC_AUTH_TOKEN`; do **not** strip `ANTHROPIC_API_KEY`; pass the
+     user's relevant env through. The SDK uses its own credential
+     resolution (env key → CLI OAuth in `~/.claude` → cloud-provider env).
+     The SDK reports which it used via `SDKSystemMessage.apiKeySource`
+     (`'user' | 'project' | 'org' | 'temporary' | 'oauth'`, sdk.d.ts:116)
+     on the `system/init` message — surface this for diagnostics.
+   - **`buildOptions` / `buildSubprocessEnv` must take a transport
+     descriptor**, not an `IClaudeProxyHandle`. Today the handle is a
+     required positional arg (`claudeSdkOptions.ts`). Introduce a
+     discriminated `ClaudeTransport =
+     { kind: 'proxy'; handle: IClaudeProxyHandle }
+     | { kind: 'native'; passthroughEnvKeys: readonly string[] }`
+     and branch the env construction on it. Keep `buildSubprocessEnv`'s
+     `VSCODE_*` / `ELECTRON_*` / `NODE_OPTIONS` stripping in **both**
+     modes (those are agent-host hygiene, unrelated to Anthropic auth);
+     only the `ANTHROPIC_API_KEY` strip is proxy-mode-only.
+
+2. **The model picker — build the native branch + flip the seam.**
+   - Phase 18 laid only a **seam**: `ClaudeAgent._isProxyEnabled()` hardcoded
+     `true`, proxy branch on `ICopilotApiService.models()`, native branch a
+     `TODO: Phase 19` stub. (The original gateway-discovery unification was
+     abandoned — confirmed SDK bug; see Phase 18.) Phase 19 finishes it.
+   - **Flip the flag to the real read:** `_isProxyEnabled()` →
+     `IAgentConfigurationService.getRootValue(..., ClaudeUseCopilotProxy)`
+     (defaulting `true`), the same `_transportMode` resolution the config
+     switch below describes.
+   - **Build the native branch:** `Query.supportedModels()` →
+     `ModelInfo → IAgentModelInfo` projection (the `fromSdkModelInfo`
+     Phase 18 left unbuilt), reusing the factored effort-schema helpers.
+     With **no** `ANTHROPIC_BASE_URL` and **no**
+     `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`, `supportedModels()`
+     returns the SDK's **built-in** catalogue reliably (the SDK bug only
+     affects gateway-*discovered* models, not built-ins — verified). This
+     needs the model-enumeration query lifecycle (provider-scoped,
+     memoized, `startup() → query(neverYield) → supportedModels()` →
+     dispose, ephemeral `CLAUDE_CONFIG_DIR`) that Phase 18 deferred.
+   - **No commercial-metadata overlay in native mode** — multiplier /
+     policy / default ordering are Copilot/CAPI concepts; native
+     `IAgentModelInfo` entries omit them.
+   - Native ids are SDK-canonical end to end (`m.value`); `toSdkModelId`
+     is an identity at the native seam.
+   - **Post-SDK-fix unification (separate follow-up, not Phase 19):** once
+     Anthropic fixes the discovery-before-init bug, point the **proxy**
+     branch at `supportedModels()` through the proxy too and delete the
+     direct-CAPI list call — a couple of lines, since the native
+     projection now exists.
+
+3. **Per-turn cost / "tracking between requests".**
+   - *Proxied (today):* the proxy is the **only** place that sees CAPI's
+     real billed credits (`copilot_usage.total_nano_aiu`), because the SDK
+     `result` strips them. `onDidReportCredits` routes each report (keyed
+     by the `sessionId` decoded from the Bearer token) to
+     `ClaudeAgentSession.recordTurnCredits`, accumulated per turn and
+     injected into the `ChatUsage` signal as `_meta.copilotUsage` by
+     `_enrichSignalWithCredits`.
+   - *Native (this phase):* there is no proxy and no `copilot_usage` —
+     CAPI is not billing. The relevant signal is the SDK's own `result`
+     message: token `usage` and `total_cost_usd` (an Anthropic-list-price
+     estimate; M8). Native turns surface **SDK usage / cost** instead of
+     Copilot credits:
+     - `recordTurnCredits` / `_enrichSignalWithCredits` are **proxy-only**
+       and must no-op in native mode (the agent simply never wires the
+       `onDidReportCredits` subscription when the session's transport is
+       native).
+     - The `ChatUsage` signal in native mode carries the SDK `result`
+       usage/cost the live mapper already extracts (M8 — usage is
+       live-only; replayed native turns have `usage === undefined`, same
+       asymmetry as today).
+   - **No cross-request bearer correlation is needed in native mode.** The
+     proxy's `<nonce>.<sessionId>` Bearer existed *only* to attribute
+     CAPI requests back to a session at the proxy seam. With no proxy,
+     the SDK subprocess already belongs to exactly one
+     `ClaudeAgentSession` (one `Query` per session), so turn/usage
+     attribution is intrinsic — the session reads its own `result`
+     messages. This is the answer to "how do we track between requests
+     without the proxy": **we don't have to — the per-session subprocess
+     is the attribution boundary the proxy Bearer was emulating.**
+
+4. **Auth gating + protected resources.**
+   - *Proxied (today):* `authenticate()` requires the
+     `GITHUB_COPILOT_PROTECTED_RESOURCE` token; without it
+     `_ensureAuthenticated()` throws `AHP_AUTH_REQUIRED` and the proxy is
+     never started. `getProtectedResources()` advertises GitHub Copilot +
+     GitHub repo.
+   - *Native (this phase):* the GitHub Copilot token is **not** required to
+     reach Anthropic. The provider must not block session creation behind a
+     Copilot sign-in it will never use. Decisions:
+     - `getProtectedResources()` in native mode drops
+       `GITHUB_COPILOT_PROTECTED_RESOURCE` (keep
+       `GITHUB_REPO_PROTECTED_RESOURCE`, which is about repo access for
+       git operations, not model auth). The workbench renders auth prompts
+       from this list, so dropping it removes the spurious Copilot
+       sign-in.
+     - `_ensureAuthenticated()` becomes mode-aware: native mode is
+       "authenticated" once the agent is constructed (the SDK owns its own
+       credential check and will surface a clear `result` error if the
+       user has no usable Anthropic credential — map that to a turn error,
+       do **not** try to pre-validate the key in the host).
+     - **Credential-absent UX:** if the SDK's first turn fails because no
+       credential resolved (`apiKeySource` unavailable / 401 from
+       Anthropic), surface a targeted error telling the user to set
+       `ANTHROPIC_API_KEY` or run `claude login`, rather than a generic
+       stream failure. (Pre-flighting the credential without a turn is out
+       of scope — the SDK has no cheap "am I authed" probe short of a
+       warm query.)
+
+#### The config switch — a RootConfigState property
+
+The transport is selected by a **`RootConfigState` property on the agent
+host**, not by a workbench `chat.agentHost.*` setting or an env var. This
+is the Agent Host Protocol's own config surface: `rootState.config` is a
+`{ schema, values }` bag the host broadcasts to every connected client
+over AHP and persists to `agent-host-config.json`. It is read/written
+through `IAgentConfigurationService` (`getRootValue` / `updateRootConfig`
+/ `onDidRootConfigChange`) and described by a JSON schema so clients can
+render and edit it generically. The existing
+`EnableCustomTerminalTool` / `RubberDuck` / `Opus48Prompt` keys are
+exactly this mechanism.
+
+Why RootConfigState rather than the `claudeAgent.enabled` setting+env
+pattern:
+
+- **It's the host's own config plane.** The toggle is a property of *the
+  agent host* (it changes how the host talks to Anthropic), not a
+  workbench preference that has to be marshalled across the process
+  boundary. `ClaudeAgent` already injects `IAgentConfigurationService`
+  and reads other root values; it reads this one the same way — **no new
+  VS Code setting, no `VSCODE_AGENT_HOST_*` env var, no
+  `nodeAgentHostStarter` forwarding.**
+- **It works identically for local and remote/headless hosts.** A remote
+  operator edits `agent-host-config.json` (or any AHP client writes it via
+  `updateRootConfig`); a workbench client renders the schema-described
+  property in its host-config UI. One code path, no precedence rules to
+  reconcile between a setting and a root-config fallback.
+- **It's reactive.** `onDidRootConfigChange` already fires on
+  `RootConfigChanged`, so `ClaudeAgent` can re-resolve its transport mode
+  live (subject to the restart semantics below) instead of only at
+  process start.
+
+Concretely:
+
+- **New `AgentHostConfigKey`** (e.g. `ClaudeUseCopilotProxy =
+  'claudeUseCopilotProxy'`) declared in
+  [`agentHostCustomizationConfig.ts`](../../common/agentHostCustomizationConfig.ts)
+  with a `schemaProperty<boolean>({ ..., default: true })`, **default
+  `true`** so existing Copilot users are unaffected. It joins the schema
+  merged into `rootState.config` by the `AgentConfigurationService`
+  constructor.
+  - *Naming open question:* the key is Claude-specific today, but the
+    "use the Copilot proxy vs. bring-your-own credentials" axis may
+    generalise to Codex later. Decide whether to namespace it
+    (`claudeUseCopilotProxy`) or model a more general transport key now.
+    Leaning Claude-specific for v1 to avoid speculative generality.
+- **`ClaudeAgent` reads it** via
+  `this._configurationService.getRootValue(agentHostCustomizationConfigSchema,
+  AgentHostConfigKey.ClaudeUseCopilotProxy)` (defaulting to `true` when
+  absent) to resolve `_transportMode`, and subscribes to
+  `onDidRootConfigChange` to react to edits.
+- **No env var, no setting, no starter change.** This deletes the
+  `VSCODE_AGENT_HOST_CLAUDE_USE_COPILOT_PROXY` /
+  `chat.agentHost.claudeAgent.useCopilotProxy` plumbing the earlier draft
+  proposed.
+- **Scope: host-level for v1.** All sessions on the host share one
+  transport. Per-session transport selection (a session config key, so a
+  user could run one chat on Copilot quota and another on their own key)
+  is a deliberate **follow-up** — it interacts with restored-session
+  transport identity (below) and the picker would need to show two model
+  catalogues at once.
+
+#### Where the branch lives (don't scatter it)
+
+The transport choice should resolve **once** into a `ClaudeTransport`
+value and flow as data; avoid re-reading the config in five places.
+
+- `ClaudeAgent` resolves the `ClaudeUseCopilotProxy` root value into a
+  `_transportMode: 'proxy' | 'native'` and keeps it current by listening to
+  `IAgentConfigurationService.onDidRootConfigChange`. **Live-flip
+  semantics:** a mode change applies to *new* sessions immediately; already
+  materialised sessions keep the transport they started with until they
+  restart (their subprocess env is fixed at `buildOptions` time). Document
+  this — don't try to hot-swap a running subprocess between proxy and
+  native.
+- Proxied mode keeps today's behaviour: acquire `IClaudeProxyHandle` in
+  `authenticate()`, wire `onDidReportCredits`, advertise the Copilot
+  protected resource, populate models from CAPI.
+- Native mode: skip the proxy handle entirely (do **not** call
+  `IClaudeProxyService.start`), skip the credits subscription, drop the
+  Copilot protected resource, populate models via Phase 18's
+  `supportedModels()` path **with the gateway-discovery flag off** (no
+  CAPI, no commercial-metadata overlay).
+- The mode is threaded into the session as part of the materialize inputs
+  so `buildOptions` receives a `ClaudeTransport` instead of a bare proxy
+  handle. `ClaudeAgentSession` already owns the abort controller, model,
+  and permission mode — the transport joins that bag.
+- **`IClaudeProxyService` stays a DI singleton** constructed unconditionally
+  in `agentHostMain.ts` (cheap until `start()` is called). Native mode
+  simply never calls `start()`, so no proxy server ever binds. Do **not**
+  gate the service registration on the toggle — that would couple service
+  wiring to runtime config and complicate the proxied default.
+
+#### Restored-session transport identity (the subtle one)
+
+A session's transport is part of its identity for replay/continuation:
+
+- A session **created** under proxied mode whose transcript is later
+  continued under native mode (user flipped the toggle) would resume a
+  conversation billed one way and continue it the other. The SDK doesn't
+  care (it's the same JSONL), but **model ids may not resolve**: a proxied
+  session stored CAPI-dotted `ModelSelection.id`s; native resume expects
+  SDK-canonical. `toSdkModelId` already normalises proxied→SDK, so resume
+  *should* work, but the **model picker** for a resumed cross-mode session
+  must show the catalogue matching the *current* transport, and a
+  stored model id absent from that catalogue must degrade gracefully
+  (fall back to the current default, don't hard-fail the resume).
+- **Decision for v1:** transport is host-level and resolved live, so a
+  restored session adopts whatever mode the host is in *now*. Persist the
+  `apiKeySource` / transport used per turn in session metadata for
+  diagnostics, but do **not** pin a session to its creation-time
+  transport in v1. Revisit if per-session transport lands.
+
+#### Scope checklist
+
+- `ClaudeTransport` discriminated union + `buildOptions` /
+  `buildSubprocessEnv` refactor to consume it (replace the required
+  `IClaudeProxyHandle` arg).
+- `AgentHostConfigKey.ClaudeUseCopilotProxy` RootConfigState property
+  (schema + `default: true`) in `agentHostCustomizationConfig.ts`;
+  `ClaudeAgent` resolves `_transportMode` via `getRootValue` and reacts to
+  `onDidRootConfigChange`. No setting, env var, or starter change.
+- `ClaudeAgent._transportMode`, mode-aware `authenticate`,
+  `getProtectedResources`, `_ensureAuthenticated`, and the
+  `onDidReportCredits` subscription gating.
+- Native model path: **build the native branch Phase 18 stubbed.** Flip
+  `_isProxyEnabled()` to the real `RootConfigState` read; implement
+  `Query.supportedModels()` → `fromSdkModelInfo` projection (built-in
+  catalogue, no discovery flag, no overlay) + the provider-scoped
+  memoized enumeration-query lifecycle (ephemeral `CLAUDE_CONFIG_DIR`).
+- Native usage path: `recordTurnCredits` / `_enrichSignalWithCredits`
+  no-op in native; `ChatUsage` carries SDK `result` usage/cost.
+- Credential-absent error mapping (no key / 401 → actionable message).
+- Surface `apiKeySource` from `system/init` for diagnostics + per-turn
+  metadata.
+
+#### Tests
+
+- `buildOptions` native branch: no `ANTHROPIC_BASE_URL` /
+  `ANTHROPIC_AUTH_TOKEN`; `ANTHROPIC_API_KEY` **not** stripped;
+  `VSCODE_*` / `ELECTRON_*` / `NODE_OPTIONS` still stripped.
+- `buildOptions` proxy branch unchanged (regression snapshot).
+- Transport resolution: `ClaudeUseCopilotProxy` root value `false` →
+  native; `true` or absent → proxied default; `onDidRootConfigChange`
+  flipping the value updates `_transportMode` for subsequent sessions.
+- `ClaudeAgent` native mode: `authenticate` does not call
+  `IClaudeProxyService.start`; `getProtectedResources` omits Copilot;
+  `models` populated from a stubbed `supportedModels()` (dedicated
+  enumeration query) without any CAPI call; enumeration query is disposed
+  and never appears in `listSessions`; `onDidReportCredits` never
+  subscribed.
+- Model enumeration failure (SDK load / credential error) → `models`
+  stays empty and an actionable error surfaces (no static fallback).
+- Native `ChatUsage` carries SDK `result` usage and **no**
+  `_meta.copilotUsage`; proxied `ChatUsage` still carries it.
+- Integration: stub `IClaudeAgentSdkService` so a native session runs a
+  full turn with a faked `system/init` (`apiKeySource: 'oauth'`) +
+  `result` and asserts the signal sequence + usage shape, with **no**
+  proxy server bound.
+- Credential-absent: SDK first turn fails 401 → actionable error signal.
+
+#### Manual E2E
+
+- With the `claudeUseCopilotProxy` RootConfigState value set to `false`
+  (via `agent-host-config.json` or a client `updateRootConfig`) and a real
+  `ANTHROPIC_API_KEY` (or `claude login`), the Claude provider lists
+  models **enumerated from `supportedModels()`** (verify the ids match the
+  user's plan, not the CAPI catalogue), runs a turn, streams output, and
+  renders SDK cost — with the proxy port never bound (verify via logs /
+  `lsof`).
+- Flip the root value back to `true` → Copilot-routed behaviour returns
+  for new sessions, proxy binds, credits render.
+- Resume a session created in one mode under the other → picker shows the
+  current-mode catalogue, resume succeeds, missing model id degrades to
+  the default.
+
+#### Exit criteria
+
+A user can set one config property to run the Claude provider entirely on
+their own Anthropic credentials with no Copilot token, CAPI call, or proxy
+server in the path; the model picker is populated without CAPI; per-turn
+cost surfaces from the SDK `result`; and all proxy-only plumbing
+(credits, Bearer correlation, `ANTHROPIC_BASE_URL` injection, Copilot
+protected resource) is cleanly quarantined behind the `'proxy'` transport
+mode. The proxied path remains the unchanged default.
+
+#### Open questions (settle in the phase plan)
+
+- **Model-enumeration query lifecycle** — owned by Phase 18 (start
+  timing, `cwd`, cache duration, restart persistence, harvest from first
+  real `Query`). Native inherits whatever Phase 18 lands; the only native
+  consideration is re-enumeration on credential change.
+- **Cloud providers** — do we explicitly support / document
+  Bedrock (`CLAUDE_CODE_USE_BEDROCK`) and Vertex
+  (`CLAUDE_CODE_USE_VERTEX`) env passthrough in native mode, or only the
+  direct-Anthropic key + OAuth paths for v1?
+- **Credential discovery for UX** — can the host cheaply tell *whether*
+  any Anthropic credential exists (to pre-disable the provider or warn)
+  without spending a turn? Likely no clean probe; confirm.
+- **Per-session transport** — defer, but record the metadata now so the
+  follow-up doesn't require a migration.
+- **`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` in native mode** — in
+  proxied mode it's a Copilot leak-tightness guarantee. In native mode
+  it's the user's own Anthropic account; do we keep disabling
+  nonessential traffic (privacy-preserving default) or respect the
+  user's normal CLI behaviour? Leaning keep-disabled.
 
 ---
 
@@ -1700,8 +2196,12 @@ Detailed implementation contract: [phase17-plan.md](./phase17-plan.md).
 
 ## Non-goals (explicit)
 
-- **Anthropic-direct authentication** (`x-api-key` against
-  api.anthropic.com). This is a Copilot-routed Claude, not a BYOK Claude.
+- **Anthropic-direct authentication via the proxy** (`x-api-key` against
+  api.anthropic.com *through `ClaudeProxyService`*). The proxy is
+  Copilot-routed only and ignores `x-api-key` by design. Direct Anthropic
+  access is instead delivered by **Phase 19's native transport**, which
+  removes the proxy from the path entirely rather than teaching it to
+  forward personal keys.
 - **Re-implementing the Anthropic SDK ourselves.** We host the official
   Claude Agent SDK and proxy beneath it; we re-use `@anthropic-ai/sdk`
   types.
