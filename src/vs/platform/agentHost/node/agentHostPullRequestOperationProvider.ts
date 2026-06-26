@@ -78,8 +78,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 				},
 				{
 					id: 'create-pr-auto-squash',
-					label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-squash)"),
-					description: localize('agentHost.changeset.createPRAutoSquash.description', "Create a pull request and enable auto-merge with squash so it merges automatically once checks pass."),
+					label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-Squash)"),
 					icon: 'git-merge',
 					group: 'pull-request',
 					scopes: [ChangesetOperationScope.Changeset],
