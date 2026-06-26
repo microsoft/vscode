@@ -26,7 +26,7 @@ applyTo: src/vs/**
 
 ## Styling
 
-- Avoid `getComputedStyle`. If a style value is needed in both CSS and TypeScript, prefer hardcoding the value in TypeScript and setting it directly on the DOM element, or use `setProperty` on the DOM element with a CSS variable and the value when it's needed across multiple CSS rules.
+- Avoid `getComputedStyle`. If a style value is needed in both CSS and TypeScript, prefer hardcoding the value in TypeScript and setting it directly on the DOM element (e.g. `element.style.width = '100px'`), or set a CSS custom property via `element.style.setProperty('--my-var', value)` when the value is needed across multiple CSS rules.
 
 ## Editor Decorations
 
