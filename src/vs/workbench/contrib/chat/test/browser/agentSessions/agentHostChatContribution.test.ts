@@ -4974,6 +4974,30 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('active editor implicit selection in an unsaved editor preserves the selection range when inlined for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService, modelService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/copilot-implicit-dirty-selection' });
+			const fileUri = URI.file('/workspace/foo.ts');
+			modelService.setModelContent(fileUri, 'edited but not saved');
+			workingCopyService.setDirty(fileUri, true);
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.selection', name: 'foo.ts', isSelection: true, uri: fileUri, value: { uri: fileUri, range: new Range(2, 1, 4, 10) } },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what\'s in this selection?',
+				sessionResource,
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('edited but not saved')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } } },
+			]);
+		}));
+
 		test('active editor implicit context for a clean saved file is forwarded as a path for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService, modelService } = createContribution(disposables, { provider: 'copilotcli' });
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/copilot-implicit-clean' });

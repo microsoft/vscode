@@ -34,7 +34,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, JsonPrimitive, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -3646,9 +3646,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const uri = entry.uri;
 			if (uri && this._isUnsavedResource(uri)) {
 				if (this._config.provider === COPILOT_CLI_PROVIDER) {
-					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name);
+					const selection = entry.isSelection && isLocation(entry.value)
+						? { range: this._toTextRange(entry.value.range) }
+						: undefined;
+					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name, selection);
 					if (embedded) {
-						const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString());
+						const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString(), selection);
 						if (!existingKeys.has(dedupeKey)) {
 							existingKeys.add(dedupeKey);
 							attachments.push(embedded);
@@ -3692,10 +3695,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
-	 * gets current content. Returns `undefined` when no loaded text model is available or the buffer exceeds
-	 * {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
+	 * gets current content, preserving any active selection. Returns `undefined` when no loaded text model is available
+	 * or the buffer exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
 	 */
-	private _buildUnsavedEditorAttachment(uri: URI, label: string): MessageAttachment | undefined {
+	private _buildUnsavedEditorAttachment(uri: URI, label: string, selection?: MessageEmbeddedResourceAttachment['selection']): MessageAttachment | undefined {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return undefined;
@@ -3705,13 +3708,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: ${buffer.byteLength} bytes exceeds cap`);
 			return undefined;
 		}
-		return {
+		const attachment: MessageEmbeddedResourceAttachment = {
 			type: MessageAttachmentKind.EmbeddedResource,
 			label,
-			displayKind: 'document',
+			displayKind: selection ? 'selection' : 'document',
 			data: encodeBase64(buffer),
 			contentType: 'text/plain',
 		};
+		if (selection) {
+			attachment.selection = selection;
+		}
+		return attachment;
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
