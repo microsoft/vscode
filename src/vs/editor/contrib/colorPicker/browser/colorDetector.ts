@@ -243,7 +243,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private removeAllDecorations(): void {
-		console.log('removeAllDecorations');
 		this._editor.removeDecorations(this._decorationsIds);
 		this._decorationsIds = [];
 		this._colorDecoratorIds.clear();
