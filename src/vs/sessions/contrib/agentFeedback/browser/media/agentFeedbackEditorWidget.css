@@ -358,3 +358,18 @@
 	color: var(--vscode-input-placeholderForeground);
 	opacity: 1;
 }
+
+/* Accept / Remove action button bar shown for created agent feedback */
+.agent-feedback-widget-actions-bar {
+	display: flex;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.agent-feedback-widget-actions-bar .monaco-button {
+	flex: 1;
+	padding: 2px 10px;
+	width: auto;
+	font-size: var(--vscode-agents-fontSize-label2);
+	line-height: 18px;
+}
