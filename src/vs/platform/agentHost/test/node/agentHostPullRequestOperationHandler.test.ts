@@ -52,7 +52,6 @@ class TestGitService implements IAgentHostGitService {
 	upstream = false;
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
-	async isInsideWorkTree(): Promise<boolean> { return true; }
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<string | undefined> { return 'main'; }
 	async getBranches(): Promise<string[]> { return []; }
