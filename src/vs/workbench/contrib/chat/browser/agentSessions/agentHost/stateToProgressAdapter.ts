@@ -167,7 +167,7 @@ export interface TurnModelLookup {
 }
 
 /** The agent host's synthetic "Auto" model id; each turn's `usage.model` reports the model it resolved to. */
-export const AGENT_HOST_AUTO_MODEL_ID = 'auto';
+const AGENT_HOST_AUTO_MODEL_ID = 'auto';
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
 export interface ITurnResponseModel {
