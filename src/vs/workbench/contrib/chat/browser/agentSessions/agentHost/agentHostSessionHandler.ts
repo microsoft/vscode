@@ -939,23 +939,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// Reconnecting re-invokes the blocked client tool, which throws
-			// `Tool called for unknown chat session` until the model is
-			// registered; defer until it exists to avoid stranding the turn.
 			if (activeTurnId && initialProgress !== undefined) {
-				if (this._chatService.getSession(sessionResource)) {
-					this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
-				} else {
-					const reconnectActiveTurnId = activeTurnId;
-					const reconnectInitialProgress = initialProgress;
-					const sub = this._chatService.onDidCreateModel(model => {
-						if (isEqual(model.sessionResource, sessionResource)) {
-							sub.dispose();
-							this._reconnectToActiveTurn(resolvedSession, reconnectActiveTurnId, session, reconnectInitialProgress);
-						}
-					});
-					session.registerDisposable(sub);
-				}
+				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
 			}
 
 			// For existing sessions, start watching for server-initiated turns
@@ -2100,6 +2085,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): void {
 		const toolCallId = initial.toolCallId;
 		const toolName = initial.toolName;
+
+		// `beginToolCall`/`invokeTool` below resolve the ChatModel by session
+		// resource and throw `Tool called for unknown chat session` if it is
+		// not registered yet. On reconnect, provider content is resolved
+		// before the model is created, so defer until it exists to avoid
+		// stranding the turn. (Live turns already have a model, so this runs
+		// synchronously.)
+		if (!this._chatService.getSession(opts.sessionResource)) {
+			const sub = this._chatService.onDidCreateModel(model => {
+				if (isEqual(model.sessionResource, opts.sessionResource)) {
+					sub.dispose();
+					this._setupClientToolCall(initial, part$, store, opts);
+				}
+			});
+			store.add(sub);
+			return;
+		}
 
 		// Reconnect adoption: settle any snapshot invocation so the new
 		// streaming one created by `beginToolCall` can take over the UI
