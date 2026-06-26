@@ -43,8 +43,8 @@ export const COPILOT_MODEL_KEY = 'model';
  * `telemetry` block from the cross-client managed-settings schema (see the CLI
  * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
  * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
- * The `telemetry.headers` / `telemetry.resourceAttributes` map fields are intentionally not
- * carried yet — they require a dedicated owner setting plus structured-key handling.
+ * The `telemetry.headers` / `telemetry.resourceAttributes` map fields require structured-key
+ * handling (see {@link STRUCTURED_MANAGED_SETTINGS}); `telemetry.serviceName` is a scalar.
  */
 
 /** Managed-settings key for enterprise OTel enablement. */
@@ -61,6 +61,9 @@ export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
 
 /** Managed-settings key that prevents users from enabling OTel content capture themselves. */
 export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
+
+/** Managed-settings key for the OTel `service.name` resource attribute. */
+export const COPILOT_OTEL_SERVICE_NAME_KEY = 'telemetry.serviceName';
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 

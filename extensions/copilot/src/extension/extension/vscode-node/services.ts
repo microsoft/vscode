@@ -306,6 +306,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		policyCaptureContent: policyValue<boolean>('captureContent'),
 		policyOutfile: policyValue<string>('outfile'),
 		policyProtocol: policyValue<string>('protocol'),
+		settingServiceName: otelSettings.get<string>('serviceName') || undefined,
+		policyServiceName: policyValue<string>('serviceName'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});

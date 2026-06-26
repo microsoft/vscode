@@ -295,6 +295,8 @@ export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpo
 export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.captureContent';
 /** Output path when `exporterType` is `file`. */
 export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
+/** Policy-only delivery slot for the enterprise-managed OTel `service.name` (no user UI). */
+export const AgentHostOTelServiceNameSettingId = 'chat.agentHost.otel.serviceName';
 /** When true, ALL spans are persisted to a local SQLite store regardless of `exporterType`. */
 export const AgentHostOTelDbSpanExporterEnabledSettingId = 'chat.agentHost.otel.dbSpanExporter.enabled';
 
@@ -327,6 +329,7 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
+	ServiceName: 'OTEL_SERVICE_NAME',
 	DbSpanExporterEnabled: 'COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED',
 } as const);
 
@@ -341,6 +344,7 @@ export interface IAgentHostOTelSettings {
 	readonly otlpEndpoint?: string;
 	readonly captureContent?: boolean;
 	readonly outfile?: string;
+	readonly serviceName?: string;
 	readonly dbSpanExporterEnabled?: boolean;
 }
 
@@ -372,6 +376,7 @@ export function readAgentHostOTelPolicySettings(configurationService: IConfigura
 		otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
 		captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
 		outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+		serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
 	};
 }
 
@@ -394,6 +399,7 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		otlpEndpoint: asString(record.otlpEndpoint),
 		captureContent: asBoolean(record.captureContent),
 		outfile: asString(record.outfile),
+		serviceName: asString(record.serviceName),
 	};
 }
 
@@ -429,6 +435,7 @@ export function buildAgentHostOTelEnv(
 	}
 	setIfMissing(AgentHostOTelEnvVars.ExporterType, settings.exporterType);
 	setIfMissing(AgentHostOTelEnvVars.OtlpEndpoint, settings.otlpEndpoint);
+	setIfMissing(AgentHostOTelEnvVars.ServiceName, settings.serviceName);
 	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
 	if (settings.captureContent !== undefined) {
 		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
@@ -465,6 +472,9 @@ export function buildAgentHostOTelEnv(
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
+	}
+	if (policySettings.serviceName !== undefined && policySettings.serviceName !== '') {
+		setPolicy(AgentHostOTelEnvVars.ServiceName, policySettings.serviceName);
 	}
 	return out;
 }

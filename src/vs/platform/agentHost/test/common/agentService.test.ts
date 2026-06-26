@@ -103,6 +103,25 @@ suite('buildAgentHostOTelEnv', () => {
 		assert.strictEqual(env[AgentHostOTelEnvVars.OtlpEndpoint], '');
 		assert.strictEqual(env[AgentHostOTelEnvVars.FilePath], '');
 	});
+
+	test('managed service name wins over inherited env', () => {
+		const env = buildAgentHostOTelEnv(
+			{ serviceName: 'user-service' },
+			{ [AgentHostOTelEnvVars.ServiceName]: 'env-service' },
+			{ serviceName: 'enterprise-service' },
+		);
+		assert.strictEqual(env[AgentHostOTelEnvVars.ServiceName], 'enterprise-service');
+	});
+
+	test('empty managed service name emits no override', () => {
+		const env = buildAgentHostOTelEnv(
+			{},
+			{ [AgentHostOTelEnvVars.ServiceName]: 'env-service' },
+			{ serviceName: '' },
+		);
+		// The builder returns only overrides; leaving the key out preserves the inherited env value.
+		assert.strictEqual(env[AgentHostOTelEnvVars.ServiceName], undefined);
+	});
 });
 
 suite('readAgentHostOTelPolicySettings', () => {
@@ -123,6 +142,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			'chat.agentHost.otel.otlpEndpoint': 'http://localhost:4318',
 			'chat.agentHost.otel.captureContent': false,
 			'chat.agentHost.otel.outfile': '/tmp/o.jsonl',
+			'chat.agentHost.otel.serviceName': 'my-service',
 		});
 		assert.deepStrictEqual(readAgentHostOTelPolicySettings(cfg), {
 			enabled: true,
@@ -131,6 +151,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			otlpEndpoint: 'http://localhost:4318',
 			captureContent: false,
 			outfile: '/tmp/o.jsonl',
+			serviceName: 'my-service',
 		});
 	});
 
@@ -142,6 +163,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			otlpEndpoint: undefined,
 			captureContent: undefined,
 			outfile: undefined,
+			serviceName: undefined,
 		});
 	});
 });
@@ -159,6 +181,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				otlpEndpoint: 'http://localhost:4318',
 				captureContent: false,
 				outfile: '/tmp/o.jsonl',
+				serviceName: 'my-service',
 				bogus: 123,
 			}),
 			{
@@ -168,6 +191,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				otlpEndpoint: 'http://localhost:4318',
 				captureContent: false,
 				outfile: '/tmp/o.jsonl',
+				serviceName: 'my-service',
 			},
 		);
 	});
@@ -175,7 +199,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 	test('mistyped fields are dropped to undefined', () => {
 		assert.deepStrictEqual(
 			sanitizeAgentHostOTelPolicySettings({ enabled: 'yes', otlpEndpoint: 42, captureContent: 1 }),
-			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined },
+			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined, serviceName: undefined },
 		);
 	});
 

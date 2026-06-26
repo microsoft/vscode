@@ -5344,6 +5344,18 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.serviceName": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelServiceName"
+            },
+            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_SERVICE_NAME` takes precedence over the setting; enterprise policy takes precedence over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.maxAttributeSizeChars": {
             "type": "integer",
             "default": 0,

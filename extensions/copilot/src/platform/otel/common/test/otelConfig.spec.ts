@@ -155,6 +155,37 @@ describe('resolveOTelConfig', () => {
 		expect(config.serviceName).toBe('my-service');
 	});
 
+	it('resolves service name from setting when env is absent', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingEnabled: true,
+			settingServiceName: 'setting-service',
+		}));
+		expect(config.serviceName).toBe('setting-service');
+	});
+
+	it('prefers OTEL_SERVICE_NAME env over the setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingServiceName: 'setting-service',
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_SERVICE_NAME': 'env-service',
+			},
+		}));
+		expect(config.serviceName).toBe('env-service');
+	});
+
+	it('enterprise policy service name wins over env and setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			policyServiceName: 'policy-service',
+			settingServiceName: 'setting-service',
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_SERVICE_NAME': 'env-service',
+			},
+		}));
+		expect(config.serviceName).toBe('policy-service');
+	});
+
 	it('returns frozen config objects', () => {
 		const enabled = resolveOTelConfig(makeInput({ settingEnabled: true }));
 		const disabled = resolveOTelConfig(makeInput());

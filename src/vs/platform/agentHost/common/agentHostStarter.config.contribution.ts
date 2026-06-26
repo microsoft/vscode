@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -23,6 +23,7 @@ import {
 	AgentHostOTelOtlpEndpointSettingId,
 	AgentHostOTelOtlpProtocolSettingId,
 	AgentHostOTelOutfileSettingId,
+	AgentHostOTelServiceNameSettingId,
 } from './agentService.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
@@ -308,6 +309,32 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostOTelServiceNameSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.agentHost.otel.serviceName', "Enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export. Policy-only: there is no user-facing setting; it carries the managed `telemetry.serviceName` so the agent host's `OTEL_SERVICE_NAME` identifies spans from this deployment."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			// Policy-only delivery slot — no user-writable surface (mirrors `chat.agentHost.otel.otlpProtocol`).
+			included: false,
+			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelServiceName`; passes the raw managed `telemetry.serviceName` through so the
+			// starters can set `OTEL_SERVICE_NAME` on the agent host process.
+			policy: {
+				name: 'CopilotOtelServiceName',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_SERVICE_NAME_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_SERVICE_NAME_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.serviceName.policy',
+						value: nls.localize('chat.agentHost.otel.serviceName.policy', "Controls the enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export."),
+					}
+				},
+			},
 		},
 	}
 });

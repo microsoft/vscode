@@ -96,6 +96,10 @@ export interface OTelConfigInput {
 	policyOutfile?: string;
 	/** Enterprise-managed OTLP wire protocol (raw `telemetry.protocol`). */
 	policyProtocol?: string;
+	/** Service name from VS Code setting (`github.copilot.chat.otel.serviceName`). */
+	settingServiceName?: string;
+	/** Enterprise-managed `service.name` (raw `telemetry.serviceName`). */
+	policyServiceName?: string;
 	extensionVersion: string;
 	sessionId: string;
 	vscodeTelemetryLevel?: string;
@@ -223,8 +227,11 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 	// HTTP instrumentation
 	const httpInstrumentation = envBool(env['COPILOT_OTEL_HTTP_INSTRUMENTATION']) ?? false;
 
-	// Service name
-	const serviceName = env['OTEL_SERVICE_NAME'] ?? 'copilot-chat';
+	// Service name: policy > env > setting > default. Empty values fall through.
+	const serviceName = (input.policyServiceName || undefined)
+		?? env['OTEL_SERVICE_NAME']
+		?? (input.settingServiceName || undefined)
+		?? 'copilot-chat';
 
 	// Resource attributes
 	const resourceAttributes = parseResourceAttributes(env['OTEL_RESOURCE_ATTRIBUTES']);

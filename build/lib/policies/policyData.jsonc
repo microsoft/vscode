@@ -57,6 +57,24 @@
             ]
         },
         {
+            "key": "chat.agentHost.otel.serviceName",
+            "name": "CopilotOtelServiceName",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.serviceName.policy",
+                    "value": "Controls the enterprise-managed OTel `service.name` resource attribute for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "string",
+            "default": "",
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.serviceName"
+            ]
+        },
+        {
             "key": "mcp.enterpriseManagedAuth.idp",
             "name": "McpEnterpriseManagedAuthIdp",
             "category": "InteractiveSession",

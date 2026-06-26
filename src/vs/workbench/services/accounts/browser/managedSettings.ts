@@ -34,6 +34,7 @@ export interface IManagedSettingsResponse {
 		readonly protocol?: 'grpc' | 'http/protobuf' | 'http/json';
 		readonly captureContent?: boolean;
 		readonly lockCaptureContent?: boolean;
+		readonly serviceName?: string;
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
