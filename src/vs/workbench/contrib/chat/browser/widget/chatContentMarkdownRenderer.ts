@@ -20,8 +20,9 @@ import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agen
 
 const _remoteImageDisallowed = () => false;
 
-const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$~]/;
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
 const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
+const gfmStrikethrough = /~~/;
 const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
 
 const literalSingleTildeExtension: MarkedExtension = {
@@ -39,7 +40,7 @@ const literalSingleTildeExtension: MarkedExtension = {
 
 function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
 	const value = markdown.value;
-	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || blockMarkdownSyntax.test(value)) {
+	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || gfmStrikethrough.test(value) || blockMarkdownSyntax.test(value)) {
 		return undefined;
 	}
 
