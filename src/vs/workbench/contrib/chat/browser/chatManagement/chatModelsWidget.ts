@@ -556,6 +556,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		if (deprecationLink) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
+			icon.setAttribute('aria-hidden', 'true');
 			const label = $('span.model-deprecation-link-label', undefined, localize('models.deprecation.link.label', "Migrate"), icon);
 			templateData.deprecationLink.link = {
 				label,

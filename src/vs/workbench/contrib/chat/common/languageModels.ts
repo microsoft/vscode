@@ -1220,7 +1220,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			localize('chat.providerDeprecation.message', "The internal {0} language model provider is being deprecated. Please migrate to the official extension.", providerName),
 			[{
 				label: localize('chat.providerDeprecation.install', "Install Extension"),
-				run: () => { this._openerService.open(resolveProviderDeprecationLink(link, this._productService.urlProtocol), { allowCommands: true }); }
+				run: () => { this._openerService.open(resolveProviderDeprecationLink(link, this._productService.urlProtocol)); }
 			}],
 			{
 				neverShowAgain: { id: `chat.providerDeprecation.${metadata.vendor}`, scope: NeverShowAgainScope.APPLICATION }
