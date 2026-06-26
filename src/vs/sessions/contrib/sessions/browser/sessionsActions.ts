@@ -7,22 +7,24 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { hash } from '../../../../base/common/hash.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { getQuickNavigateHandler } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -55,6 +57,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const keybindingService = accessor.get(IKeybindingService);
+		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
 		const recentSessions = recent.filter(s => !s.isArchived.get());
@@ -138,6 +142,16 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
 
+		// Enable quick navigation: when invoked via keybinding the user can keep
+		// the modifier held and press the trigger key again to cycle through
+		// sessions, then release the modifier to open the focused one (mirroring
+		// the editor switcher). The keybindings of this command drive which
+		// modifier release accepts the active item.
+		const keybindings = keybindingService.lookupKeybindings(SHOW_SESSIONS_PICKER_COMMAND_ID);
+		if (keybindings.length > 0) {
+			picker.quickNavigate = { keybindings };
+		}
+
 		// Default to the currently active session so it is selected on open.
 		if (activeItem) {
 			picker.activeItems = [activeItem];
@@ -145,6 +159,13 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
+
+		// Expose a context key while the picker is open so the navigate
+		// keybindings (bound to the same chord as this command) can advance the
+		// selection instead of re-opening the picker.
+		const pickerVisibleContext = SessionsPickerVisibleContext.bindTo(contextKeyService);
+		pickerVisibleContext.set(true);
+		disposables.add(toDisposable(() => pickerVisibleContext.reset()));
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			if (!selected.session) {
@@ -180,6 +201,31 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 
 		picker.show();
 	}
+});
+
+// -- Sessions Picker Quick Navigation --
+// While the sessions picker is open, pressing the same chord again advances the
+// active item (and Shift goes backwards), so the user can hold the modifier and
+// tab through sessions, then release to open the focused one.
+
+const SESSIONS_PICKER_NAVIGATE_NEXT_ID = 'sessions.showSessionsPicker.navigateNext';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SESSIONS_PICKER_NAVIGATE_NEXT_ID,
+	weight: KeybindingWeight.SessionsContrib + 50,
+	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
+	when: SessionsPickerVisibleContext,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+});
+
+const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID,
+	weight: KeybindingWeight.SessionsContrib + 50,
+	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
+	when: SessionsPickerVisibleContext,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --
