@@ -135,10 +135,10 @@ class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 }
 
 class KimiPromptResolver implements IAgentPrompt {
-	static readonly familyPrefixes = ['kimi-k2.6', 'kimi-k2.7-code'];
+	static readonly familyPrefixes: string[] = [];
 
 	static matchesModel(endpoint: IChatEndpoint): boolean {
-		return isKimiFamily(endpoint) || isKimiFamily(endpoint.model);
+		return isKimiFamily(endpoint);
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
