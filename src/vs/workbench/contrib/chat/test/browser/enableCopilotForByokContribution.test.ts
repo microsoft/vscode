@@ -14,13 +14,13 @@ import { ChatConfiguration } from '../../common/constants.js';
 
 suite('ensureCopilotEnabledForByok', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const chatExtensionId = product.defaultChatAgent?.chatExtensionId ?? 'GitHub.copilot-chat';
 
 	test('enables globally disabled chat extension and clears chat.disableAIFeatures', async () => {
-		const configurationService = disposables.add(new TestConfigurationService({
+		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.AIDisabled]: true,
-		}));
+		});
 
 		let enablementState = EnablementState.DisabledGlobally;
 		let updateRunningExtensionsCalled = false;
@@ -37,7 +37,7 @@ suite('ensureCopilotEnabledForByok', () => {
 			extensionsWorkbenchService: {
 				queryLocal: async () => { },
 				local: [localExtension as never],
-				setEnablement: async (_extensions, state) => {
+				setEnablement: async (_extensions: unknown, state: EnablementState) => {
 					setEnablementCalled = true;
 					enablementState = state;
 					return [true];
@@ -59,7 +59,7 @@ suite('ensureCopilotEnabledForByok', () => {
 	});
 
 	test('no-op when chat extension is already enabled', async () => {
-		const configurationService = disposables.add(new TestConfigurationService());
+		const configurationService = new TestConfigurationService();
 
 		let setEnablementCalled = false;
 
@@ -93,7 +93,7 @@ suite('ensureCopilotEnabledForByok', () => {
 		let setEnablementCalled = false;
 
 		await ensureCopilotEnabledForByok({
-			configurationService: disposables.add(new TestConfigurationService()),
+			configurationService: new TestConfigurationService(),
 			logService: new NullLogService(),
 			extensionsWorkbenchService: {
 				queryLocal: async () => { },

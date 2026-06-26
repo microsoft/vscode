@@ -234,6 +234,8 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
 	],
-	"sessionsWindowAllowedExtensions": [],
+	"sessionsWindowAllowedExtensions": [
+		"sergey-zinchenko.dial-chat-model-provider"
+	],
 	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
 }

@@ -6,7 +6,7 @@ Practical guide for building an **unsigned** Windows x64 production installer fr
 - BYOK / Agents Window / `#codebase` fork changes
 - **optimized installer size** (no hundreds of MB of `.js.map` files)
 
-For dev builds, use `npm run compile` and `.\scripts\code.bat` instead — see [README.md](../../README.md).
+For dev builds, use `npm run compile` and `.\scripts\launch-clean.ps1` — see [DEV-CLEAN-LAUNCH.md](./DEV-CLEAN-LAUNCH.md).
 
 ---
 
@@ -54,7 +54,7 @@ Fork patch: `patchWin32DependenciesTask` skips non-Windows `.node` files (e.g. `
 | Setting | When needed |
 | --- | --- |
 | `extensionEnabledApiProposals` | Only if you override proposals centrally. As a **built-in** extension, DIAL keeps `enabledApiProposals` from its own `package.json` when not listed in `product.json`. |
-| `sessionsWindowAllowedExtensions` | Only for **non-built-in** extensions. DIAL is built-in and enabled in Agents Window by default (no `views` / `debuggers` contributions). |
+| `sessionsWindowAllowedExtensions` | Must include `sergey-zinchenko.dial-chat-model-provider` so DIAL loads in the Agents Window. Do **not** add DIAL to `builtInExtensions` via VSIX — use the local tree under `extensions/dial-chat-model-provider/`. |
 
 ---
 

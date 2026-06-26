@@ -128,6 +128,20 @@ When pulling changes from [microsoft/vscode](https://github.com/microsoft/vscode
 
 ---
 
+## 5. Clean dev launch (smoke test)
+
+Run a debug build with **no old settings** or marketplace extensions:
+
+```powershell
+npm run compile
+.\scripts\launch-clean.ps1          # workbench
+.\scripts\launch-clean.ps1 -Agents  # Agents Window
+```
+
+Full guide: [build/custom/DEV-CLEAN-LAUNCH.md](build/custom/DEV-CLEAN-LAUNCH.md)
+
+---
+
 ## 6. Production installer
 
 Build an unsigned Windows x64 installer with DIAL and BYOK from this fork:
