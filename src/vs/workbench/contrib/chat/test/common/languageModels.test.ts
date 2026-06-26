@@ -1161,6 +1161,8 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
