@@ -179,8 +179,9 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 				number,
 				url: html_url,
 				nodeId: typeof node_id === 'string'
-				? node_id
-				: undefined }
+					? node_id
+					: undefined
+			}
 			: undefined;
 	}
 
@@ -308,11 +309,10 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		// GraphQL reports failures with a 200 status code and an `errors` array.
 		if (Array.isArray(json.errors) && json.errors.length > 0) {
 			const message = json.errors.map(error => {
-					return typeof error?.message === 'string'
-						? error.message
-						: JSON.stringify(error);
-				})
-				.join('; ');
+				return typeof error?.message === 'string'
+					? error.message
+					: JSON.stringify(error);
+			}).join('; ');
 			this._logService.error(`[AgentHostOctoKit] POST ${url} - GraphQL error: ${message}`);
 			throw new Error(`GitHub GraphQL request failed: ${message}`);
 		}
