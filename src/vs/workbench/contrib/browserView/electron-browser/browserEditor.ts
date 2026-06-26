@@ -622,6 +622,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
+		this.window.document.getSelection()?.removeAllRanges();
 	}
 
 	/**

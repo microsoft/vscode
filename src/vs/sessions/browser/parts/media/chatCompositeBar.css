@@ -163,28 +163,6 @@
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	min-width: 0;
-}
-
-.chat-composite-bar-meta-workspace {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
 /* Session header meta toolbar: contributed actions render as compact secondary buttons. */
 .chat-composite-bar-meta-toolbar,
 .chat-composite-bar-meta-toolbar .monaco-action-bar,
@@ -192,6 +170,8 @@
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
+	min-width: 0;
+	max-width: 100%;
 }
 
 /* Spacing between the contributed meta buttons (e.g. changes · pull request). */
@@ -205,6 +185,11 @@
 	flex-shrink: 0;
 }
 
+.chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 /* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
 	`.monaco-text-button.small.secondary` styles. */
 .chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
@@ -212,6 +197,19 @@
 	width: auto;
 	gap: 4px;
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.chat-composite-bar-meta-workspace-button .chat-composite-bar-meta-item-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
@@ -263,6 +261,34 @@
 	gap: 4px;
 }
 
+/* "New Chat" button pinned after the tab strip. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-new-chat .action-item .action-label {
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-composite-bar-toolbar {
 	display: flex;
 	align-items: center;
@@ -274,6 +300,10 @@
 	height: 20px;
 	line-height: 20px;
 	padding: 0 2px;
+}
+
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */

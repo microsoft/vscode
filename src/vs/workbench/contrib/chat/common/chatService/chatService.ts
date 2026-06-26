@@ -1036,6 +1036,7 @@ export interface IChatSubagentToolInvocationData {
 	prompt?: string;
 	result?: string;
 	modelName?: string;
+	credits?: number;
 }
 
 /**
@@ -1788,6 +1789,13 @@ export interface IChatService {
 	 * as needed. Idempotent, safe to call at any time.
 	 */
 	processPendingRequests(sessionResource: URI): void;
+	/**
+	 * Cancels the in-flight request and immediately sends a single pending
+	 * (queued or steering) request. Local sessions move it to the front and
+	 * dequeue it; server-managed (agent host) sessions re-send it as a normal
+	 * turn, since the server does not drain its queue on cancellation.
+	 */
+	sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;

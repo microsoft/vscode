@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
-import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
@@ -49,7 +49,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
-		if (!parsed || parsed.kind !== ChangesetKind.Uncommitted) {
+		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not an uncommitted changeset URI: ${params.channel}`);
 		}
 		this._throwIfCancelled(token);

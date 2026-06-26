@@ -26,7 +26,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/age
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, type ChangesetFile, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, SessionSummaryMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -46,7 +46,7 @@ import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessio
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -274,6 +274,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (or host) renamed the default chat independently of the session.
 	 */
 	private readonly _defaultChatTitleOverride = observableValue<string | undefined>('defaultChatTitleOverride', undefined);
+	/**
+	 * Independent status override for the default chat tab. `undefined` means the
+	 * default chat reflects the aggregated session status (the single-chat case,
+	 * where they are equivalent); a defined value means a multi-chat session, so
+	 * the default chat shows its own status rather than the session aggregate
+	 * (which may have been promoted by a running peer chat).
+	 */
+	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -498,7 +506,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			createdAt: this.createdAt,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
-			status: this.status,
+			status: derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader)),
 			changes: this.changes,
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -536,6 +544,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 
 		if (!this.capabilities.supportsMultipleChats || state.chats.length <= 1) {
+			// Single-chat: the default chat is the session, so let it reflect the
+			// aggregated session status directly (clear any prior override).
+			this._defaultChatStatusOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
 			}
@@ -547,6 +558,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			return;
 		}
+
+		// Multi-chat: the default chat must show its own status, not the session
+		// aggregate which may have been promoted by a running peer chat.
+		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
 		const defaultChatUri = defaultChatUriStr;
 		const seen = new Set<string>();
@@ -879,20 +894,25 @@ function customizationsChanged(previous: SessionState, state: SessionState): boo
 	if (previous.customizations !== state.customizations) {
 		return true;
 	}
-	const previousActiveCustomizations = previous.activeClient?.customizations;
-	const currentActiveCustomizations = state.activeClient?.customizations;
-	if (previousActiveCustomizations === currentActiveCustomizations) {
-		return false;
-	}
-	if (!previousActiveCustomizations || !currentActiveCustomizations) {
-		return true;
-	}
-	return arrayEquals(previousActiveCustomizations, currentActiveCustomizations, (a, b) => {
+	const previousActiveCustomizations = flattenActiveClientCustomizations(previous);
+	const currentActiveCustomizations = flattenActiveClientCustomizations(state);
+	return !arrayEquals(previousActiveCustomizations, currentActiveCustomizations, (a, b) => {
 		if (a.nonce !== undefined && a.nonce === b.nonce) {
 			return true;
 		}
 		return a === b;
 	});
+}
+
+/** Flattens the customizations contributed by every active client of a session. */
+function flattenActiveClientCustomizations(state: SessionState): ClientPluginCustomization[] {
+	const result: ClientPluginCustomization[] = [];
+	for (const client of state.activeClients) {
+		if (client.customizations) {
+			result.push(...client.customizations);
+		}
+	}
+	return result;
 }
 
 // ============================================================================
@@ -2446,29 +2466,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const chatId = chatUri.fragment;
 		if (!chatId) {
 			// The default chat lives and dies with its session and cannot be
 			// deleted in isolation.
-			return;
+			return false;
 		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (!rawId || !cached || !connection) {
-			return;
+			return false;
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 		const ahpChatUri = URI.parse(buildChatUri(sessionUri, chatId));
 
-		const confirmed = await this._dialogService.confirm({
-			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
-			detail: localize('deleteChat.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteChat.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
+		if (!options?.skipConfirmation) {
+			const confirmed = await this._dialogService.confirm({
+				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+				detail: localize('deleteChat.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteChat.delete', "Delete")
+			});
+			if (!confirmed.confirmed) {
+				return false;
+			}
 		}
 
 		// Keep the session-state subscription alive so the `chatRemoved` the
@@ -2476,6 +2498,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.disposeChat(ahpChatUri);
+		return true;
 	}
 
 	async createNewChat(chatId: string): Promise<IChat> {
@@ -2519,6 +2542,46 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.createChat(sessionUri, chatUri, {
 			model: cached.modelSelection,
+		});
+
+		const chat = await waitForState(
+			cached.chats.map(chats => chats.find(c => c.resource.fragment === newChatId)),
+			c => !!c,
+		);
+
+		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
+		return chat;
+	}
+
+	async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(this._notConnectedSendErrorMessage());
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!rawId || !cached) {
+			throw new Error(`Session '${sessionId}' not found`);
+		}
+		if (!cached.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${sessionId}' does not support multiple chats`);
+		}
+
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const newChatId = generateUuid();
+		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
+		// Map the UI source chat resource to its backend chat URI: a fragment
+		// addresses a peer chat, otherwise the session's default chat.
+		const sourceBackendUri = sourceChat.fragment
+			? URI.parse(buildChatUri(sessionUri, sourceChat.fragment))
+			: sessionUri;
+
+		// Keep the session-state subscription alive so the `chatAdded` it emits
+		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
+		this._keepSessionStateAlive(cached.sessionId);
+		await connection.createChat(sessionUri, chatUri, {
+			model: cached.modelSelection,
+			fork: { source: sourceBackendUri, turnId },
 		});
 
 		const chat = await waitForState(

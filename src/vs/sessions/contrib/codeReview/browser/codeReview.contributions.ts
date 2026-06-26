@@ -11,7 +11,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, ActiveSessionWorkspaceIsVirtualContext, ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -43,9 +43,9 @@ class RunSessionCodeReviewAction extends Action2 {
 					order: 7,
 					when: ContextKeyExpr.and(
 						IsSessionsWindowContext,
-						ActiveSessionWorkspaceIsVirtualContext.toNegated(),
+						SessionWorkspaceIsVirtualContext.toNegated(),
 						IsPhoneLayoutContext.negate(),
-						ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+						ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 					),
 				},
 			],

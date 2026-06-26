@@ -18,6 +18,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	async refreshSessionGitState(): Promise<ISessionGitState | undefined | null> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
+	async attachSessionGitHubPullRequest(): Promise<void> { }
 };
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
@@ -43,7 +44,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {
