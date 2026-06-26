@@ -176,7 +176,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.mode')) {
-				this.reconfigure();
+				this.reconfigure().catch(err => this.logService.error('update#reconfigure - failed to apply update mode change', err));
 			}
 		}));
 
