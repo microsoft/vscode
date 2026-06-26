@@ -14,7 +14,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -188,7 +188,7 @@ export class MockAgent implements IAgent {
 		}));
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: results.map(result => result.customization),
@@ -683,10 +683,10 @@ export class ScriptedMockAgent implements IAgent {
 				// (routed via `parentToolCallId`).
 				this._fireSequence([
 					..._toolStart(session, sessionStr, tid, 'tc-task-1', 'task', 'Task', 'Spawning subagent', { toolKind: 'subagent', subagentAgentName: 'explore', subagentDescription: 'Explore' }),
-					{ kind: 'subagent_started', session, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
+					{ kind: 'subagent_started', chat: session, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
 					..._toolStart(session, sessionStr, tid, 'tc-inner-1', 'echo_tool', 'Echo Tool', 'Inner tool running...', { parentToolCallId: 'tc-task-1' }),
 					_toolComplete(session, sessionStr, tid, 'tc-inner-1', { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true }, 'tc-task-1'),
-					{ kind: 'subagent_completed', session, toolCallId: 'tc-task-1' },
+					{ kind: 'subagent_completed', chat: session, toolCallId: 'tc-task-1' },
 					_toolComplete(session, sessionStr, tid, 'tc-task-1', { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true }),
 					_markdown(session, sessionStr, tid, 'Subagent finished.'),
 					_idle(session, sessionStr, tid),
@@ -732,7 +732,7 @@ export class ScriptedMockAgent implements IAgent {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', session, id: steeringMessage.id });
+				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(session.toString()) ? session : URI.parse(buildDefaultChatUri(session)), id: steeringMessage.id });
 			});
 		}
 	}
@@ -860,7 +860,7 @@ let _mockPartIdCounter = 0;
 
 /** Wraps a session action into an {@link IAgentActionSignal}. */
 function _action(session: URI, action: import('../../common/state/sessionActions.js').SessionAction | import('../../common/state/sessionActions.js').ChatAction, parentToolCallId?: string): IAgentActionSignal {
-	return { kind: 'action', session, action, parentToolCallId };
+	return { kind: 'action', resource: session, action, parentToolCallId };
 }
 
 /** Creates a markdown {@link ResponsePartKind.Markdown} response part signal. */
@@ -959,7 +959,7 @@ function _pendingConfirmation(session: URI, toolCallId: string, invocationMessag
 }): IAgentToolPendingConfirmationSignal {
 	return {
 		kind: 'pending_confirmation',
-		session,
+		chat: session,
 		state: {
 			status: ToolCallStatus.PendingConfirmation,
 			toolCallId,

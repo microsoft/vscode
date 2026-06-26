@@ -391,6 +391,33 @@ tool-call confirmations, input requests) are threaded through the resolved chat
 URI so peer chats run concurrently without cross-talk. `_resolveSessionUri`
 ignores the fragment to find the parent session; `_resolveChatUri` returns the
 fragment's chat URI (or the default chat URI when there is no fragment).
+Agent backends must emit chat progress signals against the chat channel that owns
+the turn/tool call. `AgentSideEffects` treats that channel as authoritative; if a
+permission request from an additional chat arrives on the parent session URI, that
+is a producer bug because the peer-chat UI will not receive the AHP update. When
+an `ahp-chat` channel is malformed, handlers throw instead of falling back to the
+parent session URI so routing bugs are not hidden.
+Tool-call confirmation bookkeeping (`_toolCallAgents`) is keyed by the same chat
+channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sent
+to the parent session URI are invalid and will not resolve the SDK permission
+request.
+
+Subagents are modelled as additional chats on the parent session, not as separate
+sessions. When a `subagent_started` signal arrives, the host adds a subagent chat
+to the parent session and dispatches the subagent turn on that chat URI; restoring
+a standalone subagent session would create only session state and leave chat
+actions with no `_chatStates` entry. Subagent chat URIs use the stable
+`ahp-chat://subagent/...` authority and store the case-sensitive tool call id in
+the path (`buildSubagentChatUri`), because URI authorities are case-insensitive.
+Subagent chats are created with `origin.kind === "tool"` and are hidden from the
+chat tab strip; the parent tool invocation is their visible UI entry point.
+
+On the workbench side, `AgentHostSessionHandler` stores the upstream chat channel
+in `_chatURIsBySessionResource` after hydrating the session state. For default
+chats this URI comes from `SessionState.defaultChat`; for peer chats it is matched
+from `SessionState.chats` by the resource fragment. The handler must not
+reconstruct the default URI with `buildDefaultChatUri` before dispatching turns,
+because providers are free to choose a different default-chat URI shape.
 
 #### Renaming: session vs chat are independent
 

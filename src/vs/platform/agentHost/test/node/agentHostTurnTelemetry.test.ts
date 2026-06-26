@@ -137,7 +137,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	}
 
 	function fire(action: ChatAction): void {
-		agent.fireProgress({ kind: 'action', session: sessionUri, action });
+		agent.fireProgress({ kind: 'action', resource: sessionUri, action });
 	}
 
 	function completedEvents(): { eventName: string; data: unknown }[] {

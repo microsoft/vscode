@@ -408,7 +408,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			emitInitialMarkdown: (content: string) => {
 				emitter.fire({
 					kind: 'action',
-					session: sessionUri,
+					resource: sessionUri,
 					action: {
 						type: ActionType.ChatResponsePart,
 						turnId,

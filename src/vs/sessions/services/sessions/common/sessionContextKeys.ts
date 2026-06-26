@@ -23,7 +23,7 @@ import {
 	SessionHasMultipleCommittedChatsContext,
 	SessionHasMultipleOpenChatsContext,
 } from '../../../common/contextkeys.js';
-import { ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -145,10 +145,10 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// real chat. Counts the whole chat list (open or closed) so a committed chat
 	// that was closed still keeps the menu available to reopen it.
 	const committedChatCount = session?.chats.read(reader)
-		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled ? count : count + 1, 0) ?? 0;
+		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
 	// More than one open chat (incl. drafts) means the tab strip is shown; the
 	// header then hides its own New Chat button.
-	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).length ?? 0) > 1);
+	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0) > 1);
 }

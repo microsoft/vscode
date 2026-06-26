@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -19,19 +20,18 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
+import { ChatOriginKind, ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
-	buildSubagentSessionUri,
+	buildSubagentChatUri,
 	getToolFileEdits,
 	isAhpChatChannel,
 	isDefaultChatUri,
 	MessageKind,
-	parseDefaultChatUri,
+	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
-	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
 	type Turn,
@@ -80,6 +80,13 @@ interface IPendingSubagentSignal {
 	readonly agent: IAgent;
 }
 
+interface ISubagentSessionRef {
+	readonly parentChatUri: ProtocolURI;
+	readonly toolCallId: string;
+	readonly sessionUri: ProtocolURI;
+	readonly chatUri: ProtocolURI;
+}
+
 /**
  * Shared implementation of agent side-effect handling.
  *
@@ -98,11 +105,7 @@ export class AgentSideEffects extends Disposable {
 
 	private readonly _permissionManager: SessionPermissionManager;
 
-	/**
-	 * Maps `parentSession:toolCallId` → subagent session URI.
-	 * Used to route signals with `parentToolCallId` to the correct subagent.
-	 */
-	private readonly _subagentSessions = new Map<string, ProtocolURI>();
+	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -113,9 +116,8 @@ export class AgentSideEffects extends Disposable {
 	 * UI would render the inner tool calls flat at the top level rather than
 	 * grouping them under the subagent. Drained by `_handleSubagentStarted`.
 	 *
-	 * Key: `${parentSession}:${parentToolCallId}`.
 	 */
-	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
+	private readonly _pendingSubagentSignals = new NKeyMap<IPendingSubagentSignal[], [ProtocolURI, string]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
 	private readonly _titleController: AgentHostSessionTitleController;
@@ -155,7 +157,7 @@ export class AgentSideEffects extends Disposable {
 				// Chat-action envelopes are emitted on the chat channel URI;
 				// agents are keyed by session URI, so resolve back to the
 				// owning session before notifying the agent.
-				const sessionChannel = isAhpChatChannel(envelope.channel) ? (parseDefaultChatUri(envelope.channel) ?? envelope.channel) : envelope.channel;
+				const sessionChannel = isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.onClientToolCallComplete(URI.parse(sessionChannel), action.toolCallId, action.result);
 			}
@@ -272,40 +274,26 @@ export class AgentSideEffects extends Disposable {
 	 * once the `subagent_started` arrives.
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
-		const sessionKey = signal.session.toString();
-
-		// Track tool calls so handleAction can route confirmations. Defer
-		// registration for inner subagent tool calls until we know which
-		// subagent session they belong to — otherwise we'd register them
-		// under the parent session key and a later `pending_confirmation`
-		// (which lacks
-		// `parentToolCallId`) could be routed against the wrong session.
-		if (signal.kind === 'action'
-			&& signal.action.type === ActionType.ChatToolCallStart
-			&& !signal.parentToolCallId
-		) {
-			this._toolCallAgents.set(`${sessionKey}:${signal.action.toolCallId}`, agent.id);
-		}
-
 		if (signal.kind === 'subagent_started') {
-			this._handleSubagentStarted(sessionKey, signal.toolCallId, signal.agentName, signal.agentDisplayName, signal.agentDescription);
-			this._drainPendingSubagentSignals(sessionKey, signal.toolCallId);
+			this._handleSubagentStarted(signal.chat.toString(), signal.toolCallId, signal.agentName, signal.agentDisplayName, signal.agentDescription);
+			this._drainPendingSubagentSignals(signal.chat.toString(), signal.toolCallId);
 			return;
 		}
 
 		if (signal.kind === 'subagent_completed') {
-			this.completeSubagentSession(sessionKey, signal.toolCallId);
+			this.completeSubagentSession(signal.chat.toString(), signal.toolCallId);
 			return;
 		}
 
 		if (signal.kind === 'steering_consumed') {
-			this._stateManager.dispatchServerAction(sessionKey, {
+			this._stateManager.dispatchServerAction(signal.chat.toString(), {
 				type: ActionType.ChatPendingMessageRemoved,
 				kind: PendingMessageKind.Steering,
 				id: signal.id,
 			});
 			return;
 		}
+		const sessionKey = signal.kind === 'action' ? signal.resource.toString() : signal.chat.toString();
 
 		// Route signals with parentToolCallId to the subagent session.
 		// Both action signals and pending_confirmation signals can carry
@@ -314,31 +302,24 @@ export class AgentSideEffects extends Disposable {
 		// call, and that signal must be routed to the subagent session
 		// (otherwise the resulting ChatToolCallReady would land on the
 		// parent session, which has no matching ChatToolCallStart).
-		const parentToolCallId = signal.kind === 'action' || signal.kind === 'pending_confirmation'
-			? signal.parentToolCallId
-			: undefined;
+		const parentToolCallId = signal.parentToolCallId;
 		if (parentToolCallId) {
-			const subagentKey = `${sessionKey}:${parentToolCallId}`;
-			const subagentSession = this._subagentSessions.get(subagentKey);
+			const subagentSession = this._subagentChats.get(sessionKey, parentToolCallId);
 			if (subagentSession) {
-				// Track tool calls in subagent context for confirmation routing.
-				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart) {
-					this._toolCallAgents.set(`${subagentSession}:${signal.action.toolCallId}`, agent.id);
-				}
-				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
+				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
-					this._dispatchActionForSession(signal, subagentSession, subTurnId, agent);
+					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, agent);
 				}
 				return;
 			}
 
 			// Subagent session does not exist yet — buffer the signal so we can
 			// replay it after `subagent_started` arrives.
-			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${subagentKey}`);
-			let buffer = this._pendingSubagentSignals.get(subagentKey);
+			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
+			let buffer = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
 			if (!buffer) {
 				buffer = [];
-				this._pendingSubagentSignals.set(subagentKey, buffer);
+				this._pendingSubagentSignals.set(buffer, sessionKey, parentToolCallId);
 			}
 			buffer.push({ signal, agent });
 			return;
@@ -349,10 +330,10 @@ export class AgentSideEffects extends Disposable {
 		// tool was previously registered under its subagent session key in
 		// _toolCallAgents).
 		if (signal.kind === 'pending_confirmation') {
-			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, signal.state.toolCallId);
-			if (subagentSession) {
-				const subTurnId = this._stateManager.getActiveTurnId(subagentSession) ?? '';
-				void this._handleToolReady(signal, subagentSession, subTurnId, agent).catch(err => {
+			const subagentChatUri = this._findSubagentChatForToolCall(sessionKey, signal.state.toolCallId);
+			if (subagentChatUri) {
+				const subTurnId = this._stateManager.getActiveTurnId(subagentChatUri) ?? '';
+				void this._handleToolReady(signal, subagentChatUri, subTurnId, agent).catch(err => {
 					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
 				});
 				return;
@@ -420,15 +401,20 @@ export class AgentSideEffects extends Disposable {
 			action = { ...action, turnId };
 		}
 
+		if (action.type === ActionType.ChatToolCallStart && agent) {
+			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
+		}
+
+		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+
 		// When a parent tool call has an associated subagent session,
 		// preserve the subagent content metadata in the completion result.
 		// The SDK's tool_complete provides its own content which would
 		// overwrite the ToolResultSubagentContent that was set via
 		// ChatToolCallContentChanged while running.
 		if (action.type === ActionType.ChatToolCallComplete) {
-			const subagentKey = `${sessionKey}:${action.toolCallId}`;
-			const subagentUri = this._subagentSessions.get(subagentKey);
-			if (subagentUri) {
+			const subagent = this._subagentChats.get(sessionKey, action.toolCallId);
+			if (subagent) {
 				const parentState = this._stateManager.getSessionState(sessionKey);
 				const runningContent = this._getRunningToolCallContent(parentState, turnId, action.toolCallId);
 				const subagentEntry = runningContent.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
@@ -437,6 +423,7 @@ export class AgentSideEffects extends Disposable {
 					const merged: ChatToolCallCompleteAction = { ...action, result: { ...action.result, content: mergedContent } };
 					action = merged;
 				}
+
 			}
 		}
 
@@ -457,11 +444,8 @@ export class AgentSideEffects extends Disposable {
 			// teardown is driven by the `subagent_completed` signal because
 			// background subagents (`mode: background`) continue running
 			// after the parent tool call returns.
-			this._pendingSubagentSignals.delete(`${sessionKey}:${action.toolCallId}`);
+			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				// Changesets track the session's shared working tree; key by
-				// the owning session when this is an additional chat channel.
-				const sessionScope = isAhpChatChannel(sessionKey) ? (parseDefaultChatUri(sessionKey) ?? sessionKey) : sessionKey;
 				this._changesets.onToolCallEditsApplied(sessionScope, turnId);
 			}
 		}
@@ -493,7 +477,7 @@ export class AgentSideEffects extends Disposable {
 		// message consumption (queues live on the chat state). For the
 		// default chat / single-chat case `sessionKey` is already the
 		// session URI, so this is a no-op.
-		const sessionScope = isAhpChatChannel(sessionKey) ? (parseDefaultChatUri(sessionKey) ?? sessionKey) : sessionKey;
+		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
 		// Capture the end-of-turn git checkpoint BEFORE notifying the
 		// changeset service so the per-turn changeset recompute can take
 		// the authoritative git-diff fast path (which includes terminal-tool
@@ -534,14 +518,13 @@ export class AgentSideEffects extends Disposable {
 	 * `subagent_started` to create the subagent session. Called immediately
 	 * after `_handleSubagentStarted`.
 	 */
-	private _drainPendingSubagentSignals(parentSession: ProtocolURI, parentToolCallId: string): void {
-		const subagentKey = `${parentSession}:${parentToolCallId}`;
-		const buffer = this._pendingSubagentSignals.get(subagentKey);
+	private _drainPendingSubagentSignals(parentChatURI: ProtocolURI, parentToolCallId: string): void {
+		const buffer = this._pendingSubagentSignals.get(parentChatURI, parentToolCallId);
 		if (!buffer) {
 			return;
 		}
-		this._pendingSubagentSignals.delete(subagentKey);
-		this._logService.trace(`[AgentSideEffects] Draining ${buffer.length} buffered signal(s) for subagent ${subagentKey}`);
+		this._pendingSubagentSignals.delete(parentChatURI, parentToolCallId);
+		this._logService.trace(`[AgentSideEffects] Draining ${buffer.length} buffered signal(s) for subagent ${parentChatURI}/${parentToolCallId}`);
 		for (const { signal, agent } of buffer) {
 			this._handleAgentSignal(agent, signal);
 		}
@@ -555,68 +538,56 @@ export class AgentSideEffects extends Disposable {
 	 * and immediately transitioned to ready with an active turn.
 	 */
 	private _handleSubagentStarted(
-		parentSession: ProtocolURI,
+		chatURI: ProtocolURI,
 		toolCallId: string,
 		agentName: string,
 		agentDisplayName: string,
 		agentDescription?: string,
 	): void {
-		const subagentSessionUri = buildSubagentSessionUri(parentSession, toolCallId);
-		const subagentKey = `${parentSession}:${toolCallId}`;
+		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
+		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
 
 		// Already tracking this subagent
-		if (this._subagentSessions.has(subagentKey)) {
+		if (this._subagentChats.get(chatURI, toolCallId)) {
 			return;
 		}
 
-		this._logService.info(`[AgentSideEffects] Creating subagent session: ${subagentSessionUri} (parent=${parentSession}, toolCallId=${toolCallId})`);
-		const parentState = this._stateManager.getSessionState(parentSession);
-
-		// Create the subagent session silently (restoreSession skips notification)
-		this._stateManager.restoreSession(
-			{
-				resource: subagentSessionUri,
-				provider: 'subagent',
-				title: agentDisplayName,
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
-			},
-			[],
-		);
+		this._logService.info(`[AgentSideEffects] Creating subagent chat: ${subagentChatUri} (parent=${chatURI}, toolCallId=${toolCallId})`);
+		this._stateManager.addChat(parentSessionUri, subagentChatUri, {
+			title: agentDisplayName,
+			origin: { kind: ChatOriginKind.Tool, chat: chatURI, toolCallId },
+		});
 
 		// Start a turn on the subagent session
 		const turnId = generateUuid();
-		this._stateManager.dispatchServerAction(subagentSessionUri, {
+		this._stateManager.dispatchServerAction(subagentChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text: '', origin: { kind: MessageKind.User } },
 		});
 
-		this._subagentSessions.set(subagentKey, subagentSessionUri);
+		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri }, chatURI, toolCallId);
 
 		// Dispatch content on the parent tool call so clients discover the subagent.
 		// Merge with any existing content to avoid dropping prior content blocks.
-		const parentTurnId = this._stateManager.getActiveTurnId(parentSession);
+		const parentTurnId = this._stateManager.getActiveTurnId(chatURI);
 		if (parentTurnId) {
-			const parentState = this._stateManager.getSessionState(parentSession);
+			const parentState = this._stateManager.getSessionState(chatURI);
 			const existingContent = this._getRunningToolCallContent(parentState, parentTurnId, toolCallId);
-			const mergedContent = [
-				...existingContent,
-				{
-					type: ToolResultContentType.Subagent as const,
-					resource: subagentSessionUri,
-					title: agentDisplayName,
-					agentName,
-					description: agentDescription,
-				},
-			];
-			this._stateManager.dispatchServerAction(parentSession, {
+			this._stateManager.dispatchServerAction(chatURI, {
 				type: ActionType.ChatToolCallContentChanged,
 				turnId: parentTurnId,
 				toolCallId,
-				content: mergedContent,
+				content: [
+					...existingContent,
+					{
+						type: ToolResultContentType.Subagent,
+						resource: subagentChatUri,
+						title: agentDisplayName,
+						agentName,
+						description: agentDescription,
+					},
+				],
 			});
 		}
 	}
@@ -643,26 +614,20 @@ export class AgentSideEffects extends Disposable {
 	/**
 	 * Cancels all active subagent sessions for a given parent session.
 	 */
-	cancelSubagentSessions(parentSession: ProtocolURI): void {
-		for (const [key, subagentUri] of this._subagentSessions) {
-			if (key.startsWith(`${parentSession}:`)) {
-				const turnId = this._stateManager.getActiveTurnId(subagentUri);
-				if (turnId) {
-					this._stateManager.dispatchServerAction(subagentUri, {
-						type: ActionType.ChatTurnCancelled,
-						turnId,
-					});
-					this._turnTracker.turnCompleted(subagentUri, turnId, 'cancelled');
-				}
-				this._subagentSessions.delete(key);
+	cancelSubagentSessions(parentChatURI: ProtocolURI): void {
+		for (const subagent of this._subagentChats.getAll(parentChatURI)) {
+			const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
+			if (turnId) {
+				this._stateManager.dispatchServerAction(subagent.chatUri, {
+					type: ActionType.ChatTurnCancelled,
+					turnId,
+				});
+				this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'cancelled');
 			}
 		}
+		this._subagentChats.deleteAll(parentChatURI);
 		// Drop any buffered events targeted at subagents that never started.
-		for (const key of [...this._pendingSubagentSignals.keys()]) {
-			if (key.startsWith(`${parentSession}:`)) {
-				this._pendingSubagentSignals.delete(key);
-			}
-		}
+		this._pendingSubagentSignals.deleteAll(parentChatURI);
 	}
 
 	/**
@@ -672,60 +637,42 @@ export class AgentSideEffects extends Disposable {
 	 * parent tool call completion — background subagents keep running after
 	 * their parent tool returns.
 	 */
-	completeSubagentSession(parentSession: ProtocolURI, toolCallId: string): void {
-		const key = `${parentSession}:${toolCallId}`;
-
+	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
 		// Drop any events that were buffered waiting for a `subagent_started`
 		// that never arrived (e.g. the parent tool failed before the subagent
 		// was created). Without this, the buffer entry would leak until the
 		// parent session is disposed.
-		this._pendingSubagentSignals.delete(key);
+		this._pendingSubagentSignals.delete(parentChatURI, toolCallId);
 
-		const subagentUri = this._subagentSessions.get(key);
-		if (!subagentUri) {
+		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
+		if (!subagent) {
 			return;
 		}
 
-		const turnId = this._stateManager.getActiveTurnId(subagentUri);
+		const turnId = this._stateManager.getActiveTurnId(subagent.chatUri);
 		if (turnId) {
-			this._stateManager.dispatchServerAction(subagentUri, {
+			this._stateManager.dispatchServerAction(subagent.chatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId,
 			});
 		}
-		this._subagentSessions.delete(key);
+		this._subagentChats.delete(parentChatURI, toolCallId);
 	}
 
 	/**
-	 * Removes all subagent sessions for a given parent session from
-	 * the state manager. Called when the parent session is disposed.
+	 * Removes all subagent chats for a given parent session from the state manager.
 	 */
 	removeSubagentSessions(parentSession: ProtocolURI): void {
-		const toRemove: string[] = [];
-		for (const [key, subagentUri] of this._subagentSessions) {
-			if (key.startsWith(`${parentSession}:`)) {
-				this._stateManager.disposeSessionChangesets(subagentUri);
-				this._stateManager.removeSession(subagentUri);
-				toRemove.push(key);
+		const parentChatURIs = new Set<ProtocolURI>();
+		for (const subagent of this._subagentChats.values()) {
+			if (subagent.sessionUri === parentSession) {
+				this._stateManager.removeChat(subagent.sessionUri, subagent.chatUri);
+				parentChatURIs.add(subagent.parentChatUri);
 			}
 		}
-		for (const key of toRemove) {
-			this._subagentSessions.delete(key);
-		}
-
-		// Also clean up any subagent sessions that are in the state manager
-		// but not tracked (e.g. restored sessions)
-		const prefix = `${parentSession}/subagent/`;
-		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
-			this._stateManager.disposeSessionChangesets(uri);
-			this._stateManager.removeSession(uri);
-		}
-
-		// Drop any buffered events targeted at subagents that never started.
-		for (const key of [...this._pendingSubagentSignals.keys()]) {
-			if (key.startsWith(`${parentSession}:`)) {
-				this._pendingSubagentSignals.delete(key);
-			}
+		for (const parentChatURI of parentChatURIs) {
+			this._subagentChats.deleteAll(parentChatURI);
+			this._pendingSubagentSignals.deleteAll(parentChatURI);
 		}
 	}
 
@@ -735,11 +682,10 @@ export class AgentSideEffects extends Disposable {
 	 * session key in `_toolCallAgents`. Scoped to subagent sessions owned
 	 * by the given parent to avoid cross-session collisions.
 	 */
-	private _findSubagentSessionForToolCall(parentSession: ProtocolURI, toolCallId: string): ProtocolURI | undefined {
-		const prefix = `${parentSession}:`;
-		for (const [key, subagentUri] of this._subagentSessions) {
-			if (key.startsWith(prefix) && this._toolCallAgents.has(`${subagentUri}:${toolCallId}`)) {
-				return subagentUri;
+	private _findSubagentChatForToolCall(parentChatURI: ProtocolURI, toolCallId: string): ProtocolURI | undefined {
+		for (const subagent of this._subagentChats.getAll(parentChatURI)) {
+			if (this._toolCallAgents.has(`${subagent.chatUri}:${toolCallId}`)) {
+				return subagent.chatUri;
 			}
 		}
 		return undefined;
@@ -756,7 +702,7 @@ export class AgentSideEffects extends Disposable {
 	private async _handleToolReady(e: IAgentToolPendingConfirmationSignal, sessionKey: ProtocolURI, turnId: string, agent: IAgent): Promise<void> {
 		const approvalEvent = {
 			toolCallId: e.state.toolCallId,
-			session: e.session,
+			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
 			toolInput: e.state.toolInput,
@@ -790,10 +736,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	handleAction(channel: ProtocolURI, action: StateAction, chatChannel?: ProtocolURI): void {
-		// `channel` is always the session URI (session-scoped work keys by it).
-		// `chatChannel`, when present, is the originating chat channel URI used
-		// to route per-chat operations (message send, turn cancel) to the
-		// correct chat in a multi-chat session.
+		// Most side effects are keyed by the session URI. Tool confirmations are
+		// keyed by the chat channel containing the tool call.
 		switch (action.type) {
 			case ActionType.ChatTurnStarted: {
 				// Per-turn streaming part tracking is owned by the agent
@@ -865,7 +809,7 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.ChatTurnCancelled: {
 				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
-				this.cancelSubagentSessions(channel);
+				this.cancelSubagentSessions(chatChannel ?? channel);
 				const agent = this._options.getAgent(channel);
 				agent?.abortSession(URI.parse(channel), chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
@@ -1025,7 +969,7 @@ export class AgentSideEffects extends Disposable {
 		const isAdditional = (uri: ProtocolURI | undefined): uri is ProtocolURI =>
 			!!uri && isAhpChatChannel(uri) && !isDefaultChatUri(uri);
 		const chatTarget = isAdditional(chatChannel) ? chatChannel : (isAdditional(channel) ? channel : undefined);
-		const sessionChannel = chatTarget ? (parseDefaultChatUri(chatTarget) ?? channel) : channel;
+		const sessionChannel = chatTarget ? parseRequiredSessionUriFromChatUri(chatTarget) : (isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel);
 		// The just-opened turn lives wherever the message was dispatched.
 		const turnTarget = chatTarget ?? channel;
 		if (title.length > 0) {
@@ -1156,7 +1100,7 @@ export class AgentSideEffects extends Disposable {
 		// parent session: look up the provider by the parent session URI and
 		// pass the chat channel so the harness routes to the right peer chat.
 		const chatTarget = isAhpChatChannel(session) && !isDefaultChatUri(session) ? session : undefined;
-		const sessionChannel = chatTarget ? (parseDefaultChatUri(chatTarget) ?? session) : session;
+		const sessionChannel = chatTarget ? parseRequiredSessionUriFromChatUri(chatTarget) : session;
 		const agent = this._options.getAgent(sessionChannel);
 		if (!agent) {
 			this._stateManager.dispatchServerAction(session, {

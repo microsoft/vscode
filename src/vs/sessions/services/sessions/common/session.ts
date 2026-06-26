@@ -269,6 +269,16 @@ export interface IChatCheckpoints {
 	readonly lastCheckpointRef: string;
 }
 
+export const enum ChatOriginKind {
+	Tool = 'tool',
+	User = 'user',
+	Fork = 'fork',
+}
+
+export interface IChatOrigin {
+	readonly kind: string;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -302,6 +312,8 @@ export interface IChat {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** How the chat came into existence, if provided by the backend. */
+	readonly origin?: IChatOrigin;
 }
 
 /**

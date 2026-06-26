@@ -39,7 +39,7 @@ export const SUBAGENT_SPAWNING_TOOL_NAMES: ReadonlySet<string> = SUBAGENT_TOOL_N
  */
 export function tagWithParent(
 	signals: AgentSignal[],
-	session: URI,
+	chat: URI,
 	parentToolUseId: string | null,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
@@ -61,7 +61,7 @@ export function tagWithParent(
 	}
 	const started: IAgentSubagentStartedSignal = {
 		kind: 'subagent_started',
-		session,
+		chat,
 		toolCallId: parentToolUseId,
 		agentName: spawn.subagentType ?? 'subagent',
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
@@ -84,7 +84,7 @@ export function tagWithParent(
  */
 export function mapSubagentSystemMessage(
 	message: Extract<SDKMessage, { type: 'system' }>,
-	session: URI,
+	chat: URI,
 	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const sub = (message as { subtype?: string }).subtype;
@@ -111,7 +111,7 @@ export function mapSubagentSystemMessage(
 		}
 		const toolUseId = m.tool_use_id;
 		registry.removeSpawn(toolUseId);
-		return [{ kind: 'subagent_completed', session, toolCallId: toolUseId }];
+		return [{ kind: 'subagent_completed', chat, toolCallId: toolUseId }];
 	}
 	return [];
 }
@@ -139,7 +139,7 @@ export function mapSubagentSystemMessage(
  */
 export function buildTopLevelSubagentReadyAction(
 	block: Extract<import('@anthropic-ai/claude-agent-sdk').SDKAssistantMessage['message']['content'][number], { type: 'tool_use' }>,
-	session: URI,
+	chat: URI,
 	turnId: string,
 	registry: SubagentRegistry,
 ): AgentSignal {
@@ -160,7 +160,7 @@ export function buildTopLevelSubagentReadyAction(
 	}
 	return {
 		kind: 'action',
-		session,
+		resource: chat,
 		action: {
 			type: ActionType.ChatToolCallReady,
 			turnId,
@@ -195,7 +195,7 @@ export function buildTopLevelSubagentReadyAction(
  */
 export function emitInnerAssistantSignals(
 	message: Extract<SDKMessage, { type: 'assistant' }>,
-	session: URI,
+	chat: URI,
 	turnId: string,
 	state: ClaudeMapperState,
 	parentToolUseId: string,
@@ -208,7 +208,7 @@ export function emitInnerAssistantSignals(
 		if (block.type === 'text') {
 			signals.push({
 				kind: 'action',
-				session,
+				resource: chat,
 				action: {
 					type: ActionType.ChatResponsePart,
 					turnId,
@@ -224,7 +224,7 @@ export function emitInnerAssistantSignals(
 		if (block.type === 'thinking') {
 			signals.push({
 				kind: 'action',
-				session,
+				resource: chat,
 				action: {
 					type: ActionType.ChatResponsePart,
 					turnId,
@@ -256,7 +256,7 @@ export function emitInnerAssistantSignals(
 			const toolInputStr = getClaudeToolInputString(toolName, block.input);
 			signals.push({
 				kind: 'action',
-				session,
+				resource: chat,
 				action: {
 					type: ActionType.ChatToolCallStart,
 					turnId,
@@ -268,7 +268,7 @@ export function emitInnerAssistantSignals(
 			});
 			signals.push({
 				kind: 'action',
-				session,
+				resource: chat,
 				action: {
 					type: ActionType.ChatToolCallReady,
 					turnId,

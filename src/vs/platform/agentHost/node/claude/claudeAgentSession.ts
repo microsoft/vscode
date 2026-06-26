@@ -23,7 +23,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { toSdkModelId } from './claudeModelId.js';
@@ -88,6 +88,7 @@ function resolveCurrentPermissionMode(
 export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
+	private readonly _chatChannelUri: URI;
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
@@ -274,6 +275,7 @@ export class ClaudeAgentSession extends Disposable {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
+		this._chatChannelUri = URI.parse(buildDefaultChatUri(sessionUri));
 		this.project = project;
 		this._provisionalModel = model;
 		this._provisionalAgent = agent;
@@ -356,6 +358,7 @@ export class ClaudeAgentSession extends Disposable {
 				ClaudeSdkPipeline,
 				this.sessionId,
 				this.sessionUri,
+				this._chatChannelUri,
 				warm,
 				this.abortController,
 				dbRef,
@@ -706,7 +709,7 @@ export class ClaudeAgentSession extends Disposable {
 		return this._pendingPermissions.registerAndFire(args.toolUseID, () => {
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				state: args.state,
 				permissionKind: args.permissionKind,
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
@@ -731,7 +734,7 @@ export class ClaudeAgentSession extends Disposable {
 		return this._pendingUserInputs.registerAndFire(request.id, () => {
 			this._onDidSessionProgress.fire({
 				kind: 'action',
-				session: this.sessionUri,
+				resource: this._chatChannelUri,
 				action: {
 					type: ActionType.ChatInputRequested,
 					request,

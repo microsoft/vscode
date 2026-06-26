@@ -175,10 +175,18 @@ suite('RootStateSubscription', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
 		sub.handleSnapshot(makeRootState(), 0);
 		const err = new Error('failed');
+		const errors: Error[] = [];
+		disposables.add(sub.onDidError(error => errors.push(error)));
 		sub.setError(err);
-		assert.strictEqual(sub.value, err);
-		// verifiedValue should still be the state
-		assert.ok(sub.verifiedValue);
+		assert.deepStrictEqual({
+			value: sub.value,
+			verifiedValueExists: !!sub.verifiedValue,
+			errors,
+		}, {
+			value: err,
+			verifiedValueExists: true,
+			errors: [err],
+		});
 	});
 });
 

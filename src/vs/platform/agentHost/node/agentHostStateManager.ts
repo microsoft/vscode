@@ -12,13 +12,13 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus, SessionSummaryMeta } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus, SessionSummaryMeta, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
-import { ChangesSummary } from '../common/state/protocol/state.js';
+import { ChangesSummary, type ChatOrigin } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 
 export interface IAgentHostStateManagerOptions {
@@ -459,7 +459,7 @@ export class AgentHostStateManager extends Disposable {
 	 * is a no-op (returning the existing summary) when a chat with the same URI
 	 * already exists.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[] }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin }): ChatSummary | undefined {
 		const sessionState = this._sessionStates.get(session);
 		if (!sessionState) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -485,6 +485,7 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(sessionState.summary, chatUri),
 			title: options?.title ?? '',
 			status: SessionStatus.Idle,
+			origin: options?.origin,
 		};
 		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options?.turns ?? [] });
 		this.dispatchServerAction(session, { type: ActionType.SessionChatAdded, summary: chatSummary });
@@ -926,11 +927,6 @@ export class AgentHostStateManager extends Disposable {
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
 		let resultingState: unknown = undefined;
-		// Channel the resulting envelope is emitted on. Chat actions are
-		// dispatched by producers against the owning session URI for
-		// backward compatibility, but must be emitted on the chat channel
-		// URI so per-chat subscribers receive them.
-		let emitChannel = channel;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
@@ -974,22 +970,20 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		if (isChatAction(action)) {
+			if (!isAhpChatChannel(channel)) {
+				throw new Error(`[AgentHostStateManager] Chat action dispatched to non-chat channel: ${channel}, type=${action.type}`);
+			}
+
 			const chatAction = action as ChatAction;
-			// Producers dispatch chat actions against either the session URI
-			// (compat) or the chat channel URI. Resolve both so we can update
-			// the chat state, bridge status to the session summary, and emit
-			// on the chat channel.
-			const sessionKey = isAhpChatChannel(channel) ? parseDefaultChatUri(channel) : channel;
-			const chatUri = isAhpChatChannel(channel) ? channel : buildDefaultChatUri(channel);
-			emitChannel = chatUri;
-			const chat = this._chatStates.get(chatUri);
+			const sessionKey = parseRequiredSessionUriFromChatUri(channel);
+			const chat = this._chatStates.get(channel);
 			if (chat && sessionKey !== undefined) {
 				const newChat = chatReducer(chat, chatAction, this._log);
-				this._chatStates.set(chatUri, newChat);
-				this._onChatStateChanged(sessionKey, chatUri, chat, newChat);
+				this._chatStates.set(channel, newChat);
+				this._onChatStateChanged(sessionKey, channel, chat, newChat);
 				resultingState = newChat;
 			} else {
-				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${chatUri}, type=${action.type}`);
+				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
 			}
 		}
 
@@ -1027,7 +1021,7 @@ export class AgentHostStateManager extends Disposable {
 
 		// Emit envelope
 		const envelope: ActionEnvelope = {
-			channel: emitChannel,
+			channel,
 			action,
 			serverSeq: ++this._serverSeq,
 			origin,

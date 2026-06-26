@@ -43,7 +43,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildDefaultChatUri, buildSubagentSessionUri, customizationId, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -2002,14 +2002,14 @@ suite('ClaudeAgent', () => {
 			partIdsMatch: part.part.id === firstDelta.partId && part.part.id === secondDelta.partId,
 			turnId: part.turnId,
 			deltaTexts: [firstDelta.content, secondDelta.content],
-			session: partActions[0].s.kind === 'action' ? partActions[0].s.session.toString() : undefined,
+			session: partActions[0].s.kind === 'action' ? partActions[0].s.resource.toString() : undefined,
 		}, {
 			partKindIsMarkdown: true,
 			partPrecedesDelta: true,
 			partIdsMatch: true,
 			turnId: 'turn-1',
 			deltaTexts: ['hello ', 'world'],
-			session: created.session.toString(),
+			session: buildDefaultChatUri(created.session),
 		});
 	});
 
@@ -2796,7 +2796,8 @@ suite('ClaudeAgent', () => {
 		const sessionUri = created.session;
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidSessionProgress(s => {
-			if (AgentSession.id(s.session) === AgentSession.id(sessionUri)) {
+			const resource = s.kind === 'action' ? s.resource : s.chat;
+			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}
 		}));
@@ -4197,7 +4198,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 
 		assert.deepStrictEqual(captured, {
 			kind: 'pending_confirmation',
-			session: sessionUri,
+			chat: URI.parse(buildDefaultChatUri(sessionUri)),
 			state: {
 				status: ToolCallStatus.PendingConfirmation,
 				toolCallId: 'tu_shape',
@@ -4505,7 +4506,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		}, {
 			signal: {
 				kind: 'pending_confirmation',
-				session: sessionUri,
+				chat: URI.parse(buildDefaultChatUri(sessionUri)),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tu_plan_ok',

@@ -194,6 +194,7 @@ class AdditionalChat extends Disposable {
 			isRead: constObservable(true),
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
+			origin: summary.origin,
 		};
 	}
 

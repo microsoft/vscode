@@ -1273,7 +1273,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _fireCustomizationUpdated(session: URI, item: ISyncedCustomization): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.SessionCustomizationUpdated,
 				customization: item.customization,
