@@ -21,6 +21,7 @@ import {
 	SessionWorkspaceIsVirtualContext,
 	SessionIdContext,
 	SessionHasMultipleCommittedChatsContext,
+	SessionHasMultipleOpenChatsContext,
 } from '../../../common/contextkeys.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -44,6 +45,7 @@ interface ISessionContextKeys {
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
+	readonly hasMultipleOpenChats: IContextKey<boolean>;
 }
 
 /**
@@ -75,6 +77,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
+			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -146,4 +149,8 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const committedChatCount = session?.chats.read(reader)
 		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled ? count : count + 1, 0) ?? 0;
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
+
+	// More than one open chat (incl. drafts) means the tab strip is shown; the
+	// header then hides its own New Chat button.
+	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).length ?? 0) > 1);
 }

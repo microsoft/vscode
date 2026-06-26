@@ -302,6 +302,10 @@
 	padding: 0 2px;
 }
 
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
 .chat-composite-bar.chat-composite-bar-toolbar-floating {
 	position: absolute;
