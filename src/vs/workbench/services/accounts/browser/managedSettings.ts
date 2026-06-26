@@ -36,6 +36,7 @@ export interface IManagedSettingsResponse {
 		readonly lockCaptureContent?: boolean;
 		readonly serviceName?: string;
 		readonly resourceAttributes?: Record<string, string>;
+		readonly headers?: Record<string, string>;
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;

@@ -131,6 +131,23 @@ describe('resolveOTelConfig', () => {
 		});
 	});
 
+	it('merges OTLP headers with precedence policy > env > setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingHeaders: { fromSetting: 'setting', shared: 'setting' },
+			policyHeaders: { fromPolicy: 'policy', shared: 'policy' },
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_EXPORTER_OTLP_HEADERS': 'fromEnv=env,shared=env',
+			},
+		}));
+		expect(config.headers).toEqual({
+			fromSetting: 'setting',
+			fromEnv: 'env',
+			fromPolicy: 'policy',
+			shared: 'policy',
+		});
+	});
+
 	it('uses grpc protocol when OTEL_EXPORTER_OTLP_PROTOCOL=grpc', () => {
 		const config = resolveOTelConfig(makeInput({
 			env: {

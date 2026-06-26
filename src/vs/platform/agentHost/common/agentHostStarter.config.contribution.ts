@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -359,6 +359,34 @@ configurationRegistry.registerConfiguration({
 					description: {
 						key: 'chat.agentHost.otel.resourceAttributes.policy',
 						value: nls.localize('chat.agentHost.otel.resourceAttributes.policy', "Controls the enterprise-managed OTel resource attributes for Copilot OpenTelemetry export."),
+					}
+				},
+			},
+		},
+		// Extension-only policy delivery slot for managed OTLP exporter headers (e.g. auth tokens).
+		// Deliberately NOT delivered to the agent host: headers would have to travel via env vars,
+		// which the agent host leaks into the tool subprocesses it spawns, exposing the secret. The
+		// Copilot Chat extension applies these headers directly to its OTLP exporter instead.
+		['chat.agentHost.otel.headers']: {
+			type: 'object',
+			additionalProperties: { type: ['string'] as ['string'] },
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental', 'advanced'],
+			markdownDescription: nls.localize('chat.agentHost.otel.headers', "Enterprise-managed OTLP exporter headers (e.g. auth tokens) for Copilot OpenTelemetry export. Policy-only and extension-only: applied directly to the Copilot Chat extension's OTLP exporter, never delivered to the agent host process."),
+			policy: {
+				name: 'CopilotOtelHeaders',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_HEADERS_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_HEADERS_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.headers.policy',
+						value: nls.localize('chat.agentHost.otel.headers.policy', "Controls the enterprise-managed OTLP exporter headers for Copilot OpenTelemetry export."),
 					}
 				},
 			},

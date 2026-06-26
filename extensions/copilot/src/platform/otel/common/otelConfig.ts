@@ -37,6 +37,11 @@ export interface OTelConfig {
 	readonly serviceVersion: string;
 	readonly sessionId: string;
 	readonly resourceAttributes: Record<string, string>;
+	/**
+	 * Extra OTLP request headers (e.g. auth tokens) applied directly to the exporter. Carried
+	 * out-of-band from process env so secrets never leak into spawned tool subprocesses.
+	 */
+	readonly headers: Record<string, string>;
 }
 
 /**
@@ -104,6 +109,10 @@ export interface OTelConfigInput {
 	settingResourceAttributes?: Record<string, string>;
 	/** Enterprise-managed resource attributes (raw `telemetry.resourceAttributes`). */
 	policyResourceAttributes?: Record<string, string>;
+	/** OTLP headers from VS Code setting (`github.copilot.chat.otel.headers`). */
+	settingHeaders?: Record<string, string>;
+	/** Enterprise-managed OTLP headers (raw `telemetry.headers`). */
+	policyHeaders?: Record<string, string>;
 	extensionVersion: string;
 	sessionId: string;
 	vscodeTelemetryLevel?: string;
@@ -244,6 +253,14 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		...(input.policyResourceAttributes ?? {}),
 	};
 
+	// OTLP headers: merged per-key with precedence policy > env > setting. Same `k=v,k2=v2` format
+	// as resource attributes (`OTEL_EXPORTER_OTLP_HEADERS`).
+	const headers = {
+		...(input.settingHeaders ?? {}),
+		...parseResourceAttributes(env['OTEL_EXPORTER_OTLP_HEADERS']),
+		...(input.policyHeaders ?? {}),
+	};
+
 	return Object.freeze({
 		enabled: true,
 		enabledExplicitly,
@@ -261,6 +278,7 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		serviceVersion: input.extensionVersion,
 		sessionId: input.sessionId,
 		resourceAttributes,
+		headers,
 	});
 }
 
@@ -281,6 +299,7 @@ function createDisabledConfig(input: OTelConfigInput): OTelConfig {
 		serviceVersion: input.extensionVersion,
 		sessionId: input.sessionId,
 		resourceAttributes: {},
+		headers: {},
 	});
 }
 

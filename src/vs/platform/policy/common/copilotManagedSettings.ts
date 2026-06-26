@@ -43,8 +43,9 @@ export const COPILOT_MODEL_KEY = 'model';
  * `telemetry` block from the cross-client managed-settings schema (see the CLI
  * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
  * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
- * The `telemetry.resourceAttributes` map field is structured (a {@link STRUCTURED_MANAGED_SETTINGS}
- * row carries it as a JSON-encoded object under a nested key); `telemetry.serviceName` is a scalar.
+ * The `telemetry.resourceAttributes` and `telemetry.headers` map fields are structured
+ * ({@link STRUCTURED_MANAGED_SETTINGS} rows carry them as JSON-encoded objects under their nested
+ * keys); `telemetry.serviceName` is a scalar.
  */
 
 /** Managed-settings key for enterprise OTel enablement. */
@@ -67,6 +68,9 @@ export const COPILOT_OTEL_SERVICE_NAME_KEY = 'telemetry.serviceName';
 
 /** Managed-settings key for additional OTel resource attributes (a `{ [k]: string }` map). */
 export const COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttributes';
+
+/** Managed-settings key for extra OTLP exporter headers (a `{ [k]: string }` map). */
+export const COPILOT_OTEL_HEADERS_KEY = 'telemetry.headers';
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
@@ -274,6 +278,26 @@ interface IStructuredManagedSetting {
 	readonly encode: (value: unknown, onWarn?: (msg: string) => void) => unknown;
 }
 
+/**
+ * Encode a managed-settings value into a canonical `{ [k]: string }` map: keeps string values
+ * as-is and coerces number/boolean values to strings; drops keys with non-primitive values.
+ * Returns `undefined` for a non-object input so the structured key is omitted.
+ */
+function encodeStringMap(value: unknown): Record<string, string> | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const out: Record<string, string> = {};
+	for (const [k, v] of Object.entries(value)) {
+		if (isString(v)) {
+			out[k] = v;
+		} else if (typeof v === 'number' || typeof v === 'boolean') {
+			out[k] = String(v);
+		}
+	}
+	return out;
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
@@ -291,20 +315,12 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
 		// primitive values are coerced to strings; non-primitive values are dropped.
 		key: COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY,
-		encode: value => {
-			if (!isObject(value)) {
-				return undefined;
-			}
-			const out: Record<string, string> = {};
-			for (const [k, v] of Object.entries(value)) {
-				if (isString(v)) {
-					out[k] = v;
-				} else if (typeof v === 'number' || typeof v === 'boolean') {
-					out[k] = String(v);
-				}
-			}
-			return out;
-		},
+		encode: encodeStringMap,
+	},
+	{
+		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map of OTLP headers.
+		key: COPILOT_OTEL_HEADERS_KEY,
+		encode: encodeStringMap,
 	},
 ];
 

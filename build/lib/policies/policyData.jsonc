@@ -93,6 +93,24 @@
             ]
         },
         {
+            "key": "chat.agentHost.otel.headers",
+            "name": "CopilotOtelHeaders",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.headers.policy",
+                    "value": "Controls the enterprise-managed OTLP exporter headers for Copilot OpenTelemetry export."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.headers"
+            ]
+        },
+        {
             "key": "mcp.enterpriseManagedAuth.idp",
             "name": "McpEnterpriseManagedAuthIdp",
             "category": "InteractiveSession",

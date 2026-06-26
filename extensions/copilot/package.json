@@ -5371,6 +5371,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelHeaders"
+            },
+            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. Configurable in user settings only. Merged per-key with `OTEL_EXPORTER_OTLP_HEADERS` env (env wins over the setting); enterprise policy wins over both. **Contains potentially sensitive credentials.** Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.maxAttributeSizeChars": {
             "type": "integer",
             "default": 0,

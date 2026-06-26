@@ -63,12 +63,14 @@ suite('adaptManagedSettings', () => {
 				enabled: true,
 				serviceName: 'acme-copilot',
 				resourceAttributes: { 'deployment.environment': 'prod', 'service.namespace': 'acme' },
+				headers: { 'x-api-key': 'secret' },
 			},
 		}), {
 			managedSettings: {
 				'telemetry.enabled': true,
 				'telemetry.serviceName': 'acme-copilot',
 				'telemetry.resourceAttributes': '{"deployment.environment":"prod","service.namespace":"acme"}',
+				'telemetry.headers': '{"x-api-key":"secret"}',
 			},
 		});
 	});

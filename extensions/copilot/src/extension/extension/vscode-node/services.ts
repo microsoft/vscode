@@ -310,6 +310,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		policyServiceName: policyValue<string>('serviceName'),
 		settingResourceAttributes: otelSettings.get<Record<string, string>>('resourceAttributes'),
 		policyResourceAttributes: policyValue<Record<string, string>>('resourceAttributes'),
+		settingHeaders: otelSettings.get<Record<string, string>>('headers'),
+		policyHeaders: policyValue<Record<string, string>>('headers'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});
