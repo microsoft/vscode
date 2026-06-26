@@ -1874,7 +1874,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 		}
 	}
 
-	async function sendRequestForVendor(vendor: string, isBYOK?: boolean): Promise<{ eventName: string; data: any }[]> {
+	async function sendRequestForVendor(vendor: string, extension: ExtensionIdentifier, isBYOK?: boolean): Promise<{ eventName: string; data: any }[]> {
 		const telemetry = new CapturingTelemetryService();
 		const service = disposables.add(new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -1904,7 +1904,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 			onDidChange: Event.None,
 			provideLanguageModelChatInfo: async () => ([{
 				metadata: {
-					extension: nullExtensionDescription.identifier,
+					extension,
 					name: 'Model',
 					vendor,
 					family: 'family',
@@ -1938,30 +1938,38 @@ suite('LanguageModels - provider usage telemetry', function () {
 	}
 
 	test('getByokProviderTelemetryName classifies vendors', function () {
+		const copilotExtension = new ExtensionIdentifier('github.copilot-chat');
+		const thirdPartyExtension = new ExtensionIdentifier('publisher.third-party');
 		assert.deepStrictEqual(
 			[
-				getByokProviderTelemetryName(undefined),
-				getByokProviderTelemetryName(COPILOT_VENDOR_ID),
-				getByokProviderTelemetryName('openai'),
-				getByokProviderTelemetryName('ollama'),
-				getByokProviderTelemetryName('some-third-party-vendor'),
+				getByokProviderTelemetryName(undefined, copilotExtension),
+				getByokProviderTelemetryName(COPILOT_VENDOR_ID, copilotExtension),
+				getByokProviderTelemetryName('openai', copilotExtension),
+				getByokProviderTelemetryName('ollama', copilotExtension),
+				getByokProviderTelemetryName('openai', thirdPartyExtension),
+				getByokProviderTelemetryName('some-third-party-vendor', thirdPartyExtension),
 			],
-			[undefined, undefined, 'openai', 'ollama', THIRD_PARTY_PROVIDER_TELEMETRY_NAME]
+			[undefined, undefined, 'openai', 'ollama', THIRD_PARTY_PROVIDER_TELEMETRY_NAME, THIRD_PARTY_PROVIDER_TELEMETRY_NAME]
 		);
 	});
 
 	test('sendChatRequest reports an in-built BYOK provider by name', async function () {
-		const events = await sendRequestForVendor('openai', true);
+		const events = await sendRequestForVendor('openai', new ExtensionIdentifier('github.copilot-chat'), true);
 		assert.deepStrictEqual(events.map(e => e.data), [{ provider: 'openai', isBYOK: true }]);
 	});
 
+	test('sendChatRequest buckets built-in vendor ids from third-party extensions as 3p-extension', async function () {
+		const events = await sendRequestForVendor('openai', new ExtensionIdentifier('publisher.third-party'), true);
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: THIRD_PARTY_PROVIDER_TELEMETRY_NAME, isBYOK: true }]);
+	});
+
 	test('sendChatRequest buckets third-party extension providers as 3p-extension', async function () {
-		const events = await sendRequestForVendor('some-third-party-vendor');
+		const events = await sendRequestForVendor('some-third-party-vendor', new ExtensionIdentifier('publisher.third-party'));
 		assert.deepStrictEqual(events.map(e => e.data), [{ provider: THIRD_PARTY_PROVIDER_TELEMETRY_NAME, isBYOK: false }]);
 	});
 
 	test('sendChatRequest does not report first-party Copilot models', async function () {
-		const events = await sendRequestForVendor(COPILOT_VENDOR_ID);
+		const events = await sendRequestForVendor(COPILOT_VENDOR_ID, new ExtensionIdentifier('github.copilot-chat'));
 		assert.strictEqual(events.length, 0);
 	});
 });
