@@ -18,8 +18,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
+import { isSelectedModelAuto, isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
+import { AUTO_MODEL_IDENTIFIER, ILanguageModelsService } from '../common/languageModels.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
@@ -36,7 +36,6 @@ const TRAJECTORY_NUDGE_SPEC = {
 	learnMoreUrl: 'https://aka.ms/token-usage-tips',
 	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
 	tryAutoCommandId: 'workbench.action.chat.quotaTrajectoryTryAuto',
-	autoModelIdentifier: `${COPILOT_VENDOR_ID}/auto`,
 } as const;
 
 type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
@@ -395,7 +394,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _handleTryAutoCommand(): void {
 		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeTryAutoClickedClassification>('chatQuotaTrajectoryNudgeTryAutoClicked');
-		this._chatWidgetService.lastFocusedWidget?.input.switchModelByIdentifier(TRAJECTORY_NUDGE_SPEC.autoModelIdentifier);
+		this._chatWidgetService.lastFocusedWidget?.input.switchModelByIdentifier(AUTO_MODEL_IDENTIFIER);
 		queueMicrotask(() => this._hideNotification());
 	}
 
@@ -592,7 +591,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _getLinkToAutoDecision(): 'enabled' | 'alreadyAuto' {
-		if (this._chatWidgetService.lastFocusedWidget?.input.isModelSelectedByIdentifier(TRAJECTORY_NUDGE_SPEC.autoModelIdentifier) === true) {
+		if (isSelectedModelAuto(this._contextKeyService, this._storageService, this._languageModelsService)) {
 			return 'alreadyAuto';
 		}
 		return 'enabled';

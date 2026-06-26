@@ -641,7 +641,7 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  * The identifier for the Auto model which dynamically routes to the best backend.
  * Auto should never appear in user-curated lists (MRU, pinned).
  */
-const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
+export const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 

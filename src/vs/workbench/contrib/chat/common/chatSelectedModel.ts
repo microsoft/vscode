@@ -6,7 +6,7 @@
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
+import { AUTO_MODEL_IDENTIFIER, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
 
 /**
  * Storage key prefix for persisted model selections.
@@ -191,4 +191,24 @@ export function isSelectedModelCopilot(
 		return true; // no selection → treat as Copilot
 	}
 	return vendor === COPILOT_VENDOR_ID;
+}
+
+/**
+ * Returns whether the currently selected chat model is the Copilot "Auto"
+ * model.
+ *
+ * Resolves the selection to registered metadata (handling both the short,
+ * lower-cased `chatModelId` context-key value and the fully-qualified,
+ * persisted identifier). Models are registered under their `${vendor}/${id}`
+ * identifier, so the selection is "Auto" when that identifier matches
+ * {@link AUTO_MODEL_IDENTIFIER}. Returns `false` when no model is selected or
+ * the selection cannot be resolved to a registered model.
+ */
+export function isSelectedModelAuto(
+	contextKeyService: IContextKeyService,
+	storageService: IStorageService,
+	languageModelsService: ILanguageModelsService,
+): boolean {
+	const metadata = getSelectedModelMetadata(contextKeyService, storageService, languageModelsService);
+	return !!metadata && `${metadata.vendor}/${metadata.id}` === AUTO_MODEL_IDENTIFIER;
 }
