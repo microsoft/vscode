@@ -528,6 +528,20 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						copilotCredits: progress.copilotCredits,
 						promptTokenDetails: progress.promptTokenDetails
 					});
+				} else {
+					// No response model exists for this requestId. This happens for a
+					// subagent invoked via RunSubagentTool, which reuses the parent
+					// request and has no request model of its own. Forward the usage to
+					// the agent's progress callback so the subagent tool can surface its
+					// credit (AIC) cost on hover.
+					chatProgressParts.push({
+						kind: 'usage',
+						promptTokens: progress.promptTokens,
+						completionTokens: progress.completionTokens,
+						outputBuffer: progress.outputBuffer,
+						copilotCredits: progress.copilotCredits,
+						promptTokenDetails: progress.promptTokenDetails
+					});
 				}
 				continue;
 			}
