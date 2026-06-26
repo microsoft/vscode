@@ -1892,5 +1892,48 @@ suite('ChatSubagentContentPart', () => {
 			assert.strictEqual(labels.length, 1, 'Should still render exactly one model label after expand/collapse');
 			assert.strictEqual(labels[0].textContent, 'GPT-4o', 'Model label should still show the model name');
 		});
+
+		test('should keep the aria-label in sync with the updated title after expand/collapse', () => {
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Initial description',
+				agentName: 'TestAgent',
+				prompt: 'Do stuff',
+				modelName: 'GPT-4o',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Update the title with a running tool message (this is the more
+			// accurate, current label).
+			part.trackToolState(createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+				invocationMessage: 'Reading config.ts',
+			}));
+
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+
+			// Toggling expansion triggers the base class autorun, which previously
+			// re-applied the stale initial title to the aria-label.
+			button.click(); // expand
+			button.click(); // collapse
+
+			const ariaLabel = button.getAttribute('aria-label') ?? '';
+			assert.ok(ariaLabel.includes('Reading config.ts'),
+				`aria-label should reflect the updated title after expand/collapse, got: "${ariaLabel}"`);
+			assert.ok(ariaLabel.includes('GPT-4o'),
+				`aria-label should still include the model name after expand/collapse, got: "${ariaLabel}"`);
+			// The model name must not be duplicated in the aria-label.
+			assert.strictEqual(ariaLabel.indexOf('GPT-4o'), ariaLabel.lastIndexOf('GPT-4o'),
+				`aria-label should not duplicate the model name, got: "${ariaLabel}"`);
+		});
 	});
 });

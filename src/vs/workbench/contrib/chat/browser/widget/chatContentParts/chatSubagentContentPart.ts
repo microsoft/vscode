@@ -578,12 +578,40 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	/**
 	 * Centralizes aria-label generation for the collapse button so that the
 	 * model name is announced to screen readers alongside the visible title.
+	 *
+	 * The base label is derived from what is actually rendered in the title
+	 * (excluding the inline model label) rather than the caller-provided
+	 * `label`. This keeps the accessible name in sync with the visible title
+	 * even when the base class re-applies its captured initial title from the
+	 * expand/collapse autorun after `updateTitle()` has changed it.
 	 */
 	protected override updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
+		const baseLabel = this.getRenderedTitleText() || label;
 		const ariaLabel = this.modelName
-			? localize('chat.subagent.ariaWithModel', '{0}, model {1}', label, this.modelName)
-			: label;
+			? localize('chat.subagent.ariaWithModel', '{0}, model {1}', baseLabel, this.modelName)
+			: baseLabel;
 		super.updateAriaLabel(element, ariaLabel, expanded);
+	}
+
+	/**
+	 * Returns the text currently rendered in the collapse button's title,
+	 * excluding the inline model label span (which is announced separately via
+	 * the aria-label). Returns an empty string when the title has not been
+	 * rendered yet.
+	 */
+	private getRenderedTitleText(): string {
+		const labelElement = this._collapseButton?.labelElement;
+		if (!labelElement) {
+			return '';
+		}
+		let text = '';
+		for (const child of labelElement.childNodes) {
+			if (child === this.modelLabelSpan) {
+				continue;
+			}
+			text += child.textContent ?? '';
+		}
+		return text.trim();
 	}
 
 	private updateHover(): void {
