@@ -548,6 +548,35 @@ async function listChatModels(skipCache: boolean = false) {
 }
 
 /**
+ * Validates and normalizes a parsed adhoc request JSON object. Returns a focused
+ * error message instead of letting `.trim()`/`toTextParts()` throw on malformed
+ * input (missing/`null` fields, wrong types, etc.).
+ */
+function validateAdhocRequest(raw: unknown): { ok: true; request: IAdhocRequest } | { ok: false; error: string } {
+	if (typeof raw !== 'object' || raw === null) {
+		return { ok: false, error: 'Invalid adhoc request: expected a JSON object.' };
+	}
+	const obj = raw as Record<string, unknown>;
+	if (typeof obj.model !== 'string' || obj.model.trim().length === 0) {
+		return { ok: false, error: 'Invalid adhoc request: "model" must be a non-empty string.' };
+	}
+	if (typeof obj.user !== 'string' || obj.user.trim().length === 0) {
+		return { ok: false, error: 'Invalid adhoc request: "user" must be a non-empty string.' };
+	}
+	if (obj.system !== undefined && typeof obj.system !== 'string') {
+		return { ok: false, error: 'Invalid adhoc request: "system" must be a string when provided.' };
+	}
+	return {
+		ok: true,
+		request: {
+			model: obj.model,
+			user: obj.user,
+			system: typeof obj.system === 'string' ? obj.system : '',
+		},
+	};
+}
+
+/**
  * Sends a single adhoc chat request (used by the simulation workbench
  * "Adhoc request sender" mode) and streams the response back as JSONL on
  * stdout. The request is described by a JSON file at {@link requestFilePath}.
@@ -557,21 +586,24 @@ async function sendAdhocRequest(requestFilePath: string): Promise<void> {
 		process.stdout.write(JSON.stringify(output) + '\n');
 	};
 
-	let request: IAdhocRequest;
+	let parsed: unknown;
 	try {
-		request = JSON.parse(await fs.promises.readFile(requestFilePath, 'utf8')) as IAdhocRequest;
+		parsed = JSON.parse(await fs.promises.readFile(requestFilePath, 'utf8'));
 	} catch (err) {
 		printAdhocOutput({ type: AdhocResponseType.error, value: `Failed to read adhoc request file: ${err instanceof Error ? err.message : String(err)}` });
 		return;
 	}
 
+	const validation = validateAdhocRequest(parsed);
+	if (!validation.ok) {
+		printAdhocOutput({ type: AdhocResponseType.error, value: validation.error });
+		return;
+	}
+	const request = validation.request;
+
 	const disposables = new DisposableStore();
 	try {
 		const model = request.model.trim();
-		if (!model) {
-			printAdhocOutput({ type: AdhocResponseType.error, value: 'No model specified.' });
-			return;
-		}
 
 		const testingServiceCollection = createExtensionUnitTestingServices(disposables);
 		// The unit-testing services bind a mock chat fetcher; override it with the

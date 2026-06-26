@@ -80,9 +80,13 @@ export class AdhocRequestSender {
 			}
 		} finally {
 			fs.promises.unlink(requestFilePath).catch(() => { /* best effort cleanup */ });
-			// Only finalize if this send is still the current one. A superseded send
-			// (the user hit Stop then Send again) must not clobber the newer request's
-			// state or cancellation token source.
+			// Always dispose this send's token source to avoid leaking its
+			// cancellation listeners across repeated Send/Stop cycles, regardless of
+			// whether this send is still the current one.
+			cancellationTokenSource.dispose();
+			// Only finalize shared state if this send is still the current one. A
+			// superseded send (the user hit Stop then Send again) must not clobber the
+			// newer request's state or cancellation token source.
 			if (this.cancellationTokenSource === cancellationTokenSource) {
 				this.cancellationTokenSource = undefined;
 				mobx.runInAction(() => {
