@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { isEqual } from '../../../base/common/resources.js';
 import type { FileEdit } from './state/protocol/state.js';
 import { FileEditKind } from './state/sessionState.js';
 
@@ -50,7 +51,7 @@ export function normalizeFileEdit(edit: FileEdit): INormalizedFileEdit | undefin
 		kind = FileEditKind.Create;
 	} else if (beforeUri && !afterUri) {
 		kind = FileEditKind.Delete;
-	} else if (beforeUri && afterUri && beforeUri.toString() !== afterUri.toString()) {
+	} else if (beforeUri && afterUri && !isEqual(beforeUri, afterUri)) {
 		kind = FileEditKind.Rename;
 	} else {
 		kind = FileEditKind.Edit;

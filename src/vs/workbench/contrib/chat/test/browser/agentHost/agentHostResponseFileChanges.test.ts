@@ -53,7 +53,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 
 	const backendSession = URI.parse('copilot:/sess-1');
 	const authority = 'authority-1';
-	const chatResource = URI.parse('vscode-agent-host-copilot:/sess-1');
+	const chatResource = URI.parse('agent-host-copilot:/sess-1');
 
 	function turnChangesetUri(turnId: string): string {
 		return URI.parse(buildTurnChangesetUri(backendSession.toString(), turnId)).toString();
