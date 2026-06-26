@@ -318,6 +318,27 @@ describe('ExP Service Tests', () => {
 		expect(lazyExpService.getTreatmentVariable<string>('copilotchat.lazyValidationRequested')).toBe(toExpectedTreatment('copilotchat.lazyValidationRequested', undefined, undefined));
 	});
 
+	it('should not fetch missing config-backed treatments in lazy variation', async () => {
+		await extensionContext.globalState.update(AB_EXP_FEATURE_DATA_STORAGE_KEY, {
+			features: [],
+			assignmentContext: '',
+			configs: [{
+				Id: 'vscode',
+				Parameters: {
+					[LAZY_COHORT_EVALUATION_TREATMENT]: true
+				}
+			}]
+		});
+
+		const lazyExpService = accessor.get(IInstantiationService).createInstance(TestExperimentationService);
+		expect(lazyExpService.hasCreatedDelegate).toBe(false);
+
+		expect(lazyExpService.getTreatmentVariable<string>('copilotchat.config.example')).toBeUndefined();
+		expect(lazyExpService.getTreatmentVariable<string>('config.github.copilot.chat.example')).toBeUndefined();
+		expect(lazyExpService.getTreatmentVariable<string>('copilotchat.notebookVariableFiltering')).toBeUndefined();
+		expect(lazyExpService.hasCreatedDelegate).toBe(false);
+	});
+
 	it('should trigger treatments refresh when user info changes', async () => {
 		await expService.hasTreatments();
 

@@ -141,6 +141,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
 	private readonly _emittedTreatments = new Map<string, boolean | string | number | undefined>();
 	private readonly _lazyCohortEvaluation: boolean;
+	private readonly _cachedFeatureData: CachedFeatureData | undefined;
 	private readonly _delegateFn: TASClientDelegateFn;
 	private readonly _context: IVSCodeExtensionContext;
 
@@ -163,7 +164,8 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 		this._delegateFn = delegateFn;
 		this._context = context;
 		this._userInfoStore = new UserInfoStore(context, copilotTokenStore);
-		this._lazyCohortEvaluation = this.readCachedLazyCohortEvaluation(context);
+		this._cachedFeatureData = this.readCachedFeatureData(context);
+		this._lazyCohortEvaluation = this._cachedFeatureData?.configs?.find(config => config.Id === 'vscode')?.Parameters?.[LAZY_COHORT_EVALUATION_TREATMENT] === true;
 
 		// Refresh treatments when user info changes
 		this._register(this._userInfoStore.onDidChangeUserInfo(async () => {
@@ -190,14 +192,32 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 		}
 	}
 
-	private readCachedLazyCohortEvaluation(context: IVSCodeExtensionContext): boolean {
+	private readCachedFeatureData(context: IVSCodeExtensionContext): CachedFeatureData | undefined {
 		const storedFeatureData = context.globalState.get<unknown>(AB_EXP_FEATURE_DATA_STORAGE_KEY);
 		const featureData = isWrappedCachedFeatureData(storedFeatureData) ? storedFeatureData.value : storedFeatureData;
 		if (!isCachedFeatureData(featureData)) {
-			return false;
+			return undefined;
 		}
-		const vscodeConfig = featureData.configs?.find(config => config.Id === 'vscode');
-		return vscodeConfig?.Parameters?.[LAZY_COHORT_EVALUATION_TREATMENT] === true;
+		return featureData;
+	}
+
+	private getCachedTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		const vscodeConfig = this._cachedFeatureData?.configs?.find(config => config.Id === 'vscode');
+		const value = vscodeConfig?.Parameters?.[name];
+		switch (typeof value) {
+			case 'boolean':
+			case 'number':
+			case 'string':
+				return value as T;
+			default:
+				return undefined;
+		}
+	}
+
+	private shouldDeferMissingLazyTreatment(name: string): boolean {
+		return name.startsWith('copilotchat.config.')
+			|| name.startsWith('config.github.copilot.')
+			|| name === 'copilotchat.notebookVariableFiltering';
 	}
 
 	protected ensureDelegate(): ITASExperimentationService {
@@ -244,12 +264,28 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		if (this._lazyCohortEvaluation && !this._delegate) {
+			const cachedResult = this.getCachedTreatmentVariable<T>(name);
+			if (cachedResult !== undefined) {
+				this.recordTreatmentEvaluation(name, cachedResult);
+				return cachedResult;
+			}
+			if (this.shouldDeferMissingLazyTreatment(name)) {
+				return undefined;
+			}
+		}
 		const delegate = this.ensureDelegate();
 		const result = delegate.getTreatmentVariable('vscode', name) as T;
 		this._previouslyReadTreatments.set(name, result);
 		if (this._lazyCohortEvaluation && result === undefined) {
 			void delegate.getTreatmentVariableAsync('vscode', name, true).then(() => this._signalTreatmentsChangeEvent());
 		}
+		this.recordTreatmentEvaluation(name, result);
+		return result;
+	}
+
+	private recordTreatmentEvaluation<T extends boolean | number | string>(name: string, result: T | undefined): void {
+		this._previouslyReadTreatments.set(name, result);
 		const isFirstEmit = !this._emittedTreatments.has(name);
 		const previousEmitted = this._emittedTreatments.get(name);
 		if (isFirstEmit || previousEmitted !== result) {
@@ -261,7 +297,6 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 				hasValue: result === undefined ? 0 : 1
 			});
 		}
-		return result;
 	}
 
 	// Note: This is only temporarily until we have fully migrated to the new completions implementation.
