@@ -16,7 +16,10 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
+	resolveConfiguredModel,
 	resolveModelFromSyncState,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
@@ -88,6 +91,20 @@ function createSessionModel(
 		targetChatSessionType: sessionType,
 		...overrides,
 	});
+}
+
+/**
+ * Creates a model served by a specific (typically BYOK) vendor, with the identifier prefixed by that vendor
+ * (e.g. `ollama/deepseek`). Mirrors how the language model registry qualifies non-Copilot models.
+ */
+function createVendorModel(
+	vendor: string,
+	id: string,
+	name: string,
+	overrides?: Partial<ILanguageModelChatMetadata>,
+): ILanguageModelChatMetadataAndIdentifier {
+	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
+	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
 suite('ChatModelSelectionLogic', () => {
@@ -1657,6 +1674,171 @@ suite('ChatModelSelectionLogic', () => {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
 				sessionType: undefined,
 			}, allModels), false);
+		});
+
+		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
+		// vendor depends on the Copilot token, which round-trips slower than fast/local BYOK providers (Ollama,
+		// Cerebras). So the Copilot vendor resolves an EMPTY live list first while the BYOK vendors already have live
+		// models. `mergeModelsWithCache` then treats Copilot's empty resolution as authoritative and evicts the cached
+		// Copilot models that were used to restore the selection — leaving only BYOK models, which triggers a
+		// reset-to-default that clobbers the user's persisted Copilot choice.
+		test('startup race #321037: Copilot vendor resolves empty before BYOK, restored selection must survive', () => {
+			// The user's persisted choice (a Copilot model) and its siblings, seeded into the cache from the previous
+			// session.
+			const persistedId = 'copilot/claude-opus-4.6-1m';
+			const cachedCopilot = [
+				createModel('claude-opus-4.6-1m', 'Claude Opus 4.6 (1M)'),
+				createModel('gpt-5.5', 'GPT-5.5'),
+			];
+
+			// Fast/local BYOK providers that publish live models immediately.
+			const liveByok = [
+				createVendorModel('ollama', 'deepseek-v3.1', 'DeepSeek V3.1'),
+				createVendorModel('cerebras', 'zai-glm-4.7', 'GLM 4.7'),
+			];
+
+			// Copilot contributed a vendor but resolved an EMPTY live list (token not ready yet); the BYOK vendors
+			// resolved with models. All three are therefore "resolved".
+			const contributedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+			const resolvedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+
+			const available = computeAvailableModels(
+				liveByok,
+				[...cachedCopilot, ...liveByok],
+				contributedVendors,
+				undefined,
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+				resolvedVendors,
+			);
+
+			// DESIRED: the user's restored Copilot model is still selectable during the race, so no reset-to-BYOK
+			// happens and the persisted choice is kept. CURRENT (bug): Copilot cache is evicted, only BYOK remains, the
+			// model is considered unavailable and gets reset to a BYOK default.
+			assert.ok(
+				available.some(m => m.identifier === persistedId),
+				'restored Copilot model should remain available while its vendor is still activating',
+			);
+			assert.strictEqual(
+				shouldResetOnModelListChange(persistedId, available),
+				false,
+				'must not reset the restored Copilot selection during the startup race',
+			);
+
+			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
+			// choice on the next launch).
+			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
+			assert.notStrictEqual(
+				fallback?.metadata.isBYOK,
+				true,
+				'reset fallback should not be a BYOK model',
+			);
+		});
+	});
+
+	suite('resolveConfiguredModel', () => {
+
+		test('returns undefined for empty or whitespace configured value', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel(undefined, [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('', [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('   ', [gpt]), undefined);
+		});
+
+		test('resolves "auto" (case-insensitive) to the synthetic auto model', () => {
+			const auto = createModel('auto', 'Auto');
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt, auto])?.metadata.id, 'auto');
+			assert.strictEqual(resolveConfiguredModel('AUTO', [gpt, auto])?.metadata.id, 'auto');
+		});
+
+		test('returns undefined for "auto" when no auto model exists', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt]), undefined);
+		});
+
+		test('resolves a full model id (case-insensitive)', () => {
+			const gpt = createModel('gpt-5', 'GPT-5');
+			const claude = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus' });
+			assert.strictEqual(resolveConfiguredModel('claude-opus-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+			assert.strictEqual(resolveConfiguredModel('CLAUDE-OPUS-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+		});
+
+		test('resolves a family name to the highest-version model in that family', () => {
+			const opus45 = createModel('claude-opus-4.5', 'Claude Opus 4.5', { family: 'opus', version: '4.5' });
+			const opus46 = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			const opus410 = createModel('claude-opus-4.10', 'Claude Opus 4.10', { family: 'opus', version: '4.10' });
+			const gemini = createModel('gemini-2', 'Gemini 2', { family: 'gemini', version: '2.0' });
+			assert.strictEqual(resolveConfiguredModel('opus', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('OPUS', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('gemini', [opus45, opus46, opus410, gemini])?.metadata.id, 'gemini-2');
+		});
+
+		test('full id match takes precedence over family match', () => {
+			const opusLatest = createModel('opus', 'Opus alias', { family: 'opus', version: '1.0' });
+			const opusNewer = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			// The configured value "opus" matches the model whose id is exactly "opus"
+			// rather than being treated as a family lookup.
+			assert.strictEqual(resolveConfiguredModel('opus', [opusNewer, opusLatest])?.metadata.id, 'opus');
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
+			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
+		});
+	});
+
+	suite('getModelPickerUnavailableReason', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
+		});
+
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
+		});
+
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		});
+
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });

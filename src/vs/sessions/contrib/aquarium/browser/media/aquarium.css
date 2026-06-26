@@ -121,7 +121,8 @@
 	will-change: transform, opacity;
 	pointer-events: none;
 	opacity: 0;
-	transition: opacity 360ms ease-out;
+	/* width/height transition lets a fed fish visibly puff up as it grows. */
+	transition: opacity 360ms ease-out, width 300ms ease-out, height 300ms ease-out;
 }
 
 /* JS sets per-fish transition-delay before adding `.visible` for staggered
@@ -196,12 +197,12 @@
 
 .agents-aquarium-toggle {
 	position: absolute;
-	top: 12px;
-	left: 14px;
+	top: 7px;
+	left: 7px;
 	z-index: 100;
 	width: 24px;
 	height: 24px;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-circle);
 	border: var(--vscode-strokeThickness) solid transparent;
 	background: transparent;
 	color: var(--vscode-foreground, #cccccc);
@@ -238,27 +239,45 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-/* Off-state icon: the agents window logo (same asset as the mobile chat
- * shell's workspace picker). Theme-swapped under `.vs` / `.hc-light`. */
-.agents-aquarium-toggle-logo {
-	display: inline-block;
-	width: var(--vscode-codiconFontSize);
-	height: var(--vscode-codiconFontSize);
-	background: url('../../../../browser/media/sessions-logo-light.svg') center / contain no-repeat;
+/* When showing a feeding streak the button grows into a pill so the count
+ * sits next to the icon instead of being clipped by the fixed 24px width. */
+.agents-aquarium-toggle.has-streak {
+	width: auto;
+	min-width: 24px;
+	gap: 4px;
+	padding: 0 8px 0 6px;
+	border-radius: var(--vscode-cornerRadius-medium, 9px);
+	opacity: 1;
+}
+
+.agents-aquarium-toggle-streak {
+	display: inline-flex;
+	align-items: center;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 1;
+	white-space: nowrap;
+	color: var(--vscode-foreground, #cccccc);
+}
+
+/* A died streak badge: a quiet, non-interactive hint that feeding a fish will
+ * bring the streak back. Kept subtle (muted, normal weight). */
+.agents-aquarium-toggle-streak.revivable {
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	color: var(--vscode-descriptionForeground, #999999);
+}
+
+/* Off-state icon (smiley): brief attention-grabbing wiggle every 12s. The
+ * keyframes hold the rest pose for ~93% of the cycle and only animate during
+ * the first ~7%. */
+.agents-aquarium-toggle:not(.active) .codicon {
 	transform-origin: 50% 50%;
-	/* Brief attention-grabbing wiggle every 12s. Keyframes hold the rest
-	 * pose for ~93% of the cycle and only animate during the first ~7%. */
 	animation: agents-aquarium-toggle-wiggle 12s ease-in-out infinite;
 }
 
-.vs .agents-aquarium-toggle-logo,
-.hc-light .agents-aquarium-toggle-logo {
-	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
-}
-
 /* No need to nag once the user is engaging with the button. */
-.agents-aquarium-toggle:hover .agents-aquarium-toggle-logo,
-.agents-aquarium-toggle:focus-visible .agents-aquarium-toggle-logo {
+.agents-aquarium-toggle:hover .codicon,
+.agents-aquarium-toggle:focus-visible .codicon {
 	animation: none;
 }
 
@@ -292,7 +311,7 @@
 	.agents-aquarium-fish-strip,
 	.agents-aquarium-water::before,
 	.agents-aquarium-water::after,
-	.agents-aquarium-toggle-logo {
+	.agents-aquarium-toggle:not(.active) .codicon {
 		animation: none;
 	}
 

@@ -59,11 +59,12 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * model does not support configurable context sizes.
  *
  * Driven entirely by CAPI billing metadata:
- * - When CAPI returns a `long_context` tier, offers `default.context_max` as
- *   the default option and `modelMaxPromptTokens` as an opt-in larger option.
- * - When the long-context tier has higher prices, the larger option includes a
- *   cost indicator so the user knows they are opting into higher billing.
- * - When there is no `long_context` tier, no selector is shown.
+ * - When CAPI returns a `long_context` tier with higher prices, offers
+ *   `default.context_max` as the default and `modelMaxPromptTokens` as an
+ *   opt-in larger option so the user knowingly opts into higher billing.
+ * - When there is no `long_context` tier, or prices match the default tier
+ *   (i.e. `longContext` is absent on the pricing object), no selector is
+ *   shown — the model silently uses the full context window.
  */
 function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
 	const pricing = endpoint.tokenPricing;
@@ -84,13 +85,19 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 
 	const hasLongContextSurcharge = !!pricing.longContext;
 
+	// When both tiers cost the same, show only the full context window as a
+	// non-switchable indicator — the user always gets the larger window.
+	if (!hasLongContextSurcharge) {
+		return [
+			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
+		];
+	}
+
 	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default'), isDefault: true },
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
 		{
 			value: fullMax,
-			description: hasLongContextSurcharge
-				? vscode.l10n.t('Longer sessions')
-				: vscode.l10n.t('Longer sessions without compaction'),
+			description: vscode.l10n.t('Longer sessions'),
 			isDefault: false,
 		},
 	];
@@ -373,11 +380,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.inputPrice,
 				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.outputPrice,
 				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				cacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheWriteTokenPrice,
 				longContextInputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.inputPrice,
 				longContextOutputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.outputPrice,
 				longContextCacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				longContextCacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheWriteTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
+				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
@@ -831,14 +841,19 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			}
 			if (delta.copilotToolCalls) {
 				for (const call of delta.copilotToolCalls) {
+					// Anthropic models send "" (empty string) for tools with no parameters.
+					let parameters: object;
 					try {
-						// Anthropic models send "" (empty string) for tools with no parameters.
-						const parameters = JSON.parse(call.arguments || '{}');
-						progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
+						parameters = JSON.parse(call.arguments || '{}');
 					} catch (err) {
+						// The model can stream malformed JSON for tool arguments. Log it for
+						// diagnostics and fall back to empty parameters so the tool call is still
+						// surfaced to the extension (matching other tool-call consumers) instead of
+						// leaking an unhandled rejection out of this fire-and-forget callback.
 						this._logService.error(err, `Got invalid JSON for tool call: ${call.arguments}`);
-						throw new Error('Invalid JSON for tool call');
+						parameters = {};
 					}
+					progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
 				}
 			}
 

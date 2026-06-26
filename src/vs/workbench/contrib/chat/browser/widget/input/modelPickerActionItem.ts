@@ -123,6 +123,25 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget.setEnabled(enabled);
 	}
 
+	/**
+	 * Whether the picker has no usable model because the workspace is untrusted
+	 * (Restricted Mode). Lets a host (e.g. the sessions picker) keep the picker
+	 * visible to surface the "Pick Model" placeholder and Trust Workspace action
+	 * instead of hiding it as an empty/no-model picker.
+	 */
+	public isRestrictedMode(): boolean {
+		return this._pickerWidget.isRestrictedMode();
+	}
+
+	/**
+	 * Whether the picker has no usable model because Chat still needs sign-in /
+	 * setup. Like {@link isRestrictedMode}, lets a host keep the picker visible to
+	 * surface the "Pick Model" placeholder and Sign In action.
+	 */
+	public isSetupRequired(): boolean {
+		return this._pickerWidget.isSetupRequired();
+	}
+
 	private _showPicker(): void {
 		this._pickerWidget.show(this._getAnchorElement());
 	}
@@ -132,23 +151,28 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (!target) {
 			return;
 		}
-		const hoverContent = this._getHoverContents();
-		if (typeof hoverContent === 'string' && hoverContent) {
-			this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
-				getDefaultHoverDelegate('mouse'),
-				target,
-				hoverContent
-			);
-		} else {
-			this._managedHover.clear();
-		}
+		// Use a content factory so the hover reflects the current state each time
+		// it is shown — in particular the Restricted Mode / sign-in messages, which
+		// depend on workspace trust / entitlement changing without this item being
+		// re-rendered.
+		this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			target,
+			() => this._getHoverContents()
+		);
 	}
 
-	private _getHoverContents(): IManagedHoverContent | undefined {
+	private _getHoverContents(): IManagedHoverContent {
 		let label = localize('chat.modelPicker.label', "Pick Model");
 		const keybindingLabel = this.keybindingService.lookupKeybinding(this._action.id, this._contextKeyService)?.getLabel();
 		if (keybindingLabel) {
 			label += ` (${keybindingLabel})`;
+		}
+		if (this._pickerWidget.isRestrictedMode()) {
+			return localize('chat.modelPicker.restrictedHover', "{0} • Models are unavailable in Restricted Mode. Trust the workspace to choose a model.", label);
+		}
+		if (this._pickerWidget.isSetupRequired()) {
+			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
 		}
 		const { statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
 		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;

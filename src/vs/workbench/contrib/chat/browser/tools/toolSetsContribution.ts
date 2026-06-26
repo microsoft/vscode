@@ -6,6 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableFromEvent, observableSignalFromEvent, autorun, transaction } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
@@ -18,13 +19,13 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolAndToolSetEnablementMap, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
@@ -35,9 +36,8 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-
 
 const toolEnumValues: string[] = [];
 const toolEnumDescriptions: string[] = [];
@@ -86,7 +86,7 @@ const toolSetsSchema: IJSONSchema = {
 const reg = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 
-abstract class RawToolSetsShape {
+export abstract class RawToolSetsShape {
 
 	static readonly suffix = '.toolsets.jsonc';
 
@@ -306,7 +306,8 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						{
 							// toolReferenceName: value.referenceName,
 							icon: value.icon ? ThemeIcon.fromId(value.icon) : undefined,
-							description: value.description
+							description: value.description,
+							deprecated: true,
 						}
 					);
 
@@ -319,6 +320,115 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 		}));
 	}
+}
+
+export interface IConfigureToolSetsOptions {
+	readonly selection?: ToolAndToolSetEnablementMap;
+}
+
+function getSelectionFromArg(arg: unknown): ToolAndToolSetEnablementMap | undefined {
+	if (!isObject(arg)) {
+		return undefined;
+	}
+
+	const selection = (arg as IConfigureToolSetsOptions).selection;
+	if (!(selection instanceof ToolAndToolSetEnablementMap)) {
+		return undefined;
+	}
+
+	return selection;
+}
+
+export function getEnabledSelectionReferences(selection: ToolAndToolSetEnablementMap, toolsService: ILanguageModelToolsService): string[] {
+	const enabledToolSets: IToolSet[] = [];
+	const enabledTools: IToolData[] = [];
+
+	for (const [item, enabled] of selection) {
+		if (!enabled) {
+			continue;
+		}
+
+		if (isToolSet(item)) {
+			// Only serialize a tool set when none of its member tools are explicitly
+			// unchecked in the selection. A partially-deselected tool set would otherwise
+			// silently re-enable the deselected member tools, matching the guard in
+			// `toFullReferenceNames`. Members absent from the map inherit the tool set's state.
+			if (Iterable.every(item.getTools(), tool => selection.get(tool) !== false)) {
+				enabledToolSets.push(item);
+			}
+		} else {
+			enabledTools.push(item);
+		}
+	}
+
+	const coveredToolIds = new Set<string>();
+	for (const toolSet of enabledToolSets) {
+		for (const tool of toolSet.getTools()) {
+			coveredToolIds.add(tool.id);
+		}
+	}
+
+	const references: string[] = [];
+	const seen = new Set<string>();
+	const addReference = (referenceName: string) => {
+		if (seen.has(referenceName)) {
+			return;
+		}
+		seen.add(referenceName);
+		references.push(referenceName);
+	};
+
+	for (const toolSet of enabledToolSets) {
+		addReference(toolsService.getFullReferenceName(toolSet));
+	}
+
+	for (const tool of enabledTools) {
+		if (coveredToolIds.has(tool.id)) {
+			continue;
+		}
+		// `getFullReferenceName` already returns the qualified `toolSet/tool` name for tools
+		// that belong to a non-user tool set, even when the tool is not independently
+		// referenceable in prompts. Only include the tool when the reference round-trips, which
+		// filters out orphan tools that cannot be referenced at all.
+		const referenceName = toolsService.getFullReferenceName(tool);
+		if (toolsService.getToolByFullReferenceName(referenceName) !== tool) {
+			continue;
+		}
+		addReference(referenceName);
+	}
+
+	return references;
+}
+
+export function createToolSetFileContents(toolSetName: string, toolReferences: readonly string[]): string {
+	const serializedReferences = toolReferences.map(reference => `\t\t\t${JSON.stringify(reference)}`).join(',\n');
+
+	return [
+		'{',
+		`\t${JSON.stringify(toolSetName)}: {`,
+		'\t\t"tools": [',
+		serializedReferences,
+		'\t\t],',
+		'\t\t"description": "",',
+		'\t\t"icon": "tools"',
+		'\t}',
+		'}',
+	].join('\n');
+}
+
+export function deleteToolSetFromFileContents(rawContents: string, toolSetName: string): { contents: string; isEmpty: boolean } | undefined {
+	const parsed = parse(rawContents);
+	if (!isObject(parsed)) {
+		return undefined;
+	}
+
+	const record = parsed as Record<string, unknown>;
+	if (!Object.hasOwn(record, toolSetName)) {
+		return undefined;
+	}
+
+	delete record[toolSetName];
+	return { contents: JSON.stringify(record, undefined, '\t'), isEmpty: Object.keys(record).length === 0 };
 }
 
 // ---- actions
@@ -350,7 +460,7 @@ export class ConfigureToolSets extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: IConfigureToolSetsOptions): Promise<void> {
 
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -358,11 +468,28 @@ export class ConfigureToolSets extends Action2 {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: (IQuickPickItem & { toolset?: IToolSet; kind: 'createFromSelection' | 'createNewFile' | 'existing' })[] = [];
+		// When the command is invoked without an explicit selection (e.g. from F1 or the chat
+		// view title menu), fall back to the tool selection of the active chat widget.
+		const currentSelection = getSelectionFromArg(options)
+			?? chatWidgetService.lastFocusedWidget?.input.selectedToolsModel.entriesMap.get()
+			?? ToolAndToolSetEnablementMap.fromEntries([]);
+		const selectedReferences = getEnabledSelectionReferences(currentSelection, toolsService);
+
+		if (selectedReferences.length > 0) {
+			picks.push({
+				label: localize('chat.configureToolSets.createFromCurrentSelection', "Create from current selection..."),
+				kind: 'createFromSelection',
+				alwaysShow: true,
+				iconClass: ThemeIcon.asClassName(Codicon.plus)
+			});
+		}
 
 		picks.push({
 			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			kind: 'createNewFile',
 			alwaysShow: true,
 			iconClass: ThemeIcon.asClassName(Codicon.plus)
 		});
@@ -374,6 +501,7 @@ export class ConfigureToolSets extends Action2 {
 
 			picks.push({
 				label: toolSet.referenceName,
+				kind: 'existing',
 				toolset: toolSet,
 				tooltip: toolSet.description,
 				iconClass: ThemeIcon.asClassName(toolSet.icon)
@@ -402,6 +530,12 @@ export class ConfigureToolSets extends Action2 {
 					if (!isValidBasename(input)) {
 						return localize('bad_name2', "'{0}' is not a valid file name", input);
 					}
+					if (pick.kind === 'createFromSelection') {
+						const candidate = joinPath(userDataProfileService.currentProfile.promptsHome, `${input}${RawToolSetsShape.suffix}`);
+						if (await fileService.exists(candidate)) {
+							return localize('chat.configureToolSets.fileAlreadyExists', "A file with this name already exists");
+						}
+					}
 					return undefined;
 				}
 			});
@@ -412,7 +546,23 @@ export class ConfigureToolSets extends Action2 {
 
 			resource = joinPath(userDataProfileService.currentProfile.promptsHome, `${name}${RawToolSetsShape.suffix}`);
 
-			if (!await fileService.exists(resource)) {
+			if (pick.kind === 'createFromSelection') {
+				const toolSetName = await quickInputService.input({
+					placeHolder: localize('toolSetName.placeholder', "Type new tool set name"),
+					validateInput: async (input) => {
+						if (isFalsyOrWhitespace(input)) {
+							return localize('toolSetName.bad_name', "Tool set name cannot be empty");
+						}
+						return undefined;
+					}
+				});
+
+				if (!toolSetName || isFalsyOrWhitespace(toolSetName)) {
+					return;
+				}
+
+				await textFileService.write(resource, createToolSetFileContents(toolSetName, selectedReferences));
+			} else if (!await fileService.exists(resource)) {
 				await textFileService.write(resource, [
 					'// Place your tool sets here...',
 					'// Example:',

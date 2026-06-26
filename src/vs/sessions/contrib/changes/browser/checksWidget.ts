@@ -18,12 +18,11 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './checksActions.js';
+import { CICheckGroup, getCheckGroup, getCheckStateLabel } from './checksActions.js';
 import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
@@ -159,12 +158,9 @@ export class CIStatusWidget extends Disposable {
 	private readonly _titleNode: HTMLElement;
 	private readonly _titleLabelNode: HTMLElement;
 	private readonly _countsNode: HTMLElement;
-	private readonly _headerActionBarContainer: HTMLElement;
-	private readonly _headerActionBar: ActionBar;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _list: WorkbenchList<ICICheckListItem>;
 	private readonly _labels: ResourceLabels;
-	private readonly _headerActionDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -175,7 +171,6 @@ export class CIStatusWidget extends Disposable {
 	private _checkCount = 0;
 	private _collapsed = false;
 	private _model: GitHubPullRequestCIModel | undefined;
-	private _sessionResource: URI | undefined;
 	private readonly _chevronNode: HTMLElement;
 
 	get element(): HTMLElement {
@@ -206,7 +201,6 @@ export class CIStatusWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -221,12 +215,6 @@ export class CIStatusWidget extends Disposable {
 		this._titleLabelNode = dom.append(this._titleNode, $('.ci-status-widget-title-label'));
 		this._titleLabelNode.textContent = localize('ci.checksLabel', "Checks");
 		this._countsNode = dom.append(this._titleNode, $('.ci-status-widget-counts'));
-		this._headerActionBarContainer = dom.append(this._headerNode, $('.ci-status-widget-header-actions'));
-		this._headerActionBar = this._register(new ActionBar(this._headerActionBarContainer));
-		this._register(dom.addDisposableListener(this._headerActionBarContainer, dom.EventType.CLICK, e => {
-			e.preventDefault();
-			e.stopPropagation();
-		}));
 		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
@@ -235,11 +223,7 @@ export class CIStatusWidget extends Disposable {
 		this._headerNode.setAttribute('aria-expanded', 'true');
 		this._headerNode.tabIndex = 0;
 
-		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, e => {
-			// Don't toggle when clicking the action bar
-			if (dom.isAncestor(e.target as HTMLElement, this._headerActionBarContainer)) {
-				return;
-			}
+		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, () => {
 			this._toggleCollapsed();
 		}));
 		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.KEY_DOWN, e => {
@@ -280,13 +264,11 @@ export class CIStatusWidget extends Disposable {
 	setInput(input: ChecksViewModel): IDisposable {
 		return autorun(reader => {
 			this._model = input.checksObs.read(reader);
-			this._sessionResource = input.activeSessionResourceObs.read(reader);
 
 			if (!this._model) {
 				this._checkCount = 0;
 				this._setCollapsed(false);
 				this._renderBody([]);
-				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
 				this._onDidChangeHeight.fire();
 				return;
@@ -298,7 +280,6 @@ export class CIStatusWidget extends Disposable {
 				this._checkCount = 0;
 				this._setCollapsed(false);
 				this._renderBody([]);
-				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
 				this._onDidChangeHeight.fire();
 				return;
@@ -310,7 +291,6 @@ export class CIStatusWidget extends Disposable {
 
 			this._domNode.style.display = '';
 			this._renderHeader(checks);
-			this._renderHeaderActions(getFailedChecks(checks));
 			this._renderBody(sorted);
 
 			if (this._checkCount !== oldCount) {
@@ -350,31 +330,6 @@ export class CIStatusWidget extends Disposable {
 		}
 	}
 
-	private _renderHeaderActions(failedChecks: readonly IGitHubCICheck[]): void {
-		this._headerActionDisposables.clear();
-		this._headerActionBar.clear();
-
-		if (failedChecks.length === 0) {
-			this._headerActionBarContainer.classList.remove('has-actions');
-			this._domNode.classList.remove('has-fix-actions');
-			return;
-		}
-
-		const fixChecksAction = this._headerActionDisposables.add(new Action(
-			'ci.fixChecks',
-			localize('ci.fixChecks', "Fix Checks"),
-			ThemeIcon.asClassName(Codicon.lightbulbAutofix),
-			true,
-			async () => {
-				await this._sendFixChecksPrompt(failedChecks);
-			},
-		));
-
-		this._headerActionBar.push([fixChecksAction], { icon: true, label: false });
-		this._headerActionBarContainer.classList.add('has-actions');
-		this._domNode.classList.add('has-fix-actions');
-	}
-
 	/**
 	 * Layout the widget body list to the given height.
 	 * Called by the parent view after computing available space.
@@ -395,6 +350,34 @@ export class CIStatusWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
+	/**
+	 * Expand the body if it is currently collapsed, notifying listeners so the
+	 * parent pane restores its size. No-op when already expanded.
+	 */
+	expand(): void {
+		if (!this._collapsed) {
+			return;
+		}
+		this._setCollapsed(false);
+		this._onDidToggleCollapsed.fire(false);
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Move keyboard focus into the checks list. Falls back to the header when
+	 * the body is collapsed or there is nothing to focus.
+	 */
+	focus(): void {
+		if (this._collapsed || this._checkCount === 0) {
+			this._headerNode.focus();
+			return;
+		}
+		this._list.domFocus();
+		if (this._list.length > 0 && this._list.getFocus().length === 0) {
+			this._list.setFocus([0]);
+		}
+	}
+
 	private _setCollapsed(collapsed: boolean): void {
 		this._collapsed = collapsed;
 		this._updateChevron();
@@ -413,30 +396,6 @@ export class CIStatusWidget extends Disposable {
 
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
 		this._list.splice(0, this._list.length, checks);
-	}
-
-	private async _sendFixChecksPrompt(failedChecks: readonly IGitHubCICheck[]): Promise<void> {
-		const model = this._model;
-		const sessionResource = this._sessionResource;
-		if (!model || !sessionResource || failedChecks.length === 0) {
-			return;
-		}
-
-		const failedCheckDetails = await Promise.all(failedChecks.map(async check => {
-			const annotations = await model.getCheckRunAnnotations(check.id);
-			return {
-				check,
-				annotations,
-			};
-		}));
-
-		const prompt = buildFixChecksPrompt(failedCheckDetails);
-		const chatWidget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (!chatWidget) {
-			return;
-		}
-
-		await chatWidget.acceptInput(prompt, { noCommandDetection: true });
 	}
 }
 

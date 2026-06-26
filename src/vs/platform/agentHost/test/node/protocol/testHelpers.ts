@@ -7,11 +7,12 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { MessageKind } from '../../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -80,6 +81,19 @@ export class TestProtocolClient {
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+	}
+
+	/**
+	 * Dispatch a strongly-typed protocol action (fire-and-forget write-ahead).
+	 *
+	 * Prefer this over the raw {@link notify} escape hatch: the action payload
+	 * is checked against the {@link StateAction} union at compile time, so a
+	 * malformed or incomplete action (e.g. an approval missing its required
+	 * `confirmed` field) is caught by the type-checker rather than silently
+	 * shipped over the wire and reduced into `undefined`.
+	 */
+	dispatch(params: DispatchActionParams): void {
+		this.notify('dispatchAction', params);
 	}
 
 	/** Send a JSON-RPC request and await the response. */
@@ -238,6 +252,11 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			env: options?.codexSdkRoot
+				? { ...process.env, [AgentHostCodexAgentEnabledEnvVar]: 'true' }
+				: process.env,
 		});
 
 		const timer = setTimeout(() => {
@@ -305,19 +324,40 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	const realSessionUri = (notif.params as SessionAddedParams).summary.resource;
 
 	await c.call<SubscribeResult>('subscribe', { channel: realSessionUri });
+	// Turns and other conversation contents live on the session's default
+	// chat channel in the multi-chat protocol; subscribe to it as well so
+	// `chat/*` action notifications (responsePart, turnComplete, …) are
+	// delivered to this client.
+	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(realSessionUri) });
 	c.clearReceived();
 
 	return realSessionUri;
 }
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
+	c.dispatch({
 		channel: session,
 		clientSeq,
 		action: {
-			type: 'session/turnStarted',
+			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
+}
+
+/**
+ * Subscribes to a session channel and its default chat channel and returns the
+ * merged {@link ISessionWithDefaultChat} view. In the multi-chat protocol the
+ * conversation contents (turns, activeTurn, queued/steering messages, input
+ * requests) live on the session's default chat channel, so reading them
+ * requires merging the session snapshot with its default chat snapshot.
+ */
+export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	return mergeSessionWithDefaultChat(
+		sessionSnap.snapshot!.state as SessionState,
+		chatSnap.snapshot?.state as ChatState | undefined,
+	);
 }

@@ -11,7 +11,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../util/
 import { LlmNESTelemetryBuilder } from '../../../../../inlineEdits/node/nextEditProviderTelemetry';
 import { isInlineSuggestionFromTextAfterCursor } from '../../../../../xtab/common/inlineSuggestion';
 import { GhostTextLogContext } from '../../../../common/ghostTextContext';
-import { initializeTokenizers } from '../../../prompt/src/tokenization';
+import { ensureTokenizersLoaded } from '../../../prompt/src/tokenization';
 import { CancellationTokenSource, CancellationToken as ICancellationToken } from '../../../types/src';
 import { ICompletionsNotifierService } from '../completionNotifier';
 import { CompletionState } from '../completionState';
@@ -156,7 +156,7 @@ export class GhostTextComputer {
 		// means we can't use `initialize` to actually initialize anything expensive.  This the primary user of the
 		// tokenizer, so settle for initializing here instead.  We don't use waitForTokenizers() because in the event of a
 		// tokenizer load failure, that would spam handleException() on every request.
-		await initializeTokenizers.catch(() => { });
+		await ensureTokenizersLoaded().catch(() => { });
 		try {
 			this.contextProviderBridge.schedule(
 				completionState,

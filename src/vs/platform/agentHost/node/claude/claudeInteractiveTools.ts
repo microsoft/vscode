@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { ConfirmationOptionKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, ToolCallStatus, type SessionInputOption, type SessionInputQuestion, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
-import type { SessionInputAnswer } from '../../common/state/sessionState.js';
+import { ConfirmationOptionKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ToolCallStatus, type ChatInputOption, type ChatInputQuestion, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import type { ChatInputAnswer } from '../../common/state/sessionState.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
 /**
@@ -92,12 +92,12 @@ function askUserQuestionId(header: string, idx: number): string {
 
 /**
  * Project the parsed SDK questions into the workbench's
- * {@link SessionInputQuestion} shape. `multiSelect` flips the question
+ * {@link ChatInputQuestion} shape. `multiSelect` flips the question
  * kind; the rest of the fields map 1:1.
  */
-export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestionInput): SessionInputQuestion[] {
+export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestionInput): ChatInputQuestion[] {
 	return askInput.questions.map((q, idx) => {
-		const opts: SessionInputOption[] = q.options.map(opt => ({
+		const opts: ChatInputOption[] = q.options.map(opt => ({
 			id: opt.label,
 			label: opt.label,
 			...(opt.description !== undefined ? { description: opt.description } : {}),
@@ -106,7 +106,7 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 		return q.multiSelect
 			? {
 				id,
-				kind: SessionInputQuestionKind.MultiSelect,
+				kind: ChatInputQuestionKind.MultiSelect,
 				title: q.header,
 				message: q.question,
 				options: opts,
@@ -114,7 +114,7 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 			}
 			: {
 				id,
-				kind: SessionInputQuestionKind.SingleSelect,
+				kind: ChatInputQuestionKind.SingleSelect,
 				title: q.header,
 				message: q.question,
 				options: opts,
@@ -124,30 +124,30 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 }
 
 /**
- * Re-key the workbench answers from `{questionHeader → SessionInputAnswer}`
+ * Re-key the workbench answers from `{questionHeader → ChatInputAnswer}`
  * into the production extension's `Record<questionText, valueString>`
  * contract. Skipped questions and empty answers are dropped; the result
  * is `{}` when nothing was answered. Single-select / multi-select /
  * text answer shapes flatten to a comma-joined string (matching the
  * production extension's wire format).
  */
-export function flattenAskUserAnswers(askInput: ParsedAskUserQuestionInput, answers: Record<string, SessionInputAnswer>): Record<string, string> {
+export function flattenAskUserAnswers(askInput: ParsedAskUserQuestionInput, answers: Record<string, ChatInputAnswer>): Record<string, string> {
 	const result: Record<string, string> = {};
 	for (let idx = 0; idx < askInput.questions.length; idx++) {
 		const q = askInput.questions[idx];
 		const a = answers[askUserQuestionId(q.header, idx)];
-		if (!a || a.state === SessionInputAnswerState.Skipped) {
+		if (!a || a.state === ChatInputAnswerState.Skipped) {
 			continue;
 		}
 		const parts: string[] = [];
 		const value = a.value;
-		if (value.kind === SessionInputAnswerValueKind.Selected) {
+		if (value.kind === ChatInputAnswerValueKind.Selected) {
 			if (value.value) { parts.push(value.value); }
 			if (value.freeformValues) { parts.push(...value.freeformValues); }
-		} else if (value.kind === SessionInputAnswerValueKind.SelectedMany) {
+		} else if (value.kind === ChatInputAnswerValueKind.SelectedMany) {
 			parts.push(...value.value);
 			if (value.freeformValues) { parts.push(...value.freeformValues); }
-		} else if (value.kind === SessionInputAnswerValueKind.Text) {
+		} else if (value.kind === ChatInputAnswerValueKind.Text) {
 			parts.push(value.value);
 		}
 		if (parts.length > 0) {
