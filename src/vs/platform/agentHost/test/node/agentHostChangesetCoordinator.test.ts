@@ -12,13 +12,14 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
@@ -50,6 +51,7 @@ suite('ChangesetSessionCoordinator', () => {
 		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
+		gitStateService: TestGitStateService;
 		coordinator: AgentHostChangesetCoordinator;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -58,6 +60,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
+		const gitStateService = new TestGitStateService();
 		const operationContributionService: IAgentHostChangesetOperationService = {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
@@ -65,8 +68,8 @@ suite('ChangesetSessionCoordinator', () => {
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
 		};
-		const coordinator = disposables.add(new AgentHostChangesetCoordinator(stateManager, operationContributionService, changesets, subscriptions, configurationService, monitor, gitService, new NullLogService()));
-		return { stateManager, changesets, subscriptions, monitor, gitService, coordinator };
+		const coordinator = disposables.add(new AgentHostChangesetCoordinator(stateManager, operationContributionService, changesets, subscriptions, configurationService, monitor, gitService, gitStateService, new NullLogService()));
+		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator };
 	}
 
 	test('shares root watchers across sessions and fans out root changes to static refreshes', async () => {
@@ -92,11 +95,13 @@ suite('ChangesetSessionCoordinator', () => {
 			branchRefreshes: environment.changesets.branchRefreshes,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
 			sessionRefreshes: environment.changesets.sessionRefreshes,
+			gitStateRefreshes: environment.gitStateService.refreshed,
 		}, {
 			acquisitions: ['file:///repo'],
 			branchRefreshes: [firstSession],
 			uncommittedRefreshes: [secondSession],
 			sessionRefreshes: [firstSession],
+			gitStateRefreshes: [firstSession, secondSession],
 		});
 	});
 
@@ -348,6 +353,19 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 			return deferred.p;
 		},
 	};
+}
+
+class TestGitStateService implements IAgentHostGitStateService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly refreshed: string[] = [];
+
+	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
+		this.refreshed.push(sessionKey);
+		return undefined;
+	}
+	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
+	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }
 
 class TestFileMonitorService extends Disposable implements IAgentHostFileMonitorService {

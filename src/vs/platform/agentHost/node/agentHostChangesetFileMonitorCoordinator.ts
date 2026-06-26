@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SequencerByKey } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -78,9 +78,17 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _watchAttachmentSequencer = new SequencerByKey<string>();
 	private readonly _activeTurnSequencer = new SequencerByKey<string>();
 
+	private readonly _onDidChangeSessionRoot = this._register(new Emitter<string>());
+	/**
+	 * Fires with a session URI string whenever an external file-system change
+	 * is detected on that session's repository root (and the session is not
+	 * mid-turn). Listeners use this to refresh state that depends on the
+	 * working tree / branch, e.g. the session git state.
+	 */
+	readonly onDidChangeSessionRoot: Event<string> = this._onDidChangeSessionRoot.event;
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesets: IAgentHostChangesetService,
 		private readonly _configurationService: IAgentConfigurationService,
 		private readonly _fileMonitorService: IAgentHostFileMonitorService,
 		private readonly _gitService: IAgentHostGitService,
@@ -240,7 +248,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			return;
 		}
 		for (const session of activeSessions) {
-			this._changesets.recomputeSubscribedChangesets(session);
+			this._onDidChangeSessionRoot.fire(session);
 		}
 	}
 

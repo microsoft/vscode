@@ -96,16 +96,30 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  * applied on the `vscode.lm` path in `languageModelAccess.ts`.
  *
  * Only clamps when the selection is strictly smaller than the model window so
- * the full tier ("Longer sessions without compaction") stays uncompacted.
+ * the full tier ("Longer sessions") stays uncompacted.
+ *
+ * When no explicit selection is present and the model has a long-context
+ * surcharge, falls back to the model's default context-max tier
+ * (`tokenPricing.default.contextMax`). When both tiers cost the same (no
+ * `longContext` pricing tier), skips the fallback and uses the full native
+ * window — users get long context for free.
  *
  * @internal - exported for testing
  */
 export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	// Guard against non-positive / non-finite selections (e.g. 0, -1, NaN, Infinity):
-	// a non-positive token budget would produce an invalid endpoint configuration.
-	if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0 && contextSize < endpoint.modelMaxPromptTokens) {
-		return endpoint.cloneWithTokenOverride(contextSize);
+	// Use the explicit selection when valid, otherwise fall back to the default
+	// context-max tier. Guard against non-positive / non-finite selections
+	// (e.g. 0, -1, NaN, Infinity): a non-positive token budget would produce an
+	// invalid endpoint configuration.
+	// When both tiers cost the same (no longContext pricing tier), skip the
+	// fallback and use the full model window — users get long context for free.
+	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
+	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
+		? contextSize
+		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
+	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(effectiveSize);
 	}
 	return endpoint;
 }

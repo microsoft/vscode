@@ -194,14 +194,15 @@ async function startAgentHost(): Promise<void> {
 		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
 		//     always succeeds in dev; in built products the SDK ships via
 		//     `product.agentSdks.claude` and the downloader handles it. Codex
-		//     has no equivalent dev path yet, so it still requires either the
+		//     is likewise a devDependency, so `CodexAgent._resolveSdkRoot`
+		//     resolves it from `node_modules` in dev; built products use the
 		//     env-var override or a `product.agentSdks.codex` entry.
 		// If either gate fails, the provider is not registered and never appears
 		// in the agent picker (matches the pre-CDN UX exactly).
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
-		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
 			agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 		}
 	} catch (err) {

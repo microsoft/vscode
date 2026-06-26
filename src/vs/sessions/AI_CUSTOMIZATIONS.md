@@ -14,7 +14,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagement.ts                # IDs + context keys
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
-├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
+├── aiCustomizationListWidget.ts                # Search + grouped list
 ├── aiCustomizationItemsModel.ts                # IAICustomizationItemsModel: aggregated item model + section counts
 ├── aiCustomizationItemSource.ts                # Item pipeline: ICustomizationItem → IAICustomizationListItem view model
 ├── aiCustomizationWelcomePage.ts               # Welcome page host (AICustomizationWelcomePage + implementation interface)
@@ -59,7 +59,7 @@ src/vs/sessions/contrib/chat/browser/
 ├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
-├── aiCustomizationShortcutsWidget.ts           # Sidebar shortcuts widget with header overview action
+├── aiCustomizationShortcutsWidget.ts           # Resizable sidebar shortcuts widget with overview + section links
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
@@ -186,7 +186,7 @@ In core VS Code, customization items contributed by the default chat extension (
 
 ### Management Editor Item Pipeline
 
-All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, and status fields.
+All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, plugin provenance (`pluginUri`/`pluginLabel`), and status fields.
 
 ```
 promptsService ──→ PromptsServiceCustomizationItemProvider ──→ ICustomizationItem[]
@@ -255,11 +255,15 @@ Counts shown in the sidebar (per-link badges and the header total in `AICustomiz
 
 Provider-supplied customization rows that include an explicit storage origin are treated as authoritative even when no local URI inference is available. In particular, `storage: PromptsStorage.plugin` keeps AHP remote host plugin customizations out of the User group when no local `pluginUri` exists, and `storage: BUILTIN_STORAGE` keeps provider-supplied built-ins in the Built-in group.
 
-### Sidebar Entrypoint Mode
+### MCP Active Session Status
 
-The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
 
-When the harness selector dropdown is disabled in the management editor, the sidebar overview button displays the active harness name and harness icon (matching the picker icon) with a distinct background treatment.
+### Sidebar Customizations Section
+
+The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron.
+
+The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. All entries keep the active customization harness in sync with the active session before opening the editor.
 
 ### Item Badges
 
@@ -302,8 +306,4 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-User-facing settings use the `chat.customizations.` namespace:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |
+User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor.

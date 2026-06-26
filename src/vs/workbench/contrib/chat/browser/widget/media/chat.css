@@ -988,6 +988,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		rely on a visible focus/container outline for accessibility. */
 	border-color: var(--vscode-input-border, transparent);
 	overflow: visible;
+
+	> .chat-editor-container {
+		overflow: hidden;
+	}
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working.focused {
@@ -1044,7 +1048,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
-.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty {
+.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty,
+.interactive-session .chat-secondary-toolbar .chat-input-status-container.has-no-actions {
 	display: none;
 }
 

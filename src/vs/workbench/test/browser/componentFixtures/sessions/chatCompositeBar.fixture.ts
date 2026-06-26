@@ -13,6 +13,8 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../sessi
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsPartService } from '../../../../../sessions/services/sessions/browser/sessionsPartService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -43,9 +45,12 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 	return new class extends mock<IActiveSession>() {
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly chats: IObservable<readonly IChat[]> = observableValue('chats', chats);
+		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
+		override readonly closedChats: IObservable<readonly IChat[]> = observableValue('closedChats', []);
 		override readonly mainChat: IObservable<IChat> = observableValue('mainChat', chats[0]);
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
+		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();
 }
 
@@ -66,6 +71,11 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override async openChat() { }
+				override async openNewChatInSession() { }
+				override async closeChat() { }
+			}());
+			reg.defineInstance(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override focusSession() { }
 			}());
 		},
 	});
@@ -125,13 +135,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		},
 	}),
 
-	SingleDivergedTitle: defineComponentFixture({
+	WithDraftChat: defineComponentFixture({
 		render: (ctx) => {
-			// A session with a single (default) chat whose title differs from the
-			// session title keeps the tab strip visible so both independent titles
-			// stay discoverable.
+			// A committed main chat alongside an in-composer draft (untitled)
+			// chat surfaces the tab strip. The draft is ordered last and its tab
+			// close button deletes the draft outright.
 			const main = createMockChat({ title: 'Investigate flaky test' });
-			renderBar(ctx, [main], main, false, 'Session');
+			const draft = createMockChat({ title: 'New Chat', status: SessionStatus.Untitled });
+			renderBar(ctx, [main, draft], draft, false, 'Session');
 		},
 	}),
 });
