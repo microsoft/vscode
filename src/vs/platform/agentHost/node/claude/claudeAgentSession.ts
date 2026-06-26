@@ -298,17 +298,12 @@ export class ClaudeAgentSession extends Disposable {
 	/**
 	 * One-shot SDK assistant-message uuid that the next materialize / rebuild
 	 * resumes *up to and including* (the SDK's `Options.resumeSessionAt`).
-	 * Staged by {@link truncateToTurn}; consumed-and-cleared by the next
-	 * build via {@link _consumePendingTruncationAnchor}.
+	 * Staged by {@link truncateToTurn}; read by the next build and cleared
+	 * only once that build *succeeds* (so a thrown / cancelled rebuild keeps
+	 * the anchor staged and the next send retries the truncation rather than
+	 * silently proceeding without it and undoing the checkpoint restore).
 	 */
 	private _pendingResumeSessionAt: string | undefined;
-
-	/** Reads and clears the pending truncation anchor so it applies exactly once. */
-	private _consumePendingTruncationAnchor(): string | undefined {
-		const anchor = this._pendingResumeSessionAt;
-		this._pendingResumeSessionAt = undefined;
-		return anchor;
-	}
 
 	/**
 	 * In-place truncation to `turnId` ("Restore Checkpoint"): prune the
@@ -382,7 +377,7 @@ export class ClaudeAgentSession extends Disposable {
 				permissionMode,
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
-				resumeSessionAt: this._consumePendingTruncationAnchor(),
+				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
@@ -422,6 +417,10 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
 		this._pipeline = pipeline;
+		// The materialize succeeded with the staged anchor applied to `Options`
+		// — clear it now so it isn't re-applied. A throw before this point (e.g.
+		// `startup` / pipeline-create) leaves it staged for the next retry.
+		this._pendingResumeSessionAt = undefined;
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
@@ -474,7 +473,7 @@ export class ClaudeAgentSession extends Disposable {
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
 						isResume: true,
-						resumeSessionAt: this._consumePendingTruncationAnchor(),
+						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
@@ -486,6 +485,11 @@ export class ClaudeAgentSession extends Disposable {
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+				// Rebuild succeeded with the anchor applied — clear it so it
+				// isn't re-applied. A throw above keeps it staged (handled in the
+				// catch alongside the tool/customization diffs) so the next send
+				// retries the truncation instead of dropping the restore.
+				this._pendingResumeSessionAt = undefined;
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				this.toolDiff.markDirty();

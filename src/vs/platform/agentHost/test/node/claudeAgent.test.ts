@@ -4083,6 +4083,30 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('a rebuild that fails after reading the anchor keeps it staged so the next send retries the truncation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'first', undefined, 'turn-1');
+		await agent.getSessionForTesting(created.session)!.truncateToTurn('turn-1', 'anchor-uuid');
+
+		// The anchor-carrying rebuild fails at startup (one-shot). The anchor
+		// must NOT be cleared — losing it would silently proceed without
+		// `resumeSessionAt`, undoing the checkpoint restore.
+		sdk.startupRejection = new Error('transient startup failure');
+		await assert.rejects(() => agent.sendMessage(created.session, 'second', undefined, 'turn-2'));
+
+		// Retry: the staged anchor is re-applied on the next (now-succeeding) send.
+		await agent.sendMessage(created.session, 'second-retry', undefined, 'turn-2b');
+		assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.resumeSessionAt, 'anchor-uuid');
+	});
+
 	test('truncateToTurn / pruneAllTurns reach the session database', async () => {
 		const database = new TestSessionDatabase();
 		const { agent, sdk } = createTestContext(disposables, { database });

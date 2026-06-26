@@ -116,12 +116,16 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Bind the SDK Query if the previous one has unwound (e.g. after a
-	 * terminal result message). Mirrors the lazy bind in {@link send}
-	 * so pre-flight helpers can call into the SDK without first having
-	 * to issue a user prompt.
+	 * Bind the SDK Query if needed, recovering a dead one first. Mirrors the
+	 * gate in {@link send}: if the pipeline is marked for rebind (after an
+	 * abort/crash the `_query` handle is retained for teardown but its stream
+	 * is dead), rebuild via the rematerializer so pre-flight helpers never
+	 * operate on a disposed stream. Then lazily bind if nothing is bound yet.
 	 */
 	private async _ensureQueryBound(): Promise<Query> {
+		if (this._needsRebind) {
+			await this._rebindQuery('recover');
+		}
 		if (!this._query) {
 			this._bindWarmQuery();
 			await this._replayCurrentConfig();
@@ -257,7 +261,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			await this._warm[Symbol.asyncDispose]();
 			await this._query?.return(undefined);
 		} catch (err) {
-			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] shutdownAndWait: teardown failed: ${err}`);
+			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] shutdownAndWait: teardown failed`, err);
 		}
 	}
 

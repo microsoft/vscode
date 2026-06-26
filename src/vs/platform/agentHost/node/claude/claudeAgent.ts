@@ -632,6 +632,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private async _removeAllTurns(session: URI, sessionId: string, existing: ClaudeAgentSession | undefined): Promise<void> {
 		const info = existing ? undefined : await this._sdkService.getSessionInfo(sessionId);
 		const workingDirectory = existing?.workingDirectory ?? (info?.cwd ? URI.file(info.cwd) : undefined);
+		if (!workingDirectory) {
+			// Mirror `_resumeSession` / fork: fail fast rather than recreate a
+			// provisional with no cwd that would only fail later at materialize.
+			throw new Error(`Cannot clear session ${sessionId}: workingDirectory missing (SDK cwd absent and no live session)`);
+		}
 		let overlay: IClaudeSessionOverlay = {};
 		try {
 			overlay = await this._metadataStore.read(session);
