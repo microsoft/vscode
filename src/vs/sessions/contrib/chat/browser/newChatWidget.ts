@@ -112,7 +112,7 @@ export class NewChatWidget extends Disposable {
 			return session?.loading.read(reader) ?? false;
 		});
 
-		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
@@ -121,8 +121,9 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
-		}));
-		this._register(toDisposable(() => this._newChatInput.saveState()));
+		});
+		this._register(toDisposable(() => newChatInput.saveState()));
+		this._newChatInput = this._register(newChatInput);
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
