@@ -2361,12 +2361,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
-		if (!await this._gitService.isInsideWorkTree(workingDirectory)) {
+		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(workingDirectory) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory) ?? currentBranch;
+		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
 		return { currentBranch, defaultBranch };
 	}
 
