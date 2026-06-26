@@ -42,8 +42,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
 
-		this._register(this.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
+		this._register(this.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
 		this._register(this.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 	}

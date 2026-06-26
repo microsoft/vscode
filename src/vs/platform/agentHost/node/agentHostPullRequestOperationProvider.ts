@@ -55,58 +55,46 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		const operations: ChangesetOperation[] = [
-			{
-				id: 'create-pr',
-				label: localize('agentHost.changeset.createPR', "Create Pull Request"),
-				icon: 'git-pull-request-create',
-				group: 'pull-request',
-				scopes: [ChangesetOperationScope.Changeset],
-				status: ChangesetOperationStatus.Idle,
-			},
-		];
-
-		if (outgoingChanges > 0) {
-			operations.push(
-				{
-					id: 'create-pr-auto-merge',
-					label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-Merge)"),
-					icon: 'git-merge',
-					group: 'pull-request',
-					scopes: [ChangesetOperationScope.Changeset],
-					status: ChangesetOperationStatus.Idle,
-				},
-				{
-					id: 'create-pr-auto-squash',
-					label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-Squash)"),
-					icon: 'git-merge',
-					group: 'pull-request',
-					scopes: [ChangesetOperationScope.Changeset],
-					status: ChangesetOperationStatus.Idle,
-				},
-				{
-					id: 'create-pr-auto-rebase',
-					label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-Rebase)"),
-					icon: 'git-merge',
-					group: 'pull-request',
-					scopes: [ChangesetOperationScope.Changeset],
-					status: ChangesetOperationStatus.Idle,
-				},
-			);
-		}
-
-		operations.push(
-			{
-				id: 'create-draft-pr',
-				label: localize('agentHost.changeset.createDraftPR', "Create Draft Pull Request"),
-				icon: 'git-pull-request-draft',
-				group: 'pull-request_draft',
-				scopes: [ChangesetOperationScope.Changeset],
-				status: ChangesetOperationStatus.Idle,
-			},
-		);
-
-		return operations;
+		return [{
+			id: 'create-pr',
+			label: localize('agentHost.changeset.createPR', "Create Pull Request"),
+			icon: 'git-pull-request-create',
+			group: 'pull-request',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		},
+		{
+			id: 'create-pr-auto-merge',
+			label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-Merge)"),
+			icon: 'git-merge',
+			group: 'pull-request',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		},
+		{
+			id: 'create-pr-auto-squash',
+			label: localize('agentHost.changeset.createPRAutoSquash', "Create Pull Request (Auto-Squash)"),
+			icon: 'git-merge',
+			group: 'pull-request',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		},
+		{
+			id: 'create-pr-auto-rebase',
+			label: localize('agentHost.changeset.createPRAutoRebase', "Create Pull Request (Auto-Rebase)"),
+			icon: 'git-merge',
+			group: 'pull-request',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		},
+		{
+			id: 'create-draft-pr',
+			label: localize('agentHost.changeset.createDraftPR', "Create Draft Pull Request"),
+			icon: 'git-pull-request-draft',
+			group: 'pull-request_draft',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		}] satisfies ChangesetOperation[];
 	}
 
 	private _onPullRequestCreated(event: PullRequestCreatedEvent): void {

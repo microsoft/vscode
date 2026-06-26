@@ -208,6 +208,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
