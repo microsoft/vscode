@@ -14,6 +14,10 @@ const CHAT_RESPONSE = `${CHAT_VIEW} .interactive-item-container.interactive-resp
 const CHAT_RESPONSE_COMPLETE = `${CHAT_RESPONSE}:not(.chat-response-loading)`;
 const CHAT_RESPONSE_RENDERED = `${CHAT_RESPONSE} .rendered-markdown`;
 const CHAT_FOOTER_DETAILS = `${CHAT_VIEW} .chat-footer-details`;
+const CHAT_MODEL_PICKER_NAME = `${CHAT_VIEW} .model-picker-name`;
+const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .model-picker-config`;
+const ACTION_WIDGET = '.action-widget';
+const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 const CHAT_EDITOR_INPUT_EDITOR = `${CHAT_EDITOR} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_EDITOR_INPUT_EDITOR_FOCUSED = `${CHAT_EDITOR} .interactive-input-part .monaco-editor.focused[role="code"]`;
 const CHAT_EDITOR_SEND_BUTTON_ENABLED = `${CHAT_EDITOR} .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-newline`;
@@ -216,5 +220,56 @@ export class Chat {
 				return !!text && text.length > 0;
 			});
 		});
+	}
+
+	/**
+	 * Opens the model picker (in the panel chat input) and selects the model
+	 * whose displayed name contains `modelName`. Waits for the matching row to
+	 * appear in the picker popup (models may still be registering), clicks it,
+	 * then waits for the popup to dismiss.
+	 */
+	async selectModel(modelName: string): Promise<void> {
+		await this.code.waitAndClick(CHAT_MODEL_PICKER_NAME);
+		await this.code.waitForElement(ACTION_WIDGET);
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
+		await row.waitFor({ state: 'visible', timeout: 30_000 });
+		await row.click();
+		// The picker dismisses after a selection.
+		await page.locator(ACTION_WIDGET).waitFor({ state: 'detached', timeout: 15_000 });
+	}
+
+	/**
+	 * Opens the combined model configuration dropdown (Thinking Effort / Context
+	 * Size) by clicking the model picker's configuration button. The button is
+	 * only visible when the selected model advertises configurable options, so
+	 * this waits for it to become visible before clicking.
+	 */
+	async openModelConfig(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(CHAT_MODEL_PICKER_CONFIG).waitFor({ state: 'visible', timeout: 15_000 });
+		await this.code.waitAndClick(CHAT_MODEL_PICKER_CONFIG);
+		await this.code.waitForElement(ACTION_WIDGET);
+	}
+
+	/**
+	 * Clicks the option whose label contains `label` in the open model
+	 * configuration dropdown, then waits until that option reads back as checked
+	 * (the dropdown stays open and rebuilds in place after each selection, so the
+	 * checked state confirms the underlying async configuration write resolved).
+	 */
+	async selectModelConfigOption(label: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
+		await row.click();
+		await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
+	}
+
+	/**
+	 * Dismisses the open model configuration dropdown.
+	 */
+	async closeModelConfig(): Promise<void> {
+		await this.code.driver.currentPage.keyboard.press('Escape');
+		await this.code.driver.currentPage.locator(ACTION_WIDGET).waitFor({ state: 'detached', timeout: 15_000 });
 	}
 }

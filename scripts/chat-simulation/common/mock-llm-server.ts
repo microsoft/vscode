@@ -251,6 +251,48 @@ const EXTRA_MODELS = [
 		},
 		supported_endpoints: ['/chat/completions', '/v1/messages'],
 	},
+	// mock-config-model — a Responses-API model that advertises BOTH a reasoning
+	// effort picker (capabilities.supports.reasoning_effort) AND a context size
+	// picker (a `long_context` billing tier whose context_max exceeds the default
+	// tier). Used by the `Chat Model Configuration` smoke test to verify that the
+	// reasoning effort and context size selected in the model-picker UI are
+	// forwarded to the server (as `reasoning.effort` and the context-management
+	// `compact_threshold` in the /responses request body). The `mock-config`
+	// family is intentionally absent from `modelsWithoutResponsesContextManagement`
+	// so context management stays enabled. Because a `long_context` tier is
+	// present, the extension uses `max_context_window_tokens` (200000) as the full
+	// prompt window, with `default.context_max` (128000) as the cheaper default
+	// tier — giving the picker two distinct, verifiable options.
+	{
+		id: 'mock-config-model',
+		name: 'Mock Config Model',
+		object: 'model',
+		version: 'mock-config-model',
+		vendor: 'OpenAI',
+		model_picker_enabled: true,
+		model_picker_category: 'versatile',
+		model_picker_price_category: 'medium',
+		is_chat_default: false,
+		is_chat_fallback: false,
+		preview: false,
+		billing: {
+			restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'],
+			token_prices: {
+				batch_size: 1000000,
+				default: { cache_price: 17, input_price: 175, output_price: 1400, context_max: 128000 },
+				long_context: { cache_price: 34, input_price: 350, output_price: 2800, context_max: 200000 },
+			},
+		},
+		capabilities: {
+			type: 'chat',
+			family: 'mock-config',
+			tokenizer: 'o200k_base',
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 128000, max_output_tokens: 32000, max_context_window_tokens: 200000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false, structured_outputs: true, reasoning_effort: ['low', 'medium', 'high'] },
+		},
+		supported_endpoints: ['/responses'],
+	},
 ];
 
 /**
@@ -629,7 +671,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 
 	// -- Chat Completions (DomainService.capiChatURL = /chat/completions) --
 	if (path === '/chat/completions' && req.method === 'POST') {
-		readBody().then((body: string) => handleChatCompletions(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleChatCompletions(body, res);
+		});
 		return;
 	}
 
@@ -638,7 +683,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	// The SDK expects events like response.created, response.output_item.added,
 	// response.output_text.delta, response.output_item.done, response.completed.
 	if (path === '/responses' && req.method === 'POST') {
-		readBody().then((body: string) => handleResponsesApi(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleResponsesApi(body, res);
+		});
 		return;
 	}
 
@@ -1626,6 +1674,23 @@ interface MockLlmServerHandle {
 	completionCount(): number;
 	/** Wait until at least `n` scenario chat completions have been served. */
 	waitForCompletion(n: number, timeoutMs: number): Promise<void>;
+	/**
+	 * Return the parsed bodies of the chat requests received so far (one entry
+	 * per POST to `/chat/completions` or `/responses`, in arrival order). The
+	 * `body` is the JSON-parsed request payload (or the raw string when parsing
+	 * fails). Used by tests to assert what the client forwarded to the server
+	 * (e.g. `reasoning.effort` or the context-management `compact_threshold`).
+	 */
+	getRequests(): CapturedRequest[];
+}
+
+/**
+ * A captured chat request, exposed via {@link MockLlmServerHandle.getRequests}.
+ */
+interface CapturedRequest {
+	path: string;
+	method: string;
+	body: any;
 }
 
 interface StartServerOptions {
@@ -1655,6 +1720,20 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 		};
 		serverEvents.on('scenarioCompletion', onCompletion);
 
+		// Accumulate the parsed bodies of chat requests so tests can assert what
+		// the client forwarded (see MockLlmServerHandle.getRequests).
+		const capturedRequests: CapturedRequest[] = [];
+		const onCapturedRequest = (info: { path: string; method: string; body: string }) => {
+			let parsed: any = info.body;
+			try {
+				parsed = JSON.parse(info.body);
+			} catch {
+				// Keep the raw string when the body is not valid JSON.
+			}
+			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
+		};
+		serverEvents.on('capturedRequest', onCapturedRequest);
+
 		const server = http.createServer((req, res) => {
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
@@ -1669,6 +1748,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 				url,
 				close: () => new Promise<void>((resolve, reject) => {
 					serverEvents.removeListener('scenarioCompletion', onCompletion);
+					serverEvents.removeListener('capturedRequest', onCapturedRequest);
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
 				requestCount: () => reqCount,
@@ -1689,6 +1769,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 						return false;
 					});
 				}),
+				getRequests: () => capturedRequests.slice(),
 			});
 		});
 		server.on('error', reject);
@@ -1768,6 +1849,7 @@ export type {
 	MultiTurnScenario,
 	MockLlmServerHandle,
 	StartServerOptions,
+	CapturedRequest,
 };
 
 export declare const startServer: typeof _startServer;
