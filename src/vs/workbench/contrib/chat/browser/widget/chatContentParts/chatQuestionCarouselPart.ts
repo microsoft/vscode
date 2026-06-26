@@ -504,7 +504,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns defaults for all questions.
 	 */
 	public skip(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 
@@ -525,7 +525,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns undefined to signal the carousel was ignored.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
