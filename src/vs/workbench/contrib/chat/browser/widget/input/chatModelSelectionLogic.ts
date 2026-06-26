@@ -324,3 +324,128 @@ export function shouldRestoreLateArrivingModel(
 	);
 	return result.shouldRestore;
 }
+
+/**
+ * The synthetic "Auto" model id. A configured default of `auto` resolves to the
+ * model contributed with this id (automatic model selection).
+ */
+const AUTO_MODEL_ID = 'auto';
+
+/**
+ * Compare two model version strings by their numeric segments (e.g. `4.6` > `4.5`,
+ * `5.10` > `5.9`). Non-numeric characters are ignored for the numeric comparison;
+ * the raw strings break ties for stability. A missing version sorts before any
+ * present one. Returns a negative number when `a` sorts before `b`, positive when
+ * after, and `0` when equal.
+ */
+function compareModelVersions(a: string | undefined, b: string | undefined): number {
+	const rawA = a ?? '';
+	const rawB = b ?? '';
+	const segmentsA = rawA.match(/\d+/g)?.map(Number) ?? [];
+	const segmentsB = rawB.match(/\d+/g)?.map(Number) ?? [];
+	const length = Math.max(segmentsA.length, segmentsB.length);
+	for (let i = 0; i < length; i++) {
+		const numA = segmentsA[i] ?? 0;
+		const numB = segmentsB[i] ?? 0;
+		if (numA !== numB) {
+			return numA - numB;
+		}
+	}
+	return rawA.localeCompare(rawB);
+}
+
+/**
+ * Resolve a configured default-model value to a concrete model from the given pool.
+ *
+ * The configured value (e.g. from `chat.defaultModel`, which may be set
+ * by enterprise policy) is matched case-insensitively in this order:
+ * 1. `auto` — the synthetic "Auto" model (id `auto`), when present.
+ * 2. A full model id — an exact match on `metadata.id`.
+ * 3. A model family name (e.g. `opus`, `gemini`) — the model with the highest
+ *    {@link compareModelVersions version} among models whose `metadata.family` matches.
+ *
+ * Returns `undefined` when the value is empty or no model matches, letting the caller
+ * fall back to its normal default selection.
+ */
+export function resolveConfiguredModel(
+	configuredValue: string | undefined,
+	models: ILanguageModelChatMetadataAndIdentifier[],
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const value = configuredValue?.trim().toLowerCase();
+	if (!value) {
+		return undefined;
+	}
+
+	if (value === AUTO_MODEL_ID) {
+		return models.find(m => m.metadata.id?.trim().toLowerCase() === AUTO_MODEL_ID);
+	}
+
+	const byId = models.find(m => m.metadata.id?.trim().toLowerCase() === value);
+	if (byId) {
+		return byId;
+	}
+
+	const family = models.filter(m => m.metadata.family?.trim().toLowerCase() === value);
+	if (family.length > 0) {
+		return family.reduce((latest, candidate) =>
+			compareModelVersions(candidate.metadata.version, latest.metadata.version) > 0 ? candidate : latest
+		);
+	}
+
+	return undefined;
+}
+
+/**
+ * Why a model picker has no model to offer, when that is the case. Drives a
+ * "Pick Model" placeholder plus a contextual action instead of a misleading
+ * lone "Auto".
+ */
+export const enum ModelPickerUnavailableReason {
+	/** The workspace is untrusted, which disables the model providers. */
+	Restricted = 'restricted',
+	/** Chat requires sign-in / setup before any model is available. */
+	SetupRequired = 'setupRequired',
+}
+
+/**
+ * Determines whether a model picker should present an "unavailable" state and,
+ * if so, why. Returns `undefined` when the picker has a usable model (or its
+ * state is not yet known), so the normal model / Auto label is shown.
+ *
+ * A model counts as usable only when it is both offered by this picker
+ * (`pickerModels`, already filtered to the picker's location / session type) AND
+ * currently live in the language model registry (`liveModelIds`). This ignores
+ * two kinds of phantom models that would otherwise mask the unavailable state:
+ * - stale cross-window machine cache entries (present in `pickerModels` but not live), and
+ * - models registered for other surfaces such as agent-host session-scoped models
+ *   (live in the global registry but not offered by this picker).
+ *
+ * A live, picker-offered model (e.g. BYOK) always wins, so BYOK and anonymous
+ * access are never shown an unavailable state. `trusted` reflects
+ * `isWorkspaceTrusted()` (which is `true` when trust is disabled entirely) and is
+ * only authoritative once `trustInitialized` is `true`; until then this returns
+ * `undefined` to avoid a trusted workspace briefly rendering as unavailable at
+ * startup. Restricted (untrusted) takes precedence over setup-required.
+ */
+export function getModelPickerUnavailableReason(context: {
+	readonly trustInitialized: boolean;
+	readonly trusted: boolean;
+	readonly pickerModels: readonly ILanguageModelChatMetadataAndIdentifier[];
+	readonly liveModelIds: Iterable<string>;
+	readonly requiresSetup: boolean;
+}): ModelPickerUnavailableReason | undefined {
+	if (!context.trustInitialized) {
+		return undefined;
+	}
+	const live = context.liveModelIds instanceof Set ? context.liveModelIds : new Set(context.liveModelIds);
+	if (context.pickerModels.some(model => live.has(model.identifier))) {
+		return undefined;
+	}
+	if (!context.trusted) {
+		return ModelPickerUnavailableReason.Restricted;
+	}
+	if (context.requiresSetup) {
+		return ModelPickerUnavailableReason.SetupRequired;
+	}
+	return undefined;
+}

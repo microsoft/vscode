@@ -64,6 +64,9 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDispl
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
+import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
@@ -613,6 +616,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
+					if (action.item.id === RestoreCheckpointActionId) {
+						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					}
 					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}
 				return undefined;
@@ -746,6 +752,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
 		return template;
+	}
+
+	/**
+	 * Determines whether restoring to the checkpoint at the given chat item
+	 * would discard file edits that the user should confirm in-place. Used by
+	 * the "Restore Checkpoint" button to present an inline confirm/cancel
+	 * affordance for agent host sessions, which do not surface the modal
+	 * removal-confirmation dialog used by the standard editing session.
+	 */
+	private checkpointRestoreNeedsConfirmation(context: unknown): boolean {
+		if (!isRequestVM(context) && !isResponseVM(context)) {
+			return false;
+		}
+
+		const requestId = isRequestVM(context) ? context.id : context.requestId;
+		const model = this.chatService.getSession(context.sessionResource);
+		const session = model?.editingSession;
+		if (!model || !(session instanceof AgentHostSnapshotController)) {
+			return false;
+		}
+
+		const requests = model.getRequests();
+		const index = requests.findIndex(request => request.id === requestId);
+		if (index === -1) {
+			return false;
+		}
+
+		return requests.slice(index).some(request => session.hasEditsInRequest(request.id));
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {

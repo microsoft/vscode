@@ -162,6 +162,15 @@ export interface IAgentFeedbackService {
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
 
 	/**
+	 * Whether {@link getFeedback} reflects the authoritative item set for the
+	 * session. For agent-host sessions this is `false` until the session's
+	 * annotations snapshot has been received; for other sessions it is always
+	 * `true`. Callers that seed feedback from another source must wait for this
+	 * to avoid acting on a transiently-empty list.
+	 */
+	hasLoadedFeedback(sessionResource: URI): boolean;
+
+	/**
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
@@ -214,9 +223,9 @@ export interface IAgentFeedbackService {
 
 	/**
 	 * Submit the currently accumulated accepted feedback for the session to the
-	 * agent and mark those items as submitted.
+	 * agent and mark those items as submitted. Returns whether the feedback was submitted.
 	 */
-	submitFeedback(sessionResource: URI): Promise<void>;
+	submitFeedback(sessionResource: URI): Promise<boolean>;
 
 	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
@@ -440,6 +449,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._backendForSession(sessionResource).getItems(sessionResource);
 	}
 
+	hasLoadedFeedback(sessionResource: URI): boolean {
+		return this._backendForSession(sessionResource).hasLoaded(sessionResource);
+	}
+
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined {
 		let bestSession: URI | undefined;
 		let bestSequence = -1;
@@ -648,11 +661,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
-	async submitFeedback(sessionResource: URI): Promise<void> {
+	async submitFeedback(sessionResource: URI): Promise<boolean> {
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
-			return;
+			return false;
 		}
 
 		// Agent-host sessions don't keep a reactive feedback attachment in the
@@ -674,13 +687,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				await widget.acceptInput('/act-on-feedback');
 			} catch (err) {
 				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-				return;
+				return false;
 			} finally {
 				widget.attachmentModel.delete(attachmentId);
 			}
 
 			this.markFeedbackSubmitted(sessionResource);
-			return;
+			return true;
 		}
 
 		// Send first so the accepted feedback is still attached to the request,
@@ -691,10 +704,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-			return;
+			return false;
 		}
 
 		this.markFeedbackSubmitted(sessionResource);
+		return true;
 	}
 
 	markFeedbackSubmitted(sessionResource: URI): void {

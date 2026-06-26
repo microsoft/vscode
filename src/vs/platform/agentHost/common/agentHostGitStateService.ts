@@ -21,16 +21,15 @@ export interface IAgentHostGitStateService {
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<ISessionGitState | undefined | null>;
 
 	/**
-	 * Gets the GitHub state for a given session.
-	 * @param sessionKey The key of the session for which to get the GitHub state.
-	 * @returns A promise that resolves to the GitHub state, or `undefined` if it is not available.
-	 */
-	getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined>;
-
-	/**
 	 * Sets the GitHub state for a given session.
 	 * @param sessionKey The key of the session for which to set the GitHub state.
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;
+
+	/**
+	 * Find a GitHub pull request for the given session and save it to the session state.
+	 * @param sessionKey The key of the session for which to check the GitHub pull request.
+	 */
+	attachSessionGitHubPullRequest(sessionKey: string): Promise<void>;
 }
