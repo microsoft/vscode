@@ -116,6 +116,17 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	/**
+	 * Pending download-progress tokens, keyed by provider id then session URI
+	 * (toString). A session is registered here when its `createSession` carries
+	 * a {@link IAgentCreateSessionConfig.progressToken} and removed once it
+	 * materializes (the SDK is now resolved) or is disposed. The SDK download is
+	 * host-level and shared across every session of a provider, and its progress
+	 * events are keyed by package id (which equals the provider id) — so on a
+	 * download frame we fan it out as one `progress` notification per waiting
+	 * session's token. See {@link emitDownloadProgress}.
+	 */
+	private readonly _downloadProgressTokens = new Map<AgentProvider, Map<string, string>>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
 	private readonly _authService: AgentHostAuthenticationService;
@@ -599,6 +610,17 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
+		// Register the client's opt-in progress token so a cold SDK download
+		// triggered at materialization (first message) reports back to the
+		// `createSession` call that requested it. Cleared on materialize/dispose.
+		if (config?.progressToken) {
+			let bySession = this._downloadProgressTokens.get(provider.id);
+			if (!bySession) {
+				bySession = new Map<string, string>();
+				this._downloadProgressTokens.set(provider.id, bySession);
+			}
+			bySession.set(session.toString(), config.progressToken);
+		}
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
 		// Resolve config and seed the initial customization set in parallel so
@@ -814,6 +836,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
 		const sessionKey = e.session.toString();
+		// The session is now materialized — its SDK is resolved (any cold
+		// download already finished), so no further progress is expected for it.
+		this._clearDownloadProgressToken(sessionKey);
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
@@ -846,6 +871,49 @@ export class AgentService extends Disposable implements IAgentService {
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
+	}
+
+	/** Remove a session's pending download-progress token, if any. */
+	private _clearDownloadProgressToken(sessionKey: string): void {
+		for (const [provider, bySession] of this._downloadProgressTokens) {
+			if (bySession.delete(sessionKey) && bySession.size === 0) {
+				this._downloadProgressTokens.delete(provider);
+			}
+		}
+	}
+
+	/**
+	 * Fan a host-level SDK download-progress sample out to the clients waiting
+	 * on it. The downloader fires process-global frames keyed by package id
+	 * (which equals the provider id); we emit one generic `progress`
+	 * notification per session of that provider that supplied a
+	 * {@link IAgentCreateSessionConfig.progressToken} on `createSession`, so the
+	 * client can correlate it back to that call. A terminal frame reports
+	 * `total === progress` (using `receivedBytes` when the size was never known)
+	 * so clients dismiss the indicator, and clears the provider's tokens.
+	 *
+	 * `displayName` is the provider's brand noun (e.g. `Claude`). It is woven
+	 * into the notification's localized, human-readable `message` (e.g.
+	 * "Downloading Claude agent…") so a generic client can render the indicator
+	 * verbatim without knowing the resource is an agent SDK.
+	 */
+	emitDownloadProgress(packageId: string, displayName: string, receivedBytes: number, totalBytes: number | undefined, terminal: boolean): void {
+		const bySession = this._downloadProgressTokens.get(packageId);
+		if (!bySession || bySession.size === 0) {
+			return;
+		}
+		// On a terminal frame force `progress === total` so clients treat the
+		// operation as complete (covers both the determinate case and the
+		// indeterminate one where `totalBytes` was never known, plus failures —
+		// the real error surfaces via the session-failure path).
+		const total = terminal ? receivedBytes : totalBytes;
+		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} agent…", displayName);
+		for (const progressToken of new Set(bySession.values())) {
+			this._stateManager.emitProgress({ progressToken, progress: receivedBytes, total, message });
+		}
+		if (terminal) {
+			this._downloadProgressTokens.delete(packageId);
+		}
 	}
 
 	/**
@@ -966,6 +1034,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider) {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
+			this._clearDownloadProgressToken(session.toString());
 		}
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
@@ -2211,6 +2280,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		await Promise.all(promises);
 		this._sessionToProvider.clear();
+		this._downloadProgressTokens.clear();
 	}
 
 	// ---- helpers ------------------------------------------------------------
