@@ -28,6 +28,10 @@ Nested `telemetry` block in the managed-settings response:
 - **Owner:** the `chat.agentHost.otel.*` settings carry the `policy:` definitions.
 - **Reference:** the `github.copilot.chat.otel.*` (extension) settings point at the same
   policies (`policyReference`), so a single managed value applies to **both** setting surfaces.
+- **Constraint:** `policyReference` maps one policy to two settings, so the owning and referencing
+  settings **must have identical types**. Confirmed OK — `chat.agentHost.otel.*` and
+  `github.copilot.chat.otel.*` already share the same setting types. (`policyReference` is a
+  newly-introduced pattern; extensible if the type-match rule needs to loosen.)
 
 ## Precedence & enforcement
 
@@ -79,7 +83,8 @@ CLI's `server ?? mdm`. Main-process wiring is in [main.ts](src/vs/code/electron-
 
 1. **Register keys** in [copilotManagedSettings.ts](src/vs/platform/policy/common/copilotManagedSettings.ts):
    the `telemetry.*` constants + the nested `telemetry` object in the `STRUCTURED_MANAGED_SETTINGS`
-   table. Scalars (`enabled`/`endpoint`/`protocol`/`captureContent`/`lockCaptureContent`/`serviceName`)
+   table. **All managed-settings deserialization/mapping stays in that table** (one `encode` row per
+   structured key). Scalars (`enabled`/`endpoint`/`protocol`/`captureContent`/`lockCaptureContent`/`serviceName`)
    flatten trivially, but **`headers` and `resourceAttributes` are `Record<string,string>` maps and
    MUST use the structured-key JSON-encode path** (like `enabledPlugins` / `extraKnownMarketplaces`),
    not the scalar dot-path flattener. Validate block shape (URL, protocol values, map values).
