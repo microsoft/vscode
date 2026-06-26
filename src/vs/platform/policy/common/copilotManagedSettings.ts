@@ -38,6 +38,30 @@ export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 /** Managed-settings key for the default chat model (carried as a plain string: `auto`, a model family name, or a full model id). */
 export const COPILOT_MODEL_KEY = 'model';
 
+/**
+ * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
+ * `telemetry` block from the cross-client managed-settings schema (see the CLI
+ * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
+ * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
+ * The `telemetry.headers` / `telemetry.resourceAttributes` map fields are intentionally not
+ * carried yet — they require a dedicated owner setting plus structured-key handling.
+ */
+
+/** Managed-settings key for enterprise OTel enablement. */
+export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
+
+/** Managed-settings key for the enterprise OTLP collector endpoint. */
+export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
+
+/** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
+export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
+
+/** Managed-settings key for enterprise OTel content capture. */
+export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
+
+/** Managed-settings key that prevents users from enabling OTel content capture themselves. */
+export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
+
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
 /**
