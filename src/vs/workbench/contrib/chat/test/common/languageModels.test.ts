@@ -11,7 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -23,6 +23,8 @@ import { IInputBox, IQuickInputHideEvent, IQuickInputService, QuickInputHideReas
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('LanguageModels', function () {
 
@@ -53,6 +55,7 @@ suite('LanguageModels', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		languageModels.deltaLanguageModelChatProviderDescriptors([
@@ -434,6 +437,7 @@ suite('LanguageModels - When Clause', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
@@ -497,6 +501,7 @@ suite('LanguageModels - Model Change Events', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		// Register the vendor first
@@ -841,6 +846,7 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 	});
 
@@ -963,6 +969,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1145,6 +1152,7 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1286,6 +1294,7 @@ suite('LanguageModels - Provider Group Management', function () {
 			secretStorageService,
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1449,6 +1458,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1521,6 +1531,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1582,6 +1593,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestSecretStorageService(),
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
+			NullTelemetryService,
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1701,6 +1713,113 @@ suite('createModelConfigurationActions', function () {
 
 		submenu.actions[2].run();
 		assert.deepStrictEqual(calls, [{ key: 'thinkingEffort', value: 'high' }]);
+	});
+});
+
+suite('LanguageModels - provider usage telemetry', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class CapturingTelemetryService implements Partial<ITelemetryService> {
+		readonly events: { eventName: string; data: any }[] = [];
+		publicLog2<E extends Record<string, any>, T extends Record<string, any>>(eventName: string, data?: E): void {
+			this.events.push({ eventName, data });
+		}
+	}
+
+	async function sendRequestForVendor(vendor: string, isBYOK?: boolean): Promise<{ eventName: string; data: any }[]> {
+		const telemetry = new CapturingTelemetryService();
+		const service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() { return Promise.resolve(); }
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() { return []; }
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			telemetry as unknown as ITelemetryService,
+		));
+
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => ([{
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model',
+					vendor,
+					family: 'family',
+					version: '1.0',
+					id: `${vendor}-model`,
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isBYOK,
+					isDefaultForLocation: {}
+				} satisfies ILanguageModelChatMetadata,
+				identifier: `${vendor}-model`
+			}]),
+			sendChatRequest: async () => {
+				const defer = new DeferredPromise<void>();
+				const stream = new AsyncIterableSource<IChatResponsePart>();
+				stream.resolve();
+				defer.complete();
+				return { stream: stream.asyncIterable, result: defer.p };
+			},
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const models = await service.selectLanguageModels({ vendor });
+		assert.strictEqual(models.length, 1);
+
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await service.sendChatRequest(models[0], nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hi' }] }], {}, cts.token);
+		await request.result;
+
+		return telemetry.events.filter(e => e.eventName === 'chat.languageModelRequest');
+	}
+
+	test('getByokProviderTelemetryName classifies vendors', function () {
+		assert.deepStrictEqual(
+			[
+				getByokProviderTelemetryName(undefined),
+				getByokProviderTelemetryName(COPILOT_VENDOR_ID),
+				getByokProviderTelemetryName('openai'),
+				getByokProviderTelemetryName('ollama'),
+				getByokProviderTelemetryName('some-third-party-vendor'),
+			],
+			[undefined, undefined, 'openai', 'ollama', THIRD_PARTY_PROVIDER_TELEMETRY_NAME]
+		);
+	});
+
+	test('sendChatRequest reports an in-built BYOK provider by name', async function () {
+		const events = await sendRequestForVendor('openai', true);
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: 'openai', isBYOK: true }]);
+	});
+
+	test('sendChatRequest buckets third-party extension providers as 3p-extension', async function () {
+		const events = await sendRequestForVendor('some-third-party-vendor');
+		assert.deepStrictEqual(events.map(e => e.data), [{ provider: THIRD_PARTY_PROVIDER_TELEMETRY_NAME, isBYOK: false }]);
+	});
+
+	test('sendChatRequest does not report first-party Copilot models', async function () {
+		const events = await sendRequestForVendor(COPILOT_VENDOR_ID);
+		assert.strictEqual(events.length, 0);
 	});
 });
 
