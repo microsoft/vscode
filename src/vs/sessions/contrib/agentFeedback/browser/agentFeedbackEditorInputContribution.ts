@@ -5,23 +5,34 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { addStandardDisposableListener, getWindow, isHTMLElement, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+
+const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
+const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
+const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
 
 class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
@@ -232,15 +243,25 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
 	private _session: ISession | undefined;
-	private _pinnedSelection: Selection | undefined;
+	private _pinnedRange: Range | undefined;
+	private _anchorPosition: Position | undefined;
+	private _preferBelow = true;
+	private _hoverLineNumber: number | undefined;
+	private readonly _hoverDecorations: IEditorDecorationsCollection;
+	private readonly _hasAgentFeedbackSessionContext: IContextKey<boolean>;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._hoverDecorations = this._editor.createDecorationsCollection();
+		this._store.add({ dispose: () => this._hoverDecorations.clear() });
+		this._hasAgentFeedbackSessionContext = hasAgentFeedbackSessionForEditor.bindTo(this._contextKeyService);
 
 		this._store.add(this._editor.onDidChangeCursorSelection(() => this._onSelectionChanged()));
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
@@ -257,8 +278,21 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				this._updatePosition();
 			}
 		}));
+		this._store.add(this._editor.onMouseMove(e => this._onEditorMouseMove(e)));
+		this._store.add(this._editor.onMouseLeave(() => this._clearHoverGlyph()));
 		this._store.add(this._editor.onMouseDown((e) => {
 			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
+			if (this._isHoverGlyphTarget(e)) {
+				e.event.preventDefault();
+				e.event.stopPropagation();
+				this._mouseDown = true;
+				this._suppressSelectionChangeOnce = true;
+				const lineNumber = e.target.position?.lineNumber;
+				if (lineNumber !== undefined) {
+					this._showAtLine(lineNumber, true);
+				}
 				return;
 			}
 			this._mouseDown = true;
@@ -267,6 +301,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._store.add(this._editor.onMouseUp((e) => {
 			this._mouseDown = false;
 			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
+			if (this._isHoverGlyphTarget(e)) {
 				return;
 			}
 			this._onSelectionChanged();
@@ -287,10 +324,15 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			}, 0);
 		}));
 		this._store.add(this._editor.onDidFocusEditorText(() => this._onSelectionChanged()));
+		this._getSessionForModel();
 	}
 
 	private _isWidgetTarget(target: EventTarget | Element | null): boolean {
 		return !!this._widget && !!target && this._widget.getDomNode().contains(target as Node);
+	}
+
+	private _isHoverGlyphTarget(e: IEditorMouseEvent): boolean {
+		return isHTMLElement(e.target.element) && e.target.element.classList.contains(agentFeedbackHoverGlyphClassName);
 	}
 
 	private _ensureWidget(): AgentFeedbackInputWidget {
@@ -305,8 +347,53 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _onModelChanged(): void {
 		this._hide();
+		this._clearHoverGlyph();
 		this._suppressSelectionChangeOnce = false;
 		this._session = undefined;
+		this._getSessionForModel();
+	}
+
+	private _onEditorMouseMove(e: IEditorMouseEvent): void {
+		if (this._visible || this._hasInputText()) {
+			this._clearHoverGlyph();
+			return;
+		}
+		this._updateHoverGlyph(e.target.position?.lineNumber);
+	}
+
+	private _updateHoverGlyph(lineNumber: number | undefined): void {
+		const model = this._editor.getModel();
+		if (lineNumber === undefined || !model || lineNumber < 1 || lineNumber > model.getLineCount()) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		if (this._hoverLineNumber === lineNumber) {
+			return;
+		}
+
+		if (!this._getSessionForModel()) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		this._hoverLineNumber = lineNumber;
+		this._hoverDecorations.set([{
+			range: new Range(lineNumber, 1, lineNumber, 1),
+			options: {
+				description: 'agent-feedback-hover-glyph',
+				isWholeLine: true,
+				linesDecorationsClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+			},
+		}]);
+	}
+
+	private _clearHoverGlyph(): void {
+		if (this._hoverLineNumber === undefined) {
+			return;
+		}
+		this._hoverLineNumber = undefined;
+		this._hoverDecorations.clear();
 	}
 
 	private _onSelectionChanged(): void {
@@ -338,29 +425,37 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const session = this._agentFeedbackService.getSessionForFile(model.uri);
+		const session = this._getSessionForModel();
 		if (!session) {
 			this._autoHide();
 			return;
 		}
 
 		this._session = session;
-		this._show();
+		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
+		const anchorPosition = preferBelow ? selection.getEndPosition() : selection.getStartPosition();
+		this._show(Range.lift(selection), anchorPosition, preferBelow);
 	}
 
-	private _show(): void {
+	private _show(range: Range, anchorPosition: Position, preferBelow: boolean, focusInput = false): void {
 		const widget = this._ensureWidget();
+		this._clearHoverGlyph();
 
 		if (!this._visible) {
 			this._visible = true;
 			this._registerWidgetListeners(widget);
 		}
 
+		this._pinnedRange = range;
+		this._anchorPosition = anchorPosition;
+		this._preferBelow = preferBelow;
 		widget.setPlaceholder(this._getPlaceholder());
 		widget.clearInput();
 		widget.show();
-		this._pinnedSelection = this._editor.getSelection() ?? undefined;
 		this._updatePosition();
+		if (focusInput) {
+			widget.inputElement.focus();
+		}
 	}
 
 	private _getPlaceholder(): string {
@@ -376,7 +471,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._visible = false;
-		this._pinnedSelection = undefined;
+		this._pinnedRange = undefined;
+		this._anchorPosition = undefined;
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -388,6 +484,47 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _hasInputText(): boolean {
 		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
+	}
+
+	showAtCurrentLine(focusInput = true): void {
+		const position = this._editor.getPosition();
+		if (!position) {
+			return;
+		}
+		this._showAtLine(position.lineNumber, focusInput);
+	}
+
+	private _showAtLine(lineNumber: number, focusInput: boolean): void {
+		if (this._visible && this._hasInputText()) {
+			this.focusInput();
+			return;
+		}
+
+		const model = this._editor.getModel();
+		if (!model || lineNumber < 1 || lineNumber > model.getLineCount()) {
+			this._autoHide();
+			return;
+		}
+
+		const session = this._getSessionForModel();
+		if (!session) {
+			this._autoHide();
+			return;
+		}
+
+		this._session = session;
+		this._show(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), new Position(lineNumber, 1), true, focusInput);
+	}
+
+	private _getSessionForModel(): ISession | undefined {
+		const model = this._editor.getModel();
+		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+			this._hasAgentFeedbackSessionContext.set(false);
+			return undefined;
+		}
+		const session = this._agentFeedbackService.getSessionForFile(model.uri);
+		this._hasAgentFeedbackSessionContext.set(!!session);
+		return session;
 	}
 
 	/**
@@ -541,13 +678,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		const selection = this._pinnedSelection ?? this._editor.getSelection();
+		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._session) {
+		if (!range || !model || !this._session) {
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._session.resource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+		this._agentFeedbackService.addFeedback(this._session.resource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -562,30 +699,19 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._pinnedSelection ?? this._editor.getSelection();
+		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._session) {
+		if (!range || !model || !this._session) {
 			return;
 		}
 
 		const sessionResource = this._session.resource;
 		this._hideAndRefocusEditor();
-		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 	}
 
 	private _updatePosition(): void {
 		if (!this._widget || !this._visible) {
-			return;
-		}
-
-		// While the user has typed text, keep the widget anchored to the
-		// selection it was opened against so it doesn't follow new selections
-		// or hide when the user clicks elsewhere in the editor.
-		const selection = (this._hasInputText() && this._pinnedSelection)
-			? this._pinnedSelection
-			: this._editor.getSelection();
-		if (!selection) {
-			this._autoHide();
 			return;
 		}
 
@@ -595,16 +721,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		const widgetHeight = widgetDom.offsetHeight || 30;
 		const widgetWidth = widgetDom.offsetWidth || 150;
 
-		if (selection.isEmpty()) {
+		const target = this._getPositioningTarget();
+		if (!target) {
 			this._autoHide();
 			return;
 		}
 
-		const cursorPosition = selection.getDirection() === SelectionDirection.LTR
-			? selection.getEndPosition()
-			: selection.getStartPosition();
-
-		const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
+		const scrolledPosition = this._editor.getScrolledVisiblePosition(target.anchorPosition);
 		if (!scrolledPosition) {
 			this._widget.setPosition(null);
 			return;
@@ -612,7 +735,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		// Compute vertical position, flipping if out of bounds
 		let top: number;
-		if (selection.getDirection() === SelectionDirection.LTR) {
+		if (target.preferBelow) {
 			// Cursor at end (bottom) of selection → prefer below the cursor line
 			top = scrolledPosition.top + lineHeight;
 			if (top + widgetHeight > layoutInfo.height) {
@@ -645,6 +768,23 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._widget.setPosition({ preference: { top, left } });
 	}
 
+	private _getPositioningTarget(): { anchorPosition: Position; preferBelow: boolean } | undefined {
+		if (this._pinnedRange && this._anchorPosition) {
+			return { anchorPosition: this._anchorPosition, preferBelow: this._preferBelow };
+		}
+
+		const selection = this._editor.getSelection();
+		if (!selection || selection.isEmpty()) {
+			return undefined;
+		}
+
+		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
+		return {
+			anchorPosition: preferBelow ? selection.getEndPosition() : selection.getStartPosition(),
+			preferBelow,
+		};
+	}
+
 	override dispose(): void {
 		if (this._widget) {
 			this._editor.removeOverlayWidget(this._widget);
@@ -655,4 +795,28 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 }
 
+class AddFeedbackAtCurrentLineAction extends Action2 {
+
+	constructor() {
+		super({
+			id: addFeedbackAtCurrentLineActionId,
+			title: localize2('agentFeedback.addAtCurrentLine', 'Add Feedback at Current Line'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasAgentFeedbackSessionForEditor),
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasAgentFeedbackSessionForEditor),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
+		const contribution = editor?.getContribution<AgentFeedbackEditorInputContribution>(AgentFeedbackEditorInputContribution.ID);
+		contribution?.showAtCurrentLine(true);
+	}
+}
+
+registerAction2(AddFeedbackAtCurrentLineAction);
 registerEditorContribution(AgentFeedbackEditorInputContribution.ID, AgentFeedbackEditorInputContribution, EditorContributionInstantiation.Eventually);
