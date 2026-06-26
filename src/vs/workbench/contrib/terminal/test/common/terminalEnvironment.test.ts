@@ -321,6 +321,51 @@ suite('Workbench - TerminalEnvironment', () => {
 				{ foo: 'bar', empty: '', ...commonVariables }
 			);
 		});
+		test('should restore NODE_OPTIONS from VSCODE_NODE_OPTIONS on Windows', async () => {
+			if (!isWindows) {
+				// Skip test on non-Windows platforms
+				return;
+			}
+			const env = {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			// NODE_OPTIONS should be restored from VSCODE_NODE_OPTIONS
+			strictEqual(result['NODE_OPTIONS'], '--max-old-space-size=8192', 'NODE_OPTIONS should be restored from VSCODE_NODE_OPTIONS');
+			// VSCODE_NODE_OPTIONS should be removed after restoration
+			strictEqual(result['VSCODE_NODE_OPTIONS'], undefined, 'VSCODE_NODE_OPTIONS should be removed after restoration');
+		});
+		test('should also restore NODE_REPL_EXTERNAL_MODULE from VSCODE_NODE_REPL_EXTERNAL_MODULE on Windows', async () => {
+			if (!isWindows) {
+				// Skip test on non-Windows platforms
+				return;
+			}
+			const env = {
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'some-module'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			// NODE_REPL_EXTERNAL_MODULE should be restored from VSCODE_NODE_REPL_EXTERNAL_MODULE
+			strictEqual(result['NODE_REPL_EXTERNAL_MODULE'], 'some-module', 'NODE_REPL_EXTERNAL_MODULE should be restored from VSCODE_NODE_REPL_EXTERNAL_MODULE');
+			// VSCODE_NODE_REPL_EXTERNAL_MODULE should be removed after restoration
+			strictEqual(result['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined, 'VSCODE_NODE_REPL_EXTERNAL_MODULE should be removed after restoration');
+		});
+		test('should restore both NODE env vars from VSCODE variants on Windows', async () => {
+			if (!isWindows) {
+				// Skip test on non-Windows platforms
+				return;
+			}
+			const env = {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192',
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'repl-module'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			// Both should be restored
+			strictEqual(result['NODE_OPTIONS'], '--max-old-space-size=8192', 'NODE_OPTIONS should be restored');
+			strictEqual(result['NODE_REPL_EXTERNAL_MODULE'], 'repl-module', 'NODE_REPL_EXTERNAL_MODULE should be restored');
+			// Both VSCODE variants should be removed
+			strictEqual(result['VSCODE_NODE_OPTIONS'], undefined, 'VSCODE_NODE_OPTIONS should be removed');
+			strictEqual(result['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined, 'VSCODE_NODE_REPL_EXTERNAL_MODULE should be removed');
+		});
 	});
 	suite('getWorkspaceForTerminal', () => {
 		test('should resolve workspace folder from cwd, not last active workspace', () => {
