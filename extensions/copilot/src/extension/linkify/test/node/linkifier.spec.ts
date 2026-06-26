@@ -7,6 +7,7 @@ import { suite, test } from 'vitest';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { coalesceParts, LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { ILinkifier, LinkifierContext } from '../../common/linkifyService';
+import { PromptReference } from '../../../prompt/common/conversation';
 import { assertPartsEqual, createTestLinkifierService, workspaceFile } from './util';
 
 const emptyContext: LinkifierContext = { requestId: undefined, references: [] };
@@ -517,6 +518,52 @@ suite('Stateful Linkifier', () => {
 		]);
 		assertPartsEqual(result, [
 			'`space file.ts`',
+		]);
+	});
+
+	test(`Should not linkify words inside inline code even if a word matches a workspace file`, async () => {
+		// `cancels mid-stream` should not linkify `stream` even though stream.ts exists
+		const linkifier = createTestLinkifierService(
+			'stream.ts',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`cancels mid-stream`',
+		]);
+		assertPartsEqual(result, [
+			'`cancels mid-stream`',
+		]);
+	});
+
+	test(`Should not linkify words inside inline code even if a word matches a reference`, async () => {
+		// `cancels mid-stream` should not linkify `stream` even though
+		// stream.ts is in the conversation references
+		const references = [new PromptReference(workspaceFile('stream.ts'))];
+		const context: LinkifierContext = { requestId: undefined, references };
+		const linkifier = createTestLinkifierService(
+			'stream.ts',
+		).createLinkifier(context);
+
+		const result = await runLinkifier(linkifier, [
+			'`cancels mid-stream`',
+		]);
+		assertPartsEqual(result, [
+			'`cancels mid-stream`',
+		]);
+	});
+
+	test(`Should not linkify command inline code even if a path arg exists in workspace`, async () => {
+		// `node ./node_modules/playwright-core/cli.js install-deps` should not linkify
+		// `./node_modules/playwright-core/cli.js` even though that file exists
+		const linkifier = createTestLinkifierService(
+			'node_modules/playwright-core/cli.js',
+		).createLinkifier(emptyContext);
+
+		const result = await runLinkifier(linkifier, [
+			'`node ./node_modules/playwright-core/cli.js install-deps`',
+		]);
+		assertPartsEqual(result, [
+			'`node ./node_modules/playwright-core/cli.js install-deps`',
 		]);
 	});
 });
