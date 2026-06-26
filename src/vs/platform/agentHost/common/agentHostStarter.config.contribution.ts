@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../nls.js';
+import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, managedSettingValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -39,6 +41,40 @@ import {
 //     (renderer registration for the settings UI).
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+// Custom managed-settings resolvers for the enterprise OTel policies. The simple pass-through
+// keys use `managedSettingValue(KEY)`; these three combine or transform the managed value:
+//   - protocol: the schema's OTLP protocol string maps onto the agent-host exporter type.
+//   - captureContent: explicit boolean wins; otherwise `lockCaptureContent` forces it off.
+//   - outfile: when the enterprise mandates an OTLP endpoint/protocol, local file export is
+//     suppressed so spans can't be diverted to disk.
+function managedOTelProtocolValue(policyData: IPolicyData): string | undefined {
+	const protocol = policyData.managedSettings?.[COPILOT_OTEL_PROTOCOL_KEY];
+	if (protocol === 'grpc') {
+		return 'otlp-grpc';
+	}
+	if (protocol === 'http/protobuf' || protocol === 'http/json') {
+		return 'otlp-http';
+	}
+	return undefined;
+}
+
+function managedOTelCaptureContentValue(policyData: IPolicyData): boolean | undefined {
+	const captureContent = policyData.managedSettings?.[COPILOT_OTEL_CAPTURE_CONTENT_KEY];
+	if (typeof captureContent === 'boolean') {
+		return captureContent;
+	}
+	return policyData.managedSettings?.[COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY] === true ? false : undefined;
+}
+
+function managedOTelOutfileValue(policyData: IPolicyData): string | undefined {
+	const managedSettings = policyData.managedSettings;
+	if (managedSettings?.[COPILOT_OTEL_ENDPOINT_KEY] !== undefined || managedSettings?.[COPILOT_OTEL_PROTOCOL_KEY] !== undefined) {
+		return '';
+	}
+	return undefined;
+}
+
 configurationRegistry.registerConfiguration({
 	id: 'chatAgentHostStarter',
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
@@ -118,6 +154,23 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelEnabled`; the copilot-chat setting `github.copilot.chat.otel.enabled`
+			// attaches to it via a `policyReference` in the extension's package.json.
+			policy: {
+				name: 'CopilotOtelEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_ENABLED_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_ENABLED_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.enabled.policy',
+						value: nls.localize('chat.agentHost.otel.enabled.policy', "Controls whether Copilot OpenTelemetry export is enabled. When managed, users cannot override the enterprise value."),
+					}
+				},
+			},
 		},
 		[AgentHostOTelExporterTypeSettingId]: {
 			type: 'string',
@@ -126,6 +179,29 @@ configurationRegistry.registerConfiguration({
 			default: 'otlp-http',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelProtocol`; the managed `telemetry.protocol` string is mapped onto
+			// the exporter type (`grpc` -> `otlp-grpc`, `http/*` -> `otlp-http`).
+			policy: {
+				name: 'CopilotOtelProtocol',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedOTelProtocolValue,
+				managedSettings: {
+					[COPILOT_OTEL_PROTOCOL_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.protocol.policy',
+						value: nls.localize('chat.agentHost.otel.protocol.policy', "Controls the enterprise-managed OTLP protocol for Copilot OpenTelemetry export."),
+					},
+					enumDescriptions: [
+						{ key: 'chat.agentHost.otel.protocol.policy.otlpHttp', value: nls.localize('chat.agentHost.otel.protocol.policy.otlpHttp', "Use OTLP over HTTP."), },
+						{ key: 'chat.agentHost.otel.protocol.policy.otlpGrpc', value: nls.localize('chat.agentHost.otel.protocol.policy.otlpGrpc', "Use OTLP over gRPC."), },
+						{ key: 'chat.agentHost.otel.protocol.policy.console', value: nls.localize('chat.agentHost.otel.protocol.policy.console', "Console exporter is not selected by enterprise managed settings."), },
+						{ key: 'chat.agentHost.otel.protocol.policy.file', value: nls.localize('chat.agentHost.otel.protocol.policy.file', "File exporter is not selected by enterprise managed settings."), },
+					],
+				},
+			},
 		},
 		[AgentHostOTelOtlpEndpointSettingId]: {
 			type: 'string',
@@ -133,6 +209,22 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelEndpoint`.
+			policy: {
+				name: 'CopilotOtelEndpoint',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedSettingValue(COPILOT_OTEL_ENDPOINT_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_ENDPOINT_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.otlpEndpoint.policy',
+						value: nls.localize('chat.agentHost.otel.otlpEndpoint.policy', "Controls the enterprise-managed OTLP collector endpoint for Copilot OpenTelemetry export."),
+					}
+				},
+			},
 		},
 		[AgentHostOTelCaptureContentSettingId]: {
 			type: 'boolean',
@@ -140,6 +232,24 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelCaptureContent`; explicit managed value wins, otherwise
+			// `telemetry.lockCaptureContent` forces capture off.
+			policy: {
+				name: 'CopilotOtelCaptureContent',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedOTelCaptureContentValue,
+				managedSettings: {
+					[COPILOT_OTEL_CAPTURE_CONTENT_KEY]: { type: 'boolean' },
+					[COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.captureContent.policy',
+						value: nls.localize('chat.agentHost.otel.captureContent.policy', "Controls whether Copilot OpenTelemetry export captures prompt, response, and tool content."),
+					}
+				},
+			},
 		},
 		[AgentHostOTelOutfileSettingId]: {
 			type: 'string',
@@ -147,6 +257,23 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			// Owns `CopilotOtelOutfile`; suppresses local file export when the enterprise mandates an OTLP sink.
+			policy: {
+				name: 'CopilotOtelOutfile',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: managedOTelOutfileValue,
+				managedSettings: {
+					[COPILOT_OTEL_ENDPOINT_KEY]: { type: 'string' },
+					[COPILOT_OTEL_PROTOCOL_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.outfile.policy',
+						value: nls.localize('chat.agentHost.otel.outfile.policy', "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."),
+					}
+				},
+			},
 		},
 		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
 			type: 'boolean',

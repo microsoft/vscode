@@ -345,6 +345,7 @@ export interface IAgentHostOTelSettings {
 export function buildAgentHostOTelEnv(
 	settings: IAgentHostOTelSettings,
 	inheritedEnv: Readonly<Record<string, string | undefined>>,
+	policySettings: IAgentHostOTelSettings = {},
 ): Record<string, string> {
 	const out: Record<string, string> = {};
 	const setIfMissing = (key: string, value: string | undefined): void => {
@@ -352,6 +353,13 @@ export function buildAgentHostOTelEnv(
 			return;
 		}
 		out[key] = value;
+	};
+	// Enterprise policy wins over inherited env (managed settings cannot be overridden by a
+	// user-set env var), unlike user settings which yield to env via `setIfMissing`.
+	const setPolicy = (key: string, value: string | undefined): void => {
+		if (value !== undefined) {
+			out[key] = value;
+		}
 	};
 	if (settings.enabled) {
 		setIfMissing(AgentHostOTelEnvVars.Enabled, 'true');
@@ -364,6 +372,29 @@ export function buildAgentHostOTelEnv(
 	}
 	if (settings.dbSpanExporterEnabled) {
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
+	}
+
+	if (policySettings.enabled !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
+		if (!policySettings.enabled) {
+			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
+			setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+			setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		}
+	}
+	if (policySettings.exporterType !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
+		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+	}
+	if (policySettings.otlpEndpoint !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
+		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+	}
+	if (policySettings.outfile !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+	}
+	if (policySettings.captureContent !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
 	}
 	return out;
 }
