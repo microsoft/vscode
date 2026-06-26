@@ -718,8 +718,8 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
-				order: 15,
+				group: '1_session',
+				order: 5,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});

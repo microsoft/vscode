@@ -40,6 +40,7 @@ export interface IToolApprovalEvent {
 	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
+	readonly requestSandboxBypass?: boolean;
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -242,6 +243,13 @@ export class SessionPermissionManager extends Disposable {
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
+
+		// 0. Sandbox bypass: a shell command that opted out of the
+		// sandbox (`requestSandboxBypass`) escapes the sandbox's
+		// containment.
+		if (e.requestSandboxBypass) {
+			return undefined;
+		}
 
 		// 1. Global auto-approve setting
 		if (this.isGlobalAutoApproveEnabled()) {

@@ -73,7 +73,6 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	existingBranches = new Set<string>();
 	dirtyWorkingDirectories = new Set<string>();
 
-	async isInsideWorkTree(): Promise<boolean> { return false; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
@@ -563,15 +562,29 @@ suite('CopilotAgent', () => {
 			token: copilotApiService.utilityCalls[0]?.token,
 			promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Add agent host config')),
 		}, {
-			generated: 'agents/add-agent-host-config-12345678',
-			fallback: 'agents/add-agent-host-config-12345678',
+			generated: 'agents/add-agent-host-config',
+			fallback: 'agents/add-agent-host-config',
 			token: 'token',
 			promptIncludesUserText: true,
 		});
 	});
 
+	test('appends a short session-id suffix when the branch name already exists', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'add-agent-host-config';
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.deepStrictEqual({
+			unique: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async () => false }),
+			collision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async name => name === 'agents/add-agent-host-config' }),
+		}, {
+			unique: 'agents/add-agent-host-config',
+			collision: 'agents/add-agent-host-config-12345678',
+		});
+	});
+
 	test('uses Git extension branch-derived worktree folder names', () => {
-		assert.strictEqual(getCopilotWorktreeName('agents/add-agent-host-config-12345678'), 'agents-add-agent-host-config-12345678');
+		assert.strictEqual(getCopilotWorktreeName('agents/add-agent-host-config-12345678'), 'add-agent-host-config-12345678');
 	});
 
 	test('keeps generated branch names short', async () => {
@@ -581,7 +594,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			(await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' })).length,
-			'agents/'.length + 48 + '-12345678'.length,
+			'agents/'.length + 48,
 		);
 	});
 
@@ -626,7 +639,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
-			'agents/add-agent-host-config-12345678',
+			'agents/add-agent-host-config',
 		);
 	});
 
@@ -637,7 +650,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
-			'agents/add-agent-host-config-12345678',
+			'agents/add-agent-host-config',
 		);
 	});
 
@@ -1103,7 +1116,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema omits contextSize when long_context tier has no surcharge', async () => {
+	test('configSchema shows only long context option when long_context tier has no surcharge', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'free-long-context',
@@ -1122,7 +1135,11 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const models = await waitForState(agent.models, models => models.length > 0);
 
-			assert.strictEqual(models[0].configSchema?.properties?.contextSize, undefined);
+			const contextSize = models[0].configSchema?.properties?.contextSize;
+			assert.strictEqual(contextSize?.type, 'number');
+			assert.deepStrictEqual(contextSize?.enum, [1_000_000]);
+			assert.strictEqual(contextSize?.default, 1_000_000);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['1M']);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -2630,7 +2647,7 @@ suite('CopilotAgent', () => {
 				//    before constructing the SDK session. Verifies that the
 				//    real production code path persists branch metadata and
 				//    queues the live announcement.
-				const expectedBranchName = `agents/add-feature-${sessionId.substring(0, 8)}`;
+				const expectedBranchName = `agents/add-feature`;
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
 					config: { isolation: 'worktree', branch: 'main' },

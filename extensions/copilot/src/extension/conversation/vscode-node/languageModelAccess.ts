@@ -85,10 +85,12 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 
 	const hasLongContextSurcharge = !!pricing.longContext;
 
-	// When both tiers cost the same, always use the full context window and
-	// skip the picker entirely — there is no reason to restrict the user.
+	// When both tiers cost the same, show only the full context window as a
+	// non-switchable indicator — the user always gets the larger window.
 	if (!hasLongContextSurcharge) {
-		return undefined;
+		return [
+			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
+		];
 	}
 
 	return [

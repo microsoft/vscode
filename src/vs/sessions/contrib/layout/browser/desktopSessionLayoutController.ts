@@ -350,6 +350,24 @@ export class LayoutController extends BaseLayoutController {
 		this._captureViewState(sessionResource);
 	}
 
+	/**
+	 * [D9b] Records a whole-side-pane toggle on a new (uncreated) session as the
+	 * shared new-session aux-bar choice. See `desktopSessionLayoutController.md`.
+	 */
+	protected override _onSidePaneToggled(): void {
+		if (this.multipleSessionsVisibleObs.get()) {
+			return;
+		}
+		if (this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isCreated.get()) {
+			return;
+		}
+		this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+	}
+
 	// --- Auxiliary bar [D1] ---
 
 	private _captureViewState(sessionResource: URI): void {

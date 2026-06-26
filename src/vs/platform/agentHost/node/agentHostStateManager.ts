@@ -1033,7 +1033,7 @@ export class AgentHostStateManager extends Disposable {
 			origin,
 		};
 
-		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
+		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
 
 		return resultingState;
@@ -1071,7 +1071,10 @@ export class AgentHostStateManager extends Disposable {
 	 *    and `hasActiveSessions`, which gate `--enable-remote-auto-shutdown`),
 	 *    keyed by the owning session URI;
 	 *  - mirror the chat's denormalized `status`/`activity`/`modifiedAt`
-	 *    onto the session summary so the session list reflects progress; and
+	 *    onto the session summary so the session list reflects progress;
+	 *  - forward the chat's own `status` to the session `chats` catalog (via a
+	 *    {@link ActionType.SessionChatUpdated}) so per-chat tabs reflect that
+	 *    chat's progress, not just the aggregated session summary; and
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
@@ -1107,7 +1110,22 @@ export class AgentHostStateManager extends Disposable {
 
 		// Mirror denormalized chat summary fields onto the session, aggregating
 		// across the whole chat catalog per the SessionSummary rules.
-		const chats = sessionState.chats.map(c => c.resource === chatUri ? chatSummaryFromState(next) : c);
+		const nextEntry = chatSummaryFromState(next);
+		const prevEntry = sessionState.chats.find(c => c.resource === chatUri);
+		const chats = sessionState.chats.map(c => c.resource === chatUri ? nextEntry : c);
+
+		// Forward the chat's own status to the session catalog so full
+		// SessionState subscribers (the per-chat tabs) reflect this chat's
+		// progress — not just the aggregated session summary. Status changes
+		// at most a couple of times per turn, so this won't flood the channel.
+		if (prevEntry?.status !== nextEntry.status) {
+			this.dispatchServerAction(sessionKey, {
+				type: ActionType.SessionChatUpdated,
+				chat: chatUri,
+				changes: { status: nextEntry.status, activity: nextEntry.activity },
+			});
+		}
+
 		const aggregate = this._aggregateChatSummaries(chats, sessionState.defaultChat);
 		const prevSummary = sessionState.summary;
 		const statusChanged = aggregate.status !== undefined && this._mergeSessionStatus(prevSummary.status, aggregate.status) !== prevSummary.status;
@@ -1132,9 +1150,12 @@ export class AgentHostStateManager extends Disposable {
 	/**
 	 * Aggregates a session's chat catalog into the derived session-summary
 	 * fields per the protocol rules: activity bits come from the default chat
-	 * (else the most recently modified chat) with `InputNeeded`/`Error`
-	 * promoted whenever any chat raises them; the `activity` string follows the
-	 * chat driving the resulting status; `modifiedAt` is the max across chats.
+	 * (else the most recently modified chat) with `InputNeeded`/`Error`/
+	 * `InProgress` promoted whenever any chat raises them; the `activity` string
+	 * follows the chat driving the resulting status; `modifiedAt` is the max
+	 * across chats. Promotion precedence is `InputNeeded` > `Error` >
+	 * `InProgress`, so a running peer (sub) chat surfaces as `InProgress` on the
+	 * session even when the default chat is idle.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -1147,12 +1168,18 @@ export class AgentHostStateManager extends Disposable {
 		let driver = base;
 		const errorChat = chats.find(c => (c.status & SessionStatus.Error) === SessionStatus.Error);
 		const inputChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
+		// `InputNeeded` is a superset of the `InProgress` bit, so exclude
+		// input-needed chats here to find one that is purely streaming.
+		const inProgressChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InProgress);
 		if (inputChat) {
 			status = SessionStatus.InputNeeded;
 			driver = inputChat;
 		} else if (errorChat) {
 			status = SessionStatus.Error;
 			driver = errorChat;
+		} else if (inProgressChat) {
+			status = SessionStatus.InProgress;
+			driver = inProgressChat;
 		}
 		const modifiedAt = chats.reduce((max, c) => Math.max(max, Date.parse(c.modifiedAt)), 0);
 		return { status, activity: driver.activity, modifiedAt };

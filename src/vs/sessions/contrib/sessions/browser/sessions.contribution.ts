@@ -14,7 +14,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { NewSessionActionViewItemContribution } from './newSessionActionViewItem.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
-import { SessionConversationsMenuContribution } from './sessionsActions.js';
+import { SessionConversationsMenuContribution, SessionNewChatActionViewItemContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -58,3 +58,4 @@ registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBar
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionConversationsMenuContribution.ID, SessionConversationsMenuContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionNewChatActionViewItemContribution.ID, SessionNewChatActionViewItemContribution, WorkbenchPhase.AfterRestored);

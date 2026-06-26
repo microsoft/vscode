@@ -3653,12 +3653,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v);
 		}
-		// Pasted code, prompt text, and free-form string entries: surface their
+		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
 			return this._toSimpleAttachment(v.name, v.code, v._meta, undefined, referenceRange);
 		}
 		if (v.kind === 'promptText') {
+			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
+		}
+		if (v.kind === 'workspace') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 		}
 		if (v.kind === 'string' && typeof v.value === 'string') {

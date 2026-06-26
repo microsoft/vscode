@@ -25,7 +25,6 @@ class TestGitService implements IAgentHostGitService {
 	readonly restoreCalls: { workingDirectory: string; paths: readonly string[]; options?: { readonly staged?: boolean; readonly ref?: string } }[] = [];
 	restoreError: Error | undefined;
 
-	async isInsideWorkTree(): Promise<boolean> { return true; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
