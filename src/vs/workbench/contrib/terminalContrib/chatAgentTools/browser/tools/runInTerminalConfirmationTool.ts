@@ -87,7 +87,7 @@ export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 			const params = context.parameters as { sandboxBypass?: boolean; sandboxBypassReason?: string };
 			if (params.sandboxBypass === true) {
 				const title = localize('confirmTerminalCommandTool.sandboxBypass.title', "Run in terminal outside the sandbox?");
-				const reason = typeof params.sandboxBypassReason === 'string' ? params.sandboxBypassReason.trim() : '';
+				const reason = typeof params.sandboxBypassReason === 'string' ? escapeMarkdownSyntaxTokens(params.sandboxBypassReason.trim()) : '';
 				const message = new MarkdownString(reason
 					? localize('confirmTerminalCommandTool.sandboxBypass.message.reason', "This command will run outside the sandbox.\n\nReason: {0}", reason)
 					: localize('confirmTerminalCommandTool.sandboxBypass.message', "This command will run outside the sandbox."));
