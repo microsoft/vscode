@@ -833,10 +833,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same, always use the full context window and
-		// skip the picker entirely — there is no reason to restrict the user.
+		// When both tiers cost the same, show only the long-context option as
+		// a non-switchable indicator — the user always gets the full window.
 		if (!hasLongContextSurcharge(billing as ICAPIModelBilling | undefined)) {
-			return undefined;
+			return {
+				type: 'number',
+				title: localize('copilot.modelContextSize.title', "Context Size"),
+				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
+				default: longContextMax,
+				enum: [longContextMax],
+				enumLabels: [formatTokenCount(longContextMax)],
+				enumDescriptions: [
+					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
+				],
+			};
 		}
 
 		return {
@@ -2361,12 +2371,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
-		if (!await this._gitService.isInsideWorkTree(workingDirectory)) {
+		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(workingDirectory) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory) ?? currentBranch;
+		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
 		return { currentBranch, defaultBranch };
 	}
 

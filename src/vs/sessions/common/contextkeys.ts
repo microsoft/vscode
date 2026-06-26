@@ -64,6 +64,12 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 //#endregion
 
+//#region < --- Sessions Picker --- >
+
+export const SessionsPickerVisibleContext = new RawContextKey<boolean>('sessionsPickerVisible', false, localize('sessionsPickerVisible', "Whether the sessions picker is visible"));
+
+//#endregion
+
 //#region < --- Aquarium --- >
 
 export const SessionsAquariumActiveContext = new RawContextKey<boolean>('sessionsAquariumActive', false, localize('sessionsAquariumActive', "Whether the sessions aquarium overlay is active"));

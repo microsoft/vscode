@@ -1643,7 +1643,7 @@ suite('createModelConfigurationActions', function () {
 				enumDescriptions: ['Fast', 'Balanced', 'Thorough'],
 				default: 'medium',
 			},
-			// Skipped: fewer than two enum values.
+			// Included: single-item enums are shown as non-switchable indicators.
 			singleChoice: { enum: ['only'], default: 'only' },
 			// Skipped: not an enum.
 			contextSize: { type: 'number', default: 1000 },
@@ -1655,14 +1655,18 @@ suite('createModelConfigurationActions', function () {
 		assert.deepStrictEqual(createModelConfigurationActions({}, {}, () => { }), []);
 	});
 
-	test('builds one submenu per enum property with >= 2 values', () => {
+	test('builds one submenu per enum property with >= 1 values', () => {
 		const actions = createModelConfigurationActions(schema, {}, () => { });
-		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.length, 2);
 		const submenu = actions[0] as SubmenuAction;
 		assert.ok(submenu instanceof SubmenuAction);
 		assert.strictEqual(submenu.id, 'configureModel.thinkingEffort');
 		assert.strictEqual(submenu.label, 'Thinking Effort');
 		assert.strictEqual(submenu.actions.length, 3);
+		const singleSubmenu = actions[1] as SubmenuAction;
+		assert.ok(singleSubmenu instanceof SubmenuAction);
+		assert.strictEqual(singleSubmenu.id, 'configureModel.singleChoice');
+		assert.strictEqual(singleSubmenu.actions.length, 1);
 	});
 
 	test('uses enum item labels, marks the default, and checks the current value', () => {
