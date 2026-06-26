@@ -688,6 +688,8 @@ export interface ISessionWithDefaultChat extends SessionState {
 	queuedMessages?: PendingMessage[];
 	/** Input requests outstanding on the default chat. */
 	inputRequests?: ChatInputRequest[];
+	/** Draft input of the default chat. */
+	draft?: Message;
 }
 
 /**
@@ -703,6 +705,7 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
 		inputRequests: chat?.inputRequests,
+		draft: chat?.draft,
 	};
 }
 

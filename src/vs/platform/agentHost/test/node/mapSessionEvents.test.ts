@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -67,6 +67,49 @@ suite('mapSessionEvents — task_complete rendering', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
+	});
+
+	test('restores best-effort model, fallback agent, and attachments onto user messages', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.model_change', data: { newModel: 'opus-4.7' } },
+			{ type: 'subagent.selected', data: { agentName: 'reviewer', agentDisplayName: 'Reviewer', tools: null } },
+			{
+				type: 'user.message',
+				data: {
+					interactionId: 'm1',
+					content: 'hi',
+					attachments: [{
+						type: 'file',
+						path: '/tmp/example.ts',
+						displayName: 'example.ts',
+					}],
+				}
+			},
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events), {
+			model: { id: 'fallback-model' },
+			agent: { uri: 'fallback-agent' },
+		});
+
+		assert.deepStrictEqual({
+			model: turns[0].message.model,
+			agent: turns[0].message.agent,
+			attachments: turns[0].message.attachments?.map(a => ({
+				type: a.type,
+				uri: a.type === MessageAttachmentKind.Resource ? a.uri : undefined,
+				label: a.label,
+			})),
+		}, {
+			model: { id: 'opus-4.7' },
+			agent: { uri: 'fallback-agent' },
+			attachments: [{
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///tmp/example.ts',
+				label: 'example.ts',
+			}],
+		});
 	});
 });
 

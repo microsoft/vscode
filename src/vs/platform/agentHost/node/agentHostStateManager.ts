@@ -12,7 +12,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -598,7 +598,7 @@ export class AgentHostStateManager extends Disposable {
 	 * notification because the session is already known to clients via
 	 * `listSessions`.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[]): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -611,7 +611,7 @@ export class AgentHostStateManager extends Disposable {
 			lifecycle: SessionLifecycle.Ready,
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary));
-		this._ensureDefaultChat(key, summary, turns);
+		this._ensureDefaultChat(key, summary, turns, options?.draft);
 		this._summaryNotifier.announce(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
@@ -631,14 +631,14 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[]): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
 		// The default chat starts with an empty title so it inherits the session
 		// title for display. It only gets its own title when renamed independently
 		// (via a per-chat `SessionChatUpdated`). This keeps the session title and
 		// the default chat tab title independent.
 		const chatSummary: ChatSummary = { ...createDefaultChatSummary(summary, chatUri), title: '' };
-		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: turns ?? [] });
+		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: turns ?? [], draft });
 		const entry = this._sessionStates.get(sessionKey);
 		if (entry) {
 			// Update the session's chat catalog in place so the object
@@ -705,7 +705,7 @@ export class AgentHostStateManager extends Disposable {
 	 * live; no {@link ActionType.SessionChatAdded} is dispatched because restore
 	 * runs before clients subscribe.
 	 */
-	restoreChat(session: URI, chatUri: URI, options: { readonly title?: string; readonly turns: Turn[] }): void {
+	restoreChat(session: URI, chatUri: URI, options: { readonly title?: string; readonly turns: Turn[]; readonly draft?: Message }): void {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] restoreChat for unknown session: ${session}`);
@@ -720,7 +720,7 @@ export class AgentHostStateManager extends Disposable {
 			title: options.title ?? '',
 			status: SessionStatus.Idle,
 		};
-		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options.turns });
+		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options.turns, draft: options.draft });
 		sessionState.chats = [...sessionState.chats, chatSummary];
 	}
 

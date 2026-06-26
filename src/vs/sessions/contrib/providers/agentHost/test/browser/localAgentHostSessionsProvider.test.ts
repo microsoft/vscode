@@ -22,13 +22,15 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -305,7 +307,7 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -323,14 +325,14 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 	});
 	instantiationService.stub(IChatService, {
-		acquireOrLoadSession: async () => undefined,
+		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
 		sendRequest: options?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
 	instantiationService.stub(IChatWidgetService, {
 		openSession: async () => options?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
+		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -350,6 +352,20 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
+}
+
+function createTestLanguageModel(id: string): ILanguageModelChatMetadata {
+	return {
+		extension: new ExtensionIdentifier('test.agentHost'),
+		id,
+		vendor: 'agent-host-copilotcli',
+		name: id,
+		version: '1.0',
+		family: id,
+		maxInputTokens: 1,
+		maxOutputTokens: 1,
+		isDefaultForLocation: {},
+	};
 }
 
 async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
@@ -952,7 +968,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session?.modelId.get(), undefined);
 	});
 
-	test('setModel updates existing session model without dispatching session-level model change', () => {
+	test('setModel updates existing session model and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-model', { title: 'Set Model Session' });
 
@@ -962,10 +978,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setModel(session!.sessionId, 'agent-host-copilotcli:new-model');
 
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:new-model');
-		assert.strictEqual(agentHost.dispatchedActions.length, 0);
+		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
-	test('setModel leaves dispatch log untouched for later message-level selection', () => {
+	test('setModel updates cached selection for later message-level selection', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-model-config', { title: 'Set Model Config Session' });
 
@@ -975,10 +991,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setModel(session!.sessionId, 'agent-host-copilotcli:configured-model');
 
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:configured-model');
-		assert.strictEqual(agentHost.dispatchedActions.length, 0);
+		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
-	test('setAgent updates existing session agent without dispatching session-level agent change', () => {
+	test('setAgent updates existing session agent and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-agent', { title: 'Set Agent Session' });
 
@@ -988,10 +1004,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 
 		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://review', kind: 'agent' });
-		assert.strictEqual(agentHost.dispatchedActions.length, 0);
+		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
-	test('setAgent with undefined clears the selection without dispatching session-level agent change', () => {
+	test('setAgent with undefined clears the cached agent selection', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'clear-agent', { title: 'Clear Agent Session' });
 
@@ -1002,7 +1018,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.setAgent?.(session!.sessionId, undefined);
 
 		assert.strictEqual(session!.mode.get(), undefined);
-		assert.strictEqual(agentHost.dispatchedActions.length, 0);
+		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
@@ -1831,6 +1847,78 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('createNewChat forwards the selected model to the host and seeds the chat input state', async () => {
+			const inputStates: { resource: string; state: Partial<IChatModelInputState> }[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async resource => {
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(state: Partial<IChatModelInputState>): void {
+							inputStates.push({ resource: resource.toString(), state });
+						}
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return {
+						object: chatModel,
+						dispose() { },
+					} satisfies IChatModelReference;
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-model');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-model').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-model', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			provider.setModel(session.sessionId, 'agent-host-copilotcli:selected-model');
+
+			const chat = await provider.createNewChat(session.sessionId);
+
+			assert.deepStrictEqual({
+				createdModel: agentHost.createdChats.at(-1)?.options?.model,
+				peerInputSelectedModels: inputStates
+					.filter(entry => entry.resource === chat.resource.toString())
+					.map(entry => entry.state.selectedModel?.identifier)
+					.filter((id): id is string => id !== undefined),
+			}, {
+				createdModel: { id: 'selected-model' },
+				peerInputSelectedModels: ['agent-host-copilotcli:selected-model'],
+			});
+		});
+
+		test('setModel updates the active peer chat model without changing the default chat model', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const session = setupMultiChatSession(provider, 'multi-active-model');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-active-model').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('multi-active-model', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+
+			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			assert.ok(peer);
+			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
+
+			provider.setModel(session.sessionId, 'agent-host-copilotcli:peer-model');
+
+			assert.deepStrictEqual({
+				defaultModelId: session.mainChat.get().modelId.get(),
+				peerModelId: peer!.modelId.get(),
+			}, {
+				defaultModelId: undefined,
+				peerModelId: 'agent-host-copilotcli:peer-model',
+			});
+		});
+
 		test('deleteChat prompts for confirmation and disposes the peer chat when confirmed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const provider = createProvider(disposables, agentHost, undefined, { confirmDelete: true });
 			const session = setupMultiChatSession(provider, 'multi-del');
@@ -2236,6 +2324,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
+	});
+
+	test('sendRequest clears draft text while preserving selected model and agent', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'send-draft', { title: 'Send Draft Session' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Send Draft Session');
+		assert.ok(session);
+		provider.setModel(session!.sessionId, 'agent-host-copilotcli:selected-model');
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
+		agentHost.dispatchedActions.length = 0;
+
+		await provider.sendRequest(session!.sessionId, session!.resource, { query: 'hello' });
+
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.ChatDraftChanged,
+			draft: {
+				text: '',
+				origin: { kind: MessageKind.User },
+				model: { id: 'selected-model' },
+				agent: { uri: 'agent://review' },
+			},
+		});
 	});
 
 	// ---- Running session config seeding (from SessionState.config) -------
@@ -2764,7 +2874,9 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	});
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		disposables.clear();
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

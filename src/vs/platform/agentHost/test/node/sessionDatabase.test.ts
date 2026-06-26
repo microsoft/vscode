@@ -9,10 +9,11 @@ import * as fs from 'fs/promises';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
-import { FileEditKind } from '../../common/state/sessionState.js';
+import { FileEditKind, MessageKind } from '../../common/state/sessionState.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 
 suite('SessionDatabase', () => {
 
@@ -564,6 +565,40 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	suite('chat drafts', () => {
+		const chat = URI.parse('ahp-chat://default/Y29waWxvdDovLy9zZXNzaW9uLTE');
+
+		test('setChatDraft and getChatDraft round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = {
+				text: 'draft',
+				origin: { kind: MessageKind.User },
+				model: { id: 'opus' },
+				agent: { uri: 'agent://reviewer' },
+			};
+
+			await db.setChatDraft(chat, draft);
+
+			assert.deepStrictEqual(await db.getChatDraft(chat), draft);
+		});
+
+		test('setChatDraft undefined clears a draft', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = { text: 'draft', origin: { kind: MessageKind.User } };
+
+			await db.setChatDraft(chat, draft);
+			await db.setChatDraft(chat, undefined);
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('migration v6 creates chat draft tables', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('chat_drafts'));
 		});
 	});
 

@@ -9,16 +9,17 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 import { ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -27,6 +28,7 @@ import {
 	isAhpChatChannel,
 	isDefaultChatUri,
 	MessageKind,
+	parseChatUri,
 	parseDefaultChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
@@ -34,24 +36,23 @@ import {
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
-	type Turn,
-	type URI as ProtocolURI,
-	type ISessionWithDefaultChat,
 	type ErrorInfo,
+	type ISessionWithDefaultChat,
 	type Message,
+	type URI as ProtocolURI,
 	type SessionState,
-	type ToolResultContent
+	type ToolResultContent,
+	type Turn
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
 import { parseRenameCommand } from './agentHostRenameCommand.js';
-import { SessionPermissionManager } from './sessionPermissions.js';
-import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
-import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { SessionPermissionManager } from './sessionPermissions.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -159,6 +160,9 @@ export class AgentSideEffects extends Disposable {
 				const sessionChannel = isAhpChatChannel(envelope.channel) ? (parseDefaultChatUri(envelope.channel) ?? envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.onClientToolCallComplete(URI.parse(sessionChannel), action.toolCallId, action.result);
+			}
+			if (envelope.action.type === ActionType.ChatDraftChanged) {
+				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 		}));
 	}
@@ -1059,6 +1063,25 @@ export class AgentSideEffects extends Disposable {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
 		ref.object.setMetadata(key, value).catch(err => {
 			this._logService.warn(`[AgentSideEffects] Failed to persist ${key}`, err);
+		}).finally(() => {
+			ref.dispose();
+		});
+	}
+
+	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
+		if (!isAhpChatChannel(channel)) {
+			return;
+		}
+
+		const parsed = parseChatUri(channel);
+		if (!parsed) {
+			return;
+		}
+
+		const session = URI.parse(parsed.session);
+		const ref = this._options.sessionDataService.openDatabase(session);
+		ref.object.setChatDraft(URI.parse(channel), draft).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist chat draft for ${channel.toString()}`, err);
 		}).finally(() => {
 			ref.dispose();
 		});

@@ -1742,6 +1742,16 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('restoreSession', () => {
 
+		async function waitForDraft(db: TestSessionDatabase, chat: URI, expected: unknown): Promise<void> {
+			for (let i = 0; i < 20; i++) {
+				if (JSON.stringify(await db.getChatDraft(chat)) === JSON.stringify(expected)) {
+					return;
+				}
+				await new Promise(resolve => setTimeout(resolve, 5));
+			}
+			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
+		}
+
 		test('restores a session with message history', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
@@ -1764,6 +1774,47 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(mdPart);
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+		});
+
+		test('persists chat drafts to session metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const draft = {
+				text: 'draft text',
+				origin: { kind: MessageKind.User },
+				model: { id: 'opus-4.7' },
+				agent: { uri: 'agent://reviewer' },
+			};
+
+			localService.dispatchAction(buildDefaultChatUri(session.toString()), {
+				type: ActionType.ChatDraftChanged,
+				draft,
+			}, 'test-client', 1);
+
+			await waitForDraft(db, URI.parse(buildDefaultChatUri(session.toString())), draft);
+		});
+
+		test('restores chat drafts from session metadata', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			const draft = {
+				text: 'restored draft',
+				origin: { kind: MessageKind.User },
+				model: { id: 'opus-4.7' },
+				agent: { uri: 'agent://reviewer' },
+			};
+			await db.setChatDraft(URI.parse(buildDefaultChatUri(sessionResource.toString())), draft);
+			(copilotAgent as MockAgent & { getChatDraft(chat: URI): Promise<typeof draft | undefined> }).getChatDraft = chat => db.getChatDraft(chat) as Promise<typeof draft | undefined>;
+			copilotAgent.sessionMessages = [];
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(localService.stateManager.getSessionState(session.toString())?.draft, draft);
 		});
 
 		test('restores a session with tool calls', async () => {

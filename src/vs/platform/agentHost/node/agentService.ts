@@ -27,9 +27,9 @@ import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootC
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -72,7 +72,6 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
-
 /**
  * Grace period before an idle resource watch is torn down after its last
  * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
@@ -1626,7 +1625,8 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectory: meta.workingDirectory?.toString(),
 		};
 
-		this._stateManager.restoreSession(summary, [...turns]);
+		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
+		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
@@ -1737,8 +1737,11 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
-			const title = await this._readPersistedChatTitle(session, chatUri);
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+			const [title, draft] = await Promise.all([
+				this._readPersistedChatTitle(session, chatUri),
+				this._getChatDraft(session, chatUri),
+			]);
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns], draft });
 		}));
 	}
 
@@ -1752,6 +1755,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return (await ref.object.getMetadata(`customChatTitle:${chatUri.toString()}`)) ?? undefined;
 		} catch {
 			return undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return await ref.object.getChatDraft(chatUri);
 		} finally {
 			ref.dispose();
 		}

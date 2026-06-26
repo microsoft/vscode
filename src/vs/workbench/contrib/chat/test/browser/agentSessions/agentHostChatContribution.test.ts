@@ -30,7 +30,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -74,7 +74,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
-import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
+import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -87,7 +87,7 @@ import { messageAttachmentsToVariableData } from '../../../browser/agentSessions
  * these on the session for convenience; the mock connection splits them onto
  * the default-chat subscription when serving {@link StateComponents.Chat}.
  */
-type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'inputRequests'>>;
+type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'inputRequests' | 'draft'>>;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -411,6 +411,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			steeringMessage: seeded?.steeringMessage,
 			queuedMessages: seeded?.queuedMessages,
 			inputRequests: seeded?.inputRequests,
+			draft: seeded?.draft,
 		};
 	}
 
@@ -1145,6 +1146,273 @@ suite('AgentHostChatContribution', () => {
 				fileName: undefined,
 			}]);
 		});
+	});
+
+	suite('draft', () => {
+		test('hydrates chat input state from AHP draft', async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'draft-session');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-session' });
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Draft',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				draft: {
+					text: 'draft\ntext',
+					origin: { kind: MessageKind.User },
+					model: { id: 'opus-4.7' },
+					agent: { uri: 'agent://reviewer' },
+				},
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				inputText: chatSession.transferredState?.inputState?.inputText,
+				model: chatSession.transferredState?.inputState?.selectedModel?.identifier,
+				mode: chatSession.transferredState?.inputState?.mode,
+				selections: chatSession.transferredState?.inputState?.selections,
+			}, {
+				inputText: 'draft\ntext',
+				model: 'agent-host-copilot:opus-4.7',
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				selections: [{
+					selectionStartLineNumber: 2,
+					selectionStartColumn: 5,
+					positionLineNumber: 2,
+					positionColumn: 5,
+				}],
+			});
+		});
+
+		test('hydrates chat input attachments from AHP draft', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'draft-attachments');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-attachments' });
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Draft Attachments',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				draft: {
+					text: 'draft text',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: URI.file('/tmp/example.ts').toString(),
+						label: 'example.ts',
+						displayKind: 'document',
+					}, {
+						type: MessageAttachmentKind.Simple,
+						label: 'Pasted context',
+						modelRepresentation: 'const x = 1;',
+						_meta: {
+							[ChatPasteAttachmentMetadata.Kind]: 'paste',
+							[ChatPasteAttachmentMetadata.Language]: 'typescript',
+							[ChatPasteAttachmentMetadata.FileName]: 'example.ts',
+							[ChatPasteAttachmentMetadata.PastedLines]: '1 line',
+						},
+					}, {
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: 'Screenshot',
+						contentType: 'image/png',
+						data: encodeBase64(VSBuffer.fromString('png')),
+					}],
+				},
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(chatSession.transferredState?.inputState?.attachments.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: URI.isUri(variable.value)
+					? variable.value.toString()
+					: variable.value instanceof Uint8Array
+						? new TextDecoder().decode(variable.value)
+						: variable.value,
+				code: variable.kind === 'paste' ? variable.code : undefined,
+				language: variable.kind === 'paste' ? variable.language : undefined,
+			})), [{
+				kind: 'file',
+				name: 'example.ts',
+				value: 'file:///tmp/example.ts',
+				code: undefined,
+				language: undefined,
+			}, {
+				kind: 'paste',
+				name: 'Pasted context',
+				value: 'const x = 1;',
+				code: 'const x = 1;',
+				language: 'typescript',
+			}, {
+				kind: 'image',
+				name: 'Screenshot',
+				value: 'png',
+				code: undefined,
+				language: undefined,
+			}]);
+		});
+
+		test('creates an empty draft from the last request selection when none exists', async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'last-selection-session');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/last-selection-session' });
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Last Selection',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: 'previous request',
+						origin: { kind: MessageKind.User },
+						model: { id: 'opus-4.7' },
+						agent: { uri: 'agent://reviewer' },
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual({
+				inputText: chatSession.transferredState?.inputState?.inputText,
+				model: chatSession.transferredState?.inputState?.selectedModel?.identifier,
+				mode: chatSession.transferredState?.inputState?.mode,
+				draftAction: agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatDraftChanged)?.action,
+			}, {
+				inputText: '',
+				model: 'agent-host-copilot:opus-4.7',
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				draftAction: {
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: '',
+						origin: { kind: MessageKind.User },
+						model: { id: 'opus-4.7' },
+						agent: { uri: 'agent://reviewer' },
+					},
+				},
+			});
+		});
+
+		test('debounces chat input state into AHP draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', modelMetadata],
+			]);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'draft-sync');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-sync' });
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Draft Sync',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+			});
+
+			const inputState = observableValue<IChatModelInputState | undefined>('test.inputState', {
+				attachments: [],
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilot:opus-4.7', metadata: modelMetadata },
+				inputText: 'draft body',
+				selections: [],
+				contrib: {},
+			});
+			const inputModel = upcastPartial<IInputModel>({
+				state: inputState,
+				setState(state: Partial<IChatModelInputState>): void {
+					inputState.set({
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined,
+						inputText: '',
+						selections: [],
+						contrib: {},
+						...inputState.get(),
+						...state,
+					}, undefined);
+				},
+				clearState(): void {
+					inputState.set(undefined, undefined);
+				},
+				toJSON: () => undefined,
+			});
+			const chatModel = upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			});
+
+			chatService.setSession(sessionResource, chatModel);
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			await timeout(499);
+			assert.strictEqual(agentHostService.dispatchedActions.length, 0);
+
+			await timeout(1);
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(d => ({ channel: d.channel, action: d.action })), [{
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'draft body',
+						origin: { kind: MessageKind.User },
+						model: { id: 'opus-4.7' },
+						agent: { uri: 'agent://reviewer' },
+					},
+				},
+			}]);
+
+		}));
 	});
 
 	// ---- Session disposal -----------------------------------------------

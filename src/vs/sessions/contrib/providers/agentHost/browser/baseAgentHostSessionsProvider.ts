@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, type ChangesetFile, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -37,6 +37,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -166,6 +167,7 @@ class AdditionalChat extends Disposable {
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _updatedAt: ISettableObservable<Date>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
+	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
 	private readonly _isNew: ISettableObservable<boolean>;
@@ -177,6 +179,7 @@ class AdditionalChat extends Disposable {
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
 		this._updatedAt = observableValue('chatUpdatedAt', modifiedAt);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
+		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('chatMode', undefined);
 		this._description = observableValue<IMarkdownString | undefined>('chatDescription', summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
 		this._lastTurnEnd = observableValue<Date | undefined>('chatLastTurnEnd', modifiedAt);
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
@@ -189,7 +192,7 @@ class AdditionalChat extends Disposable {
 			changes: constObservable([]),
 			checkpoints: observableValue(this, undefined),
 			modelId: this._modelId,
-			mode: observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined),
+			mode: this._mode,
 			isArchived: constObservable(false),
 			isRead: constObservable(true),
 			description: this._description,
@@ -221,6 +224,14 @@ class AdditionalChat extends Disposable {
 	/** Clear the `new` presentation after the first request is sent. */
 	markSent(): void {
 		this._isNew.set(false, undefined);
+	}
+
+	setModelId(modelId: string | undefined): void {
+		this._modelId.set(modelId, undefined);
+	}
+
+	setAgent(agent: ISessionAgentRef | undefined): void {
+		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
 	}
 }
 
@@ -358,9 +369,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
-		// Model/agent selection moved off the session onto messages/draft. Until
-		// the draft read is wired up, the adapter starts with no selection;
-		// live picks flow through `setModel`/`setAgent`.
 		this.modelSelection = undefined;
 		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', undefined);
@@ -598,6 +606,37 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._additionalChats.get(chatId)?.markSent();
 	}
 
+	setChatModelId(chatResource: URI, modelId: string | undefined): void {
+		const chatId = chatResource.fragment;
+		if (chatId) {
+			this._getAdditionalChat(chatResource)?.setModelId(modelId);
+		} else {
+			this.modelId.set(modelId, undefined);
+			this.modelSelection = modelId ? this._toModelSelection(modelId) : undefined;
+		}
+	}
+
+	setChatAgent(chatResource: URI, agent: ISessionAgentRef | undefined): void {
+		const chatId = chatResource.fragment;
+		if (chatId) {
+			this._getAdditionalChat(chatResource)?.setAgent(agent);
+		} else {
+			this.mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
+		}
+	}
+
+	getChatModelId(chatResource: URI): string | undefined {
+		return chatResource.fragment
+			? this._getAdditionalChat(chatResource)?.chat.modelId.get()
+			: this.modelId.get();
+	}
+
+	getChatMode(chatResource: URI): { readonly id: string; readonly kind: string } | undefined {
+		return chatResource.fragment
+			? this._getAdditionalChat(chatResource)?.chat.mode.get()
+			: this.mode.get();
+	}
+
 	/** Optimistically set the default chat tab title (independent of the session title). */
 	setDefaultChatTitle(title: string): void {
 		this._defaultChatTitleOverride.set(title || undefined, undefined);
@@ -606,6 +645,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** Optimistically set an additional peer chat's title ahead of the host's `chatUpdated`. */
 	setAdditionalChatTitle(chatId: string, title: string): void {
 		this._additionalChats.get(chatId)?.setTitle(title);
+	}
+
+	private _toModelSelection(modelId: string): ModelSelection {
+		const prefix = `${this._resourceScheme}:`;
+		return { id: modelId.startsWith(prefix) ? modelId.substring(prefix.length) : modelId };
+	}
+
+	private _getAdditionalChat(chatResource: URI): AdditionalChat | undefined {
+		const byFragment = chatResource.fragment ? this._additionalChats.get(chatResource.fragment) : undefined;
+		if (byFragment) {
+			return byFragment;
+		}
+		for (const chat of this._additionalChats.values()) {
+			if (isEqual(chat.chat.resource, chatResource)) {
+				return chat;
+			}
+		}
+		return undefined;
 	}
 
 	private _createChangesObs(sessionUri: URI): {
@@ -1002,7 +1059,9 @@ class NewSession extends Disposable {
 		const workspaceObs = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
-		this._modelId = observableValue<string | undefined>(this, undefined);
+		this._selectedModelId = undefined;
+		this._selectedAgent = undefined;
+		this._modelId = observableValue<string | undefined>(this, this._selectedModelId);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		this._mode = mode;
 		const isArchived = observableValue(this, false);
@@ -1506,6 +1565,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!provider) {
 			throw new Error(`Agent session URI has no provider scheme: ${meta.session.toString()}`);
 		}
+		const resourceScheme = this.resourceSchemeForProvider(provider);
 
 		const options = {
 			icon: this.iconForAgentProvider(provider) ?? this.icon,
@@ -1517,7 +1577,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
-		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, this.resourceSchemeForProvider(provider), provider, options);
+		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options);
 	}
 
 	/**
@@ -1718,12 +1778,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// be in flight at once (e.g. one sending in the background while the
 		// composer re-seeds a fresh draft).
 		const connection = this.connection;
+		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const newSession = new NewSession({
 			workspace,
 			sessionType,
 			providerId: this.id,
 			icon: sessionType.icon,
-			resourceScheme: this.resourceSchemeForProvider(sessionType.id),
+			resourceScheme,
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(),
@@ -1732,7 +1793,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				? this._handleNewSessionStateGone(id)
 				: this._handleNewSessionStateUpdate(id, state),
 			activeClient: connection
-				? this._activeClientService.getActiveClient(this.resourceSchemeForProvider(sessionType.id), connection.clientId)
+				? this._activeClientService.getActiveClient(resourceScheme, connection.clientId)
 				: undefined,
 		});
 		this._newSessions.set(newSession.sessionId, newSession);
@@ -2203,7 +2264,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			cached.modelId.set(modelId, undefined);
+			const chatResource = this._activeChatResource(cached);
+			cached.setChatModelId(chatResource, modelId);
+			this._updateChatSessionState(chatResource, modelId, cached.getChatMode(chatResource)?.id).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -2222,7 +2285,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			cached.mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
+			const chatResource = this._activeChatResource(cached);
+			cached.setChatAgent(chatResource, agent);
+			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -2464,6 +2529,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));
+		const selectedModelId = cached.modelId.get() ?? (cached.modelSelection ? `${cached.resource.scheme}:${cached.modelSelection.id}` : undefined);
+		const selectedAgentUri = cached.mode.get()?.id;
 
 		// Show as `Untitled` until the first request; the host commits it below.
 		cached.markChatAsNew(newChatId);
@@ -2480,7 +2547,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			c => !!c,
 		);
 
+		cached.setChatModelId(chat.resource, selectedModelId);
+		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
+		this._dispatchDraftChanged(cached, rawId, chat.resource);
+
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
+		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
 		return chat;
 	}
 
@@ -2536,7 +2608,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private async _sendCommittedChatRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		const rawId = this._rawIdFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached) {
+		if (!rawId || !cached) {
 			throw new Error(`Session '${chatId}' not found`);
 		}
 
@@ -2544,8 +2616,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionType = chatResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
-		const selectedModelId = cached.modelId.get();
-		const selectedAgentUri = cached.mode.get()?.id;
+		const selectedModelId = cached.getChatModelId(chatResource);
+		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
@@ -2593,10 +2665,69 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
 
+		this._dispatchDraftChanged(cached, rawId, chatResource);
+
 		// First request sent: revert to the host-reported status.
 		cached.markChatAsSent(chatResource.fragment);
 
 		return cached;
+	}
+
+	private _dispatchDraftChanged(cached: AgentHostSessionAdapter, rawId: string, chatResource: URI): void {
+		const connection = this.connection;
+		if (!connection) {
+			return;
+		}
+		const channel = this._chatChannelFor(cached, rawId, chatResource);
+		if (!channel) {
+			return;
+		}
+		const draft = this._draftMessage(cached, chatResource);
+		connection.dispatch(channel, draft ? {
+			type: ActionType.ChatDraftChanged,
+			draft,
+		} : {
+			type: ActionType.ChatDraftChanged,
+		});
+	}
+
+	private _chatChannelFor(cached: AgentHostSessionAdapter, rawId: string, chatResource: URI): string {
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		return chatResource.fragment
+			? buildChatUri(sessionUri, chatResource.fragment)
+			: buildDefaultChatUri(sessionUri);
+	}
+
+	private _draftMessage(cached: AgentHostSessionAdapter, chatResource: URI) {
+		const modelId = cached.getChatModelId(chatResource);
+		const mode = cached.getChatMode(chatResource);
+		if (!modelId && !mode?.id) {
+			return undefined;
+		}
+		return {
+			text: '',
+			origin: { kind: MessageKind.User },
+			...(modelId ? { model: this._toModelSelection(chatResource.scheme, modelId) } : {}),
+			...(mode?.id ? { agent: { uri: mode.id } } : {}),
+		};
+	}
+
+	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (!modelRef) {
+			return;
+		}
+		try {
+			if (modelId) {
+				const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
+				if (languageModel) {
+					modelRef.object.inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
+				}
+			}
+			modelRef.object.inputModel.setState({ mode: { id: agentUri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent } });
+		} finally {
+			modelRef.dispose();
+		}
 	}
 
 	private async _sendNewSessionRequest(newSession: NewSession, chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
@@ -2760,6 +2891,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			return undefined;
 		}
+	}
+
+	private _activeChatResource(session: AgentHostSessionAdapter): URI {
+		const activeSession = this._sessionsService.activeSession.get();
+		return activeSession?.sessionId === session.sessionId ? activeSession.activeChat.get().resource : session.resource;
+	}
+
+	private _toModelSelection(resourceScheme: string, modelId: string | undefined): ModelSelection | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const prefix = `${resourceScheme}:`;
+		if (modelId.startsWith(prefix)) {
+			return { id: modelId.substring(prefix.length) };
+		}
+		if (modelId.includes('/')) {
+			this._logService.warn(`[${this.id}] Dropping foreign model identifier '${modelId}' for session type '${resourceScheme}'; falling back to default model.`);
+			return undefined;
+		}
+		return { id: modelId };
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------
