@@ -861,6 +861,12 @@ export class ExtensionsScanner extends Disposable {
 		try {
 			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
+			// Preserve the original ENOTEMPTY error so callers can detect the benign
+			// "already installed by another source" race instead of receiving a wrapped
+			// error whose code has been clobbered to `Rename`.
+			if (error.code === 'ENOTEMPTY') {
+				throw error;
+			}
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.Rename);
 		}
 	}
