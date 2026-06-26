@@ -16,14 +16,15 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceSessionPending, IVoicePendingQuestion, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestion } from '../../common/chatService/chatService.js';
+import { getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -941,7 +942,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}));
 
-		// Tool calls → dispatch the binary-router tools from the voice LLM.
+		// Tool calls → dispatch the router tools from the voice LLM.
 		// send_to_chat is the LLM's signal that the utterance is a task for the
 		// active coding session; the backend has already overwritten args.text
 		// with the user's verbatim final transcript, so we just forward it.
@@ -952,7 +953,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const allowedTools = [
 				'send_to_chat',
 				'get_session_info', 'get_session_changes', 'get_session_thread',
-				'approve_confirmation', 'reject_confirmation',
+				'respond_to_session',
 				'auto_approve_session', 'revoke_auto_approve',
 				'focus_session',
 			];
@@ -982,11 +983,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolArgs: e.args,
 				});
 				// Telemetry: tool approval/rejection via voice
-				if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
-					this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
-						toolName: e.name,
-						approved: e.name === 'approve_confirmation',
-					});
+				if (e.name === 'respond_to_session') {
+					const response = (e.args?.['response'] && typeof e.args['response'] === 'object')
+						? e.args['response'] as Record<string, unknown>
+						: {};
+					const responseType = typeof response['type'] === 'string' ? response['type'] as string : '';
+					if (responseType === 'approve' || responseType === 'reject') {
+						this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
+							toolName: e.name,
+							approved: responseType === 'approve',
+						});
+					}
 				}
 				// Exit listening mode so the response audio isn't suppressed.
 				if (this._pttHeld) {
@@ -1643,7 +1650,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *
 	 *   send_to_chat(text="Open a new terminal and cd into the current directory.")
 	 *   new_sessions(sessions=[{"text": "Refactor upload service"}])
-	 *   approve_confirmation(...)
+	 *   respond_to_session(response={"type":"approve"})
 	 */
 	private _renderToolCallSummary(name: string, args: Record<string, unknown> | undefined): string {
 		if (!args || Object.keys(args).length === 0) {
@@ -2088,6 +2095,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
+				...(stateInfo.pending ? { pending: stateInfo.pending } : {}),
 			};
 		});
 
@@ -2110,6 +2118,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
+				...(stateInfo.pending ? { pending: stateInfo.pending } : {}),
 			});
 		}
 
@@ -2157,12 +2166,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, () => { cts.dispose(); });
 	}
 
-	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string } {
+	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string; pending?: IVoiceSessionPending } {
 		if (!model) {
 			return { state: 'unknown' };
 		}
 
 		const lastRequest = model.getRequests().at(-1);
+		const pending = this._buildPendingPayload(lastRequest);
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		if (pendingConfirmation) {
 			// Scan ALL response parts to find the most recent pending item.
@@ -2213,6 +2223,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return {
 				state: 'waiting_for_confirmation',
 				detail: confirmDetail || pendingConfirmation.detail || '',
+				...(pending ? { pending } : {}),
 			};
 		}
 
@@ -2247,8 +2258,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return {
 					state: 'waiting_for_confirmation',
 					detail: fallbackDetail,
+					...(pending ? { pending } : {}),
 				};
 			}
+		}
+
+		// A questionCarousel / elicitation can be pending without setting
+		// ``confirmationMessages`` (so ``isPendingConfirmation`` is undefined and
+		// the toolInvocation fallback above finds nothing). If we built a
+		// structured pending payload, surface it as a confirmation-wait so the
+		// backend narrates and the user can answer by voice.
+		if (pending) {
+			const detail = pending.questions && pending.questions.length > 0
+				? `questions: ${pending.questions.map(q => q.title).filter(Boolean).join(', ')}`
+				: (pending.title ?? pending.message ?? 'needs input');
+			return { state: 'waiting_for_confirmation', detail, pending };
 		}
 
 		const incomplete = lastRequest?.response?.isIncomplete.get() ?? false;
@@ -2258,6 +2282,92 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const responseText = lastRequest?.response?.response.toString() ?? '';
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
+	}
+
+	/**
+	 * Build the structured ``pending`` payload for a request: the authoritative
+	 * description of what the agent is waiting on (a questionCarousel form, a
+	 * binary tool/confirmation approval, or an elicitation) with the exact
+	 * routing ids the backend echoes back so the dispatch layer can target the
+	 * precise chat part. Scans all response parts and lets the LAST pending part
+	 * win, matching ``_getAgentStateInfo``'s chronological "newest pending" rule.
+	 */
+	private _buildPendingPayload(lastRequest: { id: string; response?: { response: { value: readonly { kind: string }[] } } } | undefined): IVoiceSessionPending | undefined {
+		const parts = lastRequest?.response?.response.value;
+		if (!lastRequest || !parts) {
+			return undefined;
+		}
+		const requestId = lastRequest.id;
+		let pending: IVoiceSessionPending | undefined;
+		parts.forEach((part, index) => {
+			if (part.kind === 'questionCarousel' && !(part as { isUsed?: boolean }).isUsed) {
+				const carousel = part as { questions?: IChatQuestion[]; resolveId?: string; message?: string | { value: string } };
+				const resolveId = carousel.resolveId;
+				pending = {
+					type: 'questions',
+					pending_id: resolveId ?? `${requestId}:carousel:${index}`,
+					request_id: requestId,
+					...(resolveId ? { resolve_id: resolveId } : {}),
+					questions: (carousel.questions ?? []).map(q => this._buildPendingQuestion(q)),
+					...(carousel.message ? { message: typeof carousel.message === 'string' ? carousel.message : carousel.message.value } : {}),
+				};
+			} else if (part.kind === 'elicitation2') {
+				const elicitation = part as { state?: IObservable<string>; title?: string | { value: string }; message?: string | { value: string } };
+				if (elicitation.state?.get() === 'pending') {
+					pending = {
+						type: 'elicitation',
+						pending_id: `${requestId}:elicitation:${index}`,
+						request_id: requestId,
+						approval_kind: 'elicitation2',
+						...(elicitation.title ? { title: typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value } : {}),
+						...(elicitation.message ? { message: typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value } : {}),
+					};
+				}
+			} else if (part.kind === 'confirmation' && !(part as { isUsed?: boolean }).isUsed) {
+				const conf = part as { title?: string; message?: string | { value: string } };
+				pending = {
+					type: 'approval',
+					pending_id: `${requestId}:confirmation:${index}`,
+					request_id: requestId,
+					approval_kind: 'confirmation',
+					...(conf.title ? { title: conf.title } : {}),
+					...(conf.message ? { message: typeof conf.message === 'string' ? conf.message : conf.message.value } : {}),
+				};
+			} else if (part.kind === 'toolInvocation') {
+				const invocation = part as IChatToolInvocation;
+				const state = invocation.state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					const invMsg = invocation.invocationMessage;
+					pending = {
+						type: 'approval',
+						pending_id: invocation.toolCallId,
+						request_id: requestId,
+						approval_kind: state.type === IChatToolInvocation.StateKind.WaitingForPostApproval ? 'toolPostApproval' : 'toolInvocation',
+						...(invMsg ? { title: typeof invMsg === 'string' ? invMsg : invMsg.value } : {}),
+					};
+				}
+			}
+		});
+		return pending;
+	}
+
+	private _buildPendingQuestion(question: IChatQuestion): IVoicePendingQuestion {
+		const ordered = getOptionsWithDefaultsFirst(question);
+		const options = ordered.map((entry, index) => ({
+			ordinal: index + 1,
+			label: entry.option.label,
+			value: entry.option.value,
+		}));
+		const allowFreeform = question.allowFreeformInput ?? false;
+		return {
+			id: question.id,
+			type: question.type,
+			title: question.title,
+			required: question.required ?? false,
+			allow_freeform: allowFreeform,
+			options,
+			...(allowFreeform ? { freeform_ordinal: options.length + 1 } : {}),
+		};
 	}
 
 	private _classifyPendingType(response: { response: { value: readonly { kind: string }[] } }): 'approval' | 'input' {
