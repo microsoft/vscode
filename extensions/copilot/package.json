@@ -5273,6 +5273,9 @@
             "type": "boolean",
             "default": false,
             "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEnabled"
+            },
             "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Configurable in user settings only. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
@@ -5288,6 +5291,9 @@
             ],
             "default": "otlp-http",
             "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelProtocol"
+            },
             "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
@@ -5297,6 +5303,9 @@
             "type": "string",
             "default": "http://localhost:4318",
             "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEndpoint"
+            },
             "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
@@ -5306,6 +5315,9 @@
             "type": "boolean",
             "default": false,
             "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureContent"
+            },
             "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Configurable in user settings only. Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
@@ -5325,6 +5337,9 @@
             "type": "string",
             "default": "",
             "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOutfile"
+            },
             "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"

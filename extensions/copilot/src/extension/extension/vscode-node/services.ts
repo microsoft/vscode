@@ -289,6 +289,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	// OTel service — resolve config from env + settings, create appropriate impl
 	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
+	const policyValue = <T>(key: string): T | undefined => (otelSettings.inspect<T>(key) as { policyValue?: T } | undefined)?.policyValue;
 	const otelConfig = resolveOTelConfig({
 		env: process.env,
 		settingEnabled: otelSettings.get<boolean>('enabled'),
@@ -298,6 +299,11 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
+		policyEnabled: policyValue<boolean>('enabled'),
+		policyExporterType: policyValue<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
+		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
+		policyCaptureContent: policyValue<boolean>('captureContent'),
+		policyOutfile: policyValue<string>('outfile'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});
