@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, type ChangesetFile, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -2564,7 +2564,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		cached.setChatModelId(chat.resource, selectedModelId);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
-		this._dispatchDraftChanged(cached, rawId, chat.resource);
 
 		await this._chatSessionsService.getOrCreateChatSession(chat.resource, CancellationToken.None);
 		await this._updateChatSessionState(chat.resource, selectedModelId, selectedAgentUri);
@@ -2661,26 +2660,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 		};
 
-		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (modelRef) {
-			if (selectedModelId) {
-				const languageModel = this._languageModelsService.lookupLanguageModel(selectedModelId);
-				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: selectedModelId, metadata: languageModel } });
-				}
-			}
-			if (selectedAgentUri) {
-				modelRef.object.inputModel.setState({ mode: { id: selectedAgentUri, kind: ChatModeKind.Agent } });
-			}
-			modelRef.dispose();
-		}
+		await this._updateChatSessionState(chatResource, selectedModelId, selectedAgentUri);
 
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
 
-		this._dispatchDraftChanged(cached, rawId, chatResource);
+		await this._updateChatSessionState(chatResource, selectedModelId, selectedAgentUri, { clearDraft: true });
 
 		// First request sent: revert to the host-reported status.
 		cached.markChatAsSent(chatResource.fragment);
@@ -2688,58 +2675,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached;
 	}
 
-	private _dispatchDraftChanged(cached: AgentHostSessionAdapter, rawId: string, chatResource: URI): void {
-		const connection = this.connection;
-		if (!connection) {
-			return;
-		}
-		const channel = this._chatChannelFor(cached, rawId, chatResource);
-		if (!channel) {
-			return;
-		}
-		const draft = this._draftMessage(cached, chatResource);
-		connection.dispatch(channel, draft ? {
-			type: ActionType.ChatDraftChanged,
-			draft,
-		} : {
-			type: ActionType.ChatDraftChanged,
-		});
-	}
-
-	private _chatChannelFor(cached: AgentHostSessionAdapter, rawId: string, chatResource: URI): string {
-		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
-		return chatResource.fragment
-			? buildChatUri(sessionUri, chatResource.fragment)
-			: buildDefaultChatUri(sessionUri);
-	}
-
-	private _draftMessage(cached: AgentHostSessionAdapter, chatResource: URI) {
-		const modelId = cached.getChatModelId(chatResource);
-		const mode = cached.getChatMode(chatResource);
-		if (!modelId && !mode?.id) {
-			return undefined;
-		}
-		return {
-			text: '',
-			origin: { kind: MessageKind.User },
-			...(modelId ? { model: this._toModelSelection(chatResource.scheme, modelId) } : {}),
-			...(mode?.id ? { agent: { uri: mode.id } } : {}),
-		};
-	}
-
-	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+	private async _updateChatSessionState(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
 		}
 		try {
+			const inputModel = modelRef.object.inputModel;
+			if (!inputModel) {
+				return;
+			}
 			if (modelId) {
 				const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
 				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
+					inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
 				}
 			}
-			modelRef.object.inputModel.setState({ mode: { id: agentUri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent } });
+			inputModel.setState({
+				mode: { id: agentUri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent },
+				...(options?.clearDraft ? { inputText: '', attachments: [], selections: [] } : {}),
+			});
 		} finally {
 			modelRef.dispose();
 		}
@@ -2911,21 +2866,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _activeChatResource(session: AgentHostSessionAdapter): URI {
 		const activeSession = this._sessionsService.activeSession.get();
 		return activeSession?.sessionId === session.sessionId ? activeSession.activeChat.get().resource : session.resource;
-	}
-
-	private _toModelSelection(resourceScheme: string, modelId: string | undefined): ModelSelection | undefined {
-		if (!modelId) {
-			return undefined;
-		}
-		const prefix = `${resourceScheme}:`;
-		if (modelId.startsWith(prefix)) {
-			return { id: modelId.substring(prefix.length) };
-		}
-		if (modelId.includes('/')) {
-			this._logService.warn(`[${this.id}] Dropping foreign model identifier '${modelId}' for session type '${resourceScheme}'; falling back to default model.`);
-			return undefined;
-		}
-		return { id: modelId };
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------

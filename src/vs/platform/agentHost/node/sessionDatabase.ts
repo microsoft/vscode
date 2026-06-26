@@ -576,7 +576,11 @@ export class SessionDatabase implements ISessionDatabase {
 		if (typeof row?.draft !== 'string') {
 			return undefined;
 		}
-		return JSON.parse(row.draft) as Message;
+		try {
+			return JSON.parse(row.draft) as Message;
+		} catch {
+			return undefined;
+		}
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {

@@ -38,6 +38,13 @@ suite('SessionDatabase', () => {
 			return inst;
 		}
 
+		async setRawChatDraft(chat: URI, draft: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
+			});
+		}
+
 		/** Extract the raw db connection; this instance becomes inert. */
 		async ejectDb(): Promise<Database> {
 			const rawDb = await this._ensureDb();
@@ -591,6 +598,15 @@ suite('SessionDatabase', () => {
 
 			await db.setChatDraft(chat, draft);
 			await db.setChatDraft(chat, undefined);
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('getChatDraft returns undefined for corrupt draft rows', async () => {
+			const testDb = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = testDb;
+
+			await testDb.setRawChatDraft(chat, '{');
 
 			assert.strictEqual(await db.getChatDraft(chat), undefined);
 		});

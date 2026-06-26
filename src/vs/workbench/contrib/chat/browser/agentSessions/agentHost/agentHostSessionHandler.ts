@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, raceTimeout } from '../../../../../../base/common/async.js';
+import { Delayer } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -562,7 +562,6 @@ function offsetToPosition(text: string, offset: number): IPosition {
 }
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
-	private static readonly DRAFT_SYNC_MODEL_WAIT_MS = 10_000;
 	private static readonly DRAFT_SYNC_DEBOUNCE_MS = 500;
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
@@ -3363,14 +3362,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const waitStore = owner.add(new DisposableStore());
 		try {
-			return await raceTimeout(new Promise<IChatModel | undefined>(resolve => {
+			return await new Promise<IChatModel | undefined>(resolve => {
 				waitStore.add(toDisposable(() => resolve(undefined)));
 				waitStore.add(this._chatService.onDidCreateModel(model => {
 					if (isEqual(model.sessionResource, sessionResource)) {
 						resolve(model);
 					}
 				}));
-			}), AgentHostSessionHandler.DRAFT_SYNC_MODEL_WAIT_MS);
+			});
 		} finally {
 			waitStore.dispose();
 		}

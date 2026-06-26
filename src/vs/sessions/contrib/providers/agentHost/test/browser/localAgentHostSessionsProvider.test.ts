@@ -17,7 +17,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -29,6 +29,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -66,7 +67,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
@@ -178,11 +179,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
@@ -2326,24 +2327,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
 	});
 
-	test('sendRequest clears draft text while preserving selected model and agent', async () => {
-		const provider = createProvider(disposables, agentHost);
+	test('sendRequest clears chat input draft while preserving selected model and agent', async () => {
+		const inputStates: Partial<IChatModelInputState>[] = [];
+		const languageModel = createTestLanguageModel('selected-model');
+		const provider = createProvider(disposables, agentHost, undefined, {
+			lookupLanguageModel: modelId => modelId === 'agent-host-copilotcli:selected-model' ? languageModel : undefined,
+			acquireOrLoadSession: async () => {
+				const inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(state: Partial<IChatModelInputState>): void {
+						inputStates.push(state);
+					}
+					override clearState(): void { }
+					override toJSON(): undefined { return undefined; }
+				}();
+				const chatModel = new class extends mock<IChatModel>() {
+					override readonly inputModel = inputModel;
+				}();
+				return {
+					object: chatModel,
+					dispose() { },
+				} satisfies IChatModelReference;
+			},
+		});
 		fireSessionAdded(agentHost, 'send-draft', { title: 'Send Draft Session' });
 		const session = provider.getSessions().find(s => s.title.get() === 'Send Draft Session');
 		assert.ok(session);
 		provider.setModel(session!.sessionId, 'agent-host-copilotcli:selected-model');
 		provider.setAgent?.(session!.sessionId, { uri: 'agent://review', name: 'review' });
 		agentHost.dispatchedActions.length = 0;
+		inputStates.length = 0;
 
 		await provider.sendRequest(session!.sessionId, session!.resource, { query: 'hello' });
 
-		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
-			type: ActionType.ChatDraftChanged,
-			draft: {
-				text: '',
-				origin: { kind: MessageKind.User },
-				model: { id: 'selected-model' },
-				agent: { uri: 'agent://review' },
+		assert.deepStrictEqual({
+			protocolDraftActions: agentHost.dispatchedActions.filter(d => d.action.type === ActionType.ChatDraftChanged).length,
+			hasSelectedModelUpdate: inputStates.some(state => state.selectedModel?.identifier === 'agent-host-copilotcli:selected-model'),
+			lastInputState: inputStates.at(-1),
+		}, {
+			protocolDraftActions: 0,
+			hasSelectedModelUpdate: true,
+			lastInputState: {
+				mode: { id: 'agent://review', kind: ChatModeKind.Agent },
+				inputText: '',
+				attachments: [],
+				selections: [],
 			},
 		});
 	});

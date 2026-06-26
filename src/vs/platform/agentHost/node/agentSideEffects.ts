@@ -1171,7 +1171,7 @@ export class AgentSideEffects extends Disposable {
 		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
 		// Selection travels on the queued message; it is applied before sending.
-		this._sendTurnMessage({
+		void this._sendTurnMessage({
 			agent,
 			sessionChannel,
 			turnChannel: session,
@@ -1195,7 +1195,7 @@ export class AgentSideEffects extends Disposable {
 	 * dispatches {@link ActionType.ChatError} on the turn channel, and marks the
 	 * turn errored.
 	 */
-	private _sendTurnMessage(options: {
+	private async _sendTurnMessage(options: {
 		agent: IAgent;
 		/** The agent/session URI the conversation lives on (the send target). */
 		sessionChannel: ProtocolURI;
@@ -1205,21 +1205,30 @@ export class AgentSideEffects extends Disposable {
 		chat: ProtocolURI | undefined;
 		message: Message;
 		turnId: string;
-	}): void {
+	}): Promise<void> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId } = options;
 
 		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = chat ? URI.parse(chat) : undefined;
+		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
-			agent.changeModel?.(sessionUri, message.model, chatUri)?.catch(err => {
-				this._logService.error('[AgentSideEffects] changeModel failed', err);
-			});
+			const changeModel = agent.changeModel?.(sessionUri, message.model, chatUri);
+			if (changeModel) {
+				selectionUpdates.push(changeModel.catch(err => {
+					this._logService.error('[AgentSideEffects] changeModel failed', err);
+				}));
+			}
 		}
-		agent.changeAgent?.(sessionUri, message.agent, chatUri)?.catch(err => {
-			this._logService.error('[AgentSideEffects] changeAgent failed', err);
-		});
+		const changeAgent = agent.changeAgent?.(sessionUri, message.agent, chatUri);
+		if (changeAgent) {
+			selectionUpdates.push(changeAgent.catch(err => {
+				this._logService.error('[AgentSideEffects] changeAgent failed', err);
+			}));
+		}
 
-		agent.sendMessage(URI.parse(sessionChannel), message.text, message.attachments, turnId, chatUri).catch(err => {
+		await Promise.all(selectionUpdates);
+
+		await agent.sendMessage(URI.parse(sessionChannel), message.text, message.attachments, turnId, chatUri).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {

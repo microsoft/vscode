@@ -591,6 +591,42 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }]);
 		});
 
+		test('waits for model selection before sending the message', async () => {
+			setupSession();
+			let resolveChangeModel!: () => void;
+			const changeModelSettled = new Promise<void>(resolve => { resolveChangeModel = resolve; });
+			let resolveSend!: () => void;
+			const sendStarted = new Promise<void>(resolve => { resolveSend = resolve; });
+			agent.changeModel = async (session, model, chat) => {
+				agent.changeModelCalls.push({ session, model, chat });
+				await changeModelSettled;
+			};
+			agent.sendMessage = async (session, prompt, attachments, _turnId, chat) => {
+				agent.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
+				resolveSend();
+			};
+
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
+			});
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				changeModelCalls: agent.changeModelCalls,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				changeModelCalls: [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }],
+				sendMessageCalls: [],
+			});
+
+			resolveChangeModel();
+			await sendStarted;
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello', attachments: undefined }]);
+		});
+
 		test('forwards the chat channel for an additional (peer) chat', async () => {
 			setupSession();
 			const chatChannel = `${sessionUri.toString()}#peer-1`;
