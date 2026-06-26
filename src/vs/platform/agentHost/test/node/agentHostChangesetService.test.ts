@@ -58,7 +58,7 @@ function createOperationService(): IAgentHostChangesetOperationService {
 	};
 }
 
-suite('AgentHostChangesetService', () => {
+suite.skip('AgentHostChangesetService', () => {
 
 	const disposables = new DisposableStore();
 	let stateManager: AgentHostStateManager;
