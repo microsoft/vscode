@@ -11,6 +11,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatHookService, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
 import { CanceledResult, ChatFetchError, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
@@ -615,8 +616,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@IChatQuotaService chatQuotaService: IChatQuotaService,
 	) {
-		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
+		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService, chatQuotaService);
 
 		this._register(this.onDidBuildPrompt(({ result, tools, promptTokenLength, toolTokenCount }) => {
 			if (result.metadata.get(SummarizedConversationHistoryMetadata)) {

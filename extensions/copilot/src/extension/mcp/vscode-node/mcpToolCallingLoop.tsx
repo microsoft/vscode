@@ -6,6 +6,7 @@
 import type { CancellationToken, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -48,8 +49,9 @@ export class McpToolCallingLoop extends ToolCallingLoop<IMcpToolCallingLoopOptio
 		@IFileSystemService fileSystemService: IFileSystemService,
 		@IOTelService otelService: IOTelService,
 		@IGitService gitService: IGitService,
+		@IChatQuotaService chatQuotaService: IChatQuotaService,
 	) {
-		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
+		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService, chatQuotaService);
 	}
 
 	private async getEndpoint() {

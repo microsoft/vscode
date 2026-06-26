@@ -7,6 +7,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ChatRequest, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
@@ -73,6 +74,14 @@ class UsageTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> 
 }
 
 class CreditsTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> {
+	// The quota service that, in production, chatMLFetcher records every call into.
+	// The test wires the same singleton here so the fake fetch can mirror that.
+	private _quota: IChatQuotaService | undefined;
+
+	public setQuota(quota: IChatQuotaService): void {
+		this._quota = quota;
+	}
+
 	protected override async buildPrompt(_buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
 		return {
 			...nullRenderPromptResult(),
@@ -84,8 +93,11 @@ class CreditsTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions
 		return [];
 	}
 
-	// Each model call bills 5 credits (5 * 1e9 nano-AIU).
+	// Each model call bills 5 credits (5 * 1e9 nano-AIU). Record it into the quota
+	// service under the top-level turn id, exactly as chatMLFetcher does in production.
 	protected override async fetch(): Promise<ChatResponse> {
+		const topLevelTurnId = this.options.request.parentRequestId ?? this.options.conversation.getLatestTurn().id;
+		this._quota?.setLastCopilotUsage(5_000_000_000, topLevelTurnId);
 		return {
 			type: ChatFetchResponseType.Success,
 			value: 'test-response',
@@ -201,6 +213,7 @@ describe('ToolCallingLoop usage reporting', () => {
 				request,
 			}
 		);
+		loop.setQuota(accessor.get(IChatQuotaService));
 		disposables.add(loop);
 		const stream = new UsageCapturingStream();
 
@@ -210,5 +223,31 @@ describe('ToolCallingLoop usage reporting', () => {
 		await loop.runOne(stream, 1, tokenSource.token);
 
 		expect(stream.usages.map(u => u.copilotCredits)).toEqual([5, 10]);
+	});
+
+	it('includes subagent credits recorded under the same turn in the running total', async () => {
+		const request = createMockChatRequest();
+		const conversation = createConversation(request.prompt);
+		const quota = accessor.get(IChatQuotaService);
+		// A subagent invoked during this turn records its spend under the parent turn
+		// id (chatMLFetcher keys subagent calls by the top-level turn id).
+		quota.setLastCopilotUsage(3_000_000_000, conversation.getLatestTurn().id);
+
+		const loop = instantiationService.createInstance(
+			CreditsTestToolCallingLoop,
+			{
+				conversation,
+				toolCallLimit: 1,
+				request,
+			}
+		);
+		loop.setQuota(quota);
+		disposables.add(loop);
+		const stream = new UsageCapturingStream();
+
+		await loop.runOne(stream, 0, tokenSource.token);
+
+		// The parent's own call bills 5, plus the subagent's 3 = 8.
+		expect(stream.usages.map(u => u.copilotCredits)).toEqual([8]);
 	});
 });

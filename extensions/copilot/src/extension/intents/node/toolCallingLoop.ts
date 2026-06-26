@@ -10,6 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -21,7 +22,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
-import { nanoAiuToCredits, OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
+import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -181,16 +182,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private lastModelCallId: string | undefined;
 
 	/**
-	 * Running total of Copilot credits across every model call in the current
-	 * turn. Each fetch reports the credits for that single call, but the context
-	 * usage widget and `IChatModel.sessionCost` treat the per-request value as the
-	 * whole turn, so we accumulate here and emit the running total — mirroring the
-	 * cumulative credits the agent host reports. Reset on the first iteration of a
-	 * turn ({@link runOne} with `iterationNumber === 0`).
-	 */
-	private _accumulatedCopilotCredits: number | undefined;
-
-	/**
 	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
 	 * Probes reuse this wholesale (overriding only `messages` and `finishedCb`)
 	 * so that the server-side prompt cache key — which includes tool schemas,
@@ -244,6 +235,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 		@IOTelService protected readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 	}
@@ -1406,11 +1398,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Runs a single iteration of the tool calling loop. */
 	public async runOne(outputStream: ChatResponseStream | undefined, iterationNumber: number, token: CancellationToken): Promise<IToolCallSingleResult> {
-		// The first iteration of a turn starts a fresh credit total. Resetting here
-		// (rather than only in run()) keeps runOne() correct when called standalone.
-		if (iterationNumber === 0) {
-			this._accumulatedCopilotCredits = undefined;
-		}
 		let availableTools = await this.getAvailableTools(outputStream, token);
 
 		// Emit tools_available on the agent span once, before the first CHAT span
@@ -1652,18 +1639,19 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Report token usage to the stream for rendering the context window widget
 		const stream = streamParticipants[streamParticipants.length - 1];
 		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream && this.shouldReportUsageToContextWidget()) {
-			// Credits are billed per model call and a single turn can make many calls.
-			// Accumulate so the per-request usage reflects the whole turn (and the
-			// session cost sums correctly) instead of only the final call's credits.
-			const callCredits = nanoAiuToCredits(fetchResult.usage.copilot_usage?.total_nano_aiu);
-			if (callCredits !== undefined) {
-				this._accumulatedCopilotCredits = (this._accumulatedCopilotCredits ?? 0) + callCredits;
-			}
+			// Credits are billed per model call and a single turn can make many calls
+			// — including calls made by subagents this turn invoked. The quota service
+			// accumulates every call's credits under the top-level turn id (see
+			// chatMLFetcher), so reading the turn total here keeps the running
+			// `IChatModel.sessionCost` in sync with the final per-turn total (which
+			// chatParticipantRequestHandler reads from the same key) and includes
+			// subagent spend, instead of only this loop's own calls.
+			const topLevelTurnId = this.options.request.parentRequestId ?? this.turn.id;
 			stream.usage({
 				completionTokens: fetchResult.usage.completion_tokens,
 				promptTokens: fetchResult.usage.prompt_tokens,
 				outputBuffer: endpoint.maxOutputTokens,
-				copilotCredits: this._accumulatedCopilotCredits,
+				copilotCredits: this._chatQuotaService.getCreditsForTurn(topLevelTurnId),
 				promptTokenDetails,
 			});
 		}
