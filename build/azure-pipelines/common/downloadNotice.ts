@@ -47,10 +47,6 @@ const TARGET_NOTICE = path.resolve('ThirdPartyNotices.txt');
 // Poll budget: 30 attempts x 30s = 15 minutes. Deliberately far below the
 // copilot 30min so a never-produced artifact degrades to fallback quickly, but
 // with generous margin over the parallel Quality stage (CG + scan + merge).
-// Green builds accept by attempt ~10; the extra headroom over the old 20 covers
-// a slow Quality stage (CG retries / succeededWithIssues runs take up to ~256s)
-// so a fast-compiling platform doesn't exhaust the budget and ship the legacy
-// notice while its peers ship the CG notice (observed on outage build 450982).
 // The gate accepts only once ThirdPartyNotices.new.txt has been downloaded,
 // extracted, and validated non-empty (>1KB) -- merely seeing it in the
 // container listing is NOT sufficient, because the listing entry can appear

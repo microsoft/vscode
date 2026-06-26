@@ -148,10 +148,6 @@ jobs:
         displayName: "Generate ThirdPartyNotices (CG)"
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
-        # Retry a hard CG failure before degrading to the cached-NOTICE fallback.
-        # CG succeeds in ~15-30s, so retries add negligible wall-clock and only
-        # fire on a non-zero exit (soft "exit 0 but empty" failures are caught by
-        # the >1KB check below, not here).
         retryCountOnTaskFailure: 3
         continueOnError: true
 
