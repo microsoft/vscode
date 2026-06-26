@@ -76,17 +76,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
-		return this._repositoryRootSequencer.queue(workingDirectory.toString(), async () => {
-			let repositoryRoot = this._repositoryRoots.get(workingDirectory.toString());
-			if (repositoryRoot) {
-				return repositoryRoot;
-			}
+		const workingDirectoryKey = workingDirectory.toString();
+		let repositoryRoot = this._repositoryRoots.get(workingDirectoryKey);
+		if (repositoryRoot) {
+			return repositoryRoot;
+		}
 
+		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
 			try {
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
 				if (repositoryRootPath) {
 					repositoryRoot = URI.file(repositoryRootPath);
-					this._repositoryRoots.set(workingDirectory.toString(), repositoryRoot);
+					this._repositoryRoots.set(workingDirectoryKey, repositoryRoot);
 				}
 
 				return repositoryRoot;
