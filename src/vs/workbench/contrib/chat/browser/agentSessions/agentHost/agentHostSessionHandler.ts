@@ -33,7 +33,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, JsonPrimitive, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -3521,24 +3521,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Forward the user's active editor as ambient context. The "suggested context" flow keeps the active file out of
-	 * the request for agents, leaving an agent-host backend unable to resolve what "this file" means. Re-add the active
-	 * editor (already computed by the implicit-context machinery on the widget) as a lightweight reference, deduping
-	 * against any file the user attached explicitly.
+	 * the request for agents, so re-add the implicit-context value computed on the widget, deduped against explicit
+	 * attachments.
 	 *
-	 * Unsaved editors (untitled, or files with in-memory edits) can't be read from disk by the agent-host harness. For
-	 * the Copilot CLI backend we inline the live buffer as an embedded resource so the model still sees the real
-	 * content; other backends only read paths, so we skip untitled there and let saved-but-dirty files fall back to
-	 * their on-disk content.
+	 * Unsaved editors (untitled or dirty) can't be read from disk by the harness. Copilot CLI inlines the live buffer
+	 * as an embedded resource; other backends only read paths, so we skip untitled and let dirty files fall back to
+	 * disk.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
 		if (!implicitContext) {
 			return;
 		}
-		const existingResourceUris = new Set<string>();
+		// Key on URI *and* selection range so a whole-document reference and a selection for the same file coexist.
+		const existingKeys = new Set<string>();
 		for (const attachment of attachments) {
 			if (attachment.type === MessageAttachmentKind.Resource) {
-				existingResourceUris.add(attachment.uri);
+				existingKeys.add(this._attachmentDedupeKey(attachment.uri, attachment.selection));
 			}
 		}
 		for (const entry of implicitContext.values) {
@@ -3548,36 +3547,47 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const uri = entry.uri;
 			if (uri && this._isUnsavedResource(uri)) {
 				if (this._config.provider === COPILOT_CLI_PROVIDER) {
-					const dedupeKey = this._rebaseAttachmentUri(uri, request.sessionResource).toString();
+					const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString());
 					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name);
-					if (embedded && !existingResourceUris.has(dedupeKey)) {
-						existingResourceUris.add(dedupeKey);
+					if (embedded && !existingKeys.has(dedupeKey)) {
+						existingKeys.add(dedupeKey);
 						attachments.push(embedded);
 					}
 					continue;
 				}
 				if (uri.scheme === Schemas.untitled) {
-					// Untitled editors don't exist on disk, so a path reference would be unreadable for non-Copilot
-					// backends. Skip rather than forward a broken path.
+					// Untitled has no on-disk path, so a path reference would be unreadable here.
 					continue;
 				}
 			}
 			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
-			if (!Array.isArray(attachment) && attachment?.type === MessageAttachmentKind.Resource && !existingResourceUris.has(attachment.uri)) {
-				existingResourceUris.add(attachment.uri);
-				attachments.push(attachment);
+			if (!Array.isArray(attachment) && attachment?.type === MessageAttachmentKind.Resource) {
+				const key = this._attachmentDedupeKey(attachment.uri, attachment.selection);
+				if (!existingKeys.has(key)) {
+					existingKeys.add(key);
+					attachments.push(attachment);
+				}
 			}
 		}
 	}
 
-	/** A resource is "unsaved" when it's an untitled editor or a saved file with in-memory (dirty) changes. */
+	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
+	private _attachmentDedupeKey(uri: string, selection?: MessageResourceAttachment['selection']): string {
+		if (!selection) {
+			return uri;
+		}
+		const { start, end } = selection.range;
+		return `${uri}#${start.line}:${start.character}-${end.line}:${end.character}`;
+	}
+
+	/** A resource is unsaved when it's untitled or a saved file with in-memory (dirty) changes. */
 	private _isUnsavedResource(uri: URI): boolean {
 		return uri.scheme === Schemas.untitled || this._workingCopyService.isDirty(uri);
 	}
 
 	/**
-	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a backend that reads paths from
-	 * disk still receives the current content. Returns `undefined` when no loaded text model is available.
+	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
+	 * gets current content. Returns `undefined` when no loaded text model is available.
 	 */
 	private _buildUnsavedEditorAttachment(uri: URI, label: string): MessageAttachment | undefined {
 		const model = this._modelService.getModel(uri);

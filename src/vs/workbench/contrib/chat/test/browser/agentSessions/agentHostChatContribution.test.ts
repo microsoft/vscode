@@ -4561,8 +4561,9 @@ suite('AgentHostChatContribution', () => {
 		test('active editor implicit context is forwarded as a document attachment for agent sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-active-editor' });
+			const fileUri = URI.file('/workspace/foo.ts');
 			chatWidgetService.setWidgetForSession(sessionResource, [
-				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, value: { uri: URI.file('/workspace/foo.ts'), range: new Range(1, 1, 20, 1) } },
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'foo.ts', isSelection: false, uri: fileUri, value: fileUri },
 			]);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -4575,7 +4576,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/foo.ts').toString(), label: 'foo.ts', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
 			]);
 		}));
 
@@ -4584,7 +4585,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-dedup' });
 			const fileUri = URI.file('/workspace/foo.ts');
 			chatWidgetService.setWidgetForSession(sessionResource, [
-				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, value: { uri: fileUri, range: new Range(1, 1, 20, 1) } },
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'foo.ts', isSelection: false, uri: fileUri, value: fileUri },
 			]);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -4603,6 +4604,34 @@ suite('AgentHostChatContribution', () => {
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
+			]);
+		}));
+
+		test('active editor implicit selection is forwarded even when the same file is attached as a document', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-selection-dedup' });
+			const fileUri = URI.file('/workspace/foo.ts');
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.selection', name: 'foo.ts', isSelection: true, uri: fileUri, value: { uri: fileUri, range: new Range(2, 1, 4, 10) } },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what\'s in this selection?',
+				sessionResource,
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: fileUri }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'selection', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } } },
 			]);
 		}));
 
@@ -4656,7 +4685,7 @@ suite('AgentHostChatContribution', () => {
 			modelService.setModelContent(fileUri, 'edited but not saved');
 			workingCopyService.setDirty(fileUri, true);
 			chatWidgetService.setWidgetForSession(sessionResource, [
-				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, uri: fileUri, value: { uri: fileUri, range: new Range(1, 1, 20, 1) } },
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'foo.ts', isSelection: false, uri: fileUri, value: fileUri },
 			]);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -4679,7 +4708,7 @@ suite('AgentHostChatContribution', () => {
 			const fileUri = URI.file('/workspace/foo.ts');
 			modelService.setModelContent(fileUri, 'saved content');
 			chatWidgetService.setWidgetForSession(sessionResource, [
-				{ kind: 'implicit', id: 'vscode.implicit.viewport', name: 'foo.ts', isSelection: false, uri: fileUri, value: { uri: fileUri, range: new Range(1, 1, 20, 1) } },
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'foo.ts', isSelection: false, uri: fileUri, value: fileUri },
 			]);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
