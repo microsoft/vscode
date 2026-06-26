@@ -130,7 +130,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 */
 	async onDidChangeSessionsRoot(activeSessions: string[]): Promise<void> {
 		for (const sessionStr of activeSessions) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionStr)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionStr)?.workingDirectory;
 			const workingDirectory = workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined;
 
 			// Refresh the git state for the session
