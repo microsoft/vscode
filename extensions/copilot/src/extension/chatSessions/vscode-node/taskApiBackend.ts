@@ -91,7 +91,7 @@ interface TaskAgentCollaborator {
  */
 export function isCloudCodingAgentTask(task: AgentTask): boolean {
 	const collaborators = (task as AgentTask & { readonly agent_collaborators?: readonly TaskAgentCollaborator[] }).agent_collaborators;
-	return collaborators?.some(c => c.slug !== undefined && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
+	return collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
 }
 
 function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTaskGitHubResourceData }) | undefined {

@@ -172,6 +172,11 @@ export function taskStateToChatSessionStatus(state: AgentTaskState): vscode.Chat
 		case 'timed_out':
 		case 'cancelled':
 			return vscode.ChatSessionStatus.Failed;
+		default:
+			// Forward-compat fallback: a state outside the known union (e.g. a state added
+			// server-side after this build) must not yield an invalid `undefined` status. Treat
+			// unknowns as InProgress — the conservative "agent may still own the turn" assumption.
+			return vscode.ChatSessionStatus.InProgress;
 	}
 }
 

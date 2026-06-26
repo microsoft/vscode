@@ -494,8 +494,8 @@ describe('TaskApiBackend', () => {
 });
 
 describe('isCloudCodingAgentTask', () => {
-	it('keeps cloud coding agent slugs and rejects local-client / missing slugs', () => {
-		const classify = (agent_collaborators?: Array<{ slug?: string }>) =>
+	it('keeps cloud coding agent slugs and rejects local-client / missing / malformed slugs', () => {
+		const classify = (agent_collaborators?: Array<{ slug?: unknown }>) =>
 			isCloudCodingAgentTask({ id: 't', state: 'idle', created_at: '2026-03-27T00:00:00Z', ...(agent_collaborators && { agent_collaborators }) } as unknown as AgentTask);
 
 		expect({
@@ -505,6 +505,7 @@ describe('isCloudCodingAgentTask', () => {
 			'vscode-chat': classify([{ slug: 'vscode-chat' }]),
 			'jetbrains-chat': classify([{ slug: 'jetbrains-chat' }]),
 			'missing-slug': classify([{}]),
+			'null-slug': classify([{ slug: null }]),
 			'no-collaborators': classify(undefined),
 			'empty-collaborators': classify([]),
 		}).toEqual({
@@ -514,6 +515,7 @@ describe('isCloudCodingAgentTask', () => {
 			'vscode-chat': false,
 			'jetbrains-chat': false,
 			'missing-slug': false,
+			'null-slug': false,
 			'no-collaborators': false,
 			'empty-collaborators': false,
 		});
@@ -536,6 +538,10 @@ describe('taskStateToChatSessionStatus', () => {
 			timed_out: vscode.ChatSessionStatus.Failed,
 			cancelled: vscode.ChatSessionStatus.Failed,
 		});
+	});
+
+	it('falls back to InProgress for an unknown/forward-compat state instead of returning undefined', () => {
+		expect(taskStateToChatSessionStatus('some_new_server_state' as AgentTaskState)).toBe(vscode.ChatSessionStatus.InProgress);
 	});
 });
 
