@@ -100,6 +100,38 @@ export function getWindowsReleaseSync(): string {
 	return versionInfo?.release ?? os.release();
 }
 
+let _isUACDisabled: boolean | undefined;
+
+/**
+ * Checks whether UAC (User Account Control) is disabled on Windows by reading
+ * the `EnableLUA` registry value under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`.
+ *
+ * When `EnableLUA` is `0`, UAC is disabled and admin users run with full elevated
+ * privileges without prompts.
+ *
+ * @returns `true` if UAC is disabled, `false` otherwise (including on non-Windows platforms).
+ */
+export async function isUACDisabled(): Promise<boolean> {
+	if (_isUACDisabled !== undefined) {
+		return _isUACDisabled;
+	}
+
+	if (!isWindows) {
+		_isUACDisabled = false;
+		return false;
+	}
+
+	try {
+		const Registry = await import('@vscode/windows-registry');
+		const enableLUA = Registry.GetDWORDRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System', 'EnableLUA');
+		_isUACDisabled = enableLUA === 0;
+	} catch {
+		_isUACDisabled = false;
+	}
+
+	return _isUACDisabled;
+}
+
 /**
  * Parses the Windows build number from os.release().
  * This is used as a fallback when registry reading is not available.
