@@ -310,7 +310,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
-	private readonly toolOriginalPositionByCallId = new Map<string, { element: HTMLElement; originalParent: HTMLElement }>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -328,7 +327,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
-	private readonly _singleItemPromotionRetry = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -1151,39 +1149,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				}
 			}
-			// If singleItemInfo was cleared (eager render or transient sibling), reconstruct it from the sole tool's recorded original position.
-			if (!this.singleItemInfo && this.toolInvocations.length === 1) {
-				const soleTool = this.toolInvocations[0];
-				const recorded = this.toolOriginalPositionByCallId.get(soleTool.toolCallId);
-				if (recorded) {
-					this.singleItemInfo = {
-						element: recorded.element,
-						originalParent: recorded.originalParent,
-						originalNextSibling: this.domNode,
-						toolInvocation: soleTool
-					};
-				}
-			}
-			// Only restore once the tool is complete; if it completes after finalize, retry promotion.
-			if (this.singleItemInfo) {
-				const toolInvocation = this.singleItemInfo.toolInvocation;
-				if (!toolInvocation || IChatToolInvocation.isComplete(toolInvocation)) {
-					if (this.restoreSingleItemToOriginalPosition()) {
-						return;
-					}
-				} else {
-					this._singleItemPromotionRetry.value = autorun(reader => {
-						const pending = this.singleItemInfo;
-						if (this._store.isDisposed || !pending?.toolInvocation) {
-							return;
-						}
-						if (IChatToolInvocation.isComplete(pending.toolInvocation, reader)) {
-							this.restoreSingleItemToOriginalPosition();
-							this._singleItemPromotionRetry.clear();
-						}
-					});
-					return;
-				}
+			// Only restore if the tool is complete so the progress spinner is resolved
+			const toolIsComplete = !this.singleItemInfo?.toolInvocation || IChatToolInvocation.isComplete(this.singleItemInfo.toolInvocation);
+			if (toolIsComplete && this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
+				return;
 			}
 		}
 
@@ -1462,6 +1431,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		const { element, originalParent, originalNextSibling, toolInvocation } = this.singleItemInfo;
 
+		// don't restore it to original position - it contains multiple rendered elements
+		if (element.childElementCount > 1) {
+			this.singleItemInfo = undefined;
+			return false;
+		}
+
 		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
 			originalParent.insertBefore(element, originalNextSibling);
 		} else {
@@ -1606,7 +1581,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
-		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
 		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
@@ -1754,7 +1728,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
-		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		// make sure to remove any lazy item as well
 		const lazyIndex = this.lazyItems.findIndex(item =>
@@ -2101,9 +2074,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
 			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
 			this.toolIconsByCallId.set(toolInvocationOrMarkdown.toolCallId, iconElement);
-			if (originalParent) {
-				this.toolOriginalPositionByCallId.set(toolInvocationOrMarkdown.toolCallId, { element: content, originalParent });
-			}
 		}
 
 		this.appendToWrapper(itemWrapper);

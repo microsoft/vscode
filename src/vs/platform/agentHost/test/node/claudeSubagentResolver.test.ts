@@ -61,6 +61,7 @@ class FakeSdkService implements IClaudeAgentSdkService {
 		return this.subagentMessages.get(`${sessionId}::${agentId}`) ?? [];
 	}
 	async forkSession(): Promise<never> { throw new Error('not implemented in test fake'); }
+	async deleteSession(): Promise<void> { throw new Error('not implemented in test fake'); }
 	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in test fake'); }
 	async tool(): Promise<never> { throw new Error('not implemented in test fake'); }
 }
