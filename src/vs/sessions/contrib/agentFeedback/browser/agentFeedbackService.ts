@@ -223,9 +223,9 @@ export interface IAgentFeedbackService {
 
 	/**
 	 * Submit the currently accumulated accepted feedback for the session to the
-	 * agent and mark those items as submitted.
+	 * agent and mark those items as submitted. Returns whether the feedback was submitted.
 	 */
-	submitFeedback(sessionResource: URI): Promise<void>;
+	submitFeedback(sessionResource: URI): Promise<boolean>;
 
 	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
@@ -661,11 +661,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
-	async submitFeedback(sessionResource: URI): Promise<void> {
+	async submitFeedback(sessionResource: URI): Promise<boolean> {
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
-			return;
+			return false;
 		}
 
 		// Agent-host sessions don't keep a reactive feedback attachment in the
@@ -687,13 +687,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				await widget.acceptInput('/act-on-feedback');
 			} catch (err) {
 				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-				return;
+				return false;
 			} finally {
 				widget.attachmentModel.delete(attachmentId);
 			}
 
 			this.markFeedbackSubmitted(sessionResource);
-			return;
+			return true;
 		}
 
 		// Send first so the accepted feedback is still attached to the request,
@@ -704,10 +704,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-			return;
+			return false;
 		}
 
 		this.markFeedbackSubmitted(sessionResource);
+		return true;
 	}
 
 	markFeedbackSubmitted(sessionResource: URI): void {
