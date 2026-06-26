@@ -66,6 +66,11 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['tool_search_tool_regex', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
+			['addComment', 'Add Comment'],
+			['listComments', 'List Comments'],
+			['deleteComments', 'Delete Comments'],
+			['resolveComments', 'Resolve Comments'],
+			['viewUnreviewedComments', 'View Comments'],
 		];
 
 		for (const [toolName, displayName] of cases) {
@@ -440,6 +445,52 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		test('write_bash failure returns a non-empty error message', () => {
 			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, false);
 			assert.ok(getText(msg).length > 0);
+		});
+	});
+
+	suite('feedback comment tools', () => {
+
+		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		test('listComments past tense reports the comment count from the result', () => {
+			const result = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, result)), 'Checked 3 comments');
+		});
+
+		test('listComments past tense uses the singular form for one comment', () => {
+			const result = JSON.stringify({ comments: [{ id: 'a' }] });
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, result)), 'Checked 1 comment');
+		});
+
+		test('listComments past tense falls back when the result is missing or malformed', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true)), 'Checked comments');
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, 'not json')), 'Checked comments');
+		});
+
+		test('comment tools have dedicated invocation and past tense messages', () => {
+			assert.deepStrictEqual({
+				addInvoke: text(getInvocationMessage('addComment', 'Add Comment', undefined)),
+				addPast: text(getPastTenseMessage('addComment', 'Add Comment', undefined, true)),
+				deleteInvoke: text(getInvocationMessage('deleteComments', 'Delete Comments', undefined)),
+				deletePast: text(getPastTenseMessage('deleteComments', 'Delete Comments', undefined, true)),
+				resolveInvoke: text(getInvocationMessage('resolveComments', 'Resolve Comments', undefined)),
+				resolvePast: text(getPastTenseMessage('resolveComments', 'Resolve Comments', undefined, true)),
+				viewInvoke: text(getInvocationMessage('viewUnreviewedComments', 'View Comments', undefined)),
+				viewPast: text(getPastTenseMessage('viewUnreviewedComments', 'View Comments', undefined, true)),
+				listInvoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+			}, {
+				addInvoke: 'Adding comment',
+				addPast: 'Added comment',
+				deleteInvoke: 'Deleting comments',
+				deletePast: 'Deleted comments',
+				resolveInvoke: 'Resolving comments',
+				resolvePast: 'Resolved comments',
+				viewInvoke: 'Viewing comments',
+				viewPast: 'Viewed comments',
+				listInvoke: 'Checking comments',
+			});
 		});
 	});
 

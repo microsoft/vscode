@@ -13,6 +13,7 @@ import type { IAgentToolPendingConfirmationSignal } from '../../common/agentServ
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { addCommentToolName, deleteCommentsToolName, listCommentsToolName, resolveCommentsToolName, viewUnreviewedCommentsToolName } from '../shared/agentFeedbackServerTools.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -529,6 +530,11 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
 		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
 		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
+		case addCommentToolName: return localize('toolName.addComment', "Add Comment");
+		case listCommentsToolName: return localize('toolName.listComments', "List Comments");
+		case deleteCommentsToolName: return localize('toolName.deleteComments', "Delete Comments");
+		case resolveCommentsToolName: return localize('toolName.resolveComments', "Resolve Comments");
+		case viewUnreviewedCommentsToolName: return localize('toolName.viewUnreviewedComments', "View Comments");
 		default: return toolName;
 	}
 }
@@ -634,12 +640,40 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
+		case addCommentToolName:
+			return localize('toolInvoke.addComment', "Adding comment");
+		case listCommentsToolName:
+			return localize('toolInvoke.listComments', "Checking comments");
+		case deleteCommentsToolName:
+			return localize('toolInvoke.deleteComments', "Deleting comments");
+		case resolveCommentsToolName:
+			return localize('toolInvoke.resolveComments', "Resolving comments");
+		case viewUnreviewedCommentsToolName:
+			return localize('toolInvoke.viewUnreviewedComments', "Viewing comments");
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): StringOrMarkdown {
+/**
+ * Parses the number of comments returned by the `listComments` server tool from
+ * its JSON result (`{ comments: [...] }`). Returns `undefined` when the result
+ * is missing or not in the expected shape, so callers can fall back to a
+ * count-less message.
+ */
+function parseListedCommentCount(resultText: string | undefined): number | undefined {
+	if (!resultText) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(resultText) as { comments?: unknown };
+		return Array.isArray(parsed.comments) ? parsed.comments.length : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -744,6 +778,23 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
+		case addCommentToolName:
+			return localize('toolComplete.addComment', "Added comment");
+		case listCommentsToolName: {
+			const count = parseListedCommentCount(resultText);
+			if (count === undefined) {
+				return localize('toolComplete.listComments', "Checked comments");
+			}
+			return count === 1
+				? localize('toolComplete.listComments.one', "Checked 1 comment")
+				: localize('toolComplete.listComments.many', "Checked {0} comments", count);
+		}
+		case deleteCommentsToolName:
+			return localize('toolComplete.deleteComments', "Deleted comments");
+		case resolveCommentsToolName:
+			return localize('toolComplete.resolveComments', "Resolved comments");
+		case viewUnreviewedCommentsToolName:
+			return localize('toolComplete.viewUnreviewedComments', "Viewed comments");
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}
