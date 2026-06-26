@@ -197,6 +197,77 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 	});
 });
 
+suite('ChatSessionsService - untitled↔real session aliases', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	const untitled = URI.from({ scheme: 'remoteProvider', path: '/untitled-abc' });
+	const real = URI.from({ scheme: 'remoteProvider', path: '/real-abc' });
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('setMaterializedSessionResource publishes the forward untitled→real mapping', () => {
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined, 'no mapping before publish');
+		// The inverse alias alone must not publish the forward mapping (it is only
+		// published once the real session has loaded).
+		service.registerSessionResourceAlias(untitled, real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined, 'registerSessionResourceAlias alone does not publish the forward mapping');
+		service.setMaterializedSessionResource(untitled, real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled)?.toString(), real.toString());
+	});
+
+	test('clearMaterializedSessionResource clears the forward mapping when called with the untitled key', () => {
+		service.registerSessionResourceAlias(untitled, real);
+		service.setMaterializedSessionResource(untitled, real);
+		service.clearMaterializedSessionResource(untitled);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined);
+	});
+
+	test('clearMaterializedSessionResource clears the forward mapping when called with the real value', () => {
+		service.registerSessionResourceAlias(untitled, real);
+		service.setMaterializedSessionResource(untitled, real);
+		service.clearMaterializedSessionResource(real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined);
+	});
+
+	test('options selected before first send survive disposal of the untitled session', async () => {
+		const type = untitled.scheme;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: (resource: URI) => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+
+		// Create the untitled session entry and record a user option selection on it.
+		await service.getOrCreateChatSession(untitled, CancellationToken.None);
+		service.setSessionOption(untitled, 'model', 'sonnet');
+
+		// Materialize: register the inverse alias, load the real session, publish
+		// the forward mapping.
+		service.registerSessionResourceAlias(untitled, real);
+		await service.getOrCreateChatSession(real, CancellationToken.None);
+		service.setMaterializedSessionResource(untitled, real);
+
+		// The real session resolves the option through the inverse alias.
+		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
+
+		// Disposing the untitled model clears only the forward mapping; the inverse
+		// alias is intentionally kept, so the real session keeps resolving the
+		// option to the untitled entry.
+		service.clearMaterializedSessionResource(untitled);
+		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
+	});
+});
+
 suite('ChatSessionOptionsMap', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

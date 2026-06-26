@@ -202,7 +202,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Threshold crossing detection ----------------------------------------
 
-	private _computeQuotaWarning(): { percentUsed: number } | undefined {
+	private _computeQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
 		const snapshot = this._getRelevantSnapshot();
 		if (!snapshot || snapshot.unlimited) {
 			this._prevQuotaPercentUsed = undefined;
@@ -212,7 +212,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
 		if (crossed !== undefined) {
-			return { percentUsed: Math.floor(percentUsed) };
+			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
 	}
@@ -293,7 +293,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Quota approaching --------------------------------------------------
 
-	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
+	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
 
 		const entitlement = this._chatEntitlementService.entitlement;
@@ -318,7 +318,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
-			telemetryId: 'quotaApproaching',
+			telemetryId: `quotaApproaching${warning.threshold}`,
 			severity: ChatInputNotificationSeverity.Info,
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,

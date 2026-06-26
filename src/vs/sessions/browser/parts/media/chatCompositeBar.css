@@ -148,7 +148,9 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · diff stats */
+/* Meta row: workspace + contributed changes / pull request buttons.
+	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
+	row's 22px height. The workspace label self-truncates via its own containers. */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -158,77 +160,75 @@
 	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	overflow: hidden;
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	min-width: 0;
-}
-
-.chat-composite-bar-meta-workspace {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-separator::before {
-	content: '\00B7';
-	opacity: 0.8;
-}
-
-/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
+/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
 .chat-composite-bar-meta-toolbar,
 .chat-composite-bar-meta-toolbar .monaco-action-bar,
 .chat-composite-bar-meta-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
+	min-width: 0;
+	max-width: 100%;
 }
 
-.chat-composite-bar-meta-diff,
-.chat-composite-bar-meta-pr {
+/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
+.chat-composite-bar-meta-toolbar .actions-container {
+	gap: 6px;
+}
+
+.chat-composite-bar-meta-item {
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
 }
 
-.chat-composite-bar-meta-diff .action-label,
-.chat-composite-bar-meta-pr .action-label {
+.chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
+	`.monaco-text-button.small.secondary` styles. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.chat-composite-bar-meta-workspace-button .chat-composite-bar-meta-item-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
+	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
+	detached from the border — hug the border instead. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
+	outline-offset: 0 !important;
+}
+
+.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	color: inherit;
-	font: inherit;
-	font-variant-numeric: tabular-nums;
-	cursor: pointer;
-	padding: 0 2px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.chat-composite-bar-meta-diff .action-label:hover,
-.chat-composite-bar-meta-pr .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: inherit;
-	text-decoration: none;
-}
-
-.chat-composite-bar-meta-diff .action-label:focus-visible,
-.chat-composite-bar-meta-pr .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact, 12px);
+	height: var(--vscode-codiconFontSize-compact, 12px);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	flex-shrink: 0;
 }
 
 .chat-composite-bar-meta-added {
@@ -259,6 +259,34 @@
 	align-items: center;
 	height: 100%;
 	gap: 4px;
+}
+
+/* "New Chat" button pinned after the tab strip. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-new-chat .action-item .action-label {
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-composite-bar-toolbar {

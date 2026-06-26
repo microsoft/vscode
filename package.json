@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.127.0",
-  "distro": "0d726028b9bf2f38975a035474182955e771bccd",
+  "distro": "7abf39b86c07d094722a4b3ec9f37e78fe3d5db3",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -95,8 +95,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "^1.0.64-0",
-    "@github/copilot-sdk": "^1.0.2",
+    "@github/copilot": "^1.0.65",
+    "@github/copilot-sdk": "^1.0.4",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -161,8 +161,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.169",
-    "@openai/codex": "0.135.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.187",
+    "@openai/codex": "0.142.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",

@@ -14,7 +14,7 @@ import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/co
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
@@ -50,6 +50,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+
+	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
+	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
 
 	private _sessionTypes: readonly ISessionType[] = [];
 
@@ -254,6 +257,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this._newSession.set(undefined, undefined);
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
+		this._onDidDiscardNewSession.fire(current);
 	}
 
 	/**
@@ -334,6 +338,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const created = await provider.createNewChat(session.sessionId);
 		return created;
+	}
+
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+		}
+		if (!session.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
+		}
+		return provider.forkChat(session.sessionId, sourceChat, turnId);
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
@@ -570,9 +585,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
-		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
-		this._onDidDeleteChat.fire(session);
+	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
+		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
+		if (deleted) {
+			this._onDidDeleteChat.fire(session);
+		}
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {

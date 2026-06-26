@@ -15,7 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -80,6 +80,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../.
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { RenameToolContribution } from './tools/renameTool.js';
@@ -208,7 +209,6 @@ import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
-import { browserChatToolReferenceNames } from '../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -491,6 +491,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
+		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Default Approvals option. The toggle reflects and updates `#chat.agent.sandbox.enabled#`."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
 		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
 			additionalProperties: false,
@@ -518,7 +527,31 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration (mode and approval behavior) for new agent sessions (such as Copilot CLI). You can still change the mode and approval level per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
+		},
+		[ChatConfiguration.DefaultModel]: {
+			type: 'string',
+			default: '',
+			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			policy: {
+				name: 'ChatDefaultModel',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.127',
+				value: (policyData) => {
+					const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+					const trimmed = typeof model === 'string' ? model.trim() : undefined;
+					return trimmed ? trimmed : undefined;
+				},
+				managedSettings: {
+					[COPILOT_MODEL_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.defaultModel.policy',
+						value: nls.localize('chat.defaultModel.policy', "Sets the default chat model for new conversations. Accepts \"auto\", a model family name (such as \"opus\" or \"gemini\"), or a full model id. Users can still switch the model within a conversation.")
+					}
+				},
+			},
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -890,7 +923,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'mcp.enterpriseManagedAuth.idp.policy',
-						value: nls.localize('mcp.enterpriseManagedAuth.idp.policy', "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."),
+						value: nls.localize('mcp.enterpriseManagedAuth.idp.policy', "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication."),
 					}
 				}
 			},
@@ -1223,19 +1256,6 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			},
-		},
-		[ChatConfiguration.AgentHostClientTools]: {
-			type: 'array',
-			items: { type: 'string' },
-			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
-			default: [
-				'runTask', 'getTaskOutput', 'problems', 'runTests',
-				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
-				// out of these, only the tools that are actually registered/enabled are seen by the agent.
-				...browserChatToolReferenceNames,
-			],
-			agentsWindow: { default: ['runTask', 'getTaskOutput', ...browserChatToolReferenceNames] },
-			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',
@@ -1851,12 +1871,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 		},
-		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
-			default: true,
-		},
 		[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
@@ -2455,6 +2469,7 @@ registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContri
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);

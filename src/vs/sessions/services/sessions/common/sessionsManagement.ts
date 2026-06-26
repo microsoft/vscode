@@ -6,11 +6,9 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -57,8 +55,6 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly sessionTypeId?: string;
 }
-
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
@@ -112,6 +108,16 @@ export interface IActiveSession extends ISession {
 
 	/** Whether this session is sticky in the sessions part's grid. */
 	readonly sticky: IObservable<boolean>;
+
+	/**
+	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
+	 * closed ones). Read-only view state: closing/reopening is a view operation
+	 * driven through the sessions (view) service, like {@link sticky}.
+	 */
+	readonly openChats: IObservable<readonly IChat[]>;
+
+	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
+	readonly closedChats: IObservable<readonly IChat[]>;
 }
 
 /**
@@ -212,6 +218,14 @@ export interface ISessionsManagementService {
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	/**
+	 * Fires when the in-progress new session is discarded via
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
+	 */
+	readonly onDidDiscardNewSession: Event<ISession>;
 
 	// -- New Session --
 
@@ -245,6 +259,17 @@ export interface ISessionsManagementService {
 	 * resolved.
 	 */
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn. Used
+	 * for the fork gesture on sessions that support multiple chats.
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to
@@ -310,7 +335,7 @@ export interface ISessionsManagementService {
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
 	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

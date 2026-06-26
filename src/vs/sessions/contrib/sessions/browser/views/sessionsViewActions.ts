@@ -20,7 +20,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionSupportsDeleteContext, ChatSessionSupportsRenameContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -543,6 +543,41 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 
 //  Group Header Actions
 
+registerAction2(class NewSessionInGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.newSessionInGroup',
+			title: localize2('newSessionInGroup', "New Session"),
+			icon: Codicon.plus,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionGroupsService = accessor.get(ISessionGroupsService);
+		const commandService = accessor.get(ICommandService);
+
+		sessionsService.openNewSession();
+		sessionGroupsService.setPendingNewSessionGroup(context.group.id);
+
+		// On mobile web, the sidebar drawer covers the viewport; close it so
+		// the new session view becomes visible after creation.
+		if (isWeb && isMobile) {
+			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+		}
+
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
+	}
+});
+
 registerAction2(class RenameGroupAction extends Action2 {
 	constructor() {
 		super({
@@ -552,7 +587,7 @@ registerAction2(class RenameGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 			}]
 		});
 	}
@@ -575,7 +610,7 @@ registerAction2(class DeleteGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 			}]
 		});
 	}
@@ -751,7 +786,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ChatSessionSupportsRenameContext,
+				when: SessionSupportsRenameContext,
 			}]
 		});
 	}
@@ -790,7 +825,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 4,
-				when: ChatSessionSupportsDeleteContext,
+				when: SessionSupportsDeleteContext,
 			}]
 		});
 	}
@@ -975,7 +1010,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext.negate(),
+					SessionIsArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
 					hasActiveSessionFailedCIChecks.negate(),
@@ -1027,7 +1062,7 @@ registerAction2(class RestoreSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext
+					SessionIsArchivedContext
 				)
 			}]
 		});
