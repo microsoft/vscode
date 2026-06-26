@@ -10,7 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -174,6 +175,8 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
+	 * Returns `undefined` when the file is not in scope for the session (e.g.
+	 * the Output view or files outside the session's workspace folders).
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
 
@@ -341,7 +344,41 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
+		if (!this._isFileInSessionScope(session, resourceUri)) {
+			return undefined;
+		}
 		return session;
+	}
+
+	/**
+	 * Whether the given file belongs to the session and is therefore eligible
+	 * for agent feedback. This keeps the feedback affordances scoped to the
+	 * session's own files and excludes editors that merely happen to be open
+	 * while the session is active (e.g. user settings opened from the user
+	 * data directory, or the Output view which is not backed by a real file).
+	 */
+	private _isFileInSessionScope(session: ISession, resourceUri: URI): boolean {
+		// The Output view renders into a code editor but is not a real file the
+		// user can give feedback on, so always exclude it.
+		if (resourceUri.scheme === Schemas.outputChannel) {
+			return false;
+		}
+
+		// Files that are part of the session's changes are always in scope,
+		// regardless of where they live on disk.
+		if (session.changes.get().some(change => changeMatchesResource(change, resourceUri))) {
+			return true;
+		}
+
+		// Otherwise the file must live within one of the session's workspace
+		// folders. When the session has no workspace information we cannot make
+		// that determination, so fall back to allowing the file.
+		const workspace = session.workspace.get();
+		if (!workspace) {
+			return true;
+		}
+		return workspace.folders.some(folder =>
+			isEqualOrParent(resourceUri, folder.root) || isEqualOrParent(resourceUri, folder.workingDirectory));
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
