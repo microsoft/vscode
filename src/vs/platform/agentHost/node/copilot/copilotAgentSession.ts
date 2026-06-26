@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolExecutionCompleteContentTerminal, ToolExecutionCompleteData, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -144,11 +144,6 @@ type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
-
-interface ISdkTerminalCommandStructuredContent {
-	readonly exitCode?: number;
-	readonly cwd?: string;
-}
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
 	const command = isObject(input.toolArgs) ? Reflect.get(input.toolArgs, 'command') : undefined;
@@ -408,59 +403,22 @@ class CopilotTurn {
 	markAborted(): void { this._state = 'aborted'; }
 }
 
-function getSdkTerminalContent(result: ToolExecutionCompleteData['result']): ToolExecutionCompleteContentTerminal | undefined {
-	const content = result?.contents?.find(content => content.type === 'terminal');
-	return content?.type === 'terminal' ? content : undefined;
+function getSdkTerminalExitCodeFromText(text: string | undefined): number | undefined {
+	if (text === undefined) {
+		return undefined;
+	}
+
+	// TODO: github issue https://github.com/github/copilot-sdk/issues/1803
+	// Use structured shell exit metadata once the SDK exposes it. Current shell
+	// tool completions only carry the exit code in this trailing status footer.
+	const lastLine = text.trimEnd().split(/\r?\n/).at(-1)?.trim();
+	const match = lastLine?.match(/^<(?:shellId: \S+ completed|command with id: \S+ exited|exited) with exit code (-?\d+)>$/);
+	return match ? Number(match[1]) : undefined;
 }
 
-// function getSdkTerminalExitCodeFromText(text: string): number | undefined {
-// 	const lastLine = text.trimEnd().split(/\r?\n/).at(-1)?.trim();
-// 	const match = lastLine?.match(/^<(?:shellId: \S+ completed|exited) with exit code (-?\d+)>$/);
-// 	return match ? Number(match[1]) : undefined;
-// }
-
-function getSdkStructuredTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
-	const terminalCommand = result?.structuredContent?.['terminalCommand'];
-	if (!isObject(terminalCommand)) {
-		return undefined;
-	}
-
-	const exitCode = Reflect.get(terminalCommand, 'exitCode');
-	const cwd = Reflect.get(terminalCommand, 'cwd');
-	if (typeof exitCode !== 'number' && typeof cwd !== 'string') {
-		return undefined;
-	}
-
-	return {
-		...(typeof exitCode === 'number' ? { exitCode } : {}),
-		...(typeof cwd === 'string' ? { cwd } : {}),
-	};
-}
-
-function getSdkTerminalCommand(result: ToolExecutionCompleteData['result']): ISdkTerminalCommandStructuredContent | undefined {
-	const terminalContent = getSdkTerminalContent(result);
-	const structuredTerminalCommand = getSdkStructuredTerminalCommand(result);
-	const exitCode = terminalContent?.exitCode ?? structuredTerminalCommand?.exitCode;
-	const cwd = terminalContent?.cwd ?? structuredTerminalCommand?.cwd;
-	if (exitCode === undefined && cwd === undefined) {
-		return undefined;
-	}
-
-	return {
-		...(exitCode !== undefined ? { exitCode } : {}),
-		...(cwd !== undefined ? { cwd } : {}),
-	};
-}
-
-function getSdkTerminalStructuredContent(result: ToolExecutionCompleteData['result']): Record<string, unknown> | undefined {
-	const terminalCommand = getSdkTerminalCommand(result);
-	if (!result?.structuredContent && !terminalCommand) {
-		return undefined;
-	}
-
-	return terminalCommand
-		? { ...(result?.structuredContent ?? {}), terminalCommand }
-		: result?.structuredContent;
+function getSdkTerminalStructuredContentFromText(text: string | undefined): Record<string, unknown> | undefined {
+	const exitCode = getSdkTerminalExitCodeFromText(text);
+	return exitCode === undefined ? undefined : { terminalCommand: { exitCode } };
 }
 
 /**
@@ -2576,12 +2534,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			const displayName = tracked.displayName;
-			const terminalContent = getSdkTerminalContent(e.data.result);
-			const toolOutput = e.data.error?.message ?? terminalContent?.text ?? e.data.result?.content;
-			const structuredContent = getSdkTerminalStructuredContent(e.data.result);
-			if (isShellTool(tracked.toolName)) {
-				this._logService.info(`[Copilot:${sessionId}] Shell tool terminal result API fields: toolCallId=${e.data.toolCallId}, terminalContentExitCode=${terminalContent?.exitCode ?? '<missing>'}, structuredTerminalCommand=${safeStringify(structuredContent?.['terminalCommand'])}, contents=${safeStringify(e.data.result?.contents)}, structuredContent=${safeStringify(e.data.result?.structuredContent)}, contentTail=${safeStringify(e.data.result?.content?.slice(-200))}`);
-			}
+			const toolOutput = e.data.error?.message ?? e.data.result?.content;
+			const structuredContent = isShellTool(tracked.toolName) ? getSdkTerminalStructuredContentFromText(e.data.result?.content) : e.data.result?.structuredContent;
 
 			if (isTaskCompleteTool(tracked.toolName)) {
 				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
