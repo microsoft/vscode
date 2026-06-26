@@ -1058,6 +1058,85 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('a running peer chat promotes the session summary to InProgress while the default chat is idle', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const idle = manager.getSessionState(sessionUri)?.summary.status;
+
+			// Only the peer (sub) chat starts streaming; the default chat stays idle.
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const whilePeerRuns = manager.getSessionState(sessionUri)?.summary.status;
+
+			// Once the peer finishes the session falls back to idle.
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-peer',
+			});
+			const afterPeerComplete = manager.getSessionState(sessionUri)?.summary.status;
+
+			assert.deepStrictEqual(
+				{
+					idleHasInProgress: ((idle ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress,
+					whilePeerRunsHasInProgress: ((whilePeerRuns ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress,
+					afterPeerCompleteHasInProgress: ((afterPeerComplete ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress,
+					defaultChatStillIdle: ((manager.getChatState(defaultChat)?.status ?? SessionStatus.Idle) & SessionStatus.InProgress) === 0,
+				},
+				{
+					idleHasInProgress: false,
+					whilePeerRunsHasInProgress: true,
+					afterPeerCompleteHasInProgress: false,
+					defaultChatStillIdle: true,
+				},
+			);
+		});
+
+		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const peerCatalogStatus = () => manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.status ?? SessionStatus.Idle;
+			const chatUpdatesForPeer = () => envelopes.filter(e => e.action.type === ActionType.SessionChatUpdated && (e.action as { chat: string }).chat === peerChat).length;
+
+			const idleCatalog = peerCatalogStatus();
+
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-peer',
+				message: { text: 'b', origin: { kind: MessageKind.User } },
+			});
+			const runningCatalog = peerCatalogStatus();
+			const updatesAfterStart = chatUpdatesForPeer();
+
+			manager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-peer',
+			});
+
+			assert.deepStrictEqual(
+				{
+					idleCatalogInProgress: (idleCatalog & SessionStatus.InProgress) === SessionStatus.InProgress,
+					runningCatalogInProgress: (runningCatalog & SessionStatus.InProgress) === SessionStatus.InProgress,
+					finalCatalogInProgress: (peerCatalogStatus() & SessionStatus.InProgress) === SessionStatus.InProgress,
+					emittedChatUpdateOnStart: updatesAfterStart >= 1,
+				},
+				{
+					idleCatalogInProgress: false,
+					runningCatalogInProgress: true,
+					finalCatalogInProgress: false,
+					emittedChatUpdateOnStart: true,
+				},
+			);
+		});
+
 		test('active-turn event and active-session count flip once per session across concurrent chats', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);

@@ -274,6 +274,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (or host) renamed the default chat independently of the session.
 	 */
 	private readonly _defaultChatTitleOverride = observableValue<string | undefined>('defaultChatTitleOverride', undefined);
+	/**
+	 * Independent status override for the default chat tab. `undefined` means the
+	 * default chat reflects the aggregated session status (the single-chat case,
+	 * where they are equivalent); a defined value means a multi-chat session, so
+	 * the default chat shows its own status rather than the session aggregate
+	 * (which may have been promoted by a running peer chat).
+	 */
+	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -498,7 +506,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			createdAt: this.createdAt,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
-			status: this.status,
+			status: derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader)),
 			changes: this.changes,
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -536,6 +544,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 
 		if (!this.capabilities.supportsMultipleChats || state.chats.length <= 1) {
+			// Single-chat: the default chat is the session, so let it reflect the
+			// aggregated session status directly (clear any prior override).
+			this._defaultChatStatusOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
 			}
@@ -547,6 +558,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			return;
 		}
+
+		// Multi-chat: the default chat must show its own status, not the session
+		// aggregate which may have been promoted by a running peer chat.
+		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
 		const defaultChatUri = defaultChatUriStr;
 		const seen = new Set<string>();
