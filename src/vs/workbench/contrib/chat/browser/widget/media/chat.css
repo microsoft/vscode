@@ -4413,6 +4413,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
 	position: absolute;
+	box-sizing: border-box;
 	left: 0;
 	right: 0;
 	min-height: 4px;

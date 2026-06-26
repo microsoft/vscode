@@ -223,23 +223,14 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 		const requestAnimationFrameFn = targetWindow.requestAnimationFrame?.bind(targetWindow)
 			?? globalThis.requestAnimationFrame?.bind(globalThis);
+
 		let frameHandle: number | undefined;
 		if (typeof requestAnimationFrameFn === 'function') {
 			frameHandle = requestAnimationFrameFn(runOnce);
-		}
-
-		if (typeof queueMicrotask === 'function') {
-			queueMicrotask(() => {
-				if (!disposed && !settled) {
-					runOnce();
-				}
-			});
+		} else if (typeof queueMicrotask === 'function') {
+			queueMicrotask(runOnce);
 		} else {
-			Promise.resolve().then(() => {
-				if (!disposed && !settled) {
-					runOnce();
-				}
-			});
+			Promise.resolve().then(runOnce);
 		}
 
 		return toDisposable(() => {
