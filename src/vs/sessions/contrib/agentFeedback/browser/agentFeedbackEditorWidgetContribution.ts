@@ -82,6 +82,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
 	private readonly _activeReplyInputs = new Map<string, { container: HTMLElement; textarea: HTMLTextAreaElement }>();
+	private readonly _actionBarElements = new Map<string, HTMLElement>();
 
 	private _position: IOverlayWidgetPosition | null = null;
 	private _isExpanded: boolean = false;
@@ -206,6 +207,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		clearNode(this._bodyNode);
 		this._itemElements.clear();
 		this._activeReplyInputs.clear();
+		this._actionBarElements.clear();
 
 		for (const comment of this._commentItems) {
 			const item = $('div.agent-feedback-widget-item');
@@ -314,7 +316,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			this._eventStore.add(addDisposableListener(item, 'click', e => {
 				const target = e.target as HTMLElement | null;
-				if (target?.closest('.action-bar, .agent-feedback-widget-actions-bar')) {
+				if (target?.closest('.action-bar')) {
 					return;
 				}
 				// Don't trigger navigation when interacting with the reply input.
@@ -418,9 +420,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const buttonStore = new DisposableStore();
 		this._eventStore.add(buttonStore);
 
+		// Prevent clicks on the button bar from bubbling up to the item click
+		// handler (which would navigate/reveal the comment).
+		buttonStore.add(addDisposableListener(buttonBar, 'click', e => e.stopPropagation()));
+
 		const dismiss = () => {
 			buttonStore.dispose();
 			buttonBar.remove();
+			this._actionBarElements.delete(comment.id);
+			// Move focus back to the widget so keyboard/screen reader users
+			// don't lose their place when the (now removed) button is gone.
+			this._domNode.focus({ preventScroll: true });
 			this._editor.layoutOverlayWidget(this);
 		};
 
@@ -452,6 +462,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}));
 
 		item.appendChild(buttonBar);
+		this._actionBarElements.set(comment.id, buttonBar);
 	}
 
 	private _removeComment(comment: ISessionEditorComment): void {
@@ -546,7 +557,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		replyContainer.appendChild(textarea);
 		// Keep the action button bar (Accept/Remove) as the very last element so
 		// the reply composer appears above it.
-		const actionsBar = itemNode.querySelector('.agent-feedback-widget-actions-bar');
+		const actionsBar = this._actionBarElements.get(comment.id);
 		if (actionsBar) {
 			itemNode.insertBefore(replyContainer, actionsBar);
 		} else {
