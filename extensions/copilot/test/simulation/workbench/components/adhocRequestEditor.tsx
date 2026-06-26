@@ -155,10 +155,23 @@ export const AdhocRequestEditor = (({ value, languageId, readOnly, initialHeight
 			}
 			tagDecorations.set(decorations);
 		};
+		// Coalesce rescans across bursts of content changes (e.g. a streamed
+		// response) into at most one per frame, so we don't re-scan the whole
+		// document on every keystroke/delta.
+		let pendingTagDecorationsFrame: number | undefined;
+		const scheduleTagDecorationsUpdate = () => {
+			if (pendingTagDecorationsFrame !== undefined) {
+				return;
+			}
+			pendingTagDecorationsFrame = requestAnimationFrame(() => {
+				pendingTagDecorationsFrame = undefined;
+				updateTagDecorations();
+			});
+		};
 		updateTagDecorations();
 
 		const listener = myEditor.onDidChangeModelContent(() => {
-			updateTagDecorations();
+			scheduleTagDecorationsUpdate();
 			if (isApplyingExternalValueRef.current) {
 				return;
 			}
@@ -170,6 +183,9 @@ export const AdhocRequestEditor = (({ value, languageId, readOnly, initialHeight
 		}
 
 		return () => {
+			if (pendingTagDecorationsFrame !== undefined) {
+				cancelAnimationFrame(pendingTagDecorationsFrame);
+			}
 			container.removeEventListener('keydown', handlePasteShortcut, /* capture */ true);
 			focusListener.dispose();
 			blurListener.dispose();
