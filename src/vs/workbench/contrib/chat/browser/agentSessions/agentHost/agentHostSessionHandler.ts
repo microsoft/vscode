@@ -939,10 +939,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// If reconnecting to an active turn, wire up an ongoing state listener
-			// to stream new progress into the session's progressObs.
+			// If reconnecting to an active turn, wire up an ongoing state
+			// listener to stream new progress into the session's progressObs.
+			// This must wait until the chat model has been registered:
+			// reconnecting re-invokes any client tool the turn is blocked on,
+			// and `LanguageModelToolsService.invokeTool` throws `Tool called
+			// for unknown chat session` when the model for this session is not
+			// registered yet. Running synchronously here (before the model is
+			// created) would strand the turn with no completion dispatched
+			// back. Mirror the snapshot-controller pattern above and keep the
+			// listener alive until our session matches, since `Event.once`
+			// could be consumed by an unrelated model created first.
 			if (activeTurnId && initialProgress !== undefined) {
-				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
+				if (this._chatService.getSession(sessionResource)) {
+					this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
+				} else {
+					const reconnectActiveTurnId = activeTurnId;
+					const reconnectInitialProgress = initialProgress;
+					const sub = this._chatService.onDidCreateModel(model => {
+						if (isEqual(model.sessionResource, sessionResource)) {
+							sub.dispose();
+							this._reconnectToActiveTurn(resolvedSession, reconnectActiveTurnId, session, reconnectInitialProgress);
+						}
+					});
+					session.registerDisposable(sub);
+				}
 			}
 
 			// For existing sessions, start watching for server-initiated turns
@@ -2192,6 +2213,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!approvedDispatched) {
 				if (err !== undefined && !isCancellationError(err)) {
 					this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
+					// The agent is blocked waiting for this tool's result. A
+					// pre-execution failure (e.g. the tool service rejected
+					// the call) would otherwise strand the turn forever, so
+					// report it back as a failed completion.
+					const message = err instanceof Error ? err.message : String(err);
+					this._dispatchAction(opts.backendSession, {
+						type: ActionType.ChatToolCallComplete,
+						turnId: opts.turnId,
+						toolCallId,
+						result: {
+							success: false,
+							pastTenseMessage: `Failed to execute ${toolName}`,
+							error: { message },
+						},
+					}, opts.chatChannel);
 				}
 				return;
 			}

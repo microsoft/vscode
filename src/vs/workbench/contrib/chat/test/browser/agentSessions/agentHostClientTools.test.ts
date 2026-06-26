@@ -26,6 +26,7 @@ import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } fro
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -240,11 +241,24 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: {
+			requireConfirmation?: boolean;
+			/** Reject every invocation before it executes with a non-cancellation error. */
+			failPreExecution?: boolean;
+			/**
+			 * Mirrors the real `LanguageModelToolsService`, which throws
+			 * `Tool called for unknown chat session` when no chat model is
+			 * registered for the invocation's session resource. Returns the
+			 * model (truthy) when one exists. Defaults to "model always
+			 * present" so existing tests are unaffected.
+			 */
+			getModelForResource?: (resource: URI | undefined) => unknown;
+		}) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
+			const getModelForResource = options?.getModelForResource ?? (() => ({}));
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
@@ -257,6 +271,14 @@ suite('AgentHostClientTools', () => {
 				getTool: (id: string) => tools.find(t => t.id === id),
 				invokeTool: async (invocation: IToolInvocation) => {
 					invokedToolCalls.push(invocation);
+					if (options?.failPreExecution) {
+						throw new Error('simulated pre-execution failure');
+					}
+					if (!getModelForResource(invocation.context?.sessionResource)) {
+						// Same failure mode as the real tools service when the
+						// chat model has not been registered yet.
+						throw new Error(`Tool called for unknown chat session`);
+					}
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
 					if (options?.requireConfirmation && toolInvocation) {
@@ -409,11 +431,63 @@ suite('AgentHostClientTools', () => {
 			disposables: DisposableStore,
 			tools: IToolData[],
 			toolServiceOptions?: { requireConfirmation?: boolean },
+			modelOptions?: {
+				/**
+				 * When set, the chat model starts absent and must be created
+				 * explicitly via the returned `createModel`. `getSession`
+				 * returns `undefined` until then and `invokeTool` fails with
+				 * `Tool called for unknown chat session`, mirroring the real
+				 * services on reconnect before the model is registered.
+				 */
+				deferModel?: boolean;
+				/** Reject every client tool invocation before it executes. */
+				failPreExecution?: boolean;
+			},
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
-			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
+			const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
+			const modelsByResource = new Map<string, IChatModel>();
+			const modelAware = !!modelOptions?.deferModel;
+			const makeFakeModel = (resource: URI): IChatModel => ({
+				sessionResource: resource,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			} as unknown as IChatModel);
+			const createModel = (resource: URI): IChatModel => {
+				const model = makeFakeModel(resource);
+				modelsByResource.set(resource.toString(), model);
+				onDidCreateModel.fire(model);
+				return model;
+			};
+			// Default: a chat model is already present for every session, so the
+			// active-turn reconnect runs synchronously inside
+			// `provideChatSessionContent` (matching tests that expect the client
+			// tool to be invoked right after). `deferModel` opts into the
+			// realistic flow where the model is registered only after the
+			// session content is provided, exercising the deferred reconnect.
+			const getSessionImpl = (resource: URI): IChatModel | undefined => {
+				const existing = modelsByResource.get(resource.toString());
+				if (existing) {
+					return existing;
+				}
+				if (modelAware) {
+					return undefined;
+				}
+				const model = makeFakeModel(resource);
+				modelsByResource.set(resource.toString(), model);
+				return model;
+			};
+			const getModelForResource = modelAware
+				? (resource: URI | undefined) => resource ? modelsByResource.get(resource.toString()) : undefined
+				: () => ({});
+
+			const toolsService = createMockToolsService(disposables, tools, {
+				...toolServiceOptions,
+				failPreExecution: modelOptions?.failPreExecution,
+				getModelForResource,
+			});
 			const configValues: Record<string, unknown> = {};
 			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
 			const configService: Partial<IConfigurationService> = {
@@ -447,8 +521,8 @@ suite('AgentHostClientTools', () => {
 				registerEditingSessionProvider: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatService, {
-				getSession: () => undefined,
-				onDidCreateModel: Event.None,
+				getSession: getSessionImpl,
+				onDidCreateModel: onDidCreateModel.event,
 				removePendingRequest: () => { },
 			});
 			instantiationService.stub(IAgentHostFileSystemService, {
@@ -512,7 +586,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, createModel };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -821,6 +895,116 @@ suite('AgentHostClientTools', () => {
 				buildDefaultChatUri(subagentBackendSession),
 				'completion should target the subagent default chat URI'
 			);
+		});
+
+		test('defers client tool invocation on reconnect until the chat model is registered', async () => {
+			// Regression: when the workbench reattaches mid-turn, the active
+			// turn may be blocked on a client tool. The reconnect re-invokes
+			// that tool, but the real `LanguageModelToolsService` looks the
+			// chat model up by session resource and throws `Tool called for
+			// unknown chat session` if it isn't registered yet. Because the
+			// reconnect ran synchronously inside `provideChatSessionContent`
+			// (before the model exists), the invocation failed and the turn
+			// was stranded with no completion ever dispatched back. The
+			// handler must wait for the model before invoking.
+			const { handler, connection, createModel } = createHandlerWithMocks(
+				disposables, [testRunTaskTool], undefined, { deferModel: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			const completionOf = (toolCallId: string) => connection.dispatchedActions.find(entry =>
+				isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === toolCallId);
+
+			// Before the model exists, the tool must not have been invoked
+			// against a missing session (which would strand the turn).
+			assert.ok(!completionOf('tool-call-1'), 'no completion should be dispatched before the model is registered');
+
+			// Once the chat model is registered, the deferred reconnect runs
+			// and the client tool completes normally.
+			createModel(sessionResource);
+			await timeout(0);
+			await timeout(0);
+
+			const completion = completionOf('tool-call-1');
+			assert.ok(completion, 'the client tool should complete once the chat model exists');
+			assert.ok(
+				isChatAction(completion!.action) && completion!.action.type === ActionType.ChatToolCallComplete && completion!.action.result.success === true,
+				'the deferred invocation should have succeeded');
+		});
+
+		test('reports a pre-execution client tool failure so the turn is not stranded', async () => {
+			// Defense in depth: if a client tool invocation fails before it
+			// executes (any non-cancellation error), the handler must still
+			// send a ChatToolCallComplete back. Otherwise the agent waits
+			// forever for a result and the session sits in `InputNeeded`
+			// with nothing for the user to act on.
+			const { handler, connection } = createHandlerWithMocks(
+				disposables, [testRunTaskTool], undefined, { failPreExecution: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			const completion = connection.dispatchedActions.find(entry =>
+				isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === 'tool-call-1');
+			assert.ok(completion, 'a failed pre-execution invocation must still report a completion');
+			assert.ok(
+				isChatAction(completion!.action) && completion!.action.type === ActionType.ChatToolCallComplete && completion!.action.result.success === false,
+				'the reported completion should be a failure');
 		});
 	});
 });
