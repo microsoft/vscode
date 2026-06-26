@@ -174,8 +174,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		const state = await fetchSessionWithChat(client, sessionUri);
 		assert.deepStrictEqual(state.turns.at(-1)?.message.model, { id: 'mock-model' });
 	});
 
