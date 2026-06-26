@@ -717,11 +717,11 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	.registerConfigurationMigrations([{
 		key: TerminalContribSettingId.AgentSandboxEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.On && value !== AgentSandboxEnabledValue.Off && value !== AgentSandboxEnabledValue.AllowNetwork) {
+			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
 				return [];
 			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxEnabled, { value: value !== AgentSandboxEnabledValue.Off }]];
-			if (value === AgentSandboxEnabledValue.AllowNetwork && valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxEnabled, { value: AgentSandboxEnabledValue.On }]];
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
 			}
 			return configurationKeyValuePairs;
@@ -729,11 +729,11 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 	}, {
 		key: TerminalContribSettingId.AgentSandboxWindowsEnabled,
 		migrateFn: (value: unknown, valueAccessor) => {
-			if (value !== AgentSandboxEnabledValue.On && value !== AgentSandboxEnabledValue.Off && value !== AgentSandboxEnabledValue.AllowNetwork) {
+			if (value !== AgentSandboxEnabledValue.AllowNetwork) {
 				return [];
 			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxWindowsEnabled, { value: value !== AgentSandboxEnabledValue.Off }]];
-			if (value === AgentSandboxEnabledValue.AllowNetwork && valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [[TerminalContribSettingId.AgentSandboxWindowsEnabled, { value: AgentSandboxEnabledValue.On }]];
+			if (valueAccessor(TerminalContribSettingId.AgentSandboxAllowNetwork) === undefined) {
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxAllowNetwork, { value: true }]);
 			}
 			return configurationKeyValuePairs;
@@ -754,7 +754,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			}
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value }]);
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
 			return configurationKeyValuePairs;

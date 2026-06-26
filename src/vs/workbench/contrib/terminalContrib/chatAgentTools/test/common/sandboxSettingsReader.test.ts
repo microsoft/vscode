@@ -64,7 +64,7 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
-	test('normalizes boolean form of chat.agent.sandbox.enabledWindows', () => {
+	test('normalizes legacy boolean form of chat.agent.sandbox.enabledWindows', () => {
 		const cfgOn = new TestConfigurationService();
 		cfgOn.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
 		assert.strictEqual(

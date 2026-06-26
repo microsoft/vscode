@@ -7,7 +7,7 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -530,8 +530,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[AgentSandboxSettingId.AgentSandboxEnabled]: {
 		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
-		type: 'boolean',
-		default: false,
+		type: 'string',
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+		enumDescriptions: [
+			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
+			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
+		],
+		default: AgentSandboxEnabledValue.Off,
 		tags: ['preview'],
 		restricted: true,
 		experiment: {
@@ -546,13 +551,28 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					key: 'agentSandbox.enabledSetting',
 					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
 				},
+				enumDescriptions: [
+					{
+						key: 'agentSandbox.enabledSetting.offDescription',
+						value: localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
+					},
+					{
+						key: 'agentSandbox.enabledSetting.onDescription',
+						value: localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
+					},
+				]
 			}
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: {
 		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode uses sandboxing on Windows. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
-		type: 'boolean',
-		default: false,
+		type: 'string',
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+		enumDescriptions: [
+			localize('agentSandbox.windowsEnabledSetting.offDescription', 'Disable sandboxing for agent mode tools on Windows.'),
+			localize('agentSandbox.windowsEnabledSetting.onDescription', 'Enable sandboxing for agent mode tools on Windows.'),
+		],
+		default: AgentSandboxEnabledValue.Off,
 		tags: ['experimental'],
 		restricted: true,
 		experiment: {

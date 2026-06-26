@@ -28,7 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
-import { AgentSandboxSettingId, isAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -189,7 +189,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
 					if (this.isSandboxingEnabled() !== enableSandbox) {
-						await configurationService.updateValue(getSandboxEnabledSettingId(), enableSandbox);
+						const value = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+						await configurationService.updateValue(getSandboxEnabledSettingId(), value);
 					}
 				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;

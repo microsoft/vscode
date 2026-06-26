@@ -18,7 +18,7 @@ import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chat
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
-import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
@@ -62,7 +62,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (sandboxingEnabled) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
-		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, true);
+		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
 	container.style.width = '500px';

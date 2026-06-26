@@ -61,7 +61,7 @@ export type ISandboxConfigValue = Partial<{
  * normalized form of each setting is declared here — the workbench is
  * expected to:
  *
- *  - map the boolean sandbox enabled settings to the `'on' | 'off' | 'allowNetwork'`
+ *  - map legacy boolean sandbox enabled values to the `'on' | 'off' | 'allowNetwork'`
  *    agent-host enum, and
  *  - migrate values from any deprecated setting IDs to their modern key
  *

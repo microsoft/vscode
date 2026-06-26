@@ -48,9 +48,8 @@ const DEPRECATED_SANDBOX_FALLBACKS: Readonly<Record<string, readonly string[]>> 
 /**
  * Reads a single sandbox-related setting from `IConfigurationService`,
  * preferring the modern key and falling back to its deprecated peers in
- * order. The boolean `chat.agent.sandbox.enabled` setting is normalized
- * to the agent-host `'on' | 'off'` enum. Returns `undefined` when no user
- * value is configured.
+ * order. Legacy boolean sandbox enabled values are normalized to the agent-host
+ * `'on' | 'off'` enum. Returns `undefined` when no user value is configured.
  */
 export function readSandboxSetting<T>(configurationService: IConfigurationService, logService: ILogService, settingId: string): T | undefined {
 	const modern = configurationService.inspect<T>(settingId);

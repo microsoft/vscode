@@ -167,7 +167,7 @@ suite('TerminalSandboxEngine', () => {
 	}
 
 	function enableWindowsSandbox(): void {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 	}
 
@@ -515,9 +515,9 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.isSandboxAllowNetworkEnabled(), true);
 	});
 
-	test('enabledWindows checkbox does not enable allowNetwork on Windows', async () => {
+	test('enabledWindows on value does not enable allowNetwork on Windows', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -672,7 +672,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));

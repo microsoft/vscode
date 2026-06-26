@@ -1433,7 +1433,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
