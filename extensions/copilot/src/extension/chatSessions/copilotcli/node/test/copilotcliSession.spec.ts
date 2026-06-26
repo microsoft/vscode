@@ -152,9 +152,15 @@ class MockSdkSession {
 	set toolMetadata(value: unknown[] | undefined) { this._toolMetadata = value; }
 
 	setAuthInfo(info: any) { this.authInfo = info; }
-	updateOptions(options: { authInfo?: unknown }) {
+	public lastSandboxConfig: unknown;
+	public sandboxConfigUpdates: unknown[] = [];
+	updateOptions(options: { authInfo?: unknown; sandboxConfig?: unknown }) {
 		if (options.authInfo !== undefined) {
 			this.authInfo = options.authInfo;
+		}
+		if (options.sandboxConfig !== undefined) {
+			this.lastSandboxConfig = options.sandboxConfig;
+			this.sandboxConfigUpdates.push(options.sandboxConfig);
 		}
 	}
 	async getSelectedModel() { return this._selectedModel; }
@@ -268,12 +274,15 @@ describe('CopilotCLISession', () => {
 				return userQuestionAnswer;
 			}
 		}
+		const sandboxConfig = sandboxEnabled
+			? { enabled: true as const, userPolicy: { filesystem: {}, network: { allowOutbound: false } } }
+			: undefined;
 		return disposables.add(new CopilotCLISession(
 			sessionWorkspaceInfo,
 			sessionAgentName,
 			sdkSession as unknown as Session,
 			[],
-			sandboxEnabled,
+			sandboxConfig as any,
 			logger,
 			workspaceService,
 			chatSessionMetadataStore,
@@ -908,6 +917,34 @@ describe('CopilotCLISession', () => {
 			sandboxBypassReason: 'Needs access outside the workspace',
 		});
 		expect(result).toEqual({ kind: 'approve-once' });
+	});
+
+	it('applies the configured sandbox for a request running with default approvals', async () => {
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(sdkSession.lastSandboxConfig).toEqual({ enabled: true, userPolicy: { filesystem: {}, network: { allowOutbound: false } } });
+	});
+
+	it('disables the sandbox for a request running with bypass approvals', async () => {
+		for (const level of ['autopilot', 'autoApprove'] as const) {
+			sdkSession = new MockSdkSession();
+			const session = await createSession({ sandboxEnabled: true });
+			session.setPermissionLevel(level);
+			session.attachStream(new MockChatResponseStream());
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(sdkSession.lastSandboxConfig, level).toEqual({ enabled: false });
+		}
+	});
+
+	it('explicitly disables the sandbox when the session has no sandbox configured', async () => {
+		const session = await createSession({ sandboxEnabled: false });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(sdkSession.lastSandboxConfig).toEqual({ enabled: false });
 	});
 
 	it('emits languageModelToolInvoked telemetry for each completed tool invocation', async () => {

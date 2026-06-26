@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -48,7 +48,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -340,6 +340,13 @@ export interface ICopilotAgentSessionOptions {
 	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
 	readonly serverToolHost?: IAgentServerToolHost;
+
+	/**
+	 * Platform used to compute the SDK sandbox policy. Defaults to
+	 * `process.platform`; injectable so tests can exercise the per-OS gating
+	 * (notably that the sandbox is ignored on Windows) deterministically.
+	 */
+	readonly platform?: NodeJS.Platform;
 }
 
 /**
@@ -560,6 +567,9 @@ export class CopilotAgentSession extends Disposable {
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
 	private _hasReportedActivity = false;
 
+	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
+	private readonly _platform: NodeJS.Platform;
+
 	constructor(
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -580,6 +590,7 @@ export class CopilotAgentSession extends Disposable {
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
+		this._platform = options.platform ?? process.platform;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
@@ -1125,6 +1136,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		await this.applyMode(mode);
+		await this._applyEffectiveSandboxConfig();
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -1802,8 +1814,7 @@ export class CopilotAgentSession extends Disposable {
 	 * confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
-		const customTerminalToolEnabled = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
-		if (customTerminalToolEnabled) {
+		if (this._isCustomTerminalToolEnabled()) {
 			if (!this._shellManager) {
 				return false;
 			}
@@ -1812,8 +1823,74 @@ export class CopilotAgentSession extends Disposable {
 		// SDK-managed shell path: gate on the same host config that
 		// `CopilotSessionLauncher` reads when forwarding `sandboxConfig` to
 		// the SDK, so the two stay in lock-step.
+		return this._computeSdkSandboxConfig() !== undefined;
+	}
+
+	/**
+	 * `true` when the AgentHost's own shell tools (wrapped by
+	 * {@link TerminalSandboxEngine}) replace the SDK's built-in shell. In that
+	 * mode the SDK sandbox config is unused, so we neither forward nor toggle it.
+	 */
+	private _isCustomTerminalToolEnabled(): boolean {
+		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+	}
+
+	/**
+	 * The SDK-shaped sandbox policy for this session, mirroring
+	 * {@link CopilotSessionLauncher}'s computation: `undefined` when the custom
+	 * terminal tool is enabled (the host's own terminal sandbox engine handles
+	 * containment) or when the host sandbox config evaluates to disabled
+	 * (including on Windows, where the sandbox is not supported).
+	 */
+	private _computeSdkSandboxConfig(): ISdkSandboxConfig | undefined {
+		if (this._isCustomTerminalToolEnabled()) {
+			return undefined;
+		}
 		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		return buildSandboxConfigForSdk(process.platform, sandbox) !== undefined;
+		return buildSandboxConfigForSdk(this._platform, sandbox);
+	}
+
+	/**
+	 * `true` when the session runs with bypass approvals — the global
+	 * auto-approve setting, the session's `autoApprove` ("Bypass Approvals")
+	 * level, or `autopilot` mode (which runs autonomously with no user to
+	 * confirm and therefore implies a disabled sandbox). The sandbox enable
+	 * setting only applies under default approvals, so the sandbox is disabled
+	 * for the request when this is `true`.
+	 */
+	private _isBypassApprovals(): boolean {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
+			return true;
+		}
+		if (this._isAutopilotMode()) {
+			return true;
+		}
+		return this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
+	}
+
+	/**
+	 * Apply the SDK sandbox policy for the request that is about to be sent.
+	 *
+	 * Skips the SDK sandbox entirely when the custom terminal tool is enabled
+	 * (the host's own terminal sandbox engine handles containment and the SDK's
+	 * built-in shell is unused). Otherwise it always pushes the effective state
+	 * so the SDK never retains a stale or auto-discovered sandbox: the
+	 * configured policy under default approvals, or an explicitly disabled
+	 * sandbox when the request runs with bypass approvals or no sandbox is
+	 * configured (setting off, or Windows).
+	 */
+	private async _applyEffectiveSandboxConfig(): Promise<void> {
+		if (this._isCustomTerminalToolEnabled()) {
+			return;
+		}
+		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		const base = buildSandboxConfigForSdk(this._platform, sandbox);
+		const sandboxConfig: ISdkSandboxConfig | { enabled: false } = (base && !this._isBypassApprovals()) ? base : { enabled: false };
+		try {
+			await this._wrapper.session.rpc.options.update({ sandboxConfig });
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update sandbox config for request`, err);
+		}
 	}
 
 	/**
