@@ -108,6 +108,8 @@ export class GitHubApiClient extends Disposable {
 				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
 			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
+			// Bypass the renderer HTTP cache so conditional polling reaches GitHub (see PR_ICON_POLLING.md).
+			disableCache: true,
 			callSite
 		}, CancellationToken.None);
 

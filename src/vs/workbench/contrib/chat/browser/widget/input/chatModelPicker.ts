@@ -297,7 +297,7 @@ function resolveConfigProperty(
 		if (propSchema.group !== group) {
 			continue;
 		}
-		if (!propSchema.enum || propSchema.enum.length < 2) {
+		if (!propSchema.enum || propSchema.enum.length < 1) {
 			continue;
 		}
 		const value = currentConfig[key] ?? propSchema.default;

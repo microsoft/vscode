@@ -30,11 +30,7 @@ function sandbox(
 	}
 	const cfg: ISandboxConfigValue = {};
 	if (enabled !== undefined) {
-		if (platform === 'win32') {
-			cfg[AgentHostSandboxKey.WindowsEnabled] = enabled;
-		} else {
-			cfg[AgentHostSandboxKey.Enabled] = enabled;
-		}
+		cfg[AgentHostSandboxKey.Enabled] = enabled;
 	}
 	if (fs) {
 		const fsKey = platform === 'win32'
@@ -72,8 +68,8 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.strictEqual(buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.Off)), undefined);
 		});
 
-		test('enables sandbox for `on` on every platform', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+		test('enables sandbox for `on` on non-Windows platforms', () => {
+			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On)), {
 					enabled: true,
 					allowBypass: true,
@@ -82,8 +78,8 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
-		test('enables sandbox and outbound network for `allowNetwork` on every platform', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+		test('enables sandbox and outbound network for `allowNetwork` on non-Windows platforms', () => {
+			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork)), {
 					enabled: true,
 					allowBypass: true,
@@ -92,20 +88,10 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
-		test('on Windows, WindowsEnabled overrides the cross-platform Enabled key', () => {
-			// Cross-platform value says off, but the Windows override says on
-			// → Windows session honors the override.
-			const cfg = {
-				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
-			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg), {
-				enabled: true,
-				allowBypass: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
-			// Non-Windows ignores WindowsEnabled.
-			assert.strictEqual(buildSandboxConfigForSdk('darwin', cfg), undefined);
+		test('ignores the enable settings on Windows', () => {
+			// The sandbox is not supported on Windows, so the enable settings are ignored.
+			assert.strictEqual(buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.On)), undefined);
+			assert.strictEqual(buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.AllowNetwork)), undefined);
 		});
 	});
 
@@ -113,14 +99,13 @@ suite('buildSandboxConfigForSdk', () => {
 		test('selects the OS-specific slice from the per-OS filesystem keys', () => {
 			const cfg: ISandboxConfigValue = {
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostSandboxKey.LinuxFileSystem]: { allowWrite: ['/linux'] },
 				[AgentHostSandboxKey.MacFileSystem]: { allowWrite: ['/mac'] },
-				[AgentHostSandboxKey.WindowsFileSystem]: { allowWrite: ['C:\\win'] },
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy.filesystem, { readwritePaths: ['/linux'] });
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy.filesystem, { readwritePaths: ['/mac'] });
-			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg)?.userPolicy.filesystem, { readwritePaths: ['C:\\win'] });
+			// Windows is ignored entirely.
+			assert.strictEqual(buildSandboxConfigForSdk('win32', cfg), undefined);
 		});
 
 		test('maps each setting to the corresponding SDK list', () => {
@@ -199,7 +184,7 @@ suite('buildSandboxConfigForSdk', () => {
 
 	suite('network hosts', () => {
 		test('drops host lists and keeps outbound closed when sandbox is `on` (host lists disabled on all platforms)', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy.network, {
 					allowOutbound: false,
 				}, platform);
@@ -207,7 +192,7 @@ suite('buildSandboxConfigForSdk', () => {
 		});
 
 		test('ignores host lists when sandbox is `allowNetwork` (allow all)', () => {
-			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }))?.userPolicy.network, {
 					allowOutbound: true,
 				}, platform);
