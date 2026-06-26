@@ -4420,6 +4420,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-scrollbarSlider-background);
 	opacity: 0.85;
 	pointer-events: auto;
+	transition: none;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-scrollbar-prompt-markers > .chat-scrollbar-prompt-marker {
 	transition: top 0.05s ease-out, height 0.05s ease-out;
 }
 

@@ -228,9 +228,18 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			frameHandle = requestAnimationFrameFn(runOnce);
 		}
 
-		let microtaskHandle: Promise<void> | undefined;
 		if (typeof queueMicrotask === 'function') {
-			microtaskHandle = Promise.resolve().then(runOnce);
+			queueMicrotask(() => {
+				if (!disposed && !settled) {
+					runOnce();
+				}
+			});
+		} else {
+			Promise.resolve().then(() => {
+				if (!disposed && !settled) {
+					runOnce();
+				}
+			});
 		}
 
 		return toDisposable(() => {
@@ -241,9 +250,6 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				} else if (typeof globalThis.cancelAnimationFrame === 'function') {
 					globalThis.cancelAnimationFrame(frameHandle);
 				}
-			}
-			if (microtaskHandle) {
-				microtaskHandle = undefined;
 			}
 		});
 	}
