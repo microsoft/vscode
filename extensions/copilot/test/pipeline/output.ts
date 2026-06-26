@@ -123,12 +123,14 @@ export function assembleSample(
 }
 
 /**
- * Build the `xtab-cross-file` classification payload from a processed row's
- * per-file target edits (anchor + any cross-file files), in patch order.
+ * Build the `xtab-cross-file` classification payload from a row's per-file
+ * target edits (anchor + any cross-file files). Callers pass the edits already
+ * ordered per `--patch-order`, so `targetFiles`/`targetFilePaths` line up with
+ * the per-file patch blocks in the label.
  */
-export function buildXtabCrossFileClassification(processedRow: IProcessedRow): SampleClassification {
-	const anchorFilePath = processedRow.activeFilePath.replace(/\\/g, '/');
-	const targetFiles: ITargetFileMetadata[] = processedRow.targetFileEdits.map(f => ({
+export function buildXtabCrossFileClassification(anchorFilePath: string, targetFileEdits: IProcessedRow['targetFileEdits']): SampleClassification {
+	const anchor = anchorFilePath.replace(/\\/g, '/');
+	const targetFiles: ITargetFileMetadata[] = targetFileEdits.map(f => ({
 		filePath: f.relativePath.replace(/\\/g, '/'),
 		docContent: f.docContent,
 		oracleEdits: f.edit,
@@ -137,7 +139,7 @@ export function buildXtabCrossFileClassification(processedRow: IProcessedRow): S
 		task: NesDatagenSampleTask.XtabCrossFile,
 		targetFiles,
 		targetFilePaths: targetFiles.map(f => f.filePath),
-		isCrossFile: targetFiles.some(f => f.filePath !== anchorFilePath),
+		isCrossFile: targetFiles.some(f => f.filePath !== anchor),
 	};
 }
 

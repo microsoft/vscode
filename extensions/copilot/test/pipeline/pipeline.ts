@@ -223,7 +223,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 			const modelResult = generateResponse(responseFormat, modelEdits, p.activeDocument.value.get().value, p.activeFilePath, prompt.user);
 			const formattedModelResponse = 'error' in modelResult ? '' : modelResult.assistant;
 			const classification: SampleClassification = nesDatagenOpts.sampleTask === NesDatagenSampleTask.XtabCrossFile
-				? buildXtabCrossFileClassification(p)
+				? buildXtabCrossFileClassification(p.activeFilePath, orderTargetFiles(p.targetFileEdits, p.activeFilePath, patchOrder))
 				: { task: NesDatagenSampleTask.Xtab };
 			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, classification));
 		}
