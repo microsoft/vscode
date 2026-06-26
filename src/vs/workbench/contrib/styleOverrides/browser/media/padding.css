@@ -59,10 +59,8 @@
 	padding-left: var(--vscode-spacing-size80, 8px);
 }
 
-.style-override.monaco-workbench .agent-sessions-viewer {
-	.pane-body & .monaco-scrollable-element {
-		padding: 0px 6px;
-	}
+.style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
+	padding: 0 6px;
 }
 
 .style-override.monaco-workbench .chat-viewpane {
