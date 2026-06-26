@@ -121,6 +121,7 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
+			draftStorageKey: 'sessions.draftState',
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
