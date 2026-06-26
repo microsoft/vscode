@@ -126,7 +126,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	/**
 	 * Whether the picker has no usable model because the workspace is untrusted
 	 * (Restricted Mode). Lets a host (e.g. the sessions picker) keep the picker
-	 * visible to surface the "Pick Model" placeholder and Trust Workspace action
+	 * visible to surface the "Models" placeholder and Trust Workspace action
 	 * instead of hiding it as an empty/no-model picker.
 	 */
 	public isRestrictedMode(): boolean {
@@ -136,7 +136,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	/**
 	 * Whether the picker has no usable model because Chat still needs sign-in /
 	 * setup. Like {@link isRestrictedMode}, lets a host keep the picker visible to
-	 * surface the "Pick Model" placeholder and Sign In action.
+	 * surface the "Models" placeholder and Sign In action.
 	 */
 	public isSetupRequired(): boolean {
 		return this._pickerWidget.isSetupRequired();
@@ -169,7 +169,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 			label += ` (${keybindingLabel})`;
 		}
 		if (this._pickerWidget.isRestrictedMode()) {
-			return localize('chat.modelPicker.restrictedHover', "{0} • Models are unavailable in Restricted Mode. Trust the workspace to choose a model.", label);
+			return localize('chat.modelPicker.restrictedHover', "{0} • Models unavailable while in Restricted mode. Trust Workspace to enable models.", label);
 		}
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
