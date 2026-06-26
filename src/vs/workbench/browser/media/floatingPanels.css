@@ -122,5 +122,4 @@
 
 .monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
 	margin-top: var(--vscode-spacing-size20);
-	margin-bottom: auto;
 }
