@@ -38,7 +38,7 @@ export class LanguageDiagnosticsServiceImpl extends AbstractLanguageDiagnosticsS
 	private _dropMalformedDiagnostics(diagnostics: vscode.Diagnostic[]): vscode.Diagnostic[] {
 		const valid = diagnostics.filter(diagnostic => {
 			const range: vscode.Range | null | undefined = diagnostic.range;
-			return range != null;
+			return range !== null && range !== undefined;
 		});
 		const dropped = diagnostics.length - valid.length;
 		if (dropped > 0) {
