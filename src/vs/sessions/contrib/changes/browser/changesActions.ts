@@ -16,17 +16,15 @@ import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/a
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { CHANGES_VIEW_ID } from '../common/changes.js';
-import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
-import { ChangesViewModel } from './changesViewModel.js';
+import { IChangesViewService } from '../common/changesViewService.js';
+import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from './sessionChangesService.js';
 
 // --- View All Changes action
 
@@ -54,7 +52,8 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
-		const viewsService = accessor.get(IViewsService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -64,17 +63,16 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// Reveal the Changes view in the auxiliary bar (the 3rd pane). The user
-		// expects clicking Changes to bring back the side pane even if they had
-		// previously closed it, so always reveal it here rather than relying on the
-		// per-session saved visibility.
-		await viewsService.openView(CHANGES_VIEW_ID, false);
+		// The header pill reflects the session's default changeset, so reset any
+		// Changes-view selection to the default before opening so the diff editor
+		// (a shared per-session resource) shows the same changes as the pill.
+		changesViewService.setChangesetId(undefined);
 
 		// Open the multi-file diff editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
 		// a workbench contribution.
 		await editorService.openEditor({
-			multiDiffSource: getChangesMultiDiffSourceUri(sessionResource),
+			multiDiffSource: sessionChangesService.getChangesEditorResource(sessionResource),
 			label: localize('sessions.changes.title', 'Session Changes'),
 		});
 	}
@@ -98,11 +96,9 @@ interface IDiffStats {
  * action, which opens the multi-file diff editor.
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
- * are shown even when several session views are visible at once. The counts always reflect
- * the session's **Branch Changes** changeset (the branch-vs-base diff), located by id in
- * {@link IActiveSession.changesets}, so the header is independent of whichever changeset the
- * Changes view currently has selected. When no branch changeset is present, it falls back to
- * the session's top-level {@link IActiveSession.changes}.
+ * are shown even when several session views are visible at once. The counts reflect the
+ * changeset the provider marks as {@link ISessionChangeset.isDefault}, falling back to the
+ * session's top-level {@link IActiveSession.changes} when none is default.
  */
 export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
 
@@ -117,8 +113,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 
 		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const session = sessionContext.session.read(reader);
-			const branchChangeset = session?.changesets.read(reader)?.find(c => c.id === BRANCH_CHANGES_CHANGESET_ID);
-			const changes = (branchChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
+			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
+			const changes = (defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
 			let insertions = 0;
 			let deletions = 0;
 			for (const change of changes) {
@@ -209,10 +205,11 @@ class ViewAllChangesActionViewItemContribution extends Disposable implements IWo
  * It used to be created by the `ChangesViewPane`, so it only existed while the
  * Changes view (auxiliary bar) was open. The session header's "View All Changes"
  * action opens the multi-diff editor directly, so the resolver must exist
- * independently of that view — hence this standalone contribution with its own
- * {@link ChangesViewModel}. It is registered at {@link WorkbenchPhase.BlockRestore}
- * so a previously open changes diff editor can resolve its contents during
- * workbench restore.
+ * independently of that view — hence this standalone contribution. It shares the
+ * changes view model with the Changes view via {@link IChangesViewService}
+ * so both resolve the same changeset selection. It is registered at
+ * {@link WorkbenchPhase.BlockRestore} so a previously open changes diff editor
+ * can resolve its contents during workbench restore.
  */
 class ChangesMultiDiffSourceResolverContribution extends Disposable implements IWorkbenchContribution {
 
@@ -222,8 +219,7 @@ class ChangesMultiDiffSourceResolverContribution extends Disposable implements I
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		const viewModel = this._register(instantiationService.createInstance(ChangesViewModel));
-		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver, viewModel));
+		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 	}
 }
 

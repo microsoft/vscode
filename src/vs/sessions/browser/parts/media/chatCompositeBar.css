@@ -261,6 +261,34 @@
 	gap: 4px;
 }
 
+/* "New Chat" button pinned after the tab strip. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-new-chat .action-item .action-label {
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-composite-bar-toolbar {
 	display: flex;
 	align-items: center;
@@ -272,6 +300,10 @@
 	height: 20px;
 	line-height: 20px;
 	padding: 0 2px;
+}
+
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */

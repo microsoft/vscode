@@ -19,7 +19,7 @@ import { Memento } from '../../../common/memento.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 
 /** Persisted "shown" state for a single scenario. */
 interface IScenarioState {
@@ -162,14 +162,13 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	hasBeenShown(id: string): boolean {
-		if (this._developerMode) {
-			return this._shownSinceStart.has(id);
-		}
-		return !!this._state[id]?.shownAt;
+		const scenario = onboardingScenarioRegistry.getScenario(id);
+		return this._hasBeenShownKey(scenario ? this._seenKey(scenario) : id, id);
 	}
 
 	reset(id: string): void {
-		delete this._state[id];
+		const scenario = onboardingScenarioRegistry.getScenario(id);
+		delete this._state[scenario ? this._seenKey(scenario) : id];
 		this._memento.saveMemento();
 	}
 
@@ -186,8 +185,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) !== false;
 	}
 
-	private get _developerMode(): boolean {
-		return this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true;
+	private _isDeveloperMode(scenarioId: string): boolean {
+		return isOnboardingDeveloperModeEnabled(this.configurationService, scenarioId);
 	}
 
 	/**
@@ -204,8 +203,28 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return;
 		}
 
+		// Seen keys already claimed by a pending/queued/running non-repeatable
+		// scenario. Scenarios that share a `seenKey` are gated together, so once
+		// one sibling is scheduled we must not also schedule another in the same
+		// pass: shown state is only written when a scenario starts running, after
+		// the queue has been populated, so the shared-key check in
+		// `_isAutoEligible` cannot see the sibling yet.
+		const claimedSeenKeys = new Set<string>();
+		for (const scenario of onboardingScenarioRegistry.getScenarios()) {
+			if (!scenario.repeatable && this._pending.has(scenario.id)) {
+				claimedSeenKeys.add(this._seenKey(scenario));
+			}
+		}
+
 		for (const scenario of onboardingScenarioRegistry.getScenarios()) {
 			if (!this._isAutoEligible(scenario)) {
+				continue;
+			}
+
+			const seenKey = this._seenKey(scenario);
+			if (!scenario.repeatable && claimedSeenKeys.has(seenKey)) {
+				// A sibling sharing this seen key is already scheduled this pass;
+				// showing it will mark this scenario seen too.
 				continue;
 			}
 
@@ -221,6 +240,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			}
 
 			this._enqueue(scenario);
+			if (!scenario.repeatable) {
+				claimedSeenKeys.add(seenKey);
+			}
 		}
 	}
 
@@ -234,7 +256,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return false;
 		}
 
-		if (!scenario.repeatable && this.hasBeenShown(scenario.id)) {
+		if (!scenario.repeatable && this._hasBeenShownKey(this._seenKey(scenario), scenario.id)) {
 			return false;
 		}
 
@@ -326,14 +348,14 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}
 
 		// Mark shown the moment a scenario starts so a crash/reload won't re-trigger it.
-		this._markShown(scenario.id);
+		this._markShown(this._seenKey(scenario));
 
 		const abort = new Emitter<void>();
 		this._activeAbort = abort;
 		const startTime = Date.now();
 		try {
 			const result = await presentation.run(scenario, { targetWindow: mainWindow, onAbort: abort.event });
-			this._recordOutcome(scenario.id, result.outcome);
+			this._recordOutcome(this._seenKey(scenario), result.outcome);
 			// Only emit outcome telemetry when a tour was genuinely displayed; a degenerate
 			// run that rendered nothing (no steps / all steps skipped) must not pollute metrics.
 			if (result.shown) {
@@ -482,6 +504,23 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	//#endregion
 
 	//#region Persistence
+
+	/**
+	 * The key under which a scenario's once-per-user "shown" state is stored.
+	 * Scenarios may opt into a shared {@link IOnboardingScenario.seenKey} so that
+	 * variations of the same onboarding are gated together; otherwise the
+	 * scenario id is used.
+	 */
+	private _seenKey(scenario: IOnboardingScenario): string {
+		return scenario.seenKey ?? scenario.id;
+	}
+
+	private _hasBeenShownKey(key: string, scenarioId: string): boolean {
+		if (this._isDeveloperMode(scenarioId)) {
+			return this._shownSinceStart.has(key);
+		}
+		return !!this._state[key]?.shownAt;
+	}
 
 	private _markShown(id: string): void {
 		this._shownSinceStart.add(id);

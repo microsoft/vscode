@@ -98,6 +98,59 @@ suite('BaseLayoutController', () => {
 		);
 	});
 
+	test('[B2] does not reveal the editor part on switch when the session left it hidden', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Session 1 keeps editors open but the user hid the editor part (e.g. by
+		// closing the Side Panel).
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+
+		// Switch away (captures session 1's working set + hidden editor part)…
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		// …and back: the working set is restored but the editor part stays hidden.
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should stay hidden when the session left it hidden'
+		);
+	});
+
+	test('[B2][B5] does not capture the editor part hidden state while multiple sessions are visible', () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		// Two sessions visible at once: the editor area is shared, so its
+		// visibility is not a per-session choice.
+		harness.visibleEditorsList = [{}];
+		harness.visibleSessionsObs.set([session1, session2], undefined);
+		harness.activeSessionObs.set(session1, undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+
+		// Persist on shutdown.
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
+		assert.ok(stored, 'layout state should be written');
+		const entry = JSON.parse(stored!).find((e: any) => e.sessionResource === 'session:1');
+		assert.ok(entry, 'session 1 entry should be persisted');
+		assert.strictEqual(entry.editorPartHidden, undefined, 'editor part hidden state must not be captured while multiple sessions are visible');
+	});
+
 	// --- [B3] Persistence & migration / [B4] Save ---
 
 	test('[B3] migrates legacy sessions.workingSets key and [B4] persists to sessions.layoutState', () => {

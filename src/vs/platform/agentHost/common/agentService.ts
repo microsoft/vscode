@@ -770,6 +770,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
+	 * Host-only flag (not part of the dispatched action): the model requested
+	 * this shell command run OUTSIDE the sandbox (and the host opted in via
+	 * `sandbox.allowBypass`).
+	 */
+	readonly requestSandboxBypass?: boolean;
+	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting
 	 * `ChatToolCallReady` to the subagent session — otherwise the

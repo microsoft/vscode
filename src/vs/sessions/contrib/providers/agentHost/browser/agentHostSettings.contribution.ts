@@ -13,6 +13,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { SessionItemContextMenuId } from '../../../sessions/browser/views/sessionsList.js';
 import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
@@ -59,11 +60,14 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 				group: '2_settings',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}]
+			}],
+			precondition: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			f1: true
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-		const session = Array.isArray(context) ? context[0] : context;
+		const sessionsService = accessor.get(ISessionsService);
+		const session = (Array.isArray(context) ? context[0] : context) ?? sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}

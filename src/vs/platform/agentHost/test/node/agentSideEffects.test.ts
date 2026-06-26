@@ -1841,6 +1841,39 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
+		test('does NOT auto-approve a shell command that opted out of the sandbox, even in bypass mode', () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-sandboxbypass-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-sandboxbypass-1', toolName: '', displayName: '',
+					invocationMessage: 'Run cat ~/something.txt', toolInput: 'cat ~/something.txt',
+					confirmationTitle: 'Run command', edits: undefined,
+				},
+				permissionKind: 'shell', permissionPath: undefined,
+				requestSandboxBypass: true,
+			});
+
+			// A read-only command like `cat` (or even session-level bypass)
+			// would normally auto-approve, but opting out of the sandbox is an
+			// elevation of privilege the user must confirm, so no auto-approval
+			// response is sent.
+			assert.deepStrictEqual(agent.respondToPermissionCalls, []);
+		});
+
 		test('marks pending client tool approval for client-side auto-approval in bypass mode', async () => {
 			setupSessionWithConfig('autoApprove');
 			startTurn('turn-1');

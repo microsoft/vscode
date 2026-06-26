@@ -26,7 +26,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -34,6 +34,10 @@ import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
+import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
@@ -53,7 +57,16 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
-	commandListResult: { commands: Array<{ name: string; kind: 'builtin' | 'skill' | 'client'; description: string; allowDuringAgentExecution: boolean }> } = { commands: [] };
+	commandListResult: {
+		commands: Array<{
+			name: string;
+			kind: 'builtin' | 'skill' | 'client';
+			description: string;
+			allowDuringAgentExecution: boolean;
+			aliases?: string[];
+			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
+		}>;
+	} = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
@@ -144,7 +157,16 @@ class MockCopilotSession {
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
+		options: {
+			update: async (params: { sandboxConfig?: unknown }) => {
+				if (params.sandboxConfig !== undefined) {
+					this.sandboxConfigUpdates.push(params.sandboxConfig);
+				}
+			},
+		},
 	};
+
+	readonly sandboxConfigUpdates: unknown[] = [];
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
@@ -254,12 +276,16 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
+	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
+	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
+	platform?: NodeJS.Platform;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -339,6 +365,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
+	const rootValues = options?.rootValues ?? {};
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: new Emitter<void>().event,
@@ -350,7 +377,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getEffectiveWorkingDirectory: () => undefined,
 		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
-		getRootValue: () => undefined,
+		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
@@ -380,6 +407,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
+			platform: options?.platform ?? 'linux',
 		},
 	));
 
@@ -804,7 +832,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
@@ -846,11 +874,87 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/env', attachments: undefined }],
 			responseParts: [],
 			turnComplete: [],
+		});
+	});
+
+	test('`/env` forwards trailing text as runtime command input', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'done' };
+
+		await session.send('/env details please', undefined, 'turn-env-input');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
+			turnComplete: ['turn-env-input'],
+		});
+	});
+
+	test('invokes non-local runtime slash commands via commands API', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'focus',
+				aliases: ['f'],
+				kind: 'builtin',
+				description: 'Focus on a scope',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Focus done' };
+
+		await session.send('/f src/vs/platform', undefined, 'turn-focus');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
+			turnComplete: ['turn-focus'],
 		});
 	});
 
@@ -887,13 +991,23 @@ suite('CopilotAgentSession', () => {
 		}, {
 			env: true,
 			review: true,
-			skill: false,
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: false }],
+			skill: true,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 		});
 	});
 
-	test('`/review` forwards as a prompt-invoked command', async () => {
+	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'review',
+				kind: 'builtin',
+				description: 'Run code review agent to analyze changes',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Review done' };
 
 		await session.send('/review focus on tests', undefined, 'turn-review');
 
@@ -901,19 +1015,27 @@ suite('CopilotAgentSession', () => {
 			commandListCalls: mockSession.commandListCalls,
 			commandInvokeCalls: mockSession.commandInvokeCalls,
 			sendRequests: mockSession.sendRequests,
-			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
-			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+			responseParts: getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: getActions(signals)
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [],
-			commandInvokeCalls: [],
-			sendRequests: [{ prompt: '/review focus on tests', attachments: undefined }],
-			responseParts: [],
-			turnComplete: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
+			turnComplete: ['turn-review'],
 		});
 	});
 
-	test('`/security-review` forwards as a prompt-invoked command', async () => {
+	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
 
 		await session.send('/security-review', undefined, 'turn-security-review');
 
@@ -924,7 +1046,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
@@ -979,6 +1101,66 @@ suite('CopilotAgentSession', () => {
 					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
+		]);
+	});
+
+	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+
+		// Map the subagent's agentId to its parent tool call id.
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// Parent agent usage (no agentId) only contributes to the parent aggregate.
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// Subagent usage (its agentId) is reported twice: folded into the parent
+		// aggregate AND emitted to the subagent's child session as its component.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const usageSignals = signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
+				return [];
+			}
+			return [{
+				parentToolCallId: signal.parentToolCallId,
+				model: signal.action.usage.model,
+				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
+			}];
+		});
+
+		assert.deepStrictEqual(usageSignals, [
+			// Parent-only call → parent aggregate.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', totalNanoAiu: 500_000_000 },
+			// First subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 700_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 200_000_000 },
+			// Second subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 500_000_000 },
 		]);
 	});
 
@@ -1433,6 +1615,125 @@ suite('CopilotAgentSession', () => {
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'reject');
+		});
+
+		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxed',
+				fullCommandText: 'cat ~/something.txt',
+			});
+
+			assert.strictEqual(result.kind, 'approve-once');
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve a shell command that opted out of the sandbox', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxbypass',
+				fullCommandText: 'cat ~/something.txt',
+				requestSandboxBypass: true,
+			});
+
+			// Must fall through to the normal confirmation flow rather than
+			// auto-approving, since the command escapes the sandbox.
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+			assert.ok(session.respondToPermissionRequest('tc-sandboxbypass', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+				enabled: true,
+				allowBypass: true,
+				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+			});
+		});
+
+		test('per-request sandbox: disabled under session bypass approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under autopilot mode', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under global auto-approve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled on Windows', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				platform: 'win32',
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostConfigKey.EnableCustomTerminalTool]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			// The host's own terminal sandbox engine handles containment, so the
+			// SDK sandbox config is not managed in this mode.
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
 		});
 
 		test('pending permissions are denied on dispose', async () => {

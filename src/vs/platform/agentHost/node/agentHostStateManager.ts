@@ -535,6 +535,13 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] refusing to remove default chat: ${chatUri}`);
 			return;
 		}
+		// Drop the chat from its session's active-turn set before deleting its
+		// state. A peer chat can be removed while it still has an active turn;
+		// because active-turn tracking is driven by chat state transitions,
+		// deleting the ChatState here without this would strand the chat URI in
+		// the active set forever, keeping the session permanently "active"
+		// (activeSessions > 0) and leaving changeset operations disabled.
+		this._removeChatActiveTurn(session, chatUri);
 		this._chatStates.delete(chatUri);
 		this.dispatchServerAction(session, { type: ActionType.SessionChatRemoved, chat: chatUri });
 	}
@@ -1033,6 +1040,28 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Removes a single chat from its session's active-turn set, firing the
+	 * session-level active flip ({@link onDidChangeSessionActiveTurn} +
+	 * {@link ActionType.RootActiveSessionsChanged}) when this clears the
+	 * session's last active chat. Safe to call for chats that aren't currently
+	 * tracked as active — it is a no-op in that case. Used both when a turn
+	 * ends and when a chat is removed mid-turn, so the session can't be
+	 * stranded as permanently "active".
+	 */
+	private _removeChatActiveTurn(sessionKey: string, chatUri: string): void {
+		const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+		if (!activeChats || !activeChats.delete(chatUri)) {
+			return;
+		}
+
+		if (activeChats.size === 0) {
+			this._sessionsWithActiveTurn.delete(sessionKey);
+			this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: false });
+			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+		}
+	}
+
+	/**
 	 * Bridges a default-chat state transition back onto its owning session.
 	 *
 	 * The protocol moved turn lifecycle (and therefore the derived
@@ -1042,7 +1071,10 @@ export class AgentHostStateManager extends Disposable {
 	 *    and `hasActiveSessions`, which gate `--enable-remote-auto-shutdown`),
 	 *    keyed by the owning session URI;
 	 *  - mirror the chat's denormalized `status`/`activity`/`modifiedAt`
-	 *    onto the session summary so the session list reflects progress; and
+	 *    onto the session summary so the session list reflects progress;
+	 *  - forward the chat's own `status` to the session `chats` catalog (via a
+	 *    {@link ActionType.SessionChatUpdated}) so per-chat tabs reflect that
+	 *    chat's progress, not just the aggregated session summary; and
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
@@ -1054,27 +1086,20 @@ export class AgentHostStateManager extends Disposable {
 		const hadActive = !!prev.activeTurn;
 		const hasActive = !!next.activeTurn;
 		if (hadActive !== hasActive) {
-			const wasSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
 			if (hasActive) {
 				let activeChats = this._sessionsWithActiveTurn.get(sessionKey);
+				const wasSessionActive = !!activeChats?.size;
 				if (!activeChats) {
 					activeChats = new Set<string>();
 					this._sessionsWithActiveTurn.set(sessionKey, activeChats);
 				}
 				activeChats.add(chatUri);
-			} else {
-				const activeChats = this._sessionsWithActiveTurn.get(sessionKey);
-				if (activeChats) {
-					activeChats.delete(chatUri);
-					if (activeChats.size === 0) {
-						this._sessionsWithActiveTurn.delete(sessionKey);
-					}
+				if (!wasSessionActive) {
+					this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: true });
+					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
-			}
-			const isSessionActive = this._sessionsWithActiveTurn.has(sessionKey);
-			if (wasSessionActive !== isSessionActive) {
-				this._onDidChangeSessionActiveTurn.fire({ session: sessionKey, active: isSessionActive });
-				this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
+			} else {
+				this._removeChatActiveTurn(sessionKey, chatUri);
 			}
 		}
 
@@ -1085,7 +1110,22 @@ export class AgentHostStateManager extends Disposable {
 
 		// Mirror denormalized chat summary fields onto the session, aggregating
 		// across the whole chat catalog per the SessionSummary rules.
-		const chats = sessionState.chats.map(c => c.resource === chatUri ? chatSummaryFromState(next) : c);
+		const nextEntry = chatSummaryFromState(next);
+		const prevEntry = sessionState.chats.find(c => c.resource === chatUri);
+		const chats = sessionState.chats.map(c => c.resource === chatUri ? nextEntry : c);
+
+		// Forward the chat's own status to the session catalog so full
+		// SessionState subscribers (the per-chat tabs) reflect this chat's
+		// progress — not just the aggregated session summary. Status changes
+		// at most a couple of times per turn, so this won't flood the channel.
+		if (prevEntry?.status !== nextEntry.status) {
+			this.dispatchServerAction(sessionKey, {
+				type: ActionType.SessionChatUpdated,
+				chat: chatUri,
+				changes: { status: nextEntry.status, activity: nextEntry.activity },
+			});
+		}
+
 		const aggregate = this._aggregateChatSummaries(chats, sessionState.defaultChat);
 		const prevSummary = sessionState.summary;
 		const statusChanged = aggregate.status !== undefined && this._mergeSessionStatus(prevSummary.status, aggregate.status) !== prevSummary.status;
@@ -1110,9 +1150,12 @@ export class AgentHostStateManager extends Disposable {
 	/**
 	 * Aggregates a session's chat catalog into the derived session-summary
 	 * fields per the protocol rules: activity bits come from the default chat
-	 * (else the most recently modified chat) with `InputNeeded`/`Error`
-	 * promoted whenever any chat raises them; the `activity` string follows the
-	 * chat driving the resulting status; `modifiedAt` is the max across chats.
+	 * (else the most recently modified chat) with `InputNeeded`/`Error`/
+	 * `InProgress` promoted whenever any chat raises them; the `activity` string
+	 * follows the chat driving the resulting status; `modifiedAt` is the max
+	 * across chats. Promotion precedence is `InputNeeded` > `Error` >
+	 * `InProgress`, so a running peer (sub) chat surfaces as `InProgress` on the
+	 * session even when the default chat is idle.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -1125,12 +1168,18 @@ export class AgentHostStateManager extends Disposable {
 		let driver = base;
 		const errorChat = chats.find(c => (c.status & SessionStatus.Error) === SessionStatus.Error);
 		const inputChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
+		// `InputNeeded` is a superset of the `InProgress` bit, so exclude
+		// input-needed chats here to find one that is purely streaming.
+		const inProgressChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InProgress);
 		if (inputChat) {
 			status = SessionStatus.InputNeeded;
 			driver = inputChat;
 		} else if (errorChat) {
 			status = SessionStatus.Error;
 			driver = errorChat;
+		} else if (inProgressChat) {
+			status = SessionStatus.InProgress;
+			driver = inProgressChat;
 		}
 		const modifiedAt = chats.reduce((max, c) => Math.max(max, Date.parse(c.modifiedAt)), 0);
 		return { status, activity: driver.activity, modifiedAt };

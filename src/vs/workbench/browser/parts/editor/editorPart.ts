@@ -37,6 +37,15 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
+/**
+ * The width (in pixels) of the editor card border drawn on every side when the
+ * Modern UI Update experiment is enabled (`styleOverrides/media/editorBorder.css`).
+ * The editor reserves this thickness when laying out its contents so they sit
+ * inside the frame instead of overflowing (and being clipped by) the border.
+ * Keep in sync with the `--vscode-strokeThickness` (1px) token used there.
+ */
+const EDITOR_FRAME_BORDER_WIDTH = 1;
+
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
 	readonly activeGroup: GroupIdentifier;
@@ -1384,6 +1393,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
+
+			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
+			if (!this.element.classList.contains('modal-editor-part')) {
+				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
+				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
+			}
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
