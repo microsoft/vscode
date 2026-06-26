@@ -14,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import type { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
