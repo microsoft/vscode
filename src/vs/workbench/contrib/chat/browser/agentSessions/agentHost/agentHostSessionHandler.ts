@@ -84,6 +84,13 @@ export { toolDataToDefinition };
  */
 const COPILOT_CLI_PROVIDER: AgentProvider = 'copilotcli';
 
+/**
+ * Upper bound on the live editor text we inline for an unsaved document, matching the 1 MB per-file cap chat uses
+ * elsewhere (`chatRepoInfo`). Larger buffers are not inlined; a dirty saved file then falls back to its on-disk path.
+ */
+const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
+
+
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -3520,13 +3527,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Forward the user's active editor as ambient context. The "suggested context" flow keeps the active file out of
-	 * the request for agents, so re-add the implicit-context value computed on the widget, deduped against explicit
-	 * attachments.
-	 *
-	 * Unsaved editors (untitled or dirty) can't be read from disk by the harness. Copilot CLI inlines the live buffer
-	 * as an embedded resource; other backends only read paths, so we skip untitled and let dirty files fall back to
-	 * disk.
+	 * Forward the active editor (which the suggested-context flow otherwise omits) as ambient context, deduped against
+	 * explicit attachments. Copilot CLI inlines unsaved buffers; other backends skip untitled and read from disk.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
@@ -3547,15 +3549,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const uri = entry.uri;
 			if (uri && this._isUnsavedResource(uri)) {
 				if (this._config.provider === COPILOT_CLI_PROVIDER) {
-					const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString());
 					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name);
-					if (embedded && !existingKeys.has(dedupeKey)) {
-						existingKeys.add(dedupeKey);
-						attachments.push(embedded);
+					if (embedded) {
+						const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString());
+						if (!existingKeys.has(dedupeKey)) {
+							existingKeys.add(dedupeKey);
+							attachments.push(embedded);
+						}
+						continue;
 					}
-					continue;
-				}
-				if (uri.scheme === Schemas.untitled) {
+					// Couldn't inline (no model or too large): untitled has no on-disk fallback, so drop it; a dirty
+					// saved file falls through to its (stale) on-disk path below.
+					if (uri.scheme === Schemas.untitled) {
+						continue;
+					}
+				} else if (uri.scheme === Schemas.untitled) {
 					// Untitled has no on-disk path, so a path reference would be unreadable here.
 					continue;
 				}
@@ -3587,18 +3595,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
-	 * gets current content. Returns `undefined` when no loaded text model is available.
+	 * gets current content. Returns `undefined` when no loaded text model is available or the buffer exceeds
+	 * {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
 	 */
 	private _buildUnsavedEditorAttachment(uri: URI, label: string): MessageAttachment | undefined {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return undefined;
 		}
+		const buffer = VSBuffer.fromString(model.getValue());
+		if (buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
+			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: ${buffer.byteLength} bytes exceeds cap`);
+			return undefined;
+		}
 		return {
 			type: MessageAttachmentKind.EmbeddedResource,
 			label,
 			displayKind: 'document',
-			data: encodeBase64(VSBuffer.fromString(model.getValue())),
+			data: encodeBase64(buffer),
 			contentType: 'text/plain',
 		};
 	}
