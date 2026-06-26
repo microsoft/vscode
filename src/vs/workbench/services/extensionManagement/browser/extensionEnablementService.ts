@@ -34,6 +34,7 @@ import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ChatEntitlementService, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -73,6 +74,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -231,9 +233,22 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private isSettingsSyncAuthProviderExtension(manifest: IExtensionManifest): boolean {
-		return (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
-			isAuthenticationProviderExtension(manifest) && manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) || false;
+	private isDefaultOrSettingsSyncAuthProviderExtension(manifest: IExtensionManifest): boolean {
+		if (!isAuthenticationProviderExtension(manifest)) {
+			return false;
+		}
+
+		const defaultAccountAuthProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
+		if (manifest.contributes!.authentication!.some(a => a.id === defaultAccountAuthProvider.id)) {
+			return true;
+		}
+
+		if (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
+			manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private throwErrorIfCannotChangeEnablement(extension: IExtension, donotCheckDependencies?: boolean): void {
@@ -241,7 +256,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
 
-		if (this.isSettingsSyncAuthProviderExtension(extension.manifest)) {
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
 			throw new Error(localize('cannot disable settings sync auth extension', "Cannot change enablement of {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 
@@ -285,7 +300,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
 
-		if (this.isSettingsSyncAuthProviderExtension(extension.manifest)) {
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
 			throw new Error(localize('cannot disable settings sync auth extension in workspace', "Cannot change enablement of {0} extension in workspace because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
