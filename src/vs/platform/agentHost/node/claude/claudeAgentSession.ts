@@ -20,7 +20,7 @@ import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } 
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
@@ -296,6 +296,58 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
+	 * One-shot SDK assistant-message uuid that the next materialize / rebuild
+	 * resumes *up to and including* (the SDK's `Options.resumeSessionAt`).
+	 * Staged by {@link truncateToTurn}; consumed-and-cleared by the next
+	 * build via {@link _consumePendingTruncationAnchor}.
+	 */
+	private _pendingResumeSessionAt: string | undefined;
+
+	/** Reads and clears the pending truncation anchor so it applies exactly once. */
+	private _consumePendingTruncationAnchor(): string | undefined {
+		const anchor = this._pendingResumeSessionAt;
+		this._pendingResumeSessionAt = undefined;
+		return anchor;
+	}
+
+	/**
+	 * In-place truncation to `turnId` ("Restore Checkpoint"): prune the
+	 * per-turn DB rows (file edits, checkpoint refs) past the boundary AND
+	 * stage the SDK resume anchor that the next rebuild applies via
+	 * `Options.resumeSessionAt`. These two halves are one invariant — pruning
+	 * without staging the anchor would drop DB rows while the SDK still
+	 * replays the truncated turns; staging without pruning would leave stale
+	 * rows — so they live behind a single call rather than two the caller
+	 * could half-invoke. The prune runs first because it is the fallible half:
+	 * a DB failure then rejects without leaving an anchor staged for the next
+	 * turn. `turnId` is the protocol turn id (DB key); `resumeAnchorUuid` is
+	 * the SDK assistant-message uuid the agent resolved for it.
+	 */
+	async truncateToTurn(turnId: string, resumeAnchorUuid: string): Promise<void> {
+		await this._withDatabase(db => db.deleteTurnsAfter(turnId));
+		this._pendingResumeSessionAt = resumeAnchorUuid;
+	}
+
+	/** Prunes all per-turn DB rows (remove-all truncation). */
+	async pruneAllTurns(): Promise<void> {
+		await this._withDatabase(db => db.deleteAllTurns());
+	}
+
+	/**
+	 * Runs `fn` against a short-lived, ref-counted session DB handle so the
+	 * write is safe regardless of the pipeline's own dbRef lifecycle (the
+	 * ref-count keeps the shared DB alive; disposing only decrements).
+	 */
+	private async _withDatabase(fn: (db: ISessionDatabase) => Promise<void>): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(this.sessionUri);
+		try {
+			await fn(ref.object);
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
 	 * Bring the session up: build SDK `Options`, start the SDK, open the
 	 * session-scoped DB ref, construct the pipeline, and attach the
 	 * rematerializer used for yield-restart (e.g. after a client-tool
@@ -330,6 +382,7 @@ export class ClaudeAgentSession extends Disposable {
 				permissionMode,
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
+				resumeSessionAt: this._consumePendingTruncationAnchor(),
 				mcpServers,
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(),
@@ -421,6 +474,7 @@ export class ClaudeAgentSession extends Disposable {
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
 						isResume: true,
+						resumeSessionAt: this._consumePendingTruncationAnchor(),
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(),
@@ -507,6 +561,17 @@ export class ClaudeAgentSession extends Disposable {
 	get isResumed(): boolean { return this._requirePipeline().isResumed; }
 
 	/**
+	 * Abort the live SDK subprocess and await its full teardown so the
+	 * session id is released. No-op when the session was never materialized
+	 * (no subprocess to stop). Used by remove-all truncation before it
+	 * recreates a fresh session under the same id — the CLI keeps the id
+	 * locked until the old subprocess exits.
+	 */
+	async shutdownLiveQuery(): Promise<void> {
+		await this._pipeline?.shutdownAndWait();
+	}
+
+	/**
 	 * Seed the pipeline's current + applied config cache from
 	 * materialize-time `Options`. The SDK already starts with these
 	 * values, so the cache prevents a redundant first `setModel` /
@@ -545,7 +610,7 @@ export class ClaudeAgentSession extends Disposable {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
+		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference || this._pendingResumeSessionAt !== undefined) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this.sessionUri, this._permissionModeFallback));
