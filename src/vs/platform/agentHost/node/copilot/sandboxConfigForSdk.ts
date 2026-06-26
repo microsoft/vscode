@@ -30,6 +30,7 @@ export interface IAgentSandboxFileSystemSetting {
  */
 export interface ISdkSandboxConfig {
 	enabled: true;
+	allowBypass?: boolean;
 	userPolicy: {
 		filesystem: {
 			readwritePaths?: string[];
@@ -63,9 +64,9 @@ export interface ISdkSandboxConfig {
  *    `readwritePaths`.
  *  - Network: `allowNetwork` opens outbound to everything and drops the
  *    allow/deny lists. Otherwise the allow/deny lists open outbound when
- *    set so they're actually enforced; macOS fails closed because the
- *    runtime has no per-host filter (Seatbelt would silently degrade to
- *    "allow all outbound").
+ *    set so they're actually enforced; host lists are currently disabled on
+ *    all platforms (fail closed) because the runtime does not yet enforce
+ *    them reliably everywhere.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
@@ -109,7 +110,7 @@ export function buildSandboxConfigForSdk(
 	}
 
 	const allowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork;
-	const hostListsEnforceable = platform !== 'darwin';
+	const hostListsEnforceable = false;
 	const rawAllow = sandbox[AgentHostSandboxKey.AllowedNetworkDomains];
 	const rawBlock = sandbox[AgentHostSandboxKey.DeniedNetworkDomains];
 	const allowedHosts = !allowAllNetwork && hostListsEnforceable && rawAllow?.length ? [...rawAllow] : undefined;
@@ -117,6 +118,7 @@ export function buildSandboxConfigForSdk(
 	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
+		allowBypass: true,
 		userPolicy: {
 			filesystem: {
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),

@@ -191,6 +191,33 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
+	test('confirmation title reflects sandbox bypass for shell requests', () => {
+		const sandboxed = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+		} as ITypedPermissionRequest, wd);
+		const bypass = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
+	test('confirmation title reflects sandbox bypass for custom-tool shell requests', () => {
+		const bypass = getPermissionDisplay({
+			kind: 'custom-tool',
+			toolName: 'bash',
+			args: { command: 'echo hi' },
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.strictEqual(bypass.permissionKind, 'shell');
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
 });
 
 suite('getPermissionDisplay — read permission display', () => {

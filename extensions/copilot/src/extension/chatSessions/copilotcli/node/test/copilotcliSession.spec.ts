@@ -257,11 +257,11 @@ describe('CopilotCLISession', () => {
 	});
 
 
-	async function createSession(): Promise<CopilotCLISession> {
-		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })));
+	async function createSession(opts?: { sandboxEnabled?: boolean }): Promise<CopilotCLISession> {
+		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), opts?.sandboxEnabled ?? false);
 	}
 
-	async function createSessionWith(otelService: IOTelService): Promise<CopilotCLISession> {
+	async function createSessionWith(otelService: IOTelService, sandboxEnabled = false): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
 			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
@@ -273,7 +273,7 @@ describe('CopilotCLISession', () => {
 			sessionAgentName,
 			sdkSession as unknown as Session,
 			[],
-			false,
+			sandboxEnabled,
 			logger,
 			workspaceService,
 			chatSessionMetadataStore,
@@ -850,6 +850,64 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('auto-approves an ordinary shell command when the sandbox is enabled', async () => {
+		let result: unknown;
+		sdkSession.send = async () => {
+			result = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'sandboxed-tool',
+				commands: [{ identifier: 'ls', readOnly: true }],
+				intention: 'List files',
+				fullCommandText: 'ls',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false,
+			});
+		};
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run bash' }, [], undefined, authInfo, CancellationToken.None);
+
+		// The sandbox contains the command, so it is auto-approved without a prompt.
+		expect(result).toEqual({ kind: 'approve-once' });
+		expect(toolsService.invokeToolCalls.filter(c => c.name === 'vscode_get_terminal_confirmation')).toHaveLength(0);
+	});
+
+	it('does not auto-approve a sandbox-bypass shell command and flags it runs outside the sandbox', async () => {
+		let result: unknown;
+		sdkSession.send = async () => {
+			result = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'bypass-tool',
+				commands: [{ identifier: 'cat ~/secret', readOnly: true }],
+				intention: 'Read secret',
+				fullCommandText: 'cat ~/secret',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false,
+				requestSandboxBypass: true,
+				requestSandboxBypassReason: 'Needs access outside the workspace',
+			});
+		};
+		toolsService.setConfirmationResult('yes');
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run bash' }, [], undefined, authInfo, CancellationToken.None);
+
+		// Opting out of the sandbox is an elevation of privilege, so it must fall
+		// through to the confirmation prompt rather than being auto-approved, and
+		// the confirmation must be flagged as running outside the sandbox.
+		const confirmationCalls = toolsService.invokeToolCalls.filter(c => c.name === 'vscode_get_terminal_confirmation');
+		expect(confirmationCalls).toHaveLength(1);
+		expect(confirmationCalls[0].input as { sandboxBypass?: boolean; sandboxBypassReason?: string }).toMatchObject({
+			sandboxBypass: true,
+			sandboxBypassReason: 'Needs access outside the workspace',
+		});
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('emits languageModelToolInvoked telemetry for each completed tool invocation', async () => {

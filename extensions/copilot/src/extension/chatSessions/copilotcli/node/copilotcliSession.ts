@@ -1276,14 +1276,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
 
+				const isSandboxBypassShell = permissionRequest.kind === 'shell' && permissionRequest.requestSandboxBypass === true;
+
 				// Auto-approve all requests when the permission level allows it.
-				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+				if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
-				if (permissionRequest.kind === 'shell' && this._sandboxEnabled) {
+				if (!isSandboxBypassShell && permissionRequest.kind === 'shell' && this._sandboxEnabled) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving shell request (sandbox is enabled)`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
@@ -1328,7 +1330,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
