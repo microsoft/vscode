@@ -318,4 +318,52 @@ describe('resolveOTelConfig', () => {
 			expect(config.maxAttributeSizeChars).toBe(0);
 		});
 	});
+
+	describe('enterprise policy precedence', () => {
+		it('policy enabled wins over a disabling user setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingEnabled: false,
+				policyEnabled: true,
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.enabledVia).toBe('policy');
+		});
+
+		it('policy disabled forces OTel off even when env enables it', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true' },
+				policyEnabled: false,
+			}));
+			expect(config.enabled).toBe(false);
+		});
+
+		it('policy endpoint wins over env endpoint and enables OTel', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'OTEL_EXPORTER_OTLP_ENDPOINT': 'http://user:4318' },
+				policyOtlpEndpoint: 'http://enterprise:4318',
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.otlpEndpoint).toBe('http://enterprise:4318/');
+			expect(config.enabledVia).toBe('policy');
+		});
+
+		it('policy exporter type maps and suppresses file export', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingOutfile: '/tmp/spans.jsonl',
+				policyEnabled: true,
+				policyExporterType: 'otlp-http',
+			}));
+			expect(config.exporterType).toBe('otlp-http');
+			expect(config.fileExporterPath).toBeUndefined();
+		});
+
+		it('policy captureContent overrides the user setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				settingCaptureContent: true,
+				policyCaptureContent: false,
+			}));
+			expect(config.captureContent).toBe(false);
+		});
+	});
 });
