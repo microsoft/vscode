@@ -99,6 +99,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameChat = Event.None;
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
+	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
@@ -120,6 +121,8 @@ class MockSessionStore implements ISessionsManagementService {
 				isCreated: constObservable(true),
 				sticky: constObservable(false),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
+				openChats: session.chats,
+				closedChats: constObservable([]),
 			};
 			this.activeSession.set(active, undefined);
 		} else {

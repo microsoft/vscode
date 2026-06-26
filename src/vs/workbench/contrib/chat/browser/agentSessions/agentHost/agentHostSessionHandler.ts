@@ -2753,99 +2753,137 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		sessionResource: URI,
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
+		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string }[] = [];
 
 		for (const item of history) {
 			if (item.type !== 'response') {
 				continue;
 			}
 
-			// Collect subagent tool calls from this response's parts
-			const subagentInsertions: { index: number; toolCallId: string }[] = [];
 			for (let i = 0; i < item.parts.length; i++) {
 				const part = item.parts[i];
 				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
-					subagentInsertions.push({ index: i, toolCallId: part.toolCallId });
-				}
-			}
-
-			// Process insertions in reverse order so indices remain valid
-			for (let j = subagentInsertions.length - 1; j >= 0; j--) {
-				const { index, toolCallId } = subagentInsertions[j];
-				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
-
-				try {
-					const childSub = this._ensureSessionSubscription(childSessionUri);
-					let childState = this._getSessionState(childSessionUri);
-					if (!childState) {
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						await new Promise<void>(resolve => {
-							const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
-						});
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						childState = this._getSessionState(childSessionUri);
-					}
-					if (childState) {
-						const innerParts: IChatProgress[] = [];
-						let subagentCredits = 0;
-						let subagentModelName: string | undefined;
-						for (const turn of childState.turns) {
-							const turnCredits = usageInfoToChatUsage(turn.usage)?.copilotCredits;
-							if (typeof turnCredits === 'number') {
-								subagentCredits += turnCredits;
-							}
-							const turnModelId = this._toLanguageModelId(sessionResource, turn.usage?.model);
-							const turnModelName = turnModelId ? this._languageModelsService.lookupLanguageModel(turnModelId)?.name : undefined;
-							if (turnModelName) {
-								subagentModelName = turnModelName;
-							}
-							for (const rp of turn.responseParts) {
-								if (rp.kind === ResponsePartKind.ToolCall) {
-									const tc = rp.toolCall;
-									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-										const completedTc = tc as ICompletedToolCall;
-										const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-										if (fileEditParts.length > 0) {
-											serialized.presentation = ToolInvocationPresentation.Hidden;
-										}
-										innerParts.push(serialized);
-										innerParts.push(...fileEditParts);
-									}
-								}
-							}
-						}
-						// Surface this subagent's accumulated credits (AIC) on its
-						// tool's hover after a reload by writing them onto the
-						// serialized subagent tool call.
-						if (subagentCredits > 0) {
-							const subagentPart = item.parts[index];
-							if (subagentPart.kind === 'toolInvocationSerialized' && subagentPart.toolSpecificData?.kind === 'subagent') {
-								subagentPart.toolSpecificData.credits = subagentCredits;
-							}
-						}
-						// Surface the model this subagent ran on after a reload.
-						if (subagentModelName) {
-							const subagentPart = item.parts[index];
-							if (subagentPart.kind === 'toolInvocationSerialized' && subagentPart.toolSpecificData?.kind === 'subagent' && !subagentPart.toolSpecificData.modelName) {
-								subagentPart.toolSpecificData.modelName = subagentModelName;
-							}
-						}
-						if (innerParts.length > 0) {
-							// Insert inner tool calls right after the subagent tool call
-							item.parts.splice(index + 1, 0, ...innerParts);
-						}
-					}
-				} catch (err) {
-					this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
-				} finally {
-					this._releaseSessionSubscription(childSessionUri);
+					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId });
 				}
 			}
 		}
+
+		if (subagentInsertions.length === 0) {
+			return;
+		}
+
+		const childStateByUri = new Map<string, Promise<ISessionWithDefaultChat | undefined>>();
+		const getChildState = (childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> => {
+			let existing = childStateByUri.get(childSessionUri);
+			if (!existing) {
+				existing = this._loadSubagentState(childSessionUri);
+				childStateByUri.set(childSessionUri, existing);
+			}
+			return existing;
+		};
+
+		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId }) => {
+			const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+			try {
+				const childState = await getChildState(childSessionUri);
+				if (childState) {
+					// Surface this subagent's accumulated cost (AIC) and model on
+					// its tool's hover after a reload by writing them onto the
+					// serialized subagent tool call.
+					this._applySubagentUsageToHistoryPart(item.parts[index], sessionResource, childState);
+				}
+				return { item, index, innerParts: childState ? this._getSubagentInnerParts(childSessionUri, toolCallId, childState) : [] };
+			} catch (err) {
+				this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
+				return { item, index, innerParts: [] };
+			}
+		}));
+
+		for (const { item, index, innerParts } of enrichedInsertions.sort((a, b) => b.index - a.index)) {
+			if (innerParts.length > 0) {
+				item.parts.splice(index + 1, 0, ...innerParts);
+			}
+		}
+	}
+
+	private async _loadSubagentState(childSessionUri: string): Promise<ISessionWithDefaultChat | undefined> {
+		const childSub = this._ensureSessionSubscription(childSessionUri);
+		// `_ensureSessionSubscription` already subscribes to the child's default
+		// chat in lockstep; grab a handle so we can await it too. After the
+		// multi-chat protocol split, `turns` live on the chat channel, so we
+		// must wait for BOTH the session summary and its default-chat state to
+		// hydrate. Awaiting only the session subscription would read the merged
+		// state while `turns` is still empty, yielding no subagent inner tool
+		// calls. This mirrors the main `provideChatSessionContent` path.
+		const childChatSub = this._ensureDefaultChatSubscription(childSessionUri);
+		try {
+			await Promise.all([
+				this._whenSubscriptionHydrated(childSub, CancellationToken.None),
+				this._whenSubscriptionHydrated(childChatSub, CancellationToken.None),
+			]);
+			if (childSub.value instanceof Error) {
+				throw childSub.value;
+			}
+			if (childChatSub.value instanceof Error) {
+				throw childChatSub.value;
+			}
+			return this._getSessionState(childSessionUri);
+		} finally {
+			this._releaseSessionSubscription(childSessionUri);
+		}
+	}
+
+	/**
+	 * Writes a subagent's accumulated cost (AIC) and model — summed across its
+	 * child session's turns — onto its serialized subagent tool call so the
+	 * hover survives a reload. Mirrors the live observers in
+	 * {@link _setupServerToolCall}.
+	 */
+	private _applySubagentUsageToHistoryPart(part: IChatProgress, sessionResource: URI, childState: ISessionWithDefaultChat): void {
+		if (part.kind !== 'toolInvocationSerialized' || part.toolSpecificData?.kind !== 'subagent') {
+			return;
+		}
+		let credits = 0;
+		let modelName: string | undefined;
+		for (const turn of childState.turns) {
+			const turnCredits = usageInfoToChatUsage(turn.usage)?.copilotCredits;
+			if (typeof turnCredits === 'number') {
+				credits += turnCredits;
+			}
+			const turnModelId = this._toLanguageModelId(sessionResource, turn.usage?.model);
+			const turnModelName = turnModelId ? this._languageModelsService.lookupLanguageModel(turnModelId)?.name : undefined;
+			if (turnModelName) {
+				modelName = turnModelName;
+			}
+		}
+		if (credits > 0) {
+			part.toolSpecificData.credits = credits;
+		}
+		if (modelName && !part.toolSpecificData.modelName) {
+			part.toolSpecificData.modelName = modelName;
+		}
+	}
+
+	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
+		const innerParts: IChatProgress[] = [];
+		for (const turn of childState.turns) {
+			for (const rp of turn.responseParts) {
+				if (rp.kind === ResponsePartKind.ToolCall) {
+					const tc = rp.toolCall;
+					if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+						const completedTc = tc as ICompletedToolCall;
+						const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
+						const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
+						if (fileEditParts.length > 0) {
+							serialized.presentation = ToolInvocationPresentation.Hidden;
+						}
+						innerParts.push(serialized);
+						innerParts.push(...fileEditParts);
+					}
+				}
+			}
+		}
+		return innerParts;
 	}
 
 	/**
@@ -3437,6 +3475,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._newSessionFolderService.getFolder(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 

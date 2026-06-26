@@ -6,34 +6,21 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, observableSignalFromEvent, derivedObservableWithCache, autorun } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { ActiveSessionState, IChangesViewService } from '../common/changesViewService.js';
 
-export interface ActiveSessionState {
-	readonly isolationMode: IsolationMode;
-	readonly hasGitRepository: boolean;
-	readonly branchName: string | undefined;
-	readonly baseBranchName: string | undefined;
-	readonly upstreamBranchName: string | undefined;
-	readonly isMergeBaseBranchProtected: boolean | undefined;
-	readonly incomingChanges: number | undefined;
-	readonly outgoingChanges: number | undefined;
-	readonly uncommittedChanges: number | undefined;
-	readonly hasBranchChanges: boolean | undefined;
-	readonly hasGitHubRemote: boolean | undefined;
-	readonly hasPullRequest: boolean | undefined;
-	readonly hasOpenPullRequest: boolean | undefined;
-	readonly hasGitOperationInProgress: boolean | undefined;
-}
+export class ChangesViewService extends Disposable implements IChangesViewService {
 
-export class ChangesViewModel extends Disposable {
+	declare readonly _serviceBrand: undefined;
+
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
@@ -52,12 +39,13 @@ export class ChangesViewModel extends Disposable {
 		this._selectedChangesetId.set(changesetId, undefined);
 	}
 
-	readonly viewModeObs: ISettableObservable<ChangesViewMode>;
+	private readonly _viewModeObs: ISettableObservable<ChangesViewMode>;
+	get viewModeObs() { return this._viewModeObs; }
 	setViewMode(mode: ChangesViewMode): void {
-		if (this.viewModeObs.get() === mode) {
+		if (this._viewModeObs.get() === mode) {
 			return;
 		}
-		this.viewModeObs.set(mode, undefined);
+		this._viewModeObs.set(mode, undefined);
 		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -143,7 +131,7 @@ export class ChangesViewModel extends Disposable {
 		// View mode
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
 		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
-		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
+		this._viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
 
 		// Reset changeset selection
 		this._register(autorun(reader => {
@@ -245,13 +233,15 @@ export class ChangesViewModel extends Disposable {
 	}
 
 	private _getActiveSessionAgentFeedback(): IObservable<Map<string, number>> {
+		const didChangeFeedbackSignal = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
+
 		return derived(reader => {
 			const sessionResource = this.activeSessionResourceObs.read(reader);
 			if (!sessionResource) {
 				return new Map<string, number>();
 			}
 
-			observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback).read(reader);
+			didChangeFeedbackSignal.read(reader);
 
 			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
 			const result = new Map<string, number>();

@@ -154,7 +154,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
-	override async deleteChat(): Promise<void> { }
+	override async deleteChat(): Promise<boolean> { return true; }
 	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
@@ -826,6 +826,47 @@ suite('SessionsManagementService', () => {
 		// The request was sent, but the user's view was not navigated into the session.
 		assert.strictEqual(sendRequestStarted, true);
 		assert.strictEqual(view.activeSession.get(), undefined);
+	});
+
+	test('discardNewSession fires onDidDiscardNewSession with the discarded draft', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const discarded: string[] = [];
+		disposables.add(service.onDidDiscardNewSession(s => discarded.push(s.sessionId)));
+
+		// Establish a pending draft, then abandon it.
+		service.createNewSession(URI.parse('test:///folder'));
+		service.discardNewSession();
+
+		assert.deepStrictEqual(discarded, ['s1']);
+	});
+
+	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		let discardCount = 0;
+		disposables.add(service.onDidDiscardNewSession(() => discardCount++));
+
+		// Sending the composed draft graduates it into the list rather than
+		// discarding it, so the discard event must not fire.
+		const draft = service.createNewSession(URI.parse('test:///folder'));
+		await service.sendNewChatRequest(draft, { query: 'hi' });
+
+		assert.strictEqual(discardCount, 0);
 	});
 
 	test('getAllSessionTypes orders providers by their order property (lower first)', () => {

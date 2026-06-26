@@ -72,6 +72,16 @@ export interface ICodeReviewService {
 	 * cleaned up.
 	 */
 	markPRReviewCommentConverted(sessionResource: URI, commentId: string): void;
+
+	/**
+	 * Dismiss a PR review comment so it no longer appears in the review state.
+	 * Used when the user deletes the comment's pending agent-feedback mirror
+	 * from the `viewUnreviewedComments` confirmation: without suppressing the
+	 * source comment the mirror would be seeded again. Like
+	 * {@link markPRReviewCommentConverted} this is a local, in-memory filter that
+	 * does not touch GitHub and is reset when the session is cleaned up.
+	 */
+	dismissPRReviewComment(sessionResource: URI, commentId: string): void;
 }
 
 // --- Implementation ----------------------------------------------------------
@@ -85,7 +95,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _prReviewBySession = new Map<string, IPRSessionReviewData>();
-	/** PR review comment IDs that have been converted to agent feedback (per session). */
+	/**
+	 * PR review comment IDs that have been locally handled — converted to agent
+	 * feedback or dismissed from the `viewUnreviewedComments` confirmation — and
+	 * are therefore hidden from the PR review state (per session).
+	 */
 	private readonly _convertedPRCommentsBySession = new Map<string, Set<string>>();
 
 	constructor(
@@ -198,6 +212,19 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	markPRReviewCommentConverted(sessionResource: URI, commentId: string): void {
+		this._suppressPRReviewComment(sessionResource, commentId);
+	}
+
+	dismissPRReviewComment(sessionResource: URI, commentId: string): void {
+		this._suppressPRReviewComment(sessionResource, commentId);
+	}
+
+	/**
+	 * Hide a PR review comment from the session's review state and remember it
+	 * so the projection autorun keeps filtering it. Shared by
+	 * {@link markPRReviewCommentConverted} and {@link dismissPRReviewComment}.
+	 */
+	private _suppressPRReviewComment(sessionResource: URI, commentId: string): void {
 		const key = sessionResource.toString();
 		let converted = this._convertedPRCommentsBySession.get(key);
 		if (!converted) {

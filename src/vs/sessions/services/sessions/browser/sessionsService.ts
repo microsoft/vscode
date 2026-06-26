@@ -61,6 +61,12 @@ interface ISessionState {
 	sessionResource: string;
 	/** The resource URI of the last active chat within the session. */
 	activeChatResource?: string;
+	/**
+	 * Resource URIs of chats that were closed (hidden from the tab strip) at save
+	 * time. Restored so closed chats stay hidden across reloads; reopen them from
+	 * the session header's chats dropdown.
+	 */
+	closedChatResources?: string[];
 	/** Whether this session was the active session at the time of save. */
 	isActive?: boolean;
 	/**
@@ -133,6 +139,12 @@ export interface ISessionsService {
 	 * Open a specific chat within a session and show it in the grid.
 	 */
 	openChat(session: ISession, chatUri: URI): Promise<void>;
+
+	/**
+	 * Close a chat from the session view. The chat is hidden from the tab strip
+	 * and can be reopened from the session header's chats dropdown.
+	 */
+	closeChat(session: IActiveSession, chat: IChat): Promise<void>;
 
 	/**
 	 * Open the new-session composer.
@@ -277,6 +289,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._visibility = this._register(this.instantiationService.createInstance(
 			VisibleSessions,
 			session => this._restoreInitialChat(session),
+			session => this._restoreClosedChats(session),
 		));
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.activeSession = this._visibility.activeSession;
@@ -561,6 +574,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeSession) {
 			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 			if (chat) {
+				// Opening a chat also un-hides it if it was previously closed.
+				this._visibility.openChat(session, chat);
 				this._visibility.setActiveChat(session, chat);
 			}
 		}
@@ -571,6 +586,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 
 		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
+	}
+
+	async closeChat(session: IActiveSession, chat: IChat): Promise<void> {
+		// Closing hides the chat from the tab strip; it stays reopenable from the
+		// session header's chats dropdown.
+		this._visibility.closeChat(session, chat);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
@@ -728,6 +749,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return initialChat;
 	}
 
+	/**
+	 * The resource strings of chats that were closed (hidden from the tab strip)
+	 * when the session was last saved, so they stay hidden across reloads. Stale
+	 * URIs that no longer match a chat are harmless: the visible session
+	 * intersects them with the live chat list.
+	 */
+	private _restoreClosedChats(session: ISession): readonly string[] {
+		return this._sessionStates.get(session.resource)?.closedChatResources ?? [];
+	}
+
 	private async _waitForSessionToLoad(session: ISession, token: CancellationToken): Promise<boolean> {
 		if (!session.loading.get()) {
 			return true;
@@ -802,6 +833,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
 				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				closedChatResources: session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
 				isActive: session.sessionId === activeId,

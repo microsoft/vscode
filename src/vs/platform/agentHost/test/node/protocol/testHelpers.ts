@@ -12,6 +12,7 @@ import { ActionType, type ActionEnvelope } from '../../../common/state/sessionAc
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -251,6 +252,11 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			env: options?.codexSdkRoot
+				? { ...process.env, [AgentHostCodexAgentEnabledEnvVar]: 'true' }
+				: process.env,
 		});
 
 		const timer = setTimeout(() => {

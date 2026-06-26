@@ -162,6 +162,15 @@ export interface IAgentFeedbackService {
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
 
 	/**
+	 * Whether {@link getFeedback} reflects the authoritative item set for the
+	 * session. For agent-host sessions this is `false` until the session's
+	 * annotations snapshot has been received; for other sessions it is always
+	 * `true`. Callers that seed feedback from another source must wait for this
+	 * to avoid acting on a transiently-empty list.
+	 */
+	hasLoadedFeedback(sessionResource: URI): boolean;
+
+	/**
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
@@ -438,6 +447,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 		return this._backendForSession(sessionResource).getItems(sessionResource);
+	}
+
+	hasLoadedFeedback(sessionResource: URI): boolean {
+		return this._backendForSession(sessionResource).hasLoaded(sessionResource);
 	}
 
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined {
