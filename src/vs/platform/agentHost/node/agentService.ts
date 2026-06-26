@@ -64,6 +64,10 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
+import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
+import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
+import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -274,18 +278,24 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetSubscriptions = instantiationService.createInstance(AgentHostChangesetSubscriptionService);
 		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
-		// The changeset service is responsible for computing, publishing, and persisting changesets.
-		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
-		services.set(IAgentHostChangesetService, this._changesets);
-
 		// The operation contribution service manages the lifecycle of changeset operations.
 		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService, this._stateManager));
 		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
+
+		// The changeset service is responsible for computing, publishing, and persisting changesets.
+		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
+		services.set(IAgentHostChangesetService, this._changesets);
 
 		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
 		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
 		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator, this._stateManager));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
+
+		// Register the changeset operation contributions.
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
 		// Built-in generic provider: completes files in the session's workspace folder.

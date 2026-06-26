@@ -7,7 +7,6 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
@@ -85,7 +84,6 @@ suite('AgentHostChangesetOperationService', () => {
 			stateManager,
 			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
-			disposables.add(new InstantiationService()),
 		));
 	}
 
