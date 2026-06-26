@@ -20,6 +20,7 @@ import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -27,6 +28,8 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
@@ -601,6 +604,16 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		deprecation: {
+			type: 'object',
+			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
+			properties: {
+				link: {
+					type: 'string',
+					description: localize('vscode.extension.contributes.languageModels.deprecation.link', "A URL opened when the user clicks the deprecation link shown next to the provider name. Use a 'vscode:extension/<publisher>.<name>' URI to open a replacement extension in the Extensions view.")
+				}
+			}
+		},
 		when: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.when', "Condition which must be true to show this language model chat provider in the Manage Models list.")
@@ -608,10 +621,30 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+	/**
+	 * Marks a provider as deprecated. The Manage Models view renders a link
+	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
+	 * next to the provider name. Optional so existing provider descriptors are unaffected.
+	 */
+	readonly deprecation?: { readonly link?: string };
+};
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
+}
+
+/**
+ * Resolves a provider `deprecation.link` for opening inside the current build. Contributions point
+ * at the replacement extension with a stable `vscode:extension/<id>` URI, but the URL service only
+ * routes URIs whose scheme matches this build's `urlProtocol` (e.g. `code-oss`, `vscode-insiders`).
+ * The `vscode:` scheme is therefore rewritten to the current protocol so the extensions URL handler
+ * opens the extension; without this the opener falls back to treating the URI as a (non-existent)
+ * file resource and fails. Other schemes (http(s), command) are returned unchanged.
+ */
+export function resolveProviderDeprecationLink(link: string, urlProtocol: string | undefined): URI {
+	const uri = URI.parse(link);
+	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
 }
 
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
@@ -714,6 +747,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
 
+	/** Vendors for which a deprecation notice has already been shown this session. */
+	private readonly _deprecationNoticeShownVendors = new Set<string>();
+
 	private readonly _onDidChangeLanguageModelVendors = this._store.add(new Emitter<string[]>());
 	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
 
@@ -760,6 +796,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 		@IProductService private readonly _productService: IProductService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
@@ -841,6 +879,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				displayName: item.displayName,
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
+				deprecation: item.deprecation,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};
@@ -1150,9 +1189,43 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (!provider) {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
+		if (metadata) {
+			this._maybeShowProviderDeprecationNotice(metadata);
+		}
 		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
+	}
+
+	/**
+	 * When a chat request is made against a deprecated provider (one that contributes a
+	 * `deprecation.link`), prompt the user once per session to install the replacement
+	 * extension. The notification can be dismissed, and offers a "Don't Show Again" choice that
+	 * is persisted across sessions via the notification service's `neverShowAgain` support.
+	 */
+	private _maybeShowProviderDeprecationNotice(metadata: ILanguageModelChatMetadata): void {
+		const vendor = this._vendors.get(metadata.vendor);
+		const link = vendor?.deprecation?.link;
+		if (!link) {
+			return;
+		}
+		if (this._deprecationNoticeShownVendors.has(metadata.vendor)) {
+			return;
+		}
+		this._deprecationNoticeShownVendors.add(metadata.vendor);
+
+		const providerName = (vendor.displayName || metadata.vendor).replace(/\s*\(deprecated\)\s*$/i, '');
+		this._notificationService.prompt(
+			Severity.Info,
+			localize('chat.providerDeprecation.message', "The internal {0} language model provider is being deprecated. Please migrate to the official extension.", providerName),
+			[{
+				label: localize('chat.providerDeprecation.install', "Install Extension"),
+				run: () => { this._openerService.open(resolveProviderDeprecationLink(link, this._productService.urlProtocol)); }
+			}],
+			{
+				neverShowAgain: { id: `chat.providerDeprecation.${metadata.vendor}`, scope: NeverShowAgainScope.APPLICATION }
+			}
+		);
 	}
 
 	private _resolveModelConfigurationWithDefaults(modelId: string, metadata: ILanguageModelChatMetadata | undefined): IStringDictionary<unknown> | undefined {

@@ -119,9 +119,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		// subscribed for the session (the service reads the exposed
 		// subscription list).
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
 	}
 
 	/**
@@ -183,21 +180,18 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -208,7 +202,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
@@ -312,7 +305,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
