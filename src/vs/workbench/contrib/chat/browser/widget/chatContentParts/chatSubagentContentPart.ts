@@ -133,6 +133,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	// Persistent title elements for shimmer
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
+	// Inline model name label shown in the collapsed title (e.g. "GPT-4o")
+	private modelLabelSpan: HTMLElement | undefined;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	/**
@@ -232,6 +234,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
 			this.titleShimmerSpan.textContent = initialTitle;
 			labelElement.appendChild(this.titleShimmerSpan);
+			this.updateModelLabel(labelElement);
+			this.updateAriaLabel(this._collapseButton.element, initialTitle, this.isExpanded());
 		}
 
 		// Note: wrapper is created lazily in initContent(), so we can't set its style here
@@ -508,8 +512,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			descSpan.textContent = ` ${this.description}`;
 			labelElement.appendChild(descSpan);
 
-			this._collapseButton.element.ariaLabel = shimmerText;
-			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			this.updateModelLabel(labelElement);
+			this.updateAriaLabel(this._collapseButton.element, shimmerText, this.isExpanded());
 			return;
 		}
 
@@ -545,8 +549,41 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const fullLabel = `${shimmerText}${toolCallText}`;
-		this._collapseButton.element.ariaLabel = fullLabel;
-		this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+		this.updateModelLabel(labelElement);
+		this.updateAriaLabel(this._collapseButton.element, fullLabel, this.isExpanded());
+	}
+
+	/**
+	 * Creates, updates, or removes the inline model name label in the collapsed
+	 * title. The label is appended last so it appears after the description and
+	 * any tool-call detail. It is updated in place to avoid duplication when the
+	 * title is re-rendered, and removed when no model name is available.
+	 */
+	private updateModelLabel(labelElement: HTMLElement): void {
+		if (this.modelName) {
+			if (!this.modelLabelSpan || this.modelLabelSpan.parentElement !== labelElement) {
+				this.modelLabelSpan = $('span.chat-subagent-model-label');
+				labelElement.appendChild(this.modelLabelSpan);
+			} else {
+				// Ensure it stays the last child so it renders after the title detail.
+				labelElement.appendChild(this.modelLabelSpan);
+			}
+			this.modelLabelSpan.textContent = this.modelName;
+		} else if (this.modelLabelSpan) {
+			this.modelLabelSpan.remove();
+			this.modelLabelSpan = undefined;
+		}
+	}
+
+	/**
+	 * Centralizes aria-label generation for the collapse button so that the
+	 * model name is announced to screen readers alongside the visible title.
+	 */
+	protected override updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
+		const ariaLabel = this.modelName
+			? localize('chat.subagent.ariaWithModel', '{0}, model {1}', label, this.modelName)
+			: label;
+		super.updateAriaLabel(element, ariaLabel, expanded);
 	}
 
 	private updateHover(): void {
@@ -605,6 +642,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (modelName && modelName !== this.modelName) {
 			this.modelName = modelName;
 			this.updateHover();
+			this.updateTitle();
 		}
 	}
 

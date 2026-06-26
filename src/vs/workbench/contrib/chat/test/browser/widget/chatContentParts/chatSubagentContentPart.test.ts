@@ -1725,4 +1725,172 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(modelHover, 'Should set up hover with model name after it arrives');
 		});
 	});
+
+	suite('Model name in title', () => {
+		function getModelLabels(part: ChatSubagentContentPart): HTMLElement[] {
+			const button = getCollapseButton(part);
+			const label = button ? getCollapseButtonLabel(button) : undefined;
+			if (!label) {
+				return [];
+			}
+			return Array.from(label.querySelectorAll('.chat-subagent-model-label')).filter(isHTMLElement);
+		}
+
+		test('should display the model name inline in the title when completed', () => {
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o'
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			const part = createPart(serializedInvocation, context);
+
+			const labels = getModelLabels(part);
+			assert.strictEqual(labels.length, 1, 'Should render exactly one model label');
+			assert.strictEqual(labels[0].textContent, 'GPT-4o', 'Model label should show the model name');
+		});
+
+		test('should display the model name inline in the title while active', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent',
+					prompt: 'Do stuff',
+					modelName: 'Claude Sonnet 4'
+				},
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			const labels = getModelLabels(part);
+			assert.strictEqual(labels.length, 1, 'Should render exactly one model label while active');
+			assert.strictEqual(labels[0].textContent, 'Claude Sonnet 4', 'Model label should show the model name');
+		});
+
+		test('should not display a model label when no model name is available', () => {
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					// no modelName
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			const part = createPart(serializedInvocation, context);
+
+			assert.strictEqual(getModelLabels(part).length, 0, 'Should not render a model label without a model name');
+		});
+
+		test('should include the model name in the aria-label', () => {
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o'
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			const part = createPart(serializedInvocation, context);
+
+			const button = getCollapseButton(part);
+			const ariaLabel = button?.getAttribute('aria-label') ?? '';
+			assert.ok(ariaLabel.includes('GPT-4o'), `aria-label should include the model name, got: "${ariaLabel}"`);
+		});
+
+		test('should not include a model name in the aria-label when none is available', () => {
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					// no modelName
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			const part = createPart(serializedInvocation, context);
+
+			const button = getCollapseButton(part);
+			const ariaLabel = button?.getAttribute('aria-label') ?? '';
+			assert.ok(!ariaLabel.includes('model'), `aria-label should not mention a model, got: "${ariaLabel}"`);
+		});
+
+		test('should add the model name to title and aria-label when it arrives after render', () => {
+			// Agent host subagents start without a model name; it is reported
+			// later via the child turns' usage events.
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.strictEqual(getModelLabels(part).length, 0, 'Should not render a model label before one is reported');
+
+			// Model name arrives while the subagent is still running
+			toolSpecificData.modelName = 'Claude Sonnet 4';
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			const labels = getModelLabels(part);
+			assert.strictEqual(labels.length, 1, 'Should render exactly one model label after it arrives (no duplication)');
+			assert.strictEqual(labels[0].textContent, 'Claude Sonnet 4', 'Model label should show the new model name');
+
+			const button = getCollapseButton(part);
+			const ariaLabel = button?.getAttribute('aria-label') ?? '';
+			assert.ok(ariaLabel.includes('Claude Sonnet 4'), `aria-label should include the model name after it arrives, got: "${ariaLabel}"`);
+		});
+
+		test('should not duplicate the model label after expand and collapse', () => {
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o'
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			const part = createPart(serializedInvocation, context);
+
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			button.click(); // expand
+			button.click(); // collapse
+			part.finalizeTitle();
+
+			const labels = getModelLabels(part);
+			assert.strictEqual(labels.length, 1, 'Should still render exactly one model label after expand/collapse');
+			assert.strictEqual(labels[0].textContent, 'GPT-4o', 'Model label should still show the model name');
+		});
+	});
 });

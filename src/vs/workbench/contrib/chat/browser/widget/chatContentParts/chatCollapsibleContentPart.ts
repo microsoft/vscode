@@ -143,7 +143,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	abstract hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 
-	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
+	protected updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = label;
 		element.ariaExpanded = String(expanded);
 	}

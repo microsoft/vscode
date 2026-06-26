@@ -19,6 +19,13 @@
 		overflow: visible;
 	}
 
+	/* Inline model name shown in the collapsed title (e.g. "GPT-4o") */
+	.chat-subagent-model-label {
+		margin-left: 6px;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+
 	/* Prompt and result section styling */
 	.chat-subagent-section {
 		padding: 4px 12px 4px 18px;
