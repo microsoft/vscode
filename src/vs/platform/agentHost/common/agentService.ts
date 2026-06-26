@@ -661,6 +661,27 @@ export interface IAgentCreateChatOptions {
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
+	/**
+	 * Fork an existing chat into this new chat. The new chat starts
+	 * pre-populated with the source chat's turns up to and including
+	 * {@link IAgentCreateChatForkSource.turnId}, and its backing conversation
+	 * is forked from the source so it can continue independently.
+	 */
+	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/** Identifies a source chat and turn to fork a new chat from. */
+export interface IAgentCreateChatForkSource {
+	/** URI of the existing chat to fork from. */
+	readonly source: URI;
+	/** Turn ID in the source chat; content up to and including this turn is copied. */
+	readonly turnId: string;
+	/**
+	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
+	 * by the agent service so the agent can remap per-turn data (e.g. SDK event
+	 * ID mappings) in the forked conversation's database.
+	 */
+	readonly turnIdMapping?: ReadonlyMap<string, string>;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -680,6 +701,8 @@ export interface IAgentModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly maxContextWindow?: number;
+	readonly maxOutputTokens?: number;
+	readonly maxPromptTokens?: number;
 	readonly supportsVision: boolean;
 	readonly configSchema?: ConfigSchema;
 	readonly policyState?: PolicyState;
@@ -841,6 +864,22 @@ export interface IMcpNotification {
 }
 
 /**
+ * A subagent child session discovered in a parent session's event log,
+ * returned by {@link IAgent.getSubagentSessions} so a parent restore can
+ * register the child's state up-front.
+ */
+export interface IRestoredSubagentSession {
+	/** Child subagent session URI (subscribable by clients). */
+	readonly resource: URI;
+	/** Parent tool call id that spawned the subagent. */
+	readonly toolCallId: string;
+	/** Display title for the subagent session. */
+	readonly title: string;
+	/** Reconstructed turns for the subagent's transcript. */
+	readonly turns: readonly Turn[];
+}
+
+/**
  * A per-session handle for one active client's contributions (tools and
  * plugin customizations) to an agent session, obtained via
  * {@link IAgent.getOrCreateActiveClient}.
@@ -951,6 +990,17 @@ export interface IAgent {
 	 * child session's turns).
 	 */
 	getSessionMessages(session: URI): Promise<readonly Turn[]>;
+
+	/**
+	 * Returns the subagent child sessions discoverable in a session's event
+	 * log so a parent restore can eagerly register them in a single pass.
+	 * Without this, every child is restored separately by re-fetching and
+	 * re-reconstructing the full parent event log (one pass per subagent).
+	 * Agents that serve this from the same reconstruction they already
+	 * produced for the parent turns avoid that redundant work entirely.
+	 * Optional; agents without subagents omit it.
+	 */
+	getSubagentSessions?(session: URI): Promise<readonly IRestoredSubagentSession[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;

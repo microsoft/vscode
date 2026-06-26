@@ -27,6 +27,16 @@ import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+/**
+ * Config key for the numeric "Context Size" selection (a context-window token count). Mapped to the
+ * SDK's two-valued {@link SessionConfig.contextTier} by {@link getCopilotContextTier}.
+ */
+export const ContextSizeConfigKey = 'contextSize';
+/**
+ * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
+ * directly. Replaced by the numeric {@link ContextSizeConfigKey}; still read from persisted sessions
+ * for backward compatibility.
+ */
 export const ContextTierConfigKey = 'contextTier';
 
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
@@ -120,6 +130,8 @@ interface ICopilotSessionLaunchBase {
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
 	readonly model: ModelSelection | undefined;
+	readonly longContextWindow?: number;
+	readonly freeLongContext?: boolean;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -127,16 +139,18 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
+		readonly longContextWindow?: number;
+		readonly freeLongContext?: boolean;
 	};
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
-function isContextTier(value: string | undefined): value is ContextTier {
+function isContextTier(value: unknown): value is ContextTier {
 	return ContextTiers.some(contextTier => contextTier === value);
 }
 
@@ -189,9 +203,29 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
-	const contextTier = model?.config?.[ContextTierConfigKey];
-	return isContextTier(contextTier) ? contextTier : undefined;
+export function getCopilotContextTier(model: ModelSelection | undefined, longContextWindow?: number, freeLongContext?: boolean): SessionConfig['contextTier'] {
+	// Legacy persisted selections stored the resolved tier string directly under the deprecated key.
+	const legacyTier = model?.config?.[ContextTierConfigKey];
+	if (isContextTier(legacyTier)) {
+		return legacyTier;
+	}
+	// The "Context Size" picker exposes numeric token-count enum values, so a current selection arrives
+	// under `contextSize` as a token count. Map it to the SDK's two-valued tier using the model's
+	// long-context window: only a selection that reaches that window opts into `long_context`. Without
+	// the window (model exposes no picker, or the model list isn't loaded) leave the SDK on its default
+	// tier.
+	const contextSize = model?.config?.[ContextSizeConfigKey];
+	if (contextSize === undefined) {
+		// When the model's long-context tier costs the same as the default tier,
+		// always opt into long_context — no picker is shown and the user gets the
+		// larger window for free.
+		return freeLongContext ? 'long_context' : undefined;
+	}
+	const selectedWindow = Number(contextSize);
+	if (!Number.isFinite(selectedWindow) || typeof longContextWindow !== 'number') {
+		return undefined;
+	}
+	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
@@ -236,6 +270,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...plan,
 				kind: 'create',
 				model: plan.fallback.model,
+				longContextWindow: plan.fallback.longContextWindow,
+				freeLongContext: plan.fallback.freeLongContext,
 			}, config, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -249,7 +285,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
-			contextTier: getCopilotContextTier(plan.model),
+			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});

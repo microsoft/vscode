@@ -30,8 +30,9 @@ expanding the secondary side bar on a narrow phone viewport.
 
 ## Implementation notes
 
-- **Registration** — registered as the workbench layout controller (`WorkbenchPhase.AfterRestored`)
-  **only** on the web phone layout, i.e. when `isWeb && isMobile`. Imported from `sessions.web.main.ts`.
+- **Registration** — contributed by `sessions.layout.contribution.ts`
+  (`WorkbenchPhase.AfterRestored`) **only** on the web phone layout, i.e. when `isWeb && isMobile`.
+  The contribution is imported from `sessions.web.main.ts`.
   Every other layout uses the [desktop controller](./desktopSessionLayoutController.md).
 - **No side-pane wiring [M2]** — deliberately does **not** override `_registerViewStateManagement`,
   so none of the desktop auxiliary-bar logic runs.

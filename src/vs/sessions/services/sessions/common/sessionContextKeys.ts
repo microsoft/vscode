@@ -8,6 +8,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasWorkspaceContext,
 	SessionIsArchivedContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
@@ -18,14 +19,17 @@ import {
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
+	SessionIdContext,
+	SessionHasMultipleCommittedChatsContext,
 } from '../../../common/contextkeys.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ISession } from './session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
  */
 interface ISessionContextKeys {
+	readonly sessionId: IContextKey<string>;
 	readonly providerId: IContextKey<string>;
 	readonly type: IContextKey<string>;
 	readonly isArchived: IContextKey<boolean>;
@@ -36,8 +40,10 @@ interface ISessionContextKeys {
 	readonly workspaceIsVirtual: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
+	readonly hasMultipleCommittedChats: IContextKey<boolean>;
 }
 
 /**
@@ -54,6 +60,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 	let keys = boundKeysByService.get(contextKeyService);
 	if (!keys) {
 		keys = {
+			sessionId: SessionIdContext.bindTo(contextKeyService),
 			providerId: SessionProviderIdContext.bindTo(contextKeyService),
 			type: SessionTypeContext.bindTo(contextKeyService),
 			isArchived: SessionIsArchivedContext.bindTo(contextKeyService),
@@ -64,8 +71,10 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
+			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -88,6 +97,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
  */
 export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined): void {
 	const keys = getBoundKeys(contextKeyService);
+	keys.sessionId.set(session?.sessionId ?? '');
 	keys.providerId.set(session?.providerId ?? '');
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
@@ -111,6 +121,8 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
+
+	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 }
 
 /**
@@ -126,4 +138,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const keys = getBoundKeys(contextKeyService);
 	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
+
+	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
+	// so the Conversations menu only surfaces once a session has more than one
+	// real chat. Counts the whole chat list (open or closed) so a committed chat
+	// that was closed still keeps the menu available to reopen it.
+	const committedChatCount = session?.chats.read(reader)
+		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled ? count : count + 1, 0) ?? 0;
+	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 }

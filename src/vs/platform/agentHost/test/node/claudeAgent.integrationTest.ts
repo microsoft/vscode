@@ -372,12 +372,17 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return [];
 	}
 
+	async forkSession(sessionId: string): Promise<{ sessionId: string }> {
+		return { sessionId: `forked-${sessionId}` };
+	}
+
 	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 
+	async query(_params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> { throw new Error('query not used in proxy round-trip integration test'); }
+
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.capturedStartupOptions.push(params.options);
-
 		const settings = params.options.settings;
 		const settingsEnv = (settings && typeof settings === 'object' && settings.env) ? settings.env : {};
 		const baseUrl = settingsEnv['ANTHROPIC_BASE_URL'];
@@ -476,6 +481,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	async interrupt(): Promise<void> { /* not used */ }
 
 	setPermissionMode(): never { throw new Error('not modeled'); }
+	setMcpPermissionModeOverride(): never { throw new Error('not modeled'); }
 	setModel(): never { throw new Error('not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }

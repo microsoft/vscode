@@ -5,7 +5,8 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { assertNever } from '../../../../../base/common/assert.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -13,9 +14,10 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewDeviceRequest, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import {
 	ALL_PERMISSION_CATEGORIES,
+	BrowserDeviceType,
 	BrowserPermissionStore,
 	PERMISSION_CATEGORY_DESCRIPTORS,
 	PermissionCategory,
@@ -49,6 +51,9 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 	private _model: IBrowserViewModel | undefined;
 	private _permissions: BrowserPermissionStore | undefined;
 
+	/** Open device choosers keyed by request id, so updates reach the right one. */
+	private readonly _devicePickers = new Map<string, IDevicePickerHandle>();
+
 	constructor(
 		editor: BrowserEditor,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -62,13 +67,42 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 		this._modelDisposables.clear();
 		this._model = this.editor.model!;
 		this._permissions = this._model.permissions;
-		this._modelDisposables.add(this._model.onDidRequestPermission(e => { void this._onDidRequestPermission(e.origin, e.category); }));
+		this._modelDisposables.add(this._model.onDidRequestPermission(e => {
+			if (e.device) {
+				this._onDidRequestDevice(e.origin, e.device);
+			} else {
+				void this._onDidRequestPermission(e.origin, e.category);
+			}
+		}));
+		// Close any open device choosers when the model goes away.
+		this._modelDisposables.add(toDisposable(() => this._closeDevicePickers()));
 	}
 
 	override onModelDetached(): void {
 		this._modelDisposables.clear();
 		this._model = undefined;
 		this._permissions = undefined;
+	}
+
+	private _closeDevicePickers(): void {
+		for (const picker of [...this._devicePickers.values()]) {
+			picker.dispose();
+		}
+		this._devicePickers.clear();
+	}
+
+	private _onDidRequestDevice(origin: string, request: IBrowserViewDeviceRequest): void {
+		const existing = this._devicePickers.get(request.requestId);
+		if (existing) {
+			existing.update(request);
+			return;
+		}
+		const model = this._model;
+		if (!model) {
+			return;
+		}
+		const handle = showDevicePicker(this._quickInputService, model, origin, request, () => this._devicePickers.delete(request.requestId));
+		this._devicePickers.set(request.requestId, handle);
 	}
 
 	private async _onDidRequestPermission(origin: string, category: PermissionCategory): Promise<void> {
@@ -79,8 +113,8 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 		const descriptor = PERMISSION_CATEGORY_DESCRIPTORS[category];
 		const { result } = await this._dialogService.prompt<PermissionDecision>({
 			type: Severity.Info,
-			message: localize('browser.permissions.prompt', "{0} wants to use {1}", displayOrigin(origin), descriptor.label),
-			detail: descriptor.description,
+			message: localize('browser.permissions.prompt', "{0} wants access to {1}", displayOrigin(origin), descriptor.label),
+			detail: `• ${descriptor.description}`,
 			buttons: [
 				{
 					label: localize('browser.permissions.allow', "Allow"),
@@ -91,8 +125,9 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 					run: () => 'deny',
 				},
 			],
-			// Dismissing leaves the request undecided; the main process times out
-			// after 30s with a non-persisted deny.
+			// Dismissing leaves the request undecided. The main process settles
+			// the page's request on navigation / teardown (or a timeout), so a
+			// late answer here is harmless.
 			cancelButton: true,
 		});
 		if (result === 'allow' || result === 'deny') {
@@ -116,6 +151,109 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 }
 
 BrowserEditor.registerContribution(BrowserPermissionsFeature);
+
+// -- Device chooser --------------------------------------------------
+
+interface DevicePickItem extends IQuickPickItem {
+	readonly deviceId: string;
+}
+
+/** Handle to a live device chooser so it can be updated or force-closed. */
+interface IDevicePickerHandle {
+	/** Apply an updated device list. */
+	update(request: IBrowserViewDeviceRequest): void;
+	/** Force-close the chooser, cancelling the request if still pending. */
+	dispose(): void;
+}
+
+function deviceTypeLabel(deviceType: BrowserDeviceType): string {
+	switch (deviceType) {
+		case 'usb': return localize('browser.device.kind.usb', "a USB device");
+		case 'serial': return localize('browser.device.kind.serial', "a serial port");
+		case 'hid': return localize('browser.device.kind.hid', "an HID device");
+		case 'bluetooth': return localize('browser.device.kind.bluetooth', "a Bluetooth device");
+		default: assertNever(deviceType);
+	}
+}
+
+/**
+ * Show a live-updating chooser for a hardware-device request. The list refreshes
+ * as devices are discovered (re-fired with the same request id); accepting picks
+ * a device and dismissing cancels the request. Exactly one of select/cancel is
+ * reported back to the model.
+ */
+function showDevicePicker(quickInputService: IQuickInputService, model: IBrowserViewModel, origin: string, request: IBrowserViewDeviceRequest, onDone: () => void): IDevicePickerHandle {
+	const disposables = new DisposableStore();
+	const picker = disposables.add(quickInputService.createQuickPick<DevicePickItem>());
+	picker.title = localize('browser.device.title', "{0} wants to connect to {1}", displayOrigin(origin), deviceTypeLabel(request.deviceType));
+	picker.placeholder = localize('browser.device.placeholder', "Select a device to connect to");
+	picker.matchOnDescription = true;
+	picker.ignoreFocusOut = true;
+	// Still scanning: the list may keep growing until the user picks or cancels.
+	picker.busy = true;
+
+	let resolved = false;
+	let finished = false;
+
+	const finish = () => {
+		if (finished) {
+			return;
+		}
+		finished = true;
+		disposables.dispose();
+		onDone();
+	};
+
+	// Report a single decision to the model: a chosen id, or null to cancel.
+	const resolve = (deviceId: string | null) => {
+		if (resolved) {
+			return;
+		}
+		resolved = true;
+		void model.selectDevice(request.requestId, deviceId);
+	};
+
+	const setDevices = (devices: readonly { deviceId: string; label: string; detail?: string }[]) => {
+		const activeId = picker.activeItems[0]?.deviceId;
+		const items: DevicePickItem[] = devices.map(device => ({ label: device.label, description: device.detail, deviceId: device.deviceId }));
+		picker.items = items;
+		if (activeId !== undefined) {
+			const active = items.find(item => item.deviceId === activeId);
+			if (active) {
+				picker.activeItems = [active];
+			}
+		}
+	};
+
+	setDevices(request.devices);
+
+	disposables.add(picker.onDidAccept(() => {
+		const pick = picker.selectedItems[0];
+		if (!pick) {
+			return;
+		}
+		resolve(pick.deviceId);
+		finish();
+	}));
+
+	disposables.add(picker.onDidHide(() => {
+		// Dismissed without a pick cancels the request.
+		resolve(null);
+		finish();
+	}));
+
+	picker.show();
+
+	return {
+		update: (next: IBrowserViewDeviceRequest) => {
+			setDevices(next.devices);
+		},
+		dispose: () => {
+			resolve(null);
+			finish();
+		},
+	};
+}
 
 // -- Management picker -----------------------------------------------
 
@@ -281,7 +419,7 @@ class ManageBrowserPermissionsAction extends Action2 {
 		const when = ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL);
 		super({
 			id: ManageBrowserPermissionsAction.ID,
-			title: localize2('browser.managePermissions', 'Manage Permissions'),
+			title: localize2('browser.managePermissions', 'Site Permissions'),
 			category: BrowserActionCategory,
 			icon: Codicon.shield,
 			f1: true,
@@ -289,7 +427,7 @@ class ManageBrowserPermissionsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
-				order: 2,
+				order: 10,
 				when,
 				isHiddenByDefault: true,
 			},

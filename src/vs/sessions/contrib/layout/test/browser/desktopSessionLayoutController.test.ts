@@ -23,9 +23,15 @@ suite('LayoutController (desktop)', () => {
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
 
-	function createController(options: ICreateOptions = {}): LayoutController {
+	class TestLayoutController extends LayoutController {
+		getViewState(sessionResource: URI) {
+			return this._viewStateBySession.get(sessionResource);
+		}
+	}
+
+	function createController(options: ICreateOptions = {}): TestLayoutController {
 		harness = createTestHarness(store, options);
-		return store.add(harness.instaService.createInstance(LayoutController));
+		return store.add(harness.instaService.createInstance(TestLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -67,7 +73,7 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
 	});
 
-	test('[D3d] shows changes for untitled session with changes', () => {
+	test('[D3d] keeps Files as the default for an uncreated session with changes', () => {
 		createController();
 		const session = makeSession(URI.parse('session:1'), {
 			status: SessionStatus.Untitled,
@@ -75,7 +81,13 @@ suite('LayoutController (desktop)', () => {
 		});
 		harness.activeSessionObs.set(session, undefined);
 
-		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID));
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
 	});
 
 	test('[D3d] does not force-open Files when the Files pane is hidden', () => {
@@ -180,7 +192,7 @@ suite('LayoutController (desktop)', () => {
 
 	test('[D4] keeps the open side pane and shows Changes when a new session is submitted', () => {
 		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 
 		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
@@ -189,7 +201,7 @@ suite('LayoutController (desktop)', () => {
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
 		harness.openedViews = [];
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
@@ -203,7 +215,7 @@ suite('LayoutController (desktop)', () => {
 
 	test('[D4] keeps the side pane closed when a new session is submitted with the aux bar hidden', () => {
 		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 
 		// User hides the aux bar on the new-session view.
@@ -212,7 +224,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViews = [];
-		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
@@ -222,6 +234,80 @@ suite('LayoutController (desktop)', () => {
 			!harness.openedViews.includes(CHANGES_VIEW_ID),
 			'Changes view should not be shown when the aux bar is hidden'
 		);
+	});
+
+	test('[D4] shows Changes when a hidden side pane is opened after the session is submitted', () => {
+		createController();
+		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+
+		harness.openedViewContainers = [];
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.ok(
+			harness.openedViewContainers.includes(CHANGES_VIEW_CONTAINER_ID),
+			'Changes should be the active view when the side pane is opened later'
+		);
+	});
+
+	test('[D4] records Changes when a hidden side pane falls back from an invalid saved container', () => {
+		const session = makeSession(URI.parse('session:1'));
+		const controller = createController({
+			layoutState: [{
+				sessionResource: session.resource.toString(),
+				viewState: {
+					auxiliaryBarVisible: false,
+					auxiliaryBarActiveViewContainerId: 'missing.view',
+				},
+			}],
+		});
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+			viewState: controller.getViewState(session.resource),
+		}, {
+			openedChanges: true,
+			viewState: {
+				auxiliaryBarVisible: true,
+				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+			},
+		});
+	});
+
+	test('[D4] remembers Files when the user chooses it after the session is submitted', () => {
+		createController();
+		const session1 = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
+		const session2 = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(session1, undefined);
+
+		(session1.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+
+		harness.activeSessionObs.set(session2, undefined);
+
+		harness.openedViews = [];
+		harness.openedViewContainers = [];
+		harness.activeSessionObs.set(session1, undefined);
+
+		assert.deepStrictEqual({
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
+		}, {
+			openedFiles: true,
+			openedChanges: false,
+		});
 	});
 
 	// --- [D2] Live visibility tracking (new-session shared state) ---
@@ -334,6 +420,101 @@ suite('LayoutController (desktop)', () => {
 			!harness.openedViews.includes(CHANGES_VIEW_ID) && !harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 			'aux bar must stay hidden after the user hid it, even when changes appear'
 		);
+	});
+
+	// --- [D8] First Changes editor open ---
+
+	test('[D8] reveals the Changes view the first time a Changes editor is opened, then remembers the choice', () => {
+		createController({ revealAuxiliaryBarOnOpen: true });
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+
+		// First open of the Changes editor reveals the Changes view in the side pane.
+		harness.openedViews = [];
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'first Changes open should reveal the Changes view');
+
+		// User hides only the side pane (aux bar) while the editor stays open; the choice is remembered.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		// Opening the Changes editor again respects the remembered closed choice.
+		harness.openedViews = [];
+		harness.onDidActiveEditorChange.fire();
+		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'later Changes opens should not re-reveal the side pane');
+	});
+
+	test('[D9] closing the whole side pane is not remembered, so reopening Changes reveals it again', () => {
+		const controller = createController({ revealAuxiliaryBarOnOpen: true });
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+
+		// The first Changes open reveals the side pane (captured as open).
+		harness.openedViews = [];
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'first Changes open should reveal the Changes view');
+
+		// User closes the whole side pane via the controller-owned toggle, which
+		// hides the editor and aux bar together. This must not be remembered as a
+		// per-session aux-bar choice.
+		controller.toggleSidePane();
+
+		// Re-clicking Changes re-reveals the (still-active, just hidden) editor part
+		// without firing an active-editor change; the side pane opens again (the
+		// close was not remembered as an aux-bar choice).
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'reopening Changes after closing the whole side pane should reveal the Changes view again');
+	});
+
+	test('[D9] reopening the side pane restores the parts that were visible when it was closed', () => {
+		const controller = createController();
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		// Closing hides both parts.
+		const visibleAfterClose = controller.toggleSidePane();
+		assert.strictEqual(visibleAfterClose, false, 'side pane should be hidden after closing');
+		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true), 'aux bar should be hidden');
+		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === true), 'editor should be hidden');
+
+		// Reopening restores both parts that were visible before.
+		harness.setPartHiddenCalls.length = 0;
+		const visibleAfterOpen = controller.toggleSidePane();
+		assert.strictEqual(visibleAfterOpen, true, 'side pane should be visible after reopening');
+		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false), 'editor should be restored');
+		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false), 'aux bar should be restored');
+	});
+
+	test('[D8] does not reveal the Changes view for an untitled session', () => {
+		createController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
+		harness.activeSessionObs.set(untitled, undefined);
+
+		harness.openedViews = [];
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(untitled.resource);
+		harness.onDidActiveEditorChange.fire();
+
+		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'untitled sessions are governed by D3b/D4, not D8');
+	});
+
+	test('[D8] does not reveal the Changes view while multiple sessions are visible', () => {
+		createController();
+		const a = makeSession(URI.parse('session:a'));
+		const b = makeSession(URI.parse('session:b'));
+		harness.visibleSessionsObs.set([a, b], undefined);
+		harness.activeSessionObs.set(a, undefined);
+
+		harness.openedViews = [];
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(a.resource);
+		harness.onDidActiveEditorChange.fire();
+
+		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'multi-session mode manages the side pane separately');
 	});
 
 	// --- [D5] Editor maximized ---
@@ -525,6 +706,7 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(stored, 'state should be persisted');
 
 		// Reload: a fresh controller restores from the persisted state.
+		store.clear();
 		createController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!) });
 		const reloadedSession1 = makeSession(URI.parse('session:1'));
 		harness.setPartHiddenCalls = [];
@@ -536,5 +718,197 @@ suite('LayoutController (desktop)', () => {
 			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
 			'aux bar should remain hidden after reload'
 		);
+	});
+
+	// --- [D7] Responsive sessions sidebar ---
+
+	function setPartVisible(part: Parts, visible: boolean): void {
+		harness.partVisibility.set(part, visible);
+		harness.onDidChangePartVisibility.fire({ partId: part, visible });
+	}
+
+	function resizeWindow(width: number): void {
+		harness.mainContainerWidth = width;
+		harness.onDidLayoutMainContainer.fire({ width, height: 1000 });
+	}
+
+	function sidebarHiddenCalls(): boolean[] {
+		return harness.setPartHiddenCalls.filter(c => c.part === Parts.SIDEBAR_PART).map(c => c.hidden);
+	}
+
+	test('[D7] hides the sidebar on a small window when editor and aux bar are both open', () => {
+		createController();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
+	test('[D7] does not touch the sidebar on a large window', () => {
+		createController();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(2000);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] shows the sidebar again once the aux bar closes', () => {
+		createController();
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7] shows the sidebar again once the window grows back', () => {
+		createController();
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(2000);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7] does not auto-show the sidebar after the user closed it manually', () => {
+		createController();
+		// User manually closes the sidebar on a large window.
+		setPartVisible(Parts.SIDEBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		// Become space constrained, then relieve the constraint.
+		resizeWindow(800);
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.ok(
+			!sidebarHiddenCalls().includes(false),
+			'sidebar must not be auto-shown while the user-closed preference holds'
+		);
+	});
+
+	test('[D7] resumes auto-management after the user opens the sidebar again', () => {
+		createController();
+		// User manually closes, then re-opens the sidebar — auto-management resumes.
+		setPartVisible(Parts.SIDEBAR_PART, false);
+		setPartVisible(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		// A constrain → un-constrain cycle should now auto-hide then auto-show again.
+		resizeWindow(800);
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true, false]);
+	});
+
+	test('[D7] does not auto-show the sidebar the user closed before reloading', () => {
+		// Simulate the restored state after a reload: the sidebar and the whole side
+		// pane (editor + aux bar) are hidden, on a small window. The controller only
+		// auto-reveals a sidebar it auto-hid, so a sidebar the user closed before the
+		// reload (already hidden here) must stay closed.
+		const controller = createController({
+			mainContainerWidth: 800,
+			initialPartVisibility: new Map<Parts, boolean>([
+				[Parts.SIDEBAR_PART, false],
+				[Parts.EDITOR_PART, false],
+				[Parts.AUXILIARYBAR_PART, false],
+			]),
+		});
+		harness.setPartHiddenCalls = [];
+
+		// Open the side pane (becomes space constrained), then close it again.
+		controller.toggleSidePane();
+		controller.toggleSidePane();
+
+		assert.ok(
+			!sidebarHiddenCalls().includes(false),
+			'sidebar must not be auto-shown when it was closed before the reload'
+		);
+	});
+
+	test('[D7] does not manage the sidebar while the editor is maximized', () => {
+		createController();
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not manage the sidebar when the experimental setting is disabled', () => {
+		createController({ responsiveSidebar: false });
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not hide the sidebar when navigating to a session that restores the side panel', () => {
+		const sessionB = URI.parse('session:2');
+		createController({
+			revealAuxiliaryBarOnOpen: true,
+			layoutState: [{
+				sessionResource: sessionB.toString(),
+				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
+			}],
+		});
+		// Small window with the side panel closed: the sidebar is shown (not constrained).
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		// Navigate to a session whose restore re-opens the side panel.
+		harness.activeSessionObs.set(makeSession(sessionB), undefined);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not hide the sidebar when navigating to a session whose working set reveals the editor', async () => {
+		const session1 = URI.parse('session:1');
+		const session2 = URI.parse('session:2');
+		createController({
+			useModal: 'some',
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState: [{
+				sessionResource: session1.toString(),
+				editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
+			}],
+		});
+
+		// Start on a session without a working set.
+		harness.activeSessionObs.set(makeSession(session2), undefined);
+		await timeout(0);
+
+		// Small window, aux bar open, editor closed: not constrained yet (editor hidden).
+		setPartVisible(Parts.AUXILIARYBAR_PART, true);
+		setPartVisible(Parts.EDITOR_PART, false);
+		resizeWindow(800);
+		harness.setPartHiddenCalls = [];
+
+		// Navigate to the session whose working set reveals the editor (async).
+		harness.activeSessionObs.set(makeSession(session1), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7] does not manage the sidebar while multiple sessions are visible', () => {
+		createController();
+		harness.visibleSessionsObs.set([
+			makeSession(URI.parse('session:1')),
+			makeSession(URI.parse('session:2')),
+		], undefined);
+		harness.setPartHiddenCalls = [];
+
+		resizeWindow(800);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
 	});
 });

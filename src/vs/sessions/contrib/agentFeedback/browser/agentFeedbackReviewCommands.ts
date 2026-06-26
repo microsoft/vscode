@@ -7,6 +7,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 
 /**
@@ -58,7 +59,16 @@ export function registerAgentFeedbackReviewCommands(): void {
 
 	CommandsRegistry.registerCommand(AgentFeedbackReviewCommandId.Delete, (accessor, sessionResource: UriComponents, commentId: string): void => {
 		const feedbackService = accessor.get(IAgentFeedbackService);
-		feedbackService.removeFeedback(URI.revive(sessionResource), commentId);
+		const codeReviewService = accessor.get(ICodeReviewService);
+		const resource = URI.revive(sessionResource);
+		// Suppress the originating PR comment first (before removing the mirror)
+		// so the PR-review seeder does not immediately re-create the mirror the
+		// user just deleted.
+		const item = feedbackService.getFeedback(resource).find(f => f.id === commentId);
+		if (item?.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
+			codeReviewService.dismissPRReviewComment(resource, item.sourcePRReviewCommentId);
+		}
+		feedbackService.removeFeedback(resource, commentId);
 	});
 
 	CommandsRegistry.registerCommand(AgentFeedbackReviewCommandId.Accept, (accessor, sessionResource: UriComponents, commentIds: readonly string[]): void => {

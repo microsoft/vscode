@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelInfo, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
@@ -35,14 +36,16 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { mapSessionMessagesToTurns } from './claudeReplayMapper.js';
+import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
+import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
-import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
+import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 
@@ -93,7 +96,11 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const multiplier = m.billing?.multiplier;
+	const billing = m.billing as ICAPIModelBilling | undefined;
+	// priceCategory may appear as a top-level model field depending on the CAPI version.
+	const priceCategory = typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
+		? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+		: undefined;
 	return {
 		provider,
 		// CAPI/endpoint format, dotted version (e.g. `claude-haiku-4.5`) — the
@@ -102,10 +109,33 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		id: m.id,
 		name: m.name,
 		maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+		maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
+		maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
 		supportsVision: !!supports?.vision,
 		...(configSchema ? { configSchema } : {}),
 		...(policyState ? { policyState } : {}),
-		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
+		_meta: createPricingMetaFromBilling(billing, priceCategory),
+	};
+}
+
+/**
+ * Project an SDK {@link ModelInfo} into the agent host's
+ * {@link IAgentModelInfo} surface for the native (BYO-Anthropic) transport.
+ * Carries NO commercial metadata (no `policyState`, no pricing `_meta`) —
+ * those are Copilot/CAPI concepts. Reuses the shared effort-schema helpers so
+ * the thinking-level picker matches the proxied projection.
+ */
+export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentModelInfo {
+	const supportedEfforts = (m.supportedEffortLevels ?? []).filter(isClaudeEffortLevel);
+	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
+	return {
+		provider,
+		// SDK-canonical id (`m.value`, e.g. `claude-sonnet-4-5-20250929`). Native
+		// ids are SDK format end to end; `toSdkModelId` is identity at this seam.
+		id: m.value,
+		name: m.displayName,
+		supportsVision: false,
+		...(configSchema ? { configSchema } : {}),
 	};
 }
 
@@ -192,6 +222,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _githubToken: string | undefined;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
+
+	/**
+	 * Resolved host transport mode (Phase 19). `proxy` (default) routes through
+	 * the Copilot-CAPI proxy; `native` talks to Anthropic directly on the user's
+	 * own credentials. Resolved once from the `ClaudeUseCopilotProxy` root
+	 * config value and kept current by an `onDidRootConfigChange` subscription.
+	 * Config changes affect FUTURE sessions only — never an in-flight subprocess.
+	 */
+	private _transportMode: 'proxy' | 'native' = 'proxy';
 
 	/**
 	 * Memoized teardown promise. Set on the first call to {@link shutdown},
@@ -285,6 +324,37 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._register(this._claudeProxyService.onDidReportCredits(e => {
 			this._findAnySession(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
 		}));
+
+		// Phase 19: resolve the transport mode now and re-resolve reactively.
+		// A flip only affects sessions materialized afterwards; in-flight
+		// subprocesses keep their original transport. When native, kick off an
+		// initial model refresh since no GitHub auth (which would otherwise
+		// trigger it) is required.
+		this._transportMode = this._resolveTransportMode();
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const next = this._resolveTransportMode();
+			if (next !== this._transportMode) {
+				this._transportMode = next;
+				void this._refreshModels();
+			}
+		}));
+		if (this._transportMode === 'native') {
+			// Only native bootstraps its model list here. Proxy mode fetches
+			// models from CAPI, which needs the GitHub token — so its first
+			// refresh is triggered by `authenticate()` once that token arrives
+			// (a refresh now would just hit the no-token early-return). Native
+			// needs no GitHub auth and nothing else triggers a refresh, so we
+			// kick off the initial enumeration ourselves. (Transport *flips*
+			// after construction are covered by the `onDidRootConfigChange`
+			// subscription above.) `queueMicrotask` runs it off the ctor stack.
+			queueMicrotask(() => { void this._refreshModels(); });
+		}
+	}
+
+	private _resolveTransportMode(): 'proxy' | 'native' {
+		// Defaults to proxied when the `claudeUseCopilotProxy` root value is unset.
+		const useProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy) ?? true;
+		return useProxy ? 'proxy' : 'native';
 	}
 
 	// #region Descriptor + auth
@@ -298,13 +368,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
+		// Native (BYO-Anthropic) mode needs no GitHub Copilot auth — the SDK owns
+		// the Anthropic credential — so the required Copilot resource is dropped.
+		// The optional repo resource is kept for git operations either way.
+		if (this._transportMode !== 'proxy') {
+			return [GITHUB_REPO_PROTECTED_RESOURCE];
+		}
 		return [
 			GITHUB_COPILOT_PROTECTED_RESOURCE,
 			GITHUB_REPO_PROTECTED_RESOURCE,
 		];
 	}
 
-	private _ensureAuthenticated(): IClaudeProxyHandle {
+	/**
+	 * Resolve the active {@link ClaudeTransport}. In native mode the transport
+	 * is always ready (the SDK owns credentials); in proxied mode a started
+	 * proxy handle is required, otherwise {@link AHP_AUTH_REQUIRED} is thrown.
+	 */
+	private _ensureAuthenticated(): ClaudeTransport {
+		if (this._transportMode !== 'proxy') {
+			return { kind: 'native' };
+		}
 		const handle = this._proxyHandle;
 		if (!handle) {
 			throw new ProtocolError(
@@ -313,7 +397,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				this.getProtectedResources(),
 			);
 		}
-		return handle;
+		return { kind: 'proxy', handle };
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -322,6 +406,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		if (resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
 			return false;
+		}
+		// Native (BYO-Anthropic) mode needs no proxy and no GitHub token. Record
+		// the token (harmless; lets a later flip back to proxy reuse it) but do
+		// NOT start the proxy or treat the absence of a token as unauthenticated.
+		if (this._transportMode !== 'proxy') {
+			this._githubToken = token;
+			return true;
 		}
 		const tokenChanged = this._githubToken !== token;
 		if (!tokenChanged) {
@@ -350,40 +441,84 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return true;
 	}
 
+	/**
+	 * Whether the Claude provider routes through the Copilot-CAPI proxy.
+	 * Reads the resolved {@link _transportMode} (Phase 19), which the
+	 * constructor seeds from the `ClaudeUseCopilotProxy` root config value.
+	 */
+	private _isProxyEnabled(): boolean {
+		return this._transportMode === 'proxy';
+	}
+
 	private async _refreshModels(): Promise<void> {
+		const proxyAtStart = this._isProxyEnabled();
 		const tokenAtStart = this._githubToken;
-		if (!tokenAtStart) {
+		if (proxyAtStart && !tokenAtStart) {
 			this._models.set([], undefined);
 			return;
 		}
 		try {
-			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
-			const all = await this._copilotApiService.models(tokenAtStart, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
-			// Stale-write guard: if `authenticate()` rotated the token
-			// while we were awaiting the model list, a newer refresh has
-			// already published the right value — don't overwrite it.
-			if (this._githubToken !== tokenAtStart) {
+			const filtered = proxyAtStart
+				? await this._fetchProxyModels(tokenAtStart!)
+				: await this._fetchNativeModels();
+			// Stale-write guard: bail if the transport flipped, or (proxy) the
+			// token rotated, while we were awaiting — a newer refresh already
+			// published the right list.
+			if (this._isProxyEnabled() !== proxyAtStart || (proxyAtStart && this._githubToken !== tokenAtStart)) {
 				return;
 			}
-			// Stable sort surfaces the CAPI-flagged chat-default model
-			// first. The picker treats `models[0]` as the de facto
-			// default (modelPicker.ts:144 — `_selectedModel ?? models[0]`)
-			// since `IAgentModelInfo` carries no explicit `isDefault`
-			// bit. Stable comparator returns 0 for equal-priority models
-			// so CAPI's ordering wins on ties.
-			const filtered = all
-				.filter(isClaudeModel)
-				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
-				.map(m => toAgentModelInfo(m, this.id));
-
 			this._logService.info(`[Claude] Models refreshed. Count: ${filtered.length}, ${filtered.map(m => m.name).join(', ')}`);
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');
-			if (this._githubToken === tokenAtStart) {
+			if (this._isProxyEnabled() === proxyAtStart && (!proxyAtStart || this._githubToken === tokenAtStart)) {
 				this._models.set([], undefined);
 			}
 		}
+	}
+
+	/**
+	 * Native (BYO-Anthropic) model source: enumerate the SDK's built-in /
+	 * subscription models by opening a throwaway {@link IClaudeAgentSdkService.query}
+	 * (workspace-free options that read the user's real `~/.claude` config) and
+	 * calling `Query.supportedModels()` on it, then `close()`. The prompt never
+	 * yields, so no turn runs and no session transcript is written (verified
+	 * Phase 19 E2E). Projected with no commercial metadata.
+	 */
+	private async _fetchNativeModels(): Promise<readonly IAgentModelInfo[]> {
+		// A prompt iterable that never yields: enumeration only needs the
+		// control-request channel (`Query.supportedModels()`), not a real turn.
+		const neverYieldingPrompt: AsyncIterable<SDKUserMessage> = {
+			[Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<SDKUserMessage>>(() => { /* never resolves */ }) }),
+		};
+		const options = buildModelEnumerationOptions();
+		const query = await this._sdkService.query({ prompt: neverYieldingPrompt, options });
+		try {
+			const models = await query.supportedModels();
+			return models.map(m => fromSdkModelInfo(m, this.id));
+		} finally {
+			// `close()` terminates the subprocess; aborting the controller is a
+			// belt-and-suspenders teardown for anything `close()` leaves pending.
+			query.close();
+			options.abortController?.abort();
+		}
+	}
+
+	/**
+	 * Proxied (Copilot-CAPI) model source: fetch via {@link ICopilotApiService},
+	 * keep the Claude family, and surface the CAPI-flagged chat-default first.
+	 * The picker treats `models[0]` as the de facto default (modelPicker.ts:144
+	 * — `_selectedModel ?? models[0]`) since `IAgentModelInfo` carries no
+	 * explicit `isDefault` bit; the stable comparator returns 0 for equal-
+	 * priority models so CAPI's ordering wins on ties.
+	 */
+	private async _fetchProxyModels(token: string): Promise<readonly IAgentModelInfo[]> {
+		const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
+		const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
+		return all
+			.filter(isClaudeModel)
+			.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
+			.map(m => toAgentModelInfo(m, this.id));
 	}
 
 	// #endregion
@@ -393,7 +528,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
 		this._ensureAuthenticated();
 		if (config.fork) {
-			throw new Error('TODO: Phase 6.5: fork requires message-UUID lookup via sdk.getSessionMessages');
+			return this._forkSession(config, config.fork);
 		}
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -444,6 +579,76 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Fork an existing session at a protocol `turnId` (keep `[0..N]`
+	 * INCLUSIVE) into a new, non-provisional session. The SDK `Query` is
+	 * NOT started here (CONTEXT M9): `forkSession` writes the transcript to
+	 * disk and we return; the `Query` materializes lazily on the first
+	 * {@link sendMessage} via {@link _resumeSession}. `turnId` is translated
+	 * to the SDK envelope `uuid` by {@link resolveForkAnchorUuid};
+	 * `config.fork.turnIdMapping` is ignored (the SDK already remaps uuids).
+	 */
+	private async _forkSession(config: IAgentCreateSessionConfig, fork: NonNullable<IAgentCreateSessionConfig['fork']>): Promise<IAgentCreateSessionResult> {
+		if (isSubagentSession(fork.session)) {
+			throw new Error('Cannot fork a subagent session');
+		}
+		const sourceSessionId = AgentSession.id(fork.session);
+		const existingSource = this._findAnySession(sourceSessionId);
+		if (existingSource && !existingSource.isPipelineReady) {
+			throw new Error('Cannot fork a provisional/never-sent session');
+		}
+		// Serialize against the SOURCE session so the transcript read + fork
+		// can't race an in-flight `sendMessage` mutating that session.
+		return this._sessionSequencer.queue(sourceSessionId, async () => {
+			const messages = await this._sdkService.getSessionMessages(sourceSessionId, { includeSystemMessages: true });
+			const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId);
+			if (upToMessageId === undefined) {
+				throw new Error(`Cannot fork session ${sourceSessionId}: turn ${fork.turnId} not found in transcript`);
+			}
+			const { sessionId: newSessionId } = await this._sdkService.forkSession(sourceSessionId, { upToMessageId });
+			const newSessionUri = AgentSession.uri(this.id, newSessionId);
+
+			// Inherit the source's model / permissionMode / agent (create-config
+			// overrides win) so the lazy `_resumeSession` seeds `Options` from
+			// it. `customizationDirectory` is NOT inherited — it is the source's
+			// per-session synced plugin dir (Phase 11); the fork re-syncs its own.
+			let sourceOverlay: IClaudeSessionOverlay = {};
+			try {
+				sourceOverlay = await this._metadataStore.read(fork.session);
+			} catch (err) {
+				this._logService.warn(`[Claude] fork: source overlay read failed for ${sourceSessionId}; continuing with defaults`, err);
+			}
+			const model = config.model ?? sourceOverlay.model;
+			const agent = config.agent ?? sourceOverlay.agent;
+			const permissionMode = narrowClaudePermissionMode(config.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? sourceOverlay.permissionMode;
+			await this._metadataStore.write(newSessionUri, {
+				...(model ? { model } : {}),
+				...(permissionMode ? { permissionMode } : {}),
+				...(agent ? { agent } : {}),
+			});
+
+			// Resolve the forked session's working directory now so we can fail
+			// fast (rather than at the first `sendMessage` when `_resumeSession`
+			// requires a cwd). The Query itself starts lazily — see the JSDoc.
+			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
+			const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : config.workingDirectory;
+			if (!workingDirectory) {
+				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd missing and none supplied)`);
+			}
+			let project: IAgentSessionProjectInfo | undefined;
+			try {
+				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			} catch (err) {
+				this._logService.warn(`[Claude] fork: project resolution failed for ${newSessionId}; continuing without project`, err);
+			}
+			return {
+				session: newSessionUri,
+				workingDirectory,
+				...(project ? { project } : {}),
+			};
+		});
+	}
+
+	/**
 	 * Promote a provisional {@link ClaudeAgentSession} into a live one.
 	 * Called from {@link sendMessage} inside the {@link _sessionSequencer.queue}
 	 * block, so concurrent first sends serialize naturally — exactly
@@ -466,7 +671,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!session) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
 		}
-		const proxyHandle = this._ensureAuthenticated();
+		const transport = this._ensureAuthenticated();
 
 		const canUseTool: NonNullable<Options['canUseTool']> = (toolName, input, options) =>
 			handleCanUseTool(
@@ -475,7 +680,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			);
 
 		try {
-			await session.materialize({ proxyHandle, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -506,7 +711,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private async _resumeSession(sessionId: string, sessionUri: URI): Promise<ClaudeAgentSession> {
 		this._logService.info(`[Claude:${sessionId}] _resumeSession — no in-memory state, rebuilding from disk`);
-		const proxyHandle = this._ensureAuthenticated();
+		const transport = this._ensureAuthenticated();
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
 		if (!sdkInfo) {
 			throw new Error(`Cannot resume unknown session: ${sessionId} (not present in SDK transcript store)`);
@@ -556,7 +761,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			);
 
 		try {
-			await session.materialize({ proxyHandle, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;

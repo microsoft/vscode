@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDimension } from '../../../../../base/browser/dom.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,6 +24,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -34,15 +36,17 @@ export function makeChange(filePath: string): ISessionFileChange {
 
 export function makeSession(resource: URI, opts?: {
 	status?: SessionStatus;
+	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
 }): IActiveSession {
+	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
-		status: observableValue('status', opts?.status ?? SessionStatus.Completed),
+		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),
@@ -90,8 +94,12 @@ export function makeSession(resource: URI, opts?: {
 		activeChat: observableValue('activeChat', chat),
 		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
-		isCreated: observableValue('isCreated', true),
+		isCreated: opts?.isCreated === undefined
+			? status.map(status => status !== SessionStatus.Untitled)
+			: observableValue('isCreated', opts.isCreated),
 		sticky: observableValue('sticky', false),
+		openChats: observableValue('openChats', [chat]),
+		closedChats: constObservable([]),
 	};
 }
 
@@ -101,6 +109,14 @@ export interface ICreateOptions {
 	readonly layoutState?: readonly object[];
 	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
 	readonly newSessionViewStateRaw?: string;
+	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
+	readonly responsiveSidebar?: boolean;
+	/** [D7] When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
+	readonly revealAuxiliaryBarOnOpen?: boolean;
+	/** Initial main container width (defaults to 2000). Set below `SMALL_WINDOW_MAX_WIDTH` to start space-constrained. */
+	readonly mainContainerWidth?: number;
+	/** Initial part visibility overrides applied before the controller is constructed (mirrors restored layout after a reload). */
+	readonly initialPartVisibility?: ReadonlyMap<Parts, boolean>;
 }
 
 /**
@@ -116,6 +132,9 @@ export interface ITestLayoutHarness {
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onDidChangeEditorMaximized: Emitter<void>;
+	onDidActiveEditorChange: Emitter<void>;
+	onDidLayoutMainContainer: Emitter<IDimension>;
+	mainContainerWidth: number;
 	editorMaximized: boolean;
 	partVisibility: Map<Parts, boolean>;
 	openedViewContainers: string[];
@@ -124,6 +143,8 @@ export interface ITestLayoutHarness {
 	activePaneCompositeId: string | undefined;
 	pinnedAuxiliaryBarContainerIds: string[];
 	visibleEditorsList: readonly unknown[];
+	activeEditorResource: URI | undefined;
+	readonly sessionChangesService: ISessionChangesService;
 }
 
 export function createTestHarness(store: DisposableStore, options: ICreateOptions = {}): ITestLayoutHarness {
@@ -143,6 +164,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
+	configService.setUserConfiguration('sessions.layout.autoCollapseSessionsSidebar', options.responsiveSidebar ?? true);
 	instaService.stub(IConfigurationService, configService);
 
 	const harness: ITestLayoutHarness = {
@@ -153,11 +175,15 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
+		onDidActiveEditorChange: store.add(new Emitter<void>()),
+		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
+		mainContainerWidth: options.mainContainerWidth ?? 2000,
 		editorMaximized: false,
 		partVisibility: new Map<Parts, boolean>([
 			[Parts.AUXILIARYBAR_PART, true],
 			[Parts.PANEL_PART, false],
 			[Parts.EDITOR_PART, true],
+			...(options.initialPartVisibility ?? []),
 		]),
 		openedViewContainers: [],
 		openedViews: [],
@@ -165,6 +191,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		activePaneCompositeId: undefined,
 		pinnedAuxiliaryBarContainerIds: [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID],
 		visibleEditorsList: [],
+		activeEditorResource: undefined,
+		sessionChangesService: new SessionChangesService(),
 	};
 
 	instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -175,6 +203,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly activeSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
 	});
+
+	instaService.stub(ISessionChangesService, harness.sessionChangesService);
 
 	instaService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 		override isVisible(part: Parts): boolean {
@@ -194,19 +224,31 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidChangePartVisibility = harness.onDidChangePartVisibility.event;
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
+		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
+		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
 	} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
 
 	instaService.stub(IViewsService, new class extends mock<IViewsService>() {
 		override async openViewContainer(id: string) {
 			harness.openedViewContainers.push(id);
+			revealAuxiliaryBar();
 			return null;
 		}
 		override closeViewContainer() { }
 		override async openView(id: string) {
 			harness.openedViews.push(id);
+			revealAuxiliaryBar();
 			return null;
 		}
 	});
+
+	function revealAuxiliaryBar(): void {
+		if (!options.revealAuxiliaryBarOnOpen || harness.partVisibility.get(Parts.AUXILIARYBAR_PART) === true) {
+			return;
+		}
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+	}
 
 	instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
 		override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
@@ -224,9 +266,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	instaService.stub(IEditorService, new class extends mock<IEditorService>() {
 		override get visibleEditors() { return harness.visibleEditorsList as IEditorService['visibleEditors']; }
+		override readonly onDidActiveEditorChange = harness.onDidActiveEditorChange.event;
+		override get activeEditor() {
+			if (!harness.activeEditorResource) {
+				return undefined;
+			}
+			const editor = { resource: harness.activeEditorResource };
+			return editor as IEditorService['activeEditor'];
+		}
 	});
 
 	instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+		override get groups() { return [{ isEmpty: false }] as unknown as IEditorGroupsService['groups']; }
 		override saveWorkingSet(name: string): IEditorWorkingSet { return { id: name, name }; }
 		override async applyWorkingSet() { return true; }
 		override deleteWorkingSet() { }

@@ -20,6 +20,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -56,10 +57,27 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
+		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._configurationService, fileMonitorService, gitService, this._logService));
+
+		this._register(this._changesetFileMonitor.onDidChangeSessionRoot(async (session) => {
+			const workingDirectoryStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+			const workingDirectory = workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined;
+
+			// Refresh the git state for the session
+			const gitState = await gitStateService.refreshSessionGitState(session, workingDirectory);
+
+			// Recompute the subscribed changesets to pick up working-tree
+			// edits, and notify listeners so the session git state can be
+			// refreshed (external branch switches / commits / rebases).
+			this._changesets.recomputeSubscribedChangesets(session);
+
+			// Update the operations for all subscribed changesets
+			this._changesetOperationService.updateOperations(session, undefined, gitState ?? undefined);
+		}));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -139,6 +157,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
+
+		// Advertised operations are disabled while a turn is active so the
+		// working tree / branch state can't be mutated mid-request; recompute
+		// them whenever the active-turn state flips.
+		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
