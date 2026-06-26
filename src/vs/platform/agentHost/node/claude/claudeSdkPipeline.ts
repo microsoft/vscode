@@ -53,7 +53,7 @@ export interface IRematerializer {
  *     Re-applied to a fresh Query on rebind.
  *   • Drain the SDK message stream, dispatch each message to the
  *     {@link ClaudeSdkMessageRouter}, settle the matching entry's
- *     deferred on `result`, and emit `SessionTurnComplete` only when
+ *     deferred on `result`, and emit `ChatTurnComplete` only when
  *     the queue fully drains (intermediate results during steering
  *     preemption do NOT fire turn-complete — CONTEXT.md M10).
  *
@@ -68,6 +68,19 @@ export interface ISdkResolvedCustomizations {
 	readonly commands: readonly SlashCommand[];
 	readonly agents: readonly AgentInfo[];
 	readonly mcpServers: readonly McpServerStatus[];
+	/**
+	 * Native plugins the live session actually loaded, as reported by the
+	 * SDK `system/init` message. Used to filter the disk-discovered native
+	 * plugins post-materialize: a plugin declared in `enabledPlugins` but
+	 * absent here (bad path, manifest error, untrusted workspace) is hidden.
+	 *
+	 * `source` is the plugin id (`<plugin>@<marketplace>`) and is the
+	 * authoritative match key — the SDK's `path` is unreliable for
+	 * workspace-`local`-scoped plugins (it can report a non-cache path). The
+	 * SDK `.d.ts` types the element as `{ name, path }` but the runtime adds
+	 * `source`, so it is captured as optional.
+	 */
+	readonly plugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[];
 }
 
 export class ClaudeSdkPipeline extends Disposable {
@@ -99,7 +112,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			query.supportedAgents(),
 			query.mcpServerStatus(),
 		]);
-		return { commands, agents, mcpServers };
+		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
 	/**
@@ -125,6 +138,14 @@ export class ClaudeSdkPipeline extends Disposable {
 	/** Flips to `true` on the first `system:init` SDK message. Drives `Options.resume` decisions for downstream phases. */
 	private _isResumed = false;
 
+	/**
+	 * Native plugins reported by the most recent `system:init` message.
+	 * Captured on *every* init (including resume) so the post-materialize
+	 * native-plugin filter always reflects the live set. `source` is the
+	 * plugin id and is the reliable match key (see {@link ISdkResolvedCustomizations}).
+	 */
+	private _initPlugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[] = [];
+
 	/** Last model / effort / permission mode applied to the SDK via the runtime setters. Reset on rebind. */
 	private _appliedModel: string | undefined;
 	private _appliedEffort: ClaudeRuntimeEffortLevel | undefined;
@@ -148,7 +169,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Single fan-out for every {@link AgentSignal} this session produces:
 	 *   • Router-mapped per-message signals (response parts, tool calls,
 	 *     pending confirmations, etc.).
-	 *   • `SessionTurnComplete` action, fired when the LAST entry in the
+	 *   • `ChatTurnComplete` action, fired when the LAST entry in the
 	 *     queue drains via `result` (intermediate results during steering
 	 *     preempt do NOT fire — CONTEXT.md M10).
 	 *   • `steering_consumed` signal, fired the moment the iterable yields
@@ -165,7 +186,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
-		clientId: string | undefined = undefined,
+		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -184,7 +205,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientId,
+			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -211,13 +232,11 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Phase 10 — update the workbench `clientId` that the stream mapper
-	 * stamps onto subsequent `SessionToolCallStart` events. Called by the
-	 * session whenever {@link SessionClientToolsModel} receives a new
-	 * clientId via `setClientTools`.
+	 * Phase 10 — update the resolver the stream mapper uses to stamp the
+	 * owning workbench `clientId` onto subsequent `ChatToolCallStart` events.
 	 */
-	setClientId(clientId: string | undefined): void {
-		this._router.setClientId(clientId);
+	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
+		this._router.setClientToolOwner(clientToolOwner);
 	}
 
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
@@ -262,12 +281,19 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Eagerly push an effort-level change to the SDK via
 	 * `applyFlagSettings({ effortLevel })`. Same mid-turn safety as
 	 * {@link setModel}.
+	 *
+	 * `undefined` means "clear the effort the SDK is currently applying" —
+	 * issued as `applyFlagSettings({ effortLevel: null })` (sdk.d.ts:2263:
+	 * passing `null` clears a key from the flag layer). This is what makes a
+	 * switch to a model that does not support reasoning effort (e.g. Haiku)
+	 * drop a `'high'` left over from a prior effort-capable model instead of
+	 * replaying it onto a model the API will 400 on.
 	 */
-	async setEffort(effort: ClaudeRuntimeEffortLevel): Promise<void> {
+	async setEffort(effort: ClaudeRuntimeEffortLevel | undefined): Promise<void> {
 		this._currentEffort = effort;
 		if (this._query && effort !== this._appliedEffort) {
 			try {
-				await this._query.applyFlagSettings({ effortLevel: effort });
+				await this._query.applyFlagSettings({ effortLevel: effort ?? null });
 				this._appliedEffort = effort;
 			} catch (err) {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] setEffort failed: ${err}`);
@@ -477,7 +503,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Consumer loop. Drains the SDK iterator, dispatches each message
 	 * to the {@link ClaudeSdkMessageRouter} (awaited so async file-edit
 	 * observation completes before the next message), settles the head
-	 * entry's deferred on `result`, and fires `SessionTurnComplete` only
+	 * entry's deferred on `result`, and fires `ChatTurnComplete` only
 	 * when the queue fully drains.
 	 *
 	 * On any uncaught error (cancellation, transport failure, or the
@@ -497,8 +523,13 @@ export class ClaudeSdkPipeline extends Disposable {
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
-				if (message.type === 'system' && message.subtype === 'init' && !this._isResumed) {
-					this._isResumed = true;
+				if (message.type === 'system' && message.subtype === 'init') {
+					// Capture the loaded native-plugin list on every init (incl.
+					// resume / post-rebind) so the post-materialize filter is fresh.
+					this._initPlugins = message.plugins ?? [];
+					if (!this._isResumed) {
+						this._isResumed = true;
+					}
 				}
 				const turnId = this._queue.peekParent()?.turnId;
 				try {
@@ -511,13 +542,13 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire SessionTurnComplete.
+					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							session: this.sessionUri,
 							action: {
-								type: ActionType.SessionTurnComplete,
+								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
 							},
 						});

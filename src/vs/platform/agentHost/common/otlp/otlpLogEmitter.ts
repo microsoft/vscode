@@ -375,7 +375,7 @@ function attributesToOtlp(attributes: Readonly<Record<string, OtelAttributeValue
 function toAnyValue(value: OtelAttributeValue): Record<string, unknown> {
 	switch (typeof value) {
 		case 'boolean': return { boolValue: value };
-		case 'number': return Number.isInteger(value) ? { intValue: value } : { doubleValue: value };
+		case 'number': return Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value };
 		default: return { stringValue: value };
 	}
 }
@@ -413,9 +413,12 @@ function fromAnyValue(value: unknown): OtelAttributeValue | undefined {
 	const v = value as Record<string, unknown>;
 	if (typeof v.stringValue === 'string') { return v.stringValue; }
 	if (typeof v.boolValue === 'boolean') { return v.boolValue; }
-	if (typeof v.intValue === 'number') { return v.intValue; }
-	if (typeof v.intValue === 'string') { return Number(v.intValue); }
-	if (typeof v.doubleValue === 'number') { return v.doubleValue; }
+	if (typeof v.intValue === 'number') { return Number.isSafeInteger(v.intValue) ? v.intValue : undefined; }
+	if (typeof v.intValue === 'string') {
+		const parsed = Number(v.intValue);
+		return Number.isSafeInteger(parsed) ? parsed : undefined;
+	}
+	if (typeof v.doubleValue === 'number') { return Number.isFinite(v.doubleValue) ? v.doubleValue : undefined; }
 	return undefined;
 }
 

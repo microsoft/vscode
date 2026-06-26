@@ -18,8 +18,7 @@ import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
 export const navigateNextFeedbackActionId = 'agentFeedbackEditor.action.navigateNext';
@@ -39,7 +38,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<boolean | void> {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const codeReviewService = accessor.get(ICodeReviewService);
@@ -68,7 +67,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		}
 	}
 
-	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> | void;
+	abstract runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean | void> | boolean | void;
 }
 
 class SubmitFeedbackAction extends AgentFeedbackEditorAction {
@@ -89,9 +88,9 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		});
 	}
 
-	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
+	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<boolean> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
-		await agentFeedbackService.submitFeedback(sessionResource);
+		return agentFeedbackService.submitFeedback(sessionResource);
 	}
 }
 
@@ -173,10 +172,10 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
-		const activeSession = sessionManagementService.activeSession.get();
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}

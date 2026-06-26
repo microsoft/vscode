@@ -41,12 +41,19 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('carries strictKnownMarketplaces as a boolean managed setting', () => {
-		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: true }), {
-			managedSettings: { strictKnownMarketplaces: true },
+	test('carries strictKnownMarketplaces as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			strictKnownMarketplaces: [{ source: 'github', repo: 'rwoll/markdown-review' }],
+		}), {
+			managedSettings: {
+				strictKnownMarketplaces: '[{"source":"github","repo":"rwoll/markdown-review"}]',
+			},
 		});
-		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: false }), {
-			managedSettings: { strictKnownMarketplaces: false },
+	});
+
+	test('carries an empty strictKnownMarketplaces array (lockdown) as a JSON string', () => {
+		assert.deepStrictEqual(adaptManagedSettings({ strictKnownMarketplaces: [] }), {
+			managedSettings: { strictKnownMarketplaces: '[]' },
 		});
 	});
 
@@ -95,10 +102,10 @@ suite('adaptManagedSettings', () => {
 			extraKnownMarketplaces: {
 				'a': { source: { source: 'github', repo: 'a/b', ref: 'r' } },
 			},
-			strictKnownMarketplaces: true,
+			strictKnownMarketplaces: [{ source: 'github', repo: 'a/b' }],
 		}), {
 			managedSettings: {
-				strictKnownMarketplaces: true,
+				strictKnownMarketplaces: '[{"source":"github","repo":"a/b"}]',
 				enabledPlugins: '{"p@m":true}',
 				extraKnownMarketplaces: '{"a":"a/b#r"}',
 			},
@@ -108,13 +115,39 @@ suite('adaptManagedSettings', () => {
 	test('resilience: unknown scalar keys flatten into the bag alongside structured keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },
-			strictKnownMarketplaces: false,
+			strictKnownMarketplaces: [],
 			joshsFakeSetting: true,
 		} as IManagedSettingsResponse), {
 			managedSettings: {
-				strictKnownMarketplaces: false,
+				strictKnownMarketplaces: '[]',
 				joshsFakeSetting: true,
 				enabledPlugins: '{"p@m":true}',
+			},
+		});
+	});
+
+	test('resilience: a server-sent own `__proto__` key is carried like any scalar, never applied to the prototype', () => {
+		// JSON.parse (not an object literal) yields an OWN enumerable `__proto__` data property.
+		// The scalar remainder must keep `{ ...rest }` semantics: copy it as data (so it flattens
+		// to `__proto__.polluted`) rather than assigning through the inherited `__proto__` setter
+		// (which would swap the prototype and instead surface the inherited `polluted` key).
+		const response = JSON.parse('{"permissions":{"x":1},"__proto__":{"polluted":true}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'permissions.x': 1,
+				'__proto__.polluted': true,
+			},
+		});
+	});
+
+	test('resilience: a primitive own `__proto__` scalar is dropped, never pollutes the result', () => {
+		// The reviewer-flagged case. flattenManagedSettings only assigns at the bare `__proto__`
+		// key when the value is a PRIMITIVE, where the inherited `__proto__` setter is a no-op, so
+		// the value is simply dropped (no prototype mutation), matching the original `...rest`.
+		const response = JSON.parse('{"permissions":{"x":1},"__proto__":true}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'permissions.x': 1,
 			},
 		});
 	});
@@ -134,6 +167,19 @@ suite('adaptManagedSettings', () => {
 			},
 		});
 		assert.strictEqual(warnings.length, 2);
+	});
+
+	test('resilience: extraKnownMarketplaces github entry missing "repo" is skipped with a warning', () => {
+		const warnings: string[] = [];
+		const result = adaptManagedSettings({
+			extraKnownMarketplaces: {
+				'example-key': { source: { source: 'github' } } as IManagedSettingsResponse['extraKnownMarketplaces'] extends Record<string, infer V> ? V : never,
+			},
+		} as IManagedSettingsResponse, msg => warnings.push(msg));
+		assert.deepStrictEqual(
+			{ result, warned: warnings.length, mentionsRepo: warnings.some(w => w.includes('requires "repo"')) },
+			{ result: { managedSettings: {} }, warned: 1, mentionsRepo: true }
+		);
 	});
 
 	test('resilience: a marketplace string array (wrong format) is treated as missing, no throw', () => {

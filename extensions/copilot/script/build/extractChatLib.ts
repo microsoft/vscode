@@ -261,6 +261,12 @@ class ChatLibExtractor {
 				if (resolvedPath) {
 					dependencies.push(resolvedPath);
 				}
+
+				const resolvedDevPath = this.resolveImportPath(filePath, path.join(importPath, 'jsx-dev-runtime'));
+
+				if (resolvedDevPath) {
+					dependencies.push(resolvedDevPath);
+				}
 			}
 		}
 

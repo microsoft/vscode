@@ -17,7 +17,7 @@ import { ContentHoverResult } from './contentHoverTypes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
-import { HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
+import { ColorHover, HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
 import { localize } from '../../../../nls.js';
 import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -333,7 +333,7 @@ class RenderedContentHoverParts extends Disposable {
 				this._focusedHoverPartIndex = -1;
 			}));
 			// Add copy button for marker hovers
-			if (renderedPart.type === 'hoverPart') {
+			if (renderedPart.type === 'hoverPart' && !(renderedPart.hoverPart instanceof ColorHover) && !renderedPart.participant.hideCopyButton) {
 				disposables.add(new HoverCopyButton(
 					element,
 					() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),

@@ -48,6 +48,11 @@ class StubPaneCompositePart implements IPaneCompositePart {
 	dispose(): void { }
 }
 
+class TestFloatingPanelsLayoutService extends TestLayoutService {
+	floatingPanelsEnabled = false;
+	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+}
+
 suite('ActivitybarPart', () => {
 
 	const disposables = new DisposableStore();
@@ -66,13 +71,15 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean): { part: ActivitybarPart; configService: TestConfigurationService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
+			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService();
-		const layoutService = new TestLayoutService();
+		const layoutService = new TestFloatingPanelsLayoutService();
+		layoutService.floatingPanelsEnabled = floatingPanelsEnabled;
 
 		// Override isVisible to return false so that create() does not call show()
 		// and attempt to instantiate the composite bar (which requires a full DI setup).
@@ -92,7 +99,7 @@ suite('ActivitybarPart', () => {
 			configService,
 		));
 
-		return { part, configService };
+		return { part, configService, layoutService };
 	}
 
 	function fireConfigChange(configService: TestConfigurationService, key: string): void {
@@ -157,6 +164,18 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
+	test('floating panels reserves additional width gutter', () => {
+		const { part } = createActivitybarPart(false, true);
+
+		assert.deepStrictEqual(
+			{ min: part.minimumWidth, max: part.maximumWidth },
+			{
+				min: ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+				max: ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+			}
+		);
+	});
+
 	// --- Configuration change: dimension update ----------------------------
 
 	test('toggling compact via config changes width constraints', () => {
@@ -216,6 +235,20 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, 'editor.fontSize');
 
 		assert.strictEqual(events.length, 0);
+	});
+
+	test('fires onDidChange(undefined) when floating panels setting changes', () => {
+		const { part, configService, layoutService } = createActivitybarPart(false, false);
+
+		const events: (IViewSize | undefined)[] = [];
+		disposables.add(part.onDidChange(e => events.push(e)));
+
+		layoutService.floatingPanelsEnabled = true;
+		configService.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI);
+
+		assert.deepStrictEqual(events, [undefined]);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);
 	});
 
 	// --- CSS custom properties on element -----------------------------------

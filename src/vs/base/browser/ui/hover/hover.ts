@@ -241,6 +241,12 @@ export interface IHoverOptions {
 	 * later for delayed hovers.
 	 */
 	onDidShow?(): void;
+
+	/**
+	 * An optional callback that is called when the hover is hidden (i.e. its underlying widget is disposed). This fires
+	 * once per shown hover and is only invoked if the hover was actually shown.
+	 */
+	onDidHide?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added

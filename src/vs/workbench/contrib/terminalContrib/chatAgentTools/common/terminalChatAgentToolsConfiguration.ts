@@ -12,6 +12,12 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 
+/**
+ * Default idle silence timeout in milliseconds. Used as both the configuration
+ * default and the runtime fallback when the setting is unavailable.
+ */
+export const DEFAULT_IDLE_SILENCE_TIMEOUT_MS = 300_000; // 5 minutes
+
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
@@ -603,24 +609,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: ['preview'],
 		restricted: true
 	},
-	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: {
-		markdownDescription: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
-		type: 'boolean',
-		default: false,
-		tags: ['preview'],
-		restricted: true,
-		policy: {
-			name: 'ChatAgentSandboxAutoApproveUnsandboxedCommands',
-			category: PolicyCategory.IntegratedTerminal,
-			minimumVersion: '1.116',
-			localization: {
-				description: {
-					key: 'agentSandbox.autoApproveUnsandboxedCommands',
-					value: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
-				}
-			}
-		}
-	},
 	[AgentSandboxSettingId.AgentSandboxAllowAutoApprove]: {
 		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
@@ -786,7 +774,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs]: {
 		restricted: true,
 		type: 'number',
-		default: 60000,
+		default: DEFAULT_IDLE_SILENCE_TIMEOUT_MS,
 		minimum: 0,
 		tags: ['experimental'],
 		experiment: {
