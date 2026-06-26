@@ -253,6 +253,9 @@ suite('ChatQuotaNotificationContribution', () => {
 		const switchedModels: string[] = [];
 		const chatWidget = {
 			input: {
+				isModelSelectedByIdentifier(identifier: string) {
+					return identifier === selectedModelId;
+				},
 				switchModelByIdentifier(identifier: string) {
 					if (identifier !== 'copilot/auto') {
 						return false;
