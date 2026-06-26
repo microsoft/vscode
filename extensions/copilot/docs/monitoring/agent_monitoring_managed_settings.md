@@ -23,6 +23,14 @@ Nested `telemetry` block in the managed-settings response:
 - `telemetry.captureContent` — capture prompts/responses/tool args. Default false.
 - `telemetry.lockCaptureContent` — prevents the user from enabling content capture themselves.
 
+## Implementation status
+
+Shipped (see [agent_monitoring_managed_settings.sprint.md](./agent_monitoring_managed_settings.sprint.md)):
+`enabled`, `endpoint`, `protocol` (full `http/json` vs `http/protobuf` vs `grpc`), `captureContent`,
+`lockCaptureContent` — on both the agent-host owner settings and the `github.copilot.chat.otel.*`
+references. **Deferred:** `headers`, `resourceAttributes`, `serviceName` (need new owner settings,
+structured-nested-key support for the maps, and secret-safe env plumbing).
+
 ## Ownership
 
 - **Owner:** the `chat.agentHost.otel.*` settings carry the `policy:` definitions.
@@ -37,7 +45,12 @@ Nested `telemetry` block in the managed-settings response:
 
 Enterprise policy > env vars > user settings > defaults (managed wins over env).
 
-- `protocol` maps to the agent-host exporter/wire protocol; managed value wins, incl. per-signal env overrides.
+- `protocol` is two axes: **transport** (maps to the agent-host `exporterType`: `grpc`→`otlp-grpc`,
+  `http/*`→`otlp-http`) and **wire encoding** (`http/json` vs `http/protobuf`). The raw value is
+  threaded through a dedicated policy-only slot so it sets `OTEL_EXPORTER_OTLP_PROTOCOL` (+ per-signal)
+  on the agent host and selects the `-proto` vs `-http` exporter in the extension. Managed value wins,
+  incl. per-signal env overrides. (The runtime defaults to `http/json` when unset, so the wire axis
+  must be propagated, not just mapped to `exporterType`.)
 - `captureContent`: explicit value wins; otherwise `lockCaptureContent: true` forces it off.
 - **Per-key managed-wins for `headers` / `resourceAttributes`**: a managed key overrides the
   same key from user env (`OTEL_EXPORTER_OTLP_HEADERS` / `OTEL_RESOURCE_ATTRIBUTES`), but
