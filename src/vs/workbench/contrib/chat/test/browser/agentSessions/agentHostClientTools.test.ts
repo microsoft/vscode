@@ -393,8 +393,8 @@ suite('AgentHostClientTools', () => {
 					provider: 'copilot',
 					title: 'Test',
 					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				};
 				const initialState = kind === StateComponents.Chat
 					? createChatState(createDefaultChatSummary(summary, resourceStr))

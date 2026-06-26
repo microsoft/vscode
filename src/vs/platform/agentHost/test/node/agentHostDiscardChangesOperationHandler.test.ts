@@ -96,8 +96,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
 			workingDirectory: opts?.withWorkingDirectory === false ? undefined : URI.file('/repo').toString(),
 		});
 	}

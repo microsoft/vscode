@@ -55,7 +55,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		// GitHub state
-		const gitHubState = readSessionGitHubState(state.summary._meta);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo || gitHubState?.pullRequestUrl) {
 			return;
 		}
@@ -94,7 +94,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined | null> {
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -132,9 +132,42 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 	}
 
+	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentGitHubState = readSessionGitHubState(currentMeta);
+		if (currentGitHubState) {
+			return currentGitHubState;
+		}
+
+		// Load the GitHub state from the session database
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][getSessionGitHubState] Failed to open session database for ${sessionKey}`, error);
+			return undefined;
+		}
+
+		try {
+			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
+			if (githubStateStr) {
+				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
+				this._stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
+
+				return githubState;
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_getSessionGitHubState] Failed to load GitHub state for ${sessionKey}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
+
+		return undefined;
+	}
+
 	async refreshSessionGitState2(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -183,18 +216,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
-
-		const currentState = readSessionGitHubState(currentMeta);
-		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
+		const currentState = await this.getSessionGitHubState(sessionKey);
+		const nextState = { ...currentState, ...state } satisfies ISessionGitHubState;
 
 		if (objectEquals(currentState, nextState)) {
 			return;
 		}
 
 		// Update session state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextMeta = withSessionGitHubState(currentMeta, nextState);
-		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
 		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
