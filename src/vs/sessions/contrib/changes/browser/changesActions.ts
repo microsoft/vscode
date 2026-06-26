@@ -90,12 +90,8 @@ interface IDiffStats {
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
  * are shown even when several session views are visible at once. The counts reflect the
- * session's **default** changeset (branch-vs-base for a git workspace, otherwise the
- * session's working changes), i.e. the changeset the provider marks as
- * {@link ISessionChangeset.isDefault}, so the header shows the changes done in this session
- * independent of whichever changeset the Changes view currently has selected. When no
- * default changeset is present, it falls back to the session's top-level
- * {@link IActiveSession.changes}.
+ * changeset the provider marks as {@link ISessionChangeset.isDefault}, falling back to the
+ * session's top-level {@link IActiveSession.changes} when none is default.
  */
 export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
 

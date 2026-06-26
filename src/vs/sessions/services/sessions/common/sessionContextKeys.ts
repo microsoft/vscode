@@ -107,10 +107,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
 	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
 
-	// Mirror the changes pill's own source — the session's default changeset
-	// (branch-vs-base for git, otherwise the working changes) — falling back to
-	// the session's changes when absent, so the diff-stats menu item is shown
-	// exactly when it renders non-zero counts.
+	// Mirror the changes pill: the default changeset, falling back to the session's changes.
 	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 	let insertions = 0;
 	let deletions = 0;
