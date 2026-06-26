@@ -188,3 +188,14 @@ export function resolveQuestionAnswers(
 
 	return { answers, invalid };
 }
+
+/**
+ * Map a resolved answer record to the value a carousel is dismissed/completed
+ * with. An empty record means the user answered nothing (a skip): agent-host
+ * carousels treat `undefined` answers as a cancel/skip, whereas an empty object
+ * would be submitted as an (empty) accept. Returning `undefined` keeps the two
+ * intents distinct.
+ */
+export function toCarouselAnswers(answers: IChatQuestionAnswers): IChatQuestionAnswers | undefined {
+	return Object.keys(answers).length > 0 ? answers : undefined;
+}

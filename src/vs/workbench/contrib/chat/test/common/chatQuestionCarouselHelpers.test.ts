@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getOptionsWithDefaultsFirst, resolveQuestionAnswers } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { getOptionsWithDefaultsFirst, resolveQuestionAnswers, toCarouselAnswers } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatQuestion } from '../../common/chatService/chatService.js';
 
 suite('chatQuestionCarouselHelpers', () => {
@@ -98,6 +98,17 @@ suite('chatQuestionCarouselHelpers', () => {
 			const { answers, invalid } = resolveQuestionAnswers([singleSelect], [{ question_id: 'nope', value: 'x' }]);
 			assert.deepStrictEqual(answers, {});
 			assert.deepStrictEqual(invalid, ['nope']);
+		});
+	});
+
+	suite('toCarouselAnswers', () => {
+		test('returns undefined for an empty record (a skip)', () => {
+			assert.strictEqual(toCarouselAnswers({}), undefined);
+		});
+
+		test('returns the record unchanged when it has answers', () => {
+			const record = { q1: { selectedValue: 'fullstack' } };
+			assert.strictEqual(toCarouselAnswers(record), record);
 		});
 	});
 });

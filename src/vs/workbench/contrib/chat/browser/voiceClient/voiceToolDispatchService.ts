@@ -11,8 +11,9 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
 import { IChatService, IChatSendRequestOptions, IChatToolInvocation, ToolConfirmKind, IChatElicitationRequest, IChatQuestion } from '../../common/chatService/chatService.js';
-import { resolveQuestionAnswers, IBackendQuestionAnswer } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { resolveQuestionAnswers, toCarouselAnswers, IBackendQuestionAnswer } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
@@ -296,7 +297,18 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			if (invalid.length > 0) {
 				return JSON.stringify({ ok: false, reason: 'invalid_answer', questions: invalid });
 			}
-			this.chatService.notifyQuestionCarouselAnswer(request.id, resolveId || carousel.resolveId || '', answers);
+			// An empty record means the user answered nothing — dismiss as a skip
+			// (undefined) so agent-host carousels cancel rather than submit empty.
+			const answersRecord = toCarouselAnswers(answers);
+			// `dismiss` settles the carousel's completion promise, which is the ONLY
+			// resolution path for agent-host carousels (their answers flow back to the
+			// agent via ChatInputCompleted). The event below additionally drives the
+			// askQuestions / browser tools that listen for it. The UI submit path does
+			// both too (chatListRenderer handleSubmit).
+			if (carousel instanceof ChatQuestionCarouselData) {
+				carousel.dismiss(answersRecord);
+			}
+			this.chatService.notifyQuestionCarouselAnswer(request.id, resolveId || carousel.resolveId || '', answersRecord);
 			return JSON.stringify({ ok: true });
 		}
 
