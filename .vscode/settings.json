@@ -157,6 +157,7 @@
 	],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
+	"githubPullRequests.enableAttestationCommits": true,
 	// --- Testing & Debugging ---
 	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {
