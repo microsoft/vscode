@@ -118,3 +118,19 @@ Traced through the CLI runtime (`copilot-agent-runtime`):
 
 Sequencing (separate commits): (1) `serviceName`; (2) `resourceAttributes` (needs nested-key support in
 `STRUCTURED_MANAGED_SETTINGS`); (3) `headers` extension-only. Agent-host `headers` tracked under the runtime follow-up.
+
+### Implemented (this follow-up)
+
+All three delivered VS-Code-only, one commit each:
+
+- [x] **`serviceName`** — scalar key `telemetry.serviceName`; hidden policy-only agent-host slot
+  `CopilotOtelServiceName` → `OTEL_SERVICE_NAME`; extension setting `github.copilot.chat.otel.serviceName`
+  (policy > env > setting > `copilot-chat`).
+- [x] **`resourceAttributes`** — structured nested-map key `telemetry.resourceAttributes` (added
+  nested read/delete + `encodeStringMap` to `STRUCTURED_MANAGED_SETTINGS`); hidden agent-host object slot
+  `CopilotOtelResourceAttributes`, serialized to `OTEL_RESOURCE_ATTRIBUTES=k=v,…`; extension setting
+  merges per-key (policy > env > setting).
+- [x] **`headers`** — structured nested-map key `telemetry.headers`; **extension-only** object slot
+  `CopilotOtelHeaders` applied directly to the OTLP exporter (`headers:` on each exporter), never via env.
+  **Agent-host `headers` remain deferred** (env path leaks the secret to tool subprocesses).
+
