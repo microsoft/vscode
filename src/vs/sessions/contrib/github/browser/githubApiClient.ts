@@ -108,14 +108,7 @@ export class GitHubApiClient extends Disposable {
 				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
 			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
-			// Bypass the renderer's HTTP cache so polling always reaches GitHub.
-			// GitHub serves PR responses with a `Cache-Control` max-age, so without
-			// this the browser cache would return a stale (e.g. still-"open") body for
-			// the freshness window and our `If-None-Match` conditional request would
-			// never reach the server — making the PR icon miss state changes like a
-			// merge. We still send `If-None-Match` explicitly, so GitHub keeps
-			// answering a cheap `304 Not Modified` (which does not count against the
-			// rate limit) when nothing changed, and a fresh `200` the moment it does.
+			// Bypass the renderer HTTP cache so conditional polling reaches GitHub (see PR_ICON_POLLING.md).
 			disableCache: true,
 			callSite
 		}, CancellationToken.None);

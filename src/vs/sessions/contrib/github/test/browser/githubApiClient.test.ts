@@ -7,7 +7,7 @@ import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -20,10 +20,11 @@ import { GitHubApiClient } from '../../browser/githubApiClient.js';
  * configurable response. Only the surface used by {@link GitHubApiClient} is
  * implemented; the rest is unused in these tests.
  */
-class FakeRequestService implements Partial<IRequestService> {
+class FakeRequestService extends Disposable implements Partial<IRequestService> {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidCompleteRequest = new Emitter<IRequestCompleteEvent>().event;
+	private readonly _onDidCompleteRequest = this._register(new Emitter<IRequestCompleteEvent>());
+	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	lastOptions: IRequestOptions | undefined;
 	nextResponse: IRequestContext = {
@@ -47,22 +48,18 @@ class FakeAuthenticationService implements Partial<IAuthenticationService> {
 
 suite('GitHubApiClient', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let requestService: FakeRequestService;
 	let client: GitHubApiClient;
 
 	setup(() => {
-		requestService = new FakeRequestService();
+		requestService = store.add(new FakeRequestService());
 		client = store.add(new GitHubApiClient(
 			requestService as unknown as IRequestService,
 			new FakeAuthenticationService() as unknown as IAuthenticationService,
 			new NullLogService(),
 		));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('bypasses the HTTP cache so polling always reaches GitHub', async () => {
 		await client.request('GET', '/repos/o/r/pulls/1', 'test');
