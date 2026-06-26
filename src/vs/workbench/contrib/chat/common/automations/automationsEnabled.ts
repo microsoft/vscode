@@ -6,22 +6,12 @@
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 /**
- * Configuration key that gates the entire Automations feature
- * (Customizations sidebar entry, Customizations editor section,
- * new-session "kind" dropdown option, and scheduled execution).
- *
- * Default is `false` so the feature stays hidden until a user opts in
- * via this setting or the "Toggle Automations" command palette entry.
+ * Gates the entire Automations feature — sidebar entry, editor section,
+ * session composer option, and scheduled execution. Default `false`.
  */
 export const CHAT_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.enabled';
 
-/**
- * Per-run timeout (in minutes) for a scheduled automation. If a run
- * hasn't completed within this many minutes the scheduler cancels the
- * run's cancellation token, marks the run row as failed, and proceeds
- * to the next due automation so a single hung run can't permanently
- * block the dispatch chain.
- */
+/** Per-run timeout in minutes. Hung runs are cancelled and marked failed so they don't block the dispatch chain. */
 export const CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING = 'chat.automations.runTimeoutMinutes';
 
 /** Default for {@link CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING}. */

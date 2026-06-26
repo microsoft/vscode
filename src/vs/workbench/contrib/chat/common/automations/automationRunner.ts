@@ -14,15 +14,9 @@ export const IAutomationRunner = createDecorator<IAutomationRunner>('automationR
  * slot, record the run, drive the chat session, and report success or
  * failure back to {@link IAutomationService}.
  *
- * Two implementations exist:
- * - `PlaceholderAutomationRunner` (workbench layer): records a run but
- *   does not create a real session. Used as a fallback for builds that
- *   do not load the sessions layer.
- * - `SessionsAutomationRunner` (sessions layer): the real runner that
- *   delegates to `ISessionsManagementService` to spawn a fresh session
- *   and seed it with the automation's prompt. Registered later in the
- *   singleton chain so it overrides the placeholder in the Agents
- *   window build.
+ * Implemented by `AutomationRunner` (sessions layer), which delegates to
+ * `ISessionsManagementService` to spawn a fresh session and seed it with
+ * the automation's prompt.
  */
 export interface IAutomationRunner {
 	readonly _serviceBrand: undefined;

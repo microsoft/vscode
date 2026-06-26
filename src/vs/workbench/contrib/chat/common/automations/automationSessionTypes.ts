@@ -26,13 +26,9 @@ export interface IAutomationSessionTypeChoice {
 export const IAutomationSessionTypeProvider = createDecorator<IAutomationSessionTypeProvider>('automationSessionTypeProvider');
 
 /**
- * Bridges the workbench-side Automations UI to whichever layer actually
- * knows which session types exist (today, the Sessions layer wraps
+ * Bridges the workbench-side Automations UI to whichever layer knows which
+ * session types exist (the Sessions layer wraps
  * `ISessionsManagementService.getSessionTypesForFolder`).
- *
- * The workbench registers a no-op placeholder so the UI builds even
- * without the Sessions layer loaded; the Sessions layer overrides the
- * registration to expose the real list.
  */
 export interface IAutomationSessionTypeProvider {
 	readonly _serviceBrand: undefined;
@@ -43,18 +39,4 @@ export interface IAutomationSessionTypeProvider {
 	 * can serve the folder.
 	 */
 	getSessionTypesForFolder(folderUri: URI): readonly IAutomationSessionTypeChoice[];
-}
-
-/**
- * Placeholder implementation used when no Sessions layer has registered
- * an override. Always returns an empty list so the UI falls back to the
- * default-provider create flow (i.e. preserves pre-existing behavior).
- */
-export class PlaceholderAutomationSessionTypeProvider implements IAutomationSessionTypeProvider {
-
-	declare readonly _serviceBrand: undefined;
-
-	getSessionTypesForFolder(_folderUri: URI): readonly IAutomationSessionTypeChoice[] {
-		return [];
-	}
 }

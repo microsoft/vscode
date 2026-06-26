@@ -21,23 +21,17 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
 import { IAutomation, IAutomationRun, AutomationRunStatus, AutomationRunTrigger } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
-import { IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
+import { IAutomationDialogService } from '../../common/automations/automationDialogService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
-import { showAutomationDialog } from '../automations/automationDialog.js';
 
 const $ = DOM.$;
 
@@ -135,13 +129,11 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		templateData.disposables.clear();
 		const { automation, runs, expanded, inFlight } = element;
 
-		// Name + disabled state
 		templateData.nameEl.textContent = automation.name;
 		templateData.row.classList.toggle('automations-row-disabled', !automation.enabled);
 		templateData.disabledBadge.textContent = !automation.enabled ? localize('automationDisabled', "Disabled") : '';
 		templateData.disabledBadge.style.display = !automation.enabled ? '' : 'none';
 
-		// Meta line
 		templateData.scheduleEl.textContent = formatSchedule(automation);
 		templateData.sep1.textContent = '·';
 		templateData.nextEl.textContent = formatNextRun(automation);
@@ -160,15 +152,12 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 			templateData.lastEl.style.display = 'none';
 		}
 
-		// Prompt
 		templateData.promptEl.textContent = truncate(automation.prompt, 160);
 		templateData.promptEl.title = automation.prompt;
 
-		// Actions
 		DOM.clearNode(templateData.actions);
 		this.renderActions(templateData, automation, expanded, inFlight);
 
-		// History panel
 		DOM.clearNode(templateData.historyPanel);
 		if (expanded) {
 			this.renderHistoryPanel(templateData, automation, runs);
@@ -179,13 +168,11 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 	private renderActions(templateData: IAutomationRowTemplateData, automation: IAutomation, expanded: boolean, inFlight: boolean): void {
 		const { actions, disposables } = templateData;
 
-		// Run Now
 		const runBtn = this.createIconButton(actions, Codicon.play, localize('runNow', "Run now"), inFlight, disposables);
 		disposables.add(DOM.addStandardDisposableListener(runBtn, 'click', () => {
 			void this.widget.runNow(automation);
 		}));
 
-		// Toggle enabled
 		const toggleIcon = automation.enabled ? Codicon.eye : Codicon.eyeClosed;
 		const toggleTooltip = automation.enabled ? localize('disableAutomation', "Disable") : localize('enableAutomation', "Enable");
 		const toggleBtn = this.createIconButton(actions, toggleIcon, toggleTooltip, false, disposables);
@@ -193,19 +180,16 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 			void this.widget.toggleEnabled(automation);
 		}));
 
-		// Edit
 		const editBtn = this.createIconButton(actions, Codicon.edit, localize('editAutomation', "Edit"), false, disposables);
 		disposables.add(DOM.addStandardDisposableListener(editBtn, 'click', () => {
 			void this.widget.openEditDialog(automation);
 		}));
 
-		// Delete
 		const deleteBtn = this.createIconButton(actions, Codicon.trash, localize('deleteAutomation', "Delete"), false, disposables);
 		disposables.add(DOM.addStandardDisposableListener(deleteBtn, 'click', () => {
 			void this.widget.deleteAutomation(automation);
 		}));
 
-		// Expand/collapse history
 		const histIcon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
 		const histTooltip = expanded ? localize('hideHistory', "Hide history") : localize('showHistory', "Show history");
 		const histBtn = this.createIconButton(actions, histIcon, histTooltip, false, disposables);
@@ -333,17 +317,12 @@ export class AutomationsListWidget extends Disposable {
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IAutomationSessionTypeProvider private readonly sessionTypeProvider: IAutomationSessionTypeProvider,
+		@IAutomationDialogService private readonly automationDialogService: IAutomationDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 
@@ -535,7 +514,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.sessionTypeProvider, {
+		const result = await this.automationDialogService.showAutomationDialog({
 			existing: automation,
 		});
 		if (!result || result.kind !== 'update') {
@@ -583,7 +562,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.sessionTypeProvider, {});
+		const result = await this.automationDialogService.showAutomationDialog({});
 		if (!result || result.kind !== 'create') {
 			return;
 		}

@@ -17,21 +17,10 @@ export const DAYS_OF_WEEK: readonly string[] = [
 ];
 
 /**
- * Computes the next instant at which a given automation schedule should fire.
- *
- * Daily and weekly schedules are interpreted in the host's local timezone:
- * `scheduleHour`/`scheduleMinute` describe a wall-clock time, not a UTC time,
- * so the same automation always fires at "the same time of day" regardless
- * of where the user is. DST transitions are handled by JavaScript's local
- * `Date` constructor, with a forward shift when the requested wall time
- * falls in the spring-forward gap. Day-of-month is advanced via the `Date`
- * constructor's overflow semantics (`new Date(y, m, d+N, ...)`) rather than
- * by adding milliseconds, so spring-forward days are not silently skipped.
- *
- * Returns `undefined` for the `manual` interval and for invalid inputs.
- *
- * The `now` parameter is injected so the scheduler and tests can reason
- * about time deterministically without stubbing globals.
+ * Computes the next fire time for a schedule. Daily/weekly times are
+ * local wall-clock (not UTC) so DST transitions don't shift them.
+ * Day advances use `Date` constructor overflow, not milliseconds, to
+ * avoid skipping spring-forward days. Returns `undefined` for `manual`.
  */
 export function computeNextRunAt(schedule: IAutomationSchedule, now: Date): Date | undefined {
 	const { interval, scheduleHour, scheduleMinute, scheduleDay } = schedule;

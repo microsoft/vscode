@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAutomationLeaderElection } from '../../../browser/automations/automationLeaderElection.js';
-import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
-import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../../browser/automations/automationScheduler.js';
-import { AutomationService } from '../../../browser/automations/automationService.js';
-import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../common/automations/automation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
+import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
+import { AutomationService } from '../../browser/automationService.js';
+import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -237,7 +237,6 @@ suite('AutomationSchedulerCore', () => {
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		// Simulate an in-flight run that started before the toggle.
 		const inFlight = await service.recordRunStart(a.id, 'schedule', 1);
 
 		const runner = new RecordingRunner();
@@ -260,7 +259,6 @@ suite('AutomationSchedulerCore', () => {
 		// cannot clear errorMessage from here; assert only on status.
 		await service.updateRun(inFlight.id, { status: 'running' });
 
-		// Toggle off → tick → toggle on → tick.
 		enabled = false;
 		await core.tickForTesting();
 		enabled = true;

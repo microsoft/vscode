@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	AutomationRunTrigger,
 	IAutomation,
 	IAutomationRun,
-} from '../../common/automations/automation.js';
+} from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
 	IAutomationService,
 	ICreateAutomationOptions,
 	IUpdateAutomationOptions,
 	IUpdateAutomationRunOptions,
-} from '../../common/automations/automationService.js';
-import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../common/automations/automationTelemetry.js';
-import { computeNextRunAt } from '../../common/automations/schedule.js';
-import { ChatPermissionLevel, isChatPermissionLevel } from '../../common/constants.js';
+} from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
+import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 
 // APPLICATION scope, non-roaming.
 const STORAGE_KEY = 'chat.automations.ledger';
@@ -295,7 +295,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return;
 		}
 
-		// TODO(review): Optimistic concurrency detects conflicts but overwrites anyway. Consider removing revision field (YAGNI) or adding real conflict resolution.
 		// Best-effort optimistic concurrency: re-read before writing to detect schema upgrades
 		// and concurrent writes from other windows.
 		let baseRevision = this._lastSeenRevision;
