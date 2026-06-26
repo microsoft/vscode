@@ -70,8 +70,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			operations.push(
 				{
 					id: 'create-pr-auto-merge',
-					label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-merge)"),
-					description: localize('agentHost.changeset.createPRAutoMerge.description', "Create a pull request and enable auto-merge so it merges automatically once checks pass."),
+					label: localize('agentHost.changeset.createPRAutoMerge', "Create Pull Request (Auto-Merge)"),
 					icon: 'git-merge',
 					group: 'pull-request',
 					scopes: [ChangesetOperationScope.Changeset],
