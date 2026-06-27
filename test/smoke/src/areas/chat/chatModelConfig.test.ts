@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, itRepeat, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -225,7 +225,7 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('forwards the selected reasoning effort and context size to the server', async function () {
+		itRepeat(10, 'forwards the selected reasoning effort and context size to the server', async function () {
 			const app = this.app as Application;
 			const chat = app.workbench.chat;
 

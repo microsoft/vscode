@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, itRepeat, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -566,7 +566,7 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+		itRepeat(10, 'forwards the selected reasoning effort and context size from the Local session', async function () {
 			const app = this.app as Application;
 
 			try {
