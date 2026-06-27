@@ -3639,8 +3639,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!implicitContext) {
 			return;
 		}
-		// Dedupe keys come from the source entries, not the produced attachments, so inlined unsaved buffers (which
-		// carry no URI) still dedupe.
+		// Key on source entries (not produced attachments) so inlined unsaved buffers (no URI) still dedupe.
 		const existingKeys = new Set<string>();
 		for (const v of request.variables.variables) {
 			const key = this._fileEntryDedupeKey(v, request.sessionResource);
@@ -3648,12 +3647,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				existingKeys.add(key);
 			}
 		}
+		// Non-Copilot-CLI backends can't read an untitled buffer, so don't forward it as a broken path.
+		const skipUntitled = this._config.provider !== SessionType.CopilotCLI;
 		for (const entry of implicitContext.values) {
 			if (entry.value === undefined) {
 				continue;
 			}
-			// Non-Copilot-CLI backends can't read an untitled buffer, so don't forward it as a broken path.
-			if (this._config.provider !== SessionType.CopilotCLI && entry.uri?.scheme === Schemas.untitled) {
+			if (skipUntitled && entry.uri?.scheme === Schemas.untitled) {
 				continue;
 			}
 			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
@@ -3758,8 +3758,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-		// Copilot CLI can't read unsaved (untitled/dirty) content from disk, so inline the live buffer instead. When it
-		// can't be inlined, drop unreadable virtual schemes but let on-disk files fall through to their (stale) path.
+		// Copilot CLI can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._config.provider === SessionType.CopilotCLI) {
 			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
 			if (uri && this._isUnsavedResource(uri)) {
@@ -3772,10 +3771,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 		}
-		// File / implicit attachments: a Location → selection, a URI → resource.
-		// Only an implicit selection becomes a `selection`; an implicit visible
-		// document is forwarded as a plain document reference (its viewport range
-		// is dropped so it isn't mistaken for a selection).
+		// File/implicit: a selection Location → 'selection'; a whole document/URI → 'document' (range dropped).
 		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
 			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta, referenceRange);
 		}
