@@ -606,6 +606,12 @@ export class AgentsWindow {
 	 */
 	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
 		const page = this.code.driver.currentPage;
+		// A leftover sticky (locked) context-usage details hover from a prior
+		// `readContextUsageTokenLabel` lingers as a body-level overlay overlapping
+		// the model-config button. A forced click would then land on the popup's
+		// action buttons instead of opening the dropdown, wedging it open without
+		// rows. Clear it (waiting for full detach) before clicking.
+		await this.dismissContextUsageDetails();
 		const configButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
 		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
 		const deadline = Date.now() + timeoutMs;
@@ -710,14 +716,36 @@ export class AgentsWindow {
 				await label.waitFor({ state: 'visible', timeout: 5_000 });
 				const text = (await label.textContent()) ?? '';
 				// Dismiss the sticky details hover so it doesn't intercept later clicks.
-				await page.keyboard.press('Escape');
+				await this.dismissContextUsageDetails();
 				return text.trim();
 			} catch (error) {
 				lastError = error;
-				try { await page.keyboard.press('Escape'); } catch { /* hover already gone */ }
+				await this.dismissContextUsageDetails();
 				await new Promise(r => setTimeout(r, 500));
 			}
 		}
 		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Reliably dismiss the sticky (locked) context-usage details hover. The popup
+	 * is a locked, focus-trapping body-level overlay that lingers (overlapping the
+	 * model-config button) until dismissed. A single Escape can return while the
+	 * popup is mid-teardown but still attached, so a later forced click on the
+	 * config button lands on the popup's action buttons instead of opening the
+	 * dropdown. Press Escape until the popup is fully detached. Best-effort: if it
+	 * never detaches within the budget, the caller proceeds regardless.
+	 */
+	private async dismissContextUsageDetails(timeoutMs: number = 5_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const details = page.locator(CONTEXT_USAGE_DETAILS);
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			if (await details.count() === 0) {
+				return;
+			}
+			try { await page.keyboard.press('Escape'); } catch { /* nothing focused */ }
+			await new Promise(r => setTimeout(r, 150));
+		}
 	}
 }
