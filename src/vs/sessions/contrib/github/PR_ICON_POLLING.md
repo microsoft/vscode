@@ -49,6 +49,24 @@ Both halves of the fix are now implemented:
 The remainder of this document describes the original analysis and the alternatives that
 were considered.
 
+## Instant icon on startup (persistent cache)
+
+Even with polling, the icon for an agent‑host session is still **blank until the first live
+PR fetch completes** (a couple of seconds after startup), because the icon is derived purely
+from the live model. To avoid that empty gap, the agent‑host adapter
+([baseAgentHostSessionsProvider.ts](../providers/agentHost/browser/baseAgentHostSessionsProvider.ts))
+backs the icon with a small persistent cache —
+[`IPullRequestIconCache`](browser/pullRequestIconCache.ts):
+
+- **Read:** while `livePR` is still `undefined`, `gitHubInfo` falls back to the last‑known
+  icon from the cache, so the row shows an icon immediately on startup.
+- **Write:** once the live model resolves, the freshly computed icon is stored back into the
+  cache (a no‑op when unchanged), so the next startup can show it instantly.
+
+The cache key is the **PR link** (`gitHubInfo.pullRequest.uri`), the value is the
+`ThemeIcon`, and it is persisted via `IStorageService`. Only the 50 most recently updated
+entries are retained so the backing storage cannot grow without bound.
+
 ## Where the icon is shown
 
 The same `gitHubInfo.pullRequest.icon` value feeds two surfaces:
@@ -132,6 +150,30 @@ Because the icon‑computing `gitHubInfo` derived only holds its reference while
 observed (`reader.store.add(...)`), a non‑active session's model can be disposed and
 recreated during normal list re‑renders (row recycling on tree splices) — and the recreated
 model is empty until something refreshes it.
+
+## Conditional requests must bypass the renderer HTTP cache
+
+Each refresh issues a conditional request: the model remembers the last `ETag`
+([`_pullRequestEtag`](browser/models/githubPullRequestModel.ts#L46)) and sends it as
+`If-None-Match` ([`githubApiClient.ts`](browser/githubApiClient.ts)). GitHub then answers a
+cheap `304 Not Modified` when nothing changed (which does **not** count against the API rate
+limit) or a `200` with fresh data when it does. This is what keeps per‑session polling
+affordable.
+
+The sessions window runs in a **renderer**, so `IRequestService.request` ultimately calls
+`fetch`. With the default cache mode, Chromium's HTTP cache honors GitHub's
+`Cache-Control: …, max-age=…` response and serves a **stale cached `200` body** for the
+freshness window — short‑circuiting the network entirely. Our `If-None-Match` header then
+never reaches the server, so a poll keeps seeing the old (e.g. still‑`open`) PR for as long
+as the cached entry stays fresh. Because the poll interval (60s) and GitHub's `max-age` are
+the same order of magnitude, a merged PR's new state is observed *"never or hardly ever"* and
+the icon doesn't flip to purple.
+
+The fix is to set [`disableCache: true`](browser/githubApiClient.ts) on every GitHub request
+(→ `fetch` `cache: 'no-store'`, also honored by the node request service). This stops the
+HTTP cache from serving stale bodies while **still sending our explicit `If-None-Match`
+header**, so GitHub keeps answering the cheap `304`/`200` conditionally. Net effect: polling
+is both reliable *and* rate‑limit friendly.
 
 ## Which sessions poll — and which don't
 

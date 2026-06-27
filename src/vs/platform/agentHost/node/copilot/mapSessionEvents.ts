@@ -13,7 +13,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -80,10 +80,20 @@ interface ITurnBuilder {
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
 
-function newTurnBuilder(id: string, text: string, attachments?: MessageAttachment[]): ITurnBuilder {
-	const message: Message = attachments?.length
-		? { text, origin: { kind: MessageKind.User }, attachments }
-		: { text, origin: { kind: MessageKind.User } };
+export interface IMapSessionEventsOptions {
+	readonly workingDirectory?: URI;
+	readonly model?: ModelSelection;
+	readonly agent?: AgentSelection;
+}
+
+function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection }): ITurnBuilder {
+	const message: Message = {
+		text,
+		origin: { kind: MessageKind.User },
+		...(options?.attachments?.length ? { attachments: options.attachments } : {}),
+		...(options?.model ? { model: options.model } : {}),
+		...(options?.agent ? { agent: options.agent } : {}),
+	};
 	return { id, message, responseParts: [], pendingTools: new Map() };
 }
 
@@ -147,8 +157,11 @@ export async function mapSessionEvents(
 	session: URI,
 	db: ISessionDatabase | undefined,
 	events: readonly SessionEvent[],
-	workingDirectory?: URI,
+	options: URI | IMapSessionEventsOptions | undefined = undefined,
 ): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
+	const workingDirectory = options instanceof URI ? options : options?.workingDirectory;
+	let currentModel = options instanceof URI ? undefined : options?.model;
+	let currentAgent = options instanceof URI ? undefined : options?.agent;
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -258,6 +271,16 @@ export async function mapSessionEvents(
 
 	for (const e of events) {
 		switch (e.type) {
+			case 'session.model_change': {
+				currentModel = { id: e.data.newModel };
+				break;
+			}
+			case 'subagent.deselected': {
+				if (!e.agentId) {
+					currentAgent = undefined;
+				}
+				break;
+			}
 			case 'user.message': {
 				if (isSyntheticUserMessage(e)) {
 					continue;
@@ -295,7 +318,7 @@ export async function mapSessionEvents(
 						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
 					}
 					const turnId = e.id ?? messageId;
-					parentBuilder = newTurnBuilder(turnId, content, attachments);
+					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
 				}
 				break;
 			}
@@ -521,6 +544,9 @@ function sdkAttachmentToProtocol(
 			};
 		}
 		case 'blob': {
+			if (typeof attachment.data !== 'string') {
+				return undefined;
+			}
 			if (attachment.mimeType.startsWith('text/plain')) {
 				return {
 					type: MessageAttachmentKind.Simple,

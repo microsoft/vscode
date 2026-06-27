@@ -9,9 +9,9 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -32,6 +32,13 @@ function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
 }
 
+interface IMockSendMessageCall {
+	readonly session: URI;
+	readonly prompt: string;
+	readonly attachments?: readonly MessageAttachment[];
+	readonly chat?: URI;
+}
+
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
  * for assertion and exposes {@link fireProgress} to inject progress events.
@@ -39,6 +46,8 @@ function mockProject(provider: AgentProvider) {
 export class MockAgent implements IAgent {
 	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
+	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
@@ -48,7 +57,7 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[]; chat?: URI }[] = [];
+	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -57,6 +66,8 @@ export class MockAgent implements IAgent {
 	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
+	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
+	readonly removeActiveClientCalls: { clientId: string }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -124,7 +135,9 @@ export class MockAgent implements IAgent {
 	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
 		// Only record `chat` when defined so existing single-chat assertions
 		// that compare against `{ session, prompt, attachments }` still match.
-		this.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
+		const call = chat ? { session, prompt, attachments, chat } : { session, prompt, attachments };
+		this.sendMessageCalls.push(call);
+		this._onDidSendMessage.fire(call);
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
@@ -176,7 +189,7 @@ export class MockAgent implements IAgent {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+	syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): ISyncedCustomization[] {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
@@ -199,7 +212,29 @@ export class MockAgent implements IAgent {
 		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
-	setClientTools(): void { }
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+		const self = this;
+		let tools: readonly ToolDefinition[] = [];
+		let customizations: readonly ClientPluginCustomization[] = [];
+		return {
+			clientId: client.clientId,
+			displayName: client.displayName,
+			get tools() { return tools; },
+			set tools(value: readonly ToolDefinition[]) {
+				tools = value;
+				self.setClientToolsCalls.push({ clientId: client.clientId, tools: value });
+			},
+			get customizations() { return customizations; },
+			set customizations(value: readonly ClientPluginCustomization[]) {
+				customizations = value;
+				self.syncClientCustomizations(session, client.clientId, [...value]);
+			},
+		};
+	}
+
+	removeActiveClient(_session: URI, clientId: string): void {
+		this.removeActiveClientCalls.push({ clientId });
+	}
 
 	onClientToolCallComplete(): void { }
 
@@ -228,6 +263,7 @@ export class MockAgent implements IAgent {
 
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidSendMessage.dispose();
 		this._onDidCustomizationsChange.dispose();
 	}
 }
@@ -713,15 +749,24 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	async setClientCustomizations() {
-		return [];
+	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+		let tools: readonly ToolDefinition[] = [];
+		let customizations: readonly ClientPluginCustomization[] = [];
+		return {
+			clientId: client.clientId,
+			displayName: client.displayName,
+			get tools() { return tools; },
+			set tools(value: readonly ToolDefinition[]) { tools = value; },
+			get customizations() { return customizations; },
+			set customizations(value: readonly ClientPluginCustomization[]) { customizations = value; },
+		};
 	}
+
+	removeActiveClient(): void { }
 
 	setCustomizationEnabled() {
 
 	}
-
-	setClientTools(): void { }
 
 	private didCompleteToolCalls = new Set<string>();
 

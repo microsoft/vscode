@@ -49,9 +49,22 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: true,
 			tags: ['experimental', 'advanced'],
-			// References the `Claude3PIntegration` policy (owned by `github.copilot.chat.claudeAgent.enabled`) so disabling Claude applies across surfaces.
-			policyReference: {
+			// Owns the `Claude3PIntegration` policy; gating here disables Claude across all surfaces.
+			// The user-facing copilot-chat setting `github.copilot.chat.claudeAgent.enabled` attaches
+			// to this policy via a `policyReference` declared in the distro `product.json`. Ownership
+			// lives here (not in `product.json`) so the policy can carry a `value` callback that honors
+			// the account-side editor preview-features flag.
+			policy: {
 				name: 'Claude3PIntegration',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.113',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.agentHost.claudeAgent.enabled.policy',
+						value: nls.localize('chat.agentHost.claudeAgent.enabled.policy', "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."),
+					}
+				}
 			},
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
@@ -59,6 +72,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			// Allow the default to be overridden by an experiment. Uses `startup`
+			// (matching the sibling agent-host settings) since the agent host
+			// process must be restarted for a change to take effect anyway.
+			experiment: { mode: 'startup' },
 			// Owns the `Codex3PIntegration` policy; gating here disables Codex across all agent-host surfaces.
 			policy: {
 				name: 'Codex3PIntegration',

@@ -34,7 +34,7 @@
 /* Header: inset the section title / actions to line up with the rows below. */
 .style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
 	padding-left: var(--vscode-spacing-size80, 8px);
-	padding-right: var(--vscode-spacing-size80, 8px);
+	padding-right: var(--vscode-spacing-size40, 4px);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
@@ -52,4 +52,23 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding: 0 4px;
+}
+
+/* Inset the part title label (e.g. "Explorer") to align with the content below. */
+.style-override.monaco-workbench .part > .title > .title-label {
+	padding-left: var(--vscode-spacing-size80, 8px);
+}
+
+.style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
+	padding: 0 6px;
+}
+
+.style-override.monaco-workbench .chat-viewpane {
+	.agent-session-item .agent-session-title-toolbar .actions-container {
+		gap: 4px;
+	}
+}
+
+.style-override.monaco-workbench .monaco-pane-view .pane > .pane-header > .actions {
+	margin-right: 0px;
 }
