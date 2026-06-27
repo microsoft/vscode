@@ -75,6 +75,8 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
+import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -645,6 +647,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 	) {
 		super();
 		this._config = config;
@@ -695,6 +698,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					);
 				},
 			},
+		));
+
+		// Supply the per-response "Changed N files" chat summary from the
+		// authoritative server-computed per-turn changeset (the same source as
+		// the Agents-app Changes view) instead of the editing session.
+		this._register(this._chatResponseFileChangesService.registerProvider(
+			config.sessionType,
+			this._register(new AgentHostResponseFileChangesProvider(
+				config.connection,
+				config.connectionAuthority,
+				sessionResource => this._resolveSessionUri(sessionResource),
+			)),
 		));
 
 		// Push customization changes to sessions where this client is already active without reclaiming.
