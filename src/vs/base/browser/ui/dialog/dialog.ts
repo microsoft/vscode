@@ -351,6 +351,26 @@ export class Dialog extends Disposable {
 							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
 							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
 						});
+
+						return;
+					}
+
+					// Enter on a focused button should activate that button
+					if (this.buttonBar) {
+						for (let i = 0; i < this.buttonBar.buttons.length; i++) {
+							const button = this.buttonBar.buttons[i];
+							if (button.hasFocus()) {
+								EventHelper.stop(e, true);
+
+								resolve({
+									button: buttonMap[i].index,
+									checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+									values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+								});
+
+								return;
+							}
+						}
 					}
 
 					return; // leave default handling
