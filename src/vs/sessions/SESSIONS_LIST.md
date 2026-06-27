@@ -133,7 +133,7 @@ Archived sessions do not show the session group context menu actions ("Create Gr
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
-- **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
+- **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl/Cmd+PageUp` / `Ctrl/Cmd+PageDown` navigates the visible list (`Cmd+Alt+Left` / `Cmd+Alt+Right` and `Cmd+Shift+[` / `Cmd+Shift+]` on macOS); `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
 
 ### Mobile
