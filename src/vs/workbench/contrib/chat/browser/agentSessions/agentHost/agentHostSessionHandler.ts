@@ -54,7 +54,7 @@ import {
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -83,18 +83,10 @@ import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallTo
 export { toolDataToDefinition };
 
 /**
- * Provider id for the Copilot CLI backend (mirrors `CopilotAgent.id` on the agent-host node side). Only this backend
- * can consume inlined unsaved editor content; the Claude/Codex prompt resolvers forward on-disk paths instead.
- */
-const COPILOT_CLI_PROVIDER: AgentProvider = 'copilotcli';
-
-/**
  * Upper bound on the live editor text we inline for an unsaved document, matching the 1 MB per-file cap chat uses
  * elsewhere (`chatRepoInfo`). Larger buffers are not inlined; a dirty saved file then falls back to its on-disk path.
  */
 const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
-
-
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -3660,7 +3652,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const uri = entry.uri;
 			if (uri && this._isUnsavedResource(uri)) {
-				if (this._config.provider === COPILOT_CLI_PROVIDER) {
+				if (this._config.provider === SessionType.CopilotCLI) {
 					const selection = entry.isSelection && isLocation(entry.value)
 						? { range: this._toTextRange(entry.value.range) }
 						: undefined;
