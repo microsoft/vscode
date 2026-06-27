@@ -4911,7 +4911,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('active editor implicit context is not forwarded for untitled editors on non-Copilot backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('active editor implicit context is not forwarded for untitled editors on non-Copilot-CLI backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-untitled' });
 			const untitledUri = URI.from({ scheme: 'untitled', path: '/Untitled-1' });
