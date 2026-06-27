@@ -68,6 +68,7 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
+	readonly clientToolCallCompleteCalls: { session: URI; toolCallId: string; result: ToolCallResult }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -234,7 +235,9 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ clientId });
 	}
 
-	onClientToolCallComplete(): void { }
+	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
+		this.clientToolCallCompleteCalls.push({ session, toolCallId, result });
+	}
 
 	async shutdown(): Promise<void> { }
 

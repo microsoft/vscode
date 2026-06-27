@@ -1871,8 +1871,6 @@ suite('AgentSideEffects', () => {
 			// chat URI's path is a base64 blob. Forwarding the default chat
 			// URI made the lookup miss and silently dropped the completion.
 			setupSession();
-			const received: URI[] = [];
-			agent.onClientToolCallComplete = (session: URI) => { received.push(session); };
 
 			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatToolCallComplete,
@@ -1881,14 +1879,12 @@ suite('AgentSideEffects', () => {
 				result: { success: true, pastTenseMessage: 'done' },
 			});
 
-			assert.deepStrictEqual(received.map(u => u.toString()), [sessionUri.toString()]);
+			assert.deepStrictEqual(agent.clientToolCallCompleteCalls.map(c => c.session.toString()), [sessionUri.toString()]);
 		});
 
 		test('forwards the chat URI for an additional-chat completion', () => {
 			setupSession();
 			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
-			const received: URI[] = [];
-			agent.onClientToolCallComplete = (session: URI) => { received.push(session); };
 
 			sideEffects.handleAction(peerChatUri, {
 				type: ActionType.ChatToolCallComplete,
@@ -1897,7 +1893,7 @@ suite('AgentSideEffects', () => {
 				result: { success: true, pastTenseMessage: 'done' },
 			});
 
-			assert.deepStrictEqual(received.map(u => u.toString()), [peerChatUri]);
+			assert.deepStrictEqual(agent.clientToolCallCompleteCalls.map(c => c.session.toString()), [peerChatUri]);
 		});
 	});
 
