@@ -24,6 +24,7 @@ import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentT
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -445,6 +446,9 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 			instantiationService.stub(IChatEditingService, {
 				registerEditingSessionProvider: () => toDisposable(() => { }),
+			});
+			instantiationService.stub(IChatResponseFileChangesService, {
+				registerProvider: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatService, {
 				getSession: () => undefined,
