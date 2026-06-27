@@ -280,9 +280,11 @@ export class Chat {
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 
-		// A leftover sticky (locked) context-usage details hover from a prior
-		// `readContextUsageTokenLabel` lingers as a body-level overlay that wedges
-		// the config dropdown so it opens without option rows. Clear it first.
+		// A context-usage details hover from a prior `readContextUsageTokenLabel`
+		// can linger as a body-level overlay over the model-config button; a forced
+		// click would then land on the popup instead of opening the dropdown,
+		// wedging it open without rows. Park the pointer away and wait for the
+		// overlay to detach before clicking.
 		await this.dismissContextUsageDetails();
 
 		while (Date.now() < deadline) {
@@ -375,12 +377,17 @@ export class Chat {
 	/**
 	 * Open the panel chat's context-usage details popup and return the full
 	 * "{used} / {total} tokens" label text. The inline gauge only renders a
-	 * percentage; the absolute context-window denominator lives in the
-	 * click-through details hover (a body-level overlay). The gauge stays hidden
-	 * until a response carrying token usage has rendered, so this waits for the
-	 * gauge to appear before clicking. The details popup is a sticky hover that
-	 * can occasionally fail to open on the first click, so the click + read is
-	 * retried. Dismisses the popup before returning.
+	 * percentage; the absolute context-window denominator lives in the details
+	 * hover (a body-level overlay).
+	 *
+	 * Reads via a *hover* rather than a click on purpose: clicking the gauge opens
+	 * a sticky, focus-trapping details hover that Escape cannot close and that
+	 * then overlaps — and wedges — the model-config button on the next operation.
+	 * The delayed (mouse) hover shows the same details and auto-hides once the
+	 * pointer leaves the gauge. The gauge stays hidden until a response carrying
+	 * token usage has rendered, so this waits for it first, then retries the
+	 * hover + read since the delayed hover can occasionally need a second attempt.
+	 * Moves the pointer off the gauge before returning so nothing lingers.
 	 */
 	async readContextUsageTokenLabel(timeoutMs: number = 30_000): Promise<string> {
 		const page = this.code.driver.currentPage;
@@ -391,15 +398,28 @@ export class Chat {
 		let lastError: unknown;
 		while (Date.now() < deadline) {
 			try {
-				await widget.click({ force: true });
+				// Trigger the gauge's delayed (non-sticky) hover with a raw pointer
+				// move to its center. A normal hover() waits on Playwright
+				// actionability — the gauge expands on hover and its progress arc
+				// animates, so the stability check can hang for the full timeout and
+				// eat the whole deadline (defeating this retry loop). Moving the
+				// pointer away first guarantees a fresh mouse-enter that (re-)opens
+				// the hover on every attempt.
+				const box = await widget.boundingBox();
+				if (!box) {
+					throw new Error('context-usage gauge has no bounding box');
+				}
+				await page.mouse.move(0, 0);
+				await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 				await label.waitFor({ state: 'visible', timeout: 5_000 });
 				const text = (await label.textContent()) ?? '';
-				// Dismiss the sticky details hover so it doesn't intercept later clicks.
+				// Move the pointer off the gauge so the non-sticky hover auto-hides
+				// and leaves no overlay to intercept later clicks.
 				await this.dismissContextUsageDetails();
 				return text.trim();
 			} catch (error) {
 				lastError = error;
-				try { await page.keyboard.press('Escape'); } catch { /* hover already gone */ }
+				await this.dismissContextUsageDetails();
 				await new Promise(r => setTimeout(r, 500));
 			}
 		}
@@ -407,24 +427,25 @@ export class Chat {
 	}
 
 	/**
-	 * Reliably dismiss the sticky (locked) context-usage details hover. The popup
-	 * is a locked workbench hover that stays pinned until dismissed; a single
-	 * Escape can miss it when the hover is not yet focused, leaving a body-level
-	 * overlay that wedges a later model-config dropdown open (it then opens
-	 * without option rows). Press Escape and confirm the popup detached, retrying
-	 * until it is gone or the budget elapses. Best-effort: returns quietly if the
-	 * popup is already absent.
+	 * Dismiss the context-usage details hover by moving the pointer off the gauge
+	 * and waiting for the overlay to fully detach. The details popup is shown as a
+	 * hover anchored to the context-usage gauge; the read path uses a non-sticky
+	 * hover that hides once the pointer leaves, so parking the pointer away from
+	 * every widget dismisses it (Escape does not close it). Best-effort: if it
+	 * never detaches within the budget, the caller proceeds regardless.
 	 */
 	private async dismissContextUsageDetails(timeoutMs: number = 5_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const details = page.locator(CONTEXT_USAGE_DETAILS).first();
+		const details = page.locator(CONTEXT_USAGE_DETAILS);
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
-			if (!(await details.isVisible().catch(() => false))) {
+			// Park the pointer away from the gauge (and every other widget) so the
+			// hover hides and cannot be re-triggered by a lingering cursor.
+			try { await page.mouse.move(0, 0); } catch { /* no page */ }
+			if (await details.count() === 0) {
 				return;
 			}
-			try { await page.keyboard.press('Escape'); } catch { /* nothing focused */ }
-			await new Promise(r => setTimeout(r, 200));
+			await new Promise(r => setTimeout(r, 150));
 		}
 	}
 }
