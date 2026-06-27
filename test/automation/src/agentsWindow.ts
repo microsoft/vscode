@@ -611,6 +611,11 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 
+		// A leftover sticky (locked) context-usage details hover from a prior
+		// `readContextUsageTokenLabel` lingers as a body-level overlay that wedges
+		// the config dropdown so it opens without option rows. Clear it first.
+		await this.dismissContextUsageDetails();
+
 		while (Date.now() < deadline) {
 			try {
 				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
@@ -710,7 +715,7 @@ export class AgentsWindow {
 				await label.waitFor({ state: 'visible', timeout: 5_000 });
 				const text = (await label.textContent()) ?? '';
 				// Dismiss the sticky details hover so it doesn't intercept later clicks.
-				await page.keyboard.press('Escape');
+				await this.dismissContextUsageDetails();
 				return text.trim();
 			} catch (error) {
 				lastError = error;
@@ -719,5 +724,27 @@ export class AgentsWindow {
 			}
 		}
 		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Reliably dismiss the sticky (locked) context-usage details hover. The popup
+	 * is a locked workbench hover that stays pinned until dismissed; a single
+	 * Escape can miss it when the hover is not yet focused, leaving a body-level
+	 * overlay that wedges a later model-config dropdown open (it then opens
+	 * without option rows). Press Escape and confirm the popup detached, retrying
+	 * until it is gone or the budget elapses. Best-effort: returns quietly if the
+	 * popup is already absent.
+	 */
+	private async dismissContextUsageDetails(timeoutMs: number = 5_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const details = page.locator(CONTEXT_USAGE_DETAILS).first();
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			if (!(await details.isVisible().catch(() => false))) {
+				return;
+			}
+			try { await page.keyboard.press('Escape'); } catch { /* nothing focused */ }
+			await new Promise(r => setTimeout(r, 200));
+		}
 	}
 }
