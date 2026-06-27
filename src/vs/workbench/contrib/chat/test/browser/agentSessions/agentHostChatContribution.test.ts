@@ -23,7 +23,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -1471,6 +1471,24 @@ suite('AgentHostChatContribution', () => {
 			const backendSession = AgentSession.uri('copilot', 'multi');
 			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi', fragment: 'peer-1' });
 			const peerChatUri = URI.parse(buildChatUri(backendSession.toString(), 'peer-1'));
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			const defaultChatUri = buildDefaultChatUri(backendSession.toString());
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [
+					createDefaultChatSummary(summary, defaultChatUri),
+					createDefaultChatSummary(summary, peerChatUri.toString()),
+				],
+			});
 
 			// Open the session's default chat and an additional peer chat.
 			const defaultSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2249,7 +2267,9 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			assert.strictEqual(agentHostService.turnActions[0].action.type, 'chat/turnStarted');
 			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.text, 'Hello');
-			assert.strictEqual(AgentSession.id(URI.parse(session)), 'new-turntest');
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'new-turntest');
 		}));
 
 		test('reuses SDK session for same resource on second message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2306,7 +2326,9 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
-			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'existing-session-42');
 		}));
 
 		test('recovers from stale failed subscription before first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2568,7 +2590,9 @@ suite('AgentHostChatContribution', () => {
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			fire({
 				type: 'chat/toolCallStart', session, turnId,
 				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
@@ -6506,7 +6530,9 @@ suite('AgentHostChatContribution', () => {
 			// call fires, so that when the handler subscribes to it the inner tool
 			// is already present.
 			const parentToolCallId = 'tc-parent-task';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
 
 			// Fire the parent task tool call with toolKind=subagent metadata.
@@ -6553,7 +6579,9 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			const parentToolCallId = 'tc-parent-task';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
 
 			// Fire the parent task tool — this should cause the handler to subscribe
@@ -6567,6 +6595,11 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallReady', session, turnId,
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
 			} as ChatAction);
 
 			// Allow the subscription to be set up.
@@ -6639,12 +6672,14 @@ suite('AgentHostChatContribution', () => {
 
 			// Now the SDK emits subagent_started → handler dispatches a content
 			// change with a Subagent content block carrying the agent name.
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
 			fire({
 				type: 'chat/toolCallContentChanged', session, turnId,
 				toolCallId: parentToolCallId,
 				content: [{
 					type: ToolResultContentType.Subagent,
-					resource: buildSubagentSessionUri(session.toString(), parentToolCallId),
+					resource: buildSubagentChatUri(parentSession, parentToolCallId),
 					title: 'Subagent',
 					agentName: 'explore',
 				}],

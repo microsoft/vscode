@@ -1330,7 +1330,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('getSessionMetadata falls back to legacy customizationDirectory as workingDirectory', async () => {
+	test('getSessionMetadata preserves legacy customizationDirectory without inferring workingDirectory', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'legacy-customization-directory');
 		const db = sessionDataService.openDatabase(session);
@@ -1349,7 +1349,6 @@ suite('CopilotAgent', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'SDK legacy-customization-directory',
-				workingDirectory: URI.file('/legacy-workspace'),
 				customizationDirectory: URI.file('/legacy-workspace'),
 			});
 		} finally {

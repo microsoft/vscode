@@ -3927,7 +3927,7 @@ suite('CopilotAgentSession', () => {
 			const tools = runtime.createServerSdkTools();
 			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
 
-			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			const sessionUri = buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'));
 			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');

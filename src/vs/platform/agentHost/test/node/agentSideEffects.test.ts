@@ -24,7 +24,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, buildSubagentChatUri, buildChatUri, buildDefaultChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -442,7 +442,7 @@ suite('AgentSideEffects', () => {
 			renameSideEffects.handleAction(defaultChatUri, action);
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: '/renamed thing', attachments: undefined }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), chat: URI.parse(defaultChatUri), prompt: '/renamed thing', attachments: undefined }]);
 		});
 	});
 
@@ -876,6 +876,7 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
+				chat: URI.parse(defaultChatUri),
 				prompt: 'queued message',
 				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }],
 			}]);
@@ -1606,7 +1607,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-perm-1', toolName: 'write', displayName: 'Write File', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
@@ -1718,7 +1719,7 @@ suite('AgentSideEffects', () => {
 
 			// Parent tool that delegates to a subagent.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-parent', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined,
@@ -1726,18 +1727,18 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
 
 			// Inner client tool starts inside the subagent.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems', contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
@@ -1747,10 +1748,10 @@ suite('AgentSideEffects', () => {
 
 			// Permission flow fires `pending_confirmation` for the inner
 			// client tool. The signal must be routed to the subagent
-			// session — not to the parent — even though the signal carries
-			// only the parent session URI.
+			// chat — not to the parent — when the signal carries the parent
+			// chat URI and parentToolCallId.
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems',
@@ -1760,8 +1761,8 @@ suite('AgentSideEffects', () => {
 				permissionKind: 'custom-tool', permissionPath: undefined,
 			});
 
-			// The subagent session must contain the ChatToolCallReady.
-			const subagentUri = buildSubagentSessionUri(sessionUri.toString(), 'tc-parent');
+			// The subagent chat must contain the ChatToolCallReady.
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
 			const subState = await waitForState(stateManager, () => {
 				const s = stateManager.getSessionState(subagentUri);
 				const inner = s?.activeTurn?.responseParts.find(
@@ -1801,7 +1802,7 @@ suite('AgentSideEffects', () => {
 
 			// Start a tool in the active turn
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-noop', toolName: 'view', displayName: 'Read',
@@ -1812,14 +1813,14 @@ suite('AgentSideEffects', () => {
 
 			// Complete the turn — state manager no longer has an active turn
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
 					toolCallId: 'tc-noop', result: { success: true, pastTenseMessage: 'Read file' },
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 			});
 
@@ -1829,7 +1830,7 @@ suite('AgentSideEffects', () => {
 			// Simulate the hook-triggered continuation: tool actions
 			// arrive without a new protocol turn being started
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: '',
 					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
@@ -1840,7 +1841,7 @@ suite('AgentSideEffects', () => {
 
 			// Now the pending_confirmation arrives — this must NOT be dropped
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-orphan', toolName: 'view', displayName: 'Read',
@@ -1891,7 +1892,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-bypass-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -1899,7 +1900,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-bypass-1', invocationMessage: 'Write .env', toolInput: undefined,
@@ -1908,7 +1909,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-bypass-1', toolName: '', displayName: '',
@@ -1931,7 +1932,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-bypass-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
@@ -1939,7 +1940,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-bypass-shell-1', invocationMessage: 'Run rm -rf /', toolInput: undefined,
@@ -1948,7 +1949,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-bypass-shell-1', toolName: '', displayName: '',
@@ -1972,7 +1973,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-sandboxbypass-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
@@ -1981,7 +1982,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-sandboxbypass-1', toolName: '', displayName: '',
@@ -2060,7 +2061,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-default-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2068,7 +2069,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-default-1', invocationMessage: 'Write .env', toolInput: undefined,
@@ -2077,7 +2078,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-default-1', toolName: '', displayName: '',
@@ -2103,7 +2104,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-mid-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2111,7 +2112,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-mid-1', invocationMessage: 'Write .env', toolInput: undefined,
@@ -2120,7 +2121,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-mid-1', toolName: '', displayName: '',
@@ -2148,7 +2149,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-auto-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2156,7 +2157,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-auto-1', invocationMessage: 'Write file', toolInput: undefined,
@@ -2165,7 +2166,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-auto-1', toolName: '', displayName: '',
@@ -2191,7 +2192,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-env-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2199,7 +2200,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-env-1', invocationMessage: 'Write .env', toolInput: undefined,
@@ -2208,7 +2209,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-env-1', toolName: '', displayName: '',
@@ -2232,7 +2233,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-pkg-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2240,7 +2241,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-pkg-1', invocationMessage: 'Write package.json', toolInput: undefined,
@@ -2249,7 +2250,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-pkg-1', toolName: '', displayName: '',
@@ -2268,7 +2269,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-lock-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2276,7 +2277,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-lock-1', invocationMessage: 'Write yarn.lock', toolInput: undefined,
@@ -2285,7 +2286,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-lock-1', toolName: '', displayName: '',
@@ -2304,7 +2305,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-git-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2312,7 +2313,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-git-1', invocationMessage: 'Write .git/config', toolInput: undefined,
@@ -2321,7 +2322,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-git-1', toolName: '', displayName: '',
@@ -2345,7 +2346,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-read-1', toolName: 'read', displayName: 'Read', contributor: undefined,
@@ -2353,7 +2354,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-read-1', invocationMessage: 'Read file', toolInput: undefined,
@@ -2362,7 +2363,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-read-1', toolName: '', displayName: '',
@@ -2387,7 +2388,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-read-2', toolName: 'read', displayName: 'Read', contributor: undefined,
@@ -2395,7 +2396,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-read-2', invocationMessage: 'Read file', toolInput: undefined,
@@ -2404,7 +2405,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-read-2', toolName: '', displayName: '',
@@ -2670,12 +2671,12 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Inner event arrives but `subagent_started` never does.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-1',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-1',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'inner-1', toolName: 'read', displayName: 'Read', contributor: undefined,
@@ -2683,7 +2684,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-1',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-1',
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'inner-1', invocationMessage: 'Reading...', toolInput: undefined,
@@ -2693,7 +2694,7 @@ suite('AgentSideEffects', () => {
 
 			// Parent tool completes (e.g. it errored before delegating).
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
 					toolCallId: 'tc-1',
@@ -2704,9 +2705,9 @@ suite('AgentSideEffects', () => {
 			// Now a late `subagent_started` for the same toolCallId arrives.
 			// This is unusual but possible after a reconnect/replay. The
 			// drain must NOT replay the (cleared) buffered inner tool call.
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
-			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-1');
 			const subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState, 'subagent session should still be created');
 			const innerTool = subState!.activeTurn?.responseParts.find(
@@ -2721,15 +2722,15 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Start parent tool + subagent
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
 			// Completing the parent tool call must NOT tear down the
 			// subagent session — background subagents keep running after
 			// their parent tool call returns.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
 					toolCallId: 'tc-1',
@@ -2737,14 +2738,14 @@ suite('AgentSideEffects', () => {
 				},
 			});
 
-			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-1');
 			let subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState);
 			assert.ok(subState!.activeTurn, 'subagent turn should still be active after parent tool completes');
 
 			// The SDK's `subagent.completed`/`subagent.failed` event is what
 			// actually closes the subagent session.
-			agent.fireProgress({ kind: 'subagent_completed', chat: sessionUri, toolCallId: 'tc-1' });
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-1' });
 
 			subState = stateManager.getSessionState(subagentUri);
 			assert.strictEqual(subState!.activeTurn, undefined, 'subagent turn should be completed');
@@ -2799,18 +2800,18 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
 			// Fire a delta with parentToolCallId
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-1',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-1',
 				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-sub', content: 'thinking...' } },
 			});
 
 			// Verify the delta went to the subagent session
-			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-1');
 			const subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState?.activeTurn);
 			const markdownPart = subState!.activeTurn!.responseParts.find(
@@ -2824,9 +2825,9 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
 
 			// Verify subagent content is on the running tool
 			const runningState = stateManager.getSessionState(sessionUri.toString());
@@ -2838,7 +2839,7 @@ suite('AgentSideEffects', () => {
 
 			// Complete the tool — the SDK result has its own content
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
 					toolCallId: 'tc-1',
@@ -2869,12 +2870,12 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// 1. Parent tool starts (the `task` invocation).
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// 2. Inner tool fires BEFORE subagent_started (race condition).
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'inner-tc-1', toolName: 'readFile', displayName: 'Read File', contributor: undefined,
@@ -2882,7 +2883,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'inner-tc-1', invocationMessage: 'Reading file...', toolInput: undefined,
@@ -2891,9 +2892,9 @@ suite('AgentSideEffects', () => {
 			});
 
 			// 3. subagent_started arrives later.
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
-			const subagentUri = buildSubagentSessionUri(sessionUri.toString(), 'tc-parent');
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
 			const subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState?.activeTurn, 'subagent session should exist');
 
@@ -2920,14 +2921,14 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Parent task tool spawns a subagent.
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
 			// Inner tool inside the subagent requests permission to read a file
 			// inside the parent workspace.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'inner-read-1', toolName: 'read', displayName: 'Read', contributor: undefined,
@@ -2935,7 +2936,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'inner-read-1', invocationMessage: 'Read file', toolInput: undefined,
@@ -2943,7 +2944,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'inner-read-1', toolName: '', displayName: '',
@@ -2981,14 +2982,14 @@ suite('AgentSideEffects', () => {
 				values: { autoApprove: 'autoApprove' },
 			});
 
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
 			// Inner write outside the workspace would normally NOT auto-approve,
 			// but session-level autoApprove on the parent must apply.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'inner-write-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -2996,7 +2997,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'inner-write-1', invocationMessage: 'Write file', toolInput: undefined,
@@ -3004,7 +3005,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'inner-write-1', toolName: '', displayName: '',
@@ -3031,7 +3032,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
@@ -3039,7 +3040,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-perm-1', invocationMessage: 'Running custom tool', toolInput: undefined,
@@ -3048,7 +3049,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-perm-1', toolName: '', displayName: '',
@@ -3137,7 +3138,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-perm-3', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
@@ -3145,7 +3146,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-perm-3', invocationMessage: 'Running custom tool', toolInput: undefined,
@@ -3154,7 +3155,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'tc-perm-3', toolName: '', displayName: '',
@@ -3180,7 +3181,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined,
@@ -3188,7 +3189,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined,
@@ -3196,7 +3197,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'subagent_started', chat: sessionUri,
+				kind: 'subagent_started', chat: URI.parse(defaultChatUri),
 				toolCallId: 'tc-parent',
 				agentName: 'helper',
 				agentDisplayName: 'Helper',
@@ -3204,7 +3205,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'inner-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
@@ -3212,7 +3213,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri, parentToolCallId: 'tc-parent',
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'inner-perm-1', invocationMessage: 'Running custom tool', toolInput: undefined,
@@ -3221,7 +3222,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			agent.fireProgress({
-				kind: 'pending_confirmation', chat: sessionUri,
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId: 'inner-perm-1', toolName: '', displayName: '',
@@ -3258,7 +3259,7 @@ suite('AgentSideEffects', () => {
 
 			// tool_start + tool_ready + tool_complete with a recorded file edit.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-edit-1', toolName: 'write', displayName: 'Write', contributor: undefined,
@@ -3266,7 +3267,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-edit-1', invocationMessage: 'Write file', toolInput: undefined,
@@ -3274,7 +3275,7 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
 					toolCallId: 'tc-edit-1',
@@ -3307,7 +3308,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(localSideEffects.registerProgressListener(agent));
 
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 			});
 

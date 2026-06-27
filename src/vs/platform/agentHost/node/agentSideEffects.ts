@@ -161,7 +161,7 @@ export class AgentSideEffects extends Disposable {
 				// owning session before notifying the agent.
 				const sessionChannel = isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(envelope.channel), action.toolCallId, action.result);
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -925,7 +925,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
-				const agent = this._options.getAgent(channel);
+				const agent = this._options.getAgent(parseRequiredSessionUriFromChatUri(channel));
 				agent?.onClientToolCallComplete(URI.parse(channel), action.toolCallId, action.result);
 				break;
 			}
