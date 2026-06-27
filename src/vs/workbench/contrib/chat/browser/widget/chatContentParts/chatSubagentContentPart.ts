@@ -564,7 +564,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			if (!this.modelLabelSpan || this.modelLabelSpan.parentElement !== labelElement) {
 				this.modelLabelSpan = $('span.chat-subagent-model-label');
 				labelElement.appendChild(this.modelLabelSpan);
-			} else {
+			} else if (labelElement.lastChild !== this.modelLabelSpan) {
 				// Ensure it stays the last child so it renders after the title detail.
 				labelElement.appendChild(this.modelLabelSpan);
 			}

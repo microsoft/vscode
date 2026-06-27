@@ -1830,8 +1830,12 @@ suite('ChatSubagentContentPart', () => {
 			const part = createPart(serializedInvocation, context);
 
 			const button = getCollapseButton(part);
+			const label = button ? getCollapseButtonLabel(button) : undefined;
 			const ariaLabel = button?.getAttribute('aria-label') ?? '';
-			assert.ok(!ariaLabel.includes('model'), `aria-label should not mention a model, got: "${ariaLabel}"`);
+			const renderedTitle = (label?.textContent ?? '').trim();
+			assert.strictEqual(ariaLabel, renderedTitle,
+				`aria-label should match the rendered title when no model is available, got: "${ariaLabel}" vs "${renderedTitle}"`);
+			assert.strictEqual(getModelLabels(part).length, 0, 'Should not render a model label without a model name');
 		});
 
 		test('should add the model name to title and aria-label when it arrives after render', () => {
