@@ -131,7 +131,6 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		Event.filter(connection.onDidAction, envelope =>
 			envelope.action.type === ActionType.SessionCustomizationsChanged
 			|| envelope.action.type === ActionType.SessionCustomizationUpdated
-			|| envelope.action.type === ActionType.SessionAgentChanged
 		),
 		() => undefined,
 	);

@@ -233,6 +233,69 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(workbench._restoreAttachedEditorMaximizedOnShow, false);
 	});
 
+	interface IMaximizeTestHarness {
+		partVisibility: { sidebar: boolean; auxiliaryBar: boolean; editor: boolean; panel: boolean; sessions: boolean };
+		readonly editorPartView: object;
+		readonly workbenchGrid: {
+			getViewSize(view: object): { width: number; height: number };
+			resizeView(view: object, size: { width: number; height: number }): void;
+		};
+		_editorMaximized: boolean;
+		_editorLastNonMaximizedVisibility?: object;
+		_editorLastNonMaximizedSize?: { width: number; height: number };
+		readonly _onDidChangeEditorMaximized: { fire(): void };
+		setEditorHidden(hidden: boolean): void;
+		setSideBarHidden(hidden: boolean): void;
+		setSessionsHidden(hidden: boolean): void;
+		setAuxiliaryBarHidden(hidden: boolean): void;
+	}
+
+	const setEditorMaximized = Reflect.get(Workbench.prototype, 'setEditorMaximized') as (this: IMaximizeTestHarness, maximized: boolean) => void;
+
+	test('restores editor size and auxiliary bar visibility when un-maximizing', () => {
+		const editorPartView = {};
+		const resizes: { width: number; height: number }[] = [];
+		const auxiliaryBarHiddenCalls: boolean[] = [];
+		let editorSize = { width: 700, height: 800 };
+		const harness: IMaximizeTestHarness = {
+			partVisibility: { sidebar: true, auxiliaryBar: false, editor: true, panel: false, sessions: true },
+			editorPartView,
+			workbenchGrid: {
+				getViewSize: () => editorSize,
+				resizeView: (_view, size) => { resizes.push(size); editorSize = size; },
+			},
+			_editorMaximized: false,
+			_onDidChangeEditorMaximized: { fire: () => { } },
+			setEditorHidden: () => { },
+			setSideBarHidden: hidden => { harness.partVisibility.sidebar = !hidden; },
+			setSessionsHidden: hidden => { harness.partVisibility.sessions = !hidden; },
+			setAuxiliaryBarHidden: hidden => { auxiliaryBarHiddenCalls.push(hidden); harness.partVisibility.auxiliaryBar = !hidden; },
+		};
+
+		setEditorMaximized.call(harness, true);
+
+		// While maximized the layout controller forces the Changes view (auxiliary
+		// bar) visible, which shrinks the editor.
+		harness.partVisibility.auxiliaryBar = true;
+		editorSize = { width: 500, height: 800 };
+
+		setEditorMaximized.call(harness, false);
+
+		assert.deepStrictEqual({
+			auxiliaryBarHiddenCalls,
+			resizes,
+			auxiliaryBarVisible: harness.partVisibility.auxiliaryBar,
+			sidebarVisible: harness.partVisibility.sidebar,
+			sessionsVisible: harness.partVisibility.sessions,
+		}, {
+			auxiliaryBarHiddenCalls: [true],
+			resizes: [{ width: 700, height: 800 }],
+			auxiliaryBarVisible: false,
+			sidebarVisible: true,
+			sessionsVisible: true,
+		});
+	});
+
 	test('does not restore saved desktop part visibility on phone layout', () => {
 		let getCalled = false;
 		const workbench = createWorkbenchHarness();

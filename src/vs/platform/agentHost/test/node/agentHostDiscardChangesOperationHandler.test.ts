@@ -25,7 +25,6 @@ class TestGitService implements IAgentHostGitService {
 	readonly restoreCalls: { workingDirectory: string; paths: readonly string[]; options?: { readonly staged?: boolean; readonly ref?: string } }[] = [];
 	restoreError: Error | undefined;
 
-	async isInsideWorkTree(): Promise<boolean> { return true; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
@@ -97,8 +96,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
 			workingDirectory: opts?.withWorkingDirectory === false ? undefined : URI.file('/repo').toString(),
 		});
 	}

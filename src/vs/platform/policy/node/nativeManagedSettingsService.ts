@@ -10,22 +10,22 @@ import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js
 import { equals } from '../../../base/common/objects.js';
 import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
-import { collectManagedSettingsDefinitions, ICopilotManagedSettingsService } from '../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, INativeManagedSettingsService } from '../common/copilotManagedSettings.js';
 import { PolicyDefinition, PolicyValue } from '../common/policy.js';
 import type { Watcher } from '@vscode/policy-watcher';
 
-export interface ICopilotPolicyWatcherOptions {
+export interface INativePolicyWatcherOptions {
 	readonly registryPath?: string;
 }
 
-export type CopilotPolicyWatcherFactory = (
+export type NativePolicyWatcherFactory = (
 	productName: string,
 	policies: Record<string, { type: 'string' | 'number' | 'boolean' }>,
 	onDidChange: (update: Record<string, PolicyValue | undefined>) => void,
-	options?: ICopilotPolicyWatcherOptions,
+	options?: INativePolicyWatcherOptions,
 ) => Watcher;
 
-export class CopilotManagedSettingsService extends Disposable implements ICopilotManagedSettingsService {
+export class NativeManagedSettingsService extends Disposable implements INativeManagedSettingsService {
 
 	readonly _serviceBrand: undefined;
 
@@ -44,8 +44,8 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		private readonly productName: string,
-		private readonly watcherOptions?: ICopilotPolicyWatcherOptions,
-		private readonly watcherFactory?: CopilotPolicyWatcherFactory,
+		private readonly watcherOptions?: INativePolicyWatcherOptions,
+		private readonly watcherFactory?: NativePolicyWatcherFactory,
 	) {
 		super();
 	}
@@ -79,7 +79,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 
 	private async updateWatcher(): Promise<void> {
 		const managedSettingDefinitions = this.getManagedSettingDefinitions();
-		this.logService.trace(`CopilotManagedSettingsService#updateWatcher - Found ${Object.keys(managedSettingDefinitions).length} managed-settings definitions`);
+		this.logService.trace(`NativeManagedSettingsService#updateWatcher - Found ${Object.keys(managedSettingDefinitions).length} managed-settings definitions`);
 		if (Object.keys(managedSettingDefinitions).length === 0) {
 			this.watcher.clear();
 			const hadManagedSettings = this.managedSettingsValues.size > 0;
@@ -90,16 +90,16 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 			return;
 		}
 
-		const { createWatcher } = this.watcherFactory ? { createWatcher: this.watcherFactory } : (await import('@vscode/policy-watcher') as { createWatcher: CopilotPolicyWatcherFactory });
+		const { createWatcher } = this.watcherFactory ? { createWatcher: this.watcherFactory } : (await import('@vscode/policy-watcher') as { createWatcher: NativePolicyWatcherFactory });
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
-				this.logService.trace(`Creating Copilot managed-settings watcher for productName ${this.productName}`);
+				this.logService.trace(`Creating native managed-settings watcher for productName ${this.productName}`);
 				this.watcher.value = createWatcher(this.productName, managedSettingDefinitions, update => {
 					this._onDidManagedSettingsChange(update as Record<string, PolicyValue | undefined>);
 					c();
 				}, this.watcherOptions);
 			} catch (err) {
-				this.logService.error(`CopilotManagedSettingsService#updateWatcher - Error creating watcher:`, err);
+				this.logService.error(`NativeManagedSettingsService#updateWatcher - Error creating watcher:`, err);
 				e(err);
 			}
 		}));
@@ -121,7 +121,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	}
 
 	private _onDidManagedSettingsChange(update: Record<string, PolicyValue | undefined>): void {
-		this.logService.trace(`CopilotManagedSettingsService#_onDidManagedSettingsChange - Updated managed-settings values: ${JSON.stringify(update)}`);
+		this.logService.trace(`NativeManagedSettingsService#_onDidManagedSettingsChange - Updated managed-settings values: ${JSON.stringify(update)}`);
 
 		let changed = false;
 		for (const [key, value] of Object.entries(update)) {

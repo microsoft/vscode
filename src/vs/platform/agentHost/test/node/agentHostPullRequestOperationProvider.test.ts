@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Event } from '../../../../base/common/event.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -15,9 +16,13 @@ import { ChangesetKind } from '../../common/changesetUri.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
+	readonly onDidChangeSessionGitState = Event.None;
+	readonly onDidRunSessionGitStateRefresh = Event.None;
 	async refreshSessionGitState(): Promise<ISessionGitState | undefined | null> { return undefined; }
+	async refreshSessionGitState2(): Promise<void> { }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
+	async attachSessionGitHubPullRequest(): Promise<void> { }
 };
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
@@ -43,7 +48,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
 	});
 
 	test('does not advertise PR operations without GitHub branch changes', () => {

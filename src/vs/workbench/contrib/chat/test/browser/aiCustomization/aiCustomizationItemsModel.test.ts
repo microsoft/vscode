@@ -120,7 +120,6 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -137,7 +136,6 @@ suite('AICustomizationItemsModel', () => {
 				setActiveSession: (sessionResource: URI) => {
 					activeSessionResource.set(sessionResource, undefined);
 				},
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -566,7 +564,6 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -584,7 +581,6 @@ suite('AICustomizationItemsModel', () => {
 				setActiveSession: (sessionResource: URI) => {
 					activeSessionResource.set(sessionResource, undefined);
 				},
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -808,7 +804,6 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -824,7 +819,6 @@ suite('AICustomizationItemsModel', () => {
 				activeHarness,
 				availableHarnesses,
 				setActiveSession: (next: URI) => activeSessionResource.set(next, undefined),
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),

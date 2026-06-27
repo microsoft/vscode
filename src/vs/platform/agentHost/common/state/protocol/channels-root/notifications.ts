@@ -32,8 +32,8 @@ import type { SessionSummary } from '../channels-session/state.js';
  *       "provider": "copilot",
  *       "title": "New Session",
  *       "status": 1,
- *       "createdAt": 1710000000000,
- *       "modifiedAt": 1710000000000
+ *       "createdAt": "2024-03-09T16:00:00.000Z",
+ *       "modifiedAt": "2024-03-09T16:00:00.000Z"
  *     }
  *   }
  * }
@@ -124,7 +124,7 @@ export interface SessionRemovedParams {
  *     "changes": {
  *       "title": "Refactor auth middleware",
  *       "status": 8,
- *       "modifiedAt": 1710000123456
+ *       "modifiedAt": "2024-03-09T16:02:03.456Z"
  *     }
  *   }
  * }

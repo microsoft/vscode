@@ -143,6 +143,10 @@ export class MockChatService implements IChatService {
 
 	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
 
+	sendPendingRequestImmediately(_sessionResource: URI, _requestId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	addCompleteRequest(): void { }
 
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {

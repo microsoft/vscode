@@ -42,7 +42,7 @@ export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociation
  * Shared so that dynamic re-registrations of the setting preserve the override.
  */
 export const editorsAssociationsAgentsWindowDefault: Readonly<Record<string, string>> = Object.freeze({
-	'*.md': 'vscode.markdown.preview.editor'
+	'*.md': 'vscode.markdown.editor'
 });
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

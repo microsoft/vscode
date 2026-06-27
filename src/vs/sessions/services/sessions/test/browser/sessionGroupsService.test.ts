@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { groupSortKey, SessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
 function createSession(id: string): ISession {
 	return {
@@ -49,16 +49,37 @@ suite('SessionGroupsService', () => {
 	let service: SessionGroupsService;
 	let storageService: InMemoryStorageService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let willSendRequestEmitter: Emitter<ISession>;
+	let sessionStartedEmitter: Emitter<ISession>;
+	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
+
+	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
+	function sendNewSession(draftId: string, committedId: string = draftId): void {
+		willSendRequestEmitter.fire(createSession(draftId));
+		if (committedId !== draftId) {
+			sessionReplacedEmitter.fire({ from: createSession(draftId), to: createSession(committedId) });
+		}
+		sessionStartedEmitter.fire(createSession(committedId));
+	}
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
+		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
+		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
+		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			onDidChangeSessions: sessionsChangedEmitter.event,
+			onWillSendRequest: willSendRequestEmitter.event,
+			onDidStartSession: sessionStartedEmitter.event,
+			onDidReplaceSession: sessionReplacedEmitter.event,
+			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	});
@@ -138,15 +159,6 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroups().filter(g => service.getSessionIdsInGroup(g.id).length === 0).length, 3);
 	});
 
-	test('setGroupSortKey overrides placement and persists', () => {
-		const a = service.createGroup('A', ['s1']);
-		service.setGroupSortKey(a.id, 12345);
-		assert.strictEqual(service.getGroup(a.id)?.sortKeyOverride, 12345);
-
-		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
-		assert.strictEqual(reloaded.getGroup(a.id)?.sortKeyOverride, 12345);
-	});
-
 	test('state persists across reload', () => {
 		const a = service.createGroup('Persisted', ['s1', 's2']);
 
@@ -156,8 +168,78 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(reloaded.getGroupOfSession('s2'), a.id);
 	});
 
-	test('groupSortKey returns the highest member key', () => {
-		assert.strictEqual(groupSortKey([10, 50, 30]), 50);
-		assert.strictEqual(groupSortKey([]), undefined);
+	test('pending new session group binds the next started session', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('started');
+
+		assert.strictEqual(service.getGroupOfSession('started'), a.id);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), ['started']);
+	});
+
+	test('pending group follows the draft as it graduates to a committed id', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('draft', 'committed');
+
+		assert.strictEqual(service.getGroupOfSession('committed'), a.id);
+		assert.strictEqual(service.getGroupOfSession('draft'), undefined);
+	});
+
+	test('pending new session group is consumed once', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('s1');
+		sendNewSession('s2');
+
+		assert.strictEqual(service.getGroupOfSession('s1'), a.id);
+		assert.strictEqual(service.getGroupOfSession('s2'), undefined);
+	});
+
+	test('a concurrent send for another group does not rebind an in-flight send', () => {
+		const a = service.createGroup('A');
+		const b = service.createGroup('B');
+
+		// Dispatch a send for A, then arm B before A's start commits.
+		service.setPendingNewSessionGroup(a.id);
+		willSendRequestEmitter.fire(createSession('a-draft'));
+		service.setPendingNewSessionGroup(b.id);
+
+		sessionStartedEmitter.fire(createSession('a-draft'));
+
+		assert.strictEqual(service.getGroupOfSession('a-draft'), a.id);
+		assert.strictEqual(service.getGroupOfSession('b-draft'), undefined);
+	});
+
+	test('discarding the new session clears the pending group', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		newSessionDiscardedEmitter.fire(createSession('draft'));
+		sendNewSession('unrelated');
+
+		assert.strictEqual(service.getGroupOfSession('unrelated'), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
+	});
+
+	test('pending group for a non-existent group is ignored', () => {
+		service.setPendingNewSessionGroup('missing');
+		sendNewSession('s1');
+		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
+	});
+
+	test('deleting the pending group clears the pending intent', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+		service.deleteGroup(a.id);
+
+		const b = service.createGroup('B');
+		sendNewSession('s1');
+
+		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), []);
 	});
 });

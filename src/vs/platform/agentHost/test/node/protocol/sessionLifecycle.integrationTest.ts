@@ -162,8 +162,8 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		// Verify the flags are reflected in the subscribed session state
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
-		assert.ok(state.summary.status & SessionStatus.IsArchived, 'IsArchived flag should be set in snapshot');
-		assert.ok(state.summary.status & SessionStatus.IsRead, 'IsRead flag should be set in snapshot');
+		assert.ok(state.status & SessionStatus.IsArchived, 'IsArchived flag should be set in snapshot');
+		assert.ok(state.status & SessionStatus.IsRead, 'IsRead flag should be set in snapshot');
 
 		// Poll listSessions until the persisted flags appear (async DB write)
 		client.close();

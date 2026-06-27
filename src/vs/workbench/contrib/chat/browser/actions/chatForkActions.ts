@@ -64,6 +64,9 @@ export class ForkConversationAction extends Action2 {
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
 			if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
+				if (await this._tryForkAsChat(instantiationService, sourceSessionResource, undefined)) {
+					return;
+				}
 				return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, instantiationService);
 			}
 
@@ -163,6 +166,9 @@ export class ForkConversationAction extends Action2 {
 					}
 				}
 			}
+			if (await this._tryForkAsChat(instantiationService, sessionResource, request)) {
+				return;
+			}
 			return await this.forkContributedChatSession(sessionResource, request, true, chatSessionsService, instantiationService);
 		}
 
@@ -237,6 +243,17 @@ export class ForkConversationAction extends Action2 {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			await chatWidgetService.openSession(forkedSessionResource, ChatViewPaneTarget);
 		});
+	}
+
+	/**
+	 * Hook for surfaces (the Agents window) that prefer to fork a multi-chat
+	 * session into a new peer chat in the same session rather than a brand-new
+	 * session. Returns `true` when it fully handled the fork; the default
+	 * implementation does nothing and returns `false`, so the standard
+	 * session-creating fork path runs.
+	 */
+	protected async _tryForkAsChat(_instantiationService: IInstantiationService, _sourceSessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined): Promise<boolean> {
+		return false;
 	}
 
 	private pendingFork = new Map<string, Promise<void>>();

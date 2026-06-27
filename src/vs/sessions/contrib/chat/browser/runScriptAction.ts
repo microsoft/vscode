@@ -31,7 +31,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ActiveSessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
@@ -284,7 +284,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						id: GENERATE_RUN_ACTION_ID,
 						title: localize2('generateRunAction', "Generate New Task..."),
 						category: SessionsCategories.Sessions,
-						precondition: ActiveSessionWorkspaceIsVirtualContext.toNegated(),
+						precondition: SessionWorkspaceIsVirtualContext.toNegated(),
 						menu: [{
 							id: RunScriptDropdownMenuId,
 							group: tasks.length === 0 ? 'navigation' : '1_configure',
@@ -849,7 +849,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 6,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext.toNegated())
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -865,7 +865,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 6,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionWorkspaceIsVirtualContext)
 			}]
 		});
 	}

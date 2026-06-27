@@ -1,8 +1,21 @@
 # Layout Controller — Per-Session Layout State
 
-This document specifies the behaviour of `LayoutController`
-([contrib/layout/browser/sessionLayoutController.ts](contrib/layout/browser/sessionLayoutController.ts)),
-the contribution that manages workbench layout as the user switches between sessions.
+This document specifies how the session layout controllers manage workbench layout as the user
+switches between sessions. The implementation is split across three files, each with its own
+file-level spec. Each spec states the behaviour as numbered **scenario rules** (and keeps the *how* in
+a separate "Implementation notes" section); the code and tests reference these rules by tag:
+
+| File | Spec | Rules |
+|------|------|-------|
+| `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B5` |
+| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D7` |
+| `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md) | `M1`–`M2` |
+
+The abstract `BaseLayoutController` owns the platform-agnostic mechanics (panel, editor working sets,
+persistence, multi-session suppression). `LayoutController` (desktop / web desktop) adds auxiliary bar
+management; `MobileLayoutController` (web phone) omits it. `contrib/layout/browser/sessions.layout.contribution.ts`
+contributes the correct controller per platform (and registers the experimental responsive-sidebar
+setting); it is imported from `sessions.desktop.main.ts` (desktop) and `sessions.web.main.ts` (web).
 
 It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
 
@@ -22,10 +35,11 @@ resource (`URI`) and persisted to workspace storage:
 | Auxiliary bar (secondary side bar) | `_viewStateBySession` | visibility + active view container |
 | Panel (terminal / debug output) | `_panelVisibilityBySession` | visibility only |
 | Editor working set | `_workingSets` | open editors in the grid editor part |
+| Editor part visibility | `_editorPartHiddenBySession` | whether the editor part was left hidden |
 
 All state flows from the `activeSession` **observable** (never events). The controller derives
-`activeSessionResourceObs`, `activeSessionHasChangesObs`, `activeSessionIsUntitledObs`,
-`activeSessionHasWorkspaceObs`, and `multipleSessionsVisibleObs`, then reacts with `autorun`.
+`activeSessionResourceObs`, `activeSessionIsCreatedObs`, `activeSessionHasWorkspaceObs`, and
+`multipleSessionsVisibleObs`, then reacts with `autorun`.
 
 ---
 
@@ -63,17 +77,18 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 
 ### 3.2 Switching to — restore
 
-`_syncAuxiliaryBarVisibility(resource, hasWorkspace, isUntitled, hasChanges)` applies state in
+`_syncAuxiliaryBarVisibility(resource, hasWorkspace, isCreated)` applies state in
 strict priority order:
 
 1. **No resource / no workspace** → do nothing.
-2. **Untitled session (new-session view)** → all untitled sessions share a single state object
+2. **Uncreated session (new-session view)** → all uncreated sessions share a single state object
    (`_newSessionViewState`, persisted to workspace storage under `sessions.newSessionViewState`): if
    the user explicitly hid the aux bar on a new session it stays hidden (across switches *and*
-   reloads); otherwise the default container (§3.2 step 4) is shown. This is the **only** place the
+   reloads); otherwise the default container (§3.2 step 4) is shown. This is the main place the
    side pane is opened automatically — a new session opens it by default so the user starts with
-   Files/Changes visible.
-3. **Titled session** (existing session): the side pane is **never auto-opened**.
+   Files visible.
+3. **Created session** (existing session): the side pane is **never auto-opened** except for the
+   same-session submit transition (§3.3).
    - saved state is **hidden** *or* there is **no saved state** → hide the aux bar and stop. A
      session with no explicit "visible" choice — including one that just converted from the
      new-session view to an existing session — stays closed until the user opens it.
@@ -81,37 +96,44 @@ strict priority order:
    - saved state is **visible** but its container is gone → fall back to the default container
      (§3.2 step 4).
 4. **Default container** (`_openDefaultAuxiliaryBarContainer`), used only when the side pane is being
-   shown (untitled default, or restoring a session the user explicitly left visible):
-   - session **has changes** → open the Changes view (`CHANGES_VIEW_ID`).
-   - otherwise → open the Files container.
+   shown (new-session default, or restoring a session the user explicitly left visible):
+   - session **is created** → open the Changes view (`CHANGES_VIEW_ID`).
+   - otherwise → open the Files container (falling back to Changes if Files is hidden).
 
-### 3.3 No auto-reveal on changes
+### 3.3 New-session submit
 
-The side pane is **not** revealed when a chat turn produces new file changes. The controller does not
-track pending turns; the only automatic opening is the new-session default (§3.2 step 2). Once a
-session is an existing session the side pane stays in whatever state the user left it — they must open
-it themselves to see changes.
+When the active new session becomes created (`isCreated` changes from false to true for the same
+session), the side pane stays in whatever visibility state the user left it. If it is visible, the
+controller switches it to Changes immediately. If it is hidden, the controller records Changes as that
+session's default active container so opening the side pane later shows Changes.
 
-### 3.4 Live visibility tracking
+### 3.4 No auto-reveal on changes
+
+The side pane is **not** revealed, and the active container is not changed, when a chat turn produces
+new file changes. The controller does not track pending turns or file-change counts for default
+selection; the automatic switch to Changes is driven by the created transition (§3.3). Once a session
+is created the side pane stays in whatever state the user left it.
+
+### 3.5 Live visibility tracking
 
 Aux-bar visibility is also tracked **live** (not only on session switch) via an
 `onDidChangePartVisibility` listener for `AUXILIARYBAR_PART` (skipped on mobile web and while
 multiple sessions are visible). For a titled active session it re-runs `_captureViewState`; for an
-untitled active session it updates the shared `_newSessionViewState` (§3.2 step
-2). Without this, the sync autorun — which re-evaluates whenever the session's changes/workspace
-state updates, not just on switch — would, for an untitled session, find no shared state and re-open
-the side pane the user had just hidden.
+uncreated active session it updates the shared `_newSessionViewState` (§3.2 step 2). When a created
+session with hidden saved state is opened, the saved/default active container is restored before the
+visible state is captured, so a hidden-on-submit session opens to Changes.
 
-### 3.5 Editor reveal on session switch
+### 3.6 Editor reveal on session switch
 
 The editor part is revealed programmatically when a session's editor working set is restored on a
-session **switch** (`_revealEditorPartForWorkingSet`, §5). It is **not** revealed on the initial
-restore after a reload (§5.2) — the editor part visibility the workbench restored is preserved, so a
-session whose editor part was hidden (e.g. by closing the Side Panel, which hides both the auxiliary
-bar and the editor part while keeping the editors open) stays hidden. The editor part visibility
-otherwise follows direct editor open/close events and the user's chevron toggle. Each session's
-saved aux-bar visibility wins on switch — a side bar the user hid for a session stays hidden when
-they return to it.
+session **switch** (`_revealEditorPartForWorkingSet`, §5) — **unless** that session left the editor part
+hidden. Each session's editor part hidden state is captured on switch-away (`_saveWorkingSet` records
+`_editorPartHiddenBySession`); a session whose editor part was hidden (e.g. by closing the Side Panel,
+which hides both the auxiliary bar and the editor part while keeping the editors open) keeps the editor
+part hidden when restored. It is also **not** revealed on the initial restore after a reload (§5.2) —
+the editor part visibility the workbench restored is preserved. The editor part visibility otherwise
+follows direct editor open/close events and the user's chevron toggle. Each session's saved aux-bar
+visibility wins on switch — a side bar the user hid for a session stays hidden when they return to it.
 
 ---
 
@@ -147,11 +169,15 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
 
 - **Outgoing session** (skip untitled): `_saveWorkingSet` snapshots the currently open editors as a
   named working set (`session-working-set:<resource>`); sessions with no visible editors store nothing.
+  It also records whether the editor part is currently hidden in `_editorPartHiddenBySession`, but only
+  while a single session is visible — in multi-session mode the editor area is shared, so its visibility
+  is not captured as a per-session choice.
 - **Incoming session**: `_applyWorkingSet` restores its saved working set (or `'empty'`). All
-  applies are serialized through a `Sequencer`. When not in modal mode and the working set is
-  non-empty, the editor part is revealed before/after applying via `_revealEditorPartForWorkingSet`,
-  which suppresses the editor→aux-bar invariant (§3.4) so the session's saved aux-bar visibility is
-  honored.
+  applies are serialized through a `Sequencer`. When not in modal mode, the working set is
+  non-empty, **and the session did not leave the editor part hidden**, the editor part is revealed
+  before/after applying via `_revealEditorPartForWorkingSet`, which suppresses the editor→aux-bar
+  invariant (§3.4) so the session's saved aux-bar visibility is honored. A session whose
+  `_editorPartHiddenBySession` entry is `true` keeps the editor part hidden on switch.
 
 On initial load (no previous session) the controller only applies a working set if one is already
 saved for the incoming session — it never applies `'empty'`, to avoid closing editors being restored.
@@ -161,12 +187,12 @@ because the user closed the Side Panel) is preserved across reloads.
 
 ### 5.3 Cleanup
 
-`onDidChangeSessions` removes working sets **and** per-session view state for **archived** or
-**deleted** sessions. View-state removal is done explicitly in that handler — `_deleteWorkingSet`
-only drops the editor working set. (It must **not** drop the view state, because it is also called
-from `_saveWorkingSet` on every switch-away / shutdown; coupling the two would wipe a session's
-saved aux-bar visibility whenever it had editors but no longer does, causing the aux bar to fall
-back to the default-visible logic (§3.2) on the next reload.)
+`onDidChangeSessions` removes working sets, per-session view state, **and** the editor part hidden
+state for **archived** or **deleted** sessions. View-state and editor-part-visibility removal is done
+explicitly in that handler — `_deleteWorkingSet` only drops the editor working set. (It must **not**
+drop the view state, because it is also called from `_saveWorkingSet` on every switch-away / shutdown;
+coupling the two would wipe a session's saved aux-bar visibility whenever it had editors but no longer
+does, causing the aux bar to fall back to the default-visible logic (§3.2) on the next reload.)
 
 ---
 
@@ -174,8 +200,9 @@ back to the default-visible logic (§3.2) on the next reload.)
 
 - All per-session state serializes to the workspace-scoped key `sessions.layoutState` on
   `IStorageService.onWillSaveState` (`_saveState`), with a `StorageTarget.MACHINE` target.
-- `_saveState` captures the active session's current view state and working set (skipping untitled /
-  multi-session cases) and writes one `ISessionLayoutEntry` per known session resource.
+- `_saveState` captures the active session's current view state, working set, and editor part hidden
+  state (skipping untitled / multi-session cases) and writes one `ISessionLayoutEntry` per known
+  session resource.
 - The shared new-session view state (§3.2 step 2) is persisted separately under the workspace-scoped
   key `sessions.newSessionViewState` as an `INewSessionViewState` object, written immediately whenever
   the user toggles the aux bar on the new-session view (not on shutdown).
@@ -190,7 +217,17 @@ back to the default-visible logic (§3.2) on the next reload.)
 - **Observables, not events**, drive all session-switch logic.
 - **Multiple visible sessions** disable per-session view/panel sync and clear that state (working
   sets preserved).
-- **The side pane is never auto-opened for existing sessions** — it opens automatically only as the
-  new-session default (§3.2 step 2). An existing session with no explicit "visible" choice stays
-  closed until the user opens it.
+- **The side pane is never auto-opened for existing sessions on restore** — it opens automatically as
+  the new-session default (§3.2 step 2) and stays visible when an already-visible new session is
+  submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
+  opens it.
+- **The sessions sidebar is auto-managed on a small window (desktop, [D7])** — when the main container is
+  1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
+  again once either closes or the window widens, unless the user closed it themselves. Suspended while
+  multiple sessions are visible, and switching sessions never auto-hides the sidebar: the base-controller
+  restore epoch (`_withSessionLayoutRestore` / `_isRestoringSessionLayout`) wraps both the aux-bar restore
+  and the editor working-set apply (`_applyWorkingSet`), so the side-pane / editor reveals a switch causes
+  re-baseline the state instead of triggering an auto-hide. Gated by the
+  experimental setting `sessions.layout.autoCollapseSessionsSidebar` (default on in non-stable builds). See
+  [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) D7.
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.

@@ -713,6 +713,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/layout",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/logs",
 			"project": "vscode-sessions"
 		},

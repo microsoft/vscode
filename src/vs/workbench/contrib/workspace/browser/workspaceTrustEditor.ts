@@ -842,6 +842,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
+		// The debounced render can fire after the editor pane (and its scoped
+		// instantiation service) has been disposed. Bail out so we never call
+		// createInstance on a disposed InstantiationService.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		if (this.rendering) {
 			return;
 		}

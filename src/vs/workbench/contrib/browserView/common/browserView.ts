@@ -381,6 +381,7 @@ export interface IBrowserViewModel extends IDisposable {
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+	selectDevice(requestId: string, deviceId: string | null): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
@@ -763,6 +764,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		// Mirror locally so the workbench reflects the decision immediately
 		this.permissions.setMany(origin, grants);
 		return this.browserViewService.setPermissions(this.id, origin, grants);
+	}
+
+	async selectDevice(requestId: string, deviceId: string | null): Promise<void> {
+		return this.browserViewService.selectDevice(this.id, requestId, deviceId);
 	}
 
 	/**

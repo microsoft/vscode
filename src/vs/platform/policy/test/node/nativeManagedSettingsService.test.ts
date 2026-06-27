@@ -11,25 +11,25 @@ import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../common/copilotManagedSettings.js';
-import { CopilotManagedSettingsChannelClient } from '../../common/copilotManagedSettingsIpc.js';
+import { NativeManagedSettingsChannelClient } from '../../common/nativeManagedSettingsIpc.js';
 import { PolicyValue } from '../../common/policy.js';
-import { CopilotManagedSettingsService, CopilotPolicyWatcherFactory } from '../../node/copilotManagedSettingsService.js';
+import { NativeManagedSettingsService, NativePolicyWatcherFactory } from '../../node/nativeManagedSettingsService.js';
 
-suite('CopilotManagedSettingsService', () => {
+suite('NativeManagedSettingsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const policyName = 'ChatToolsAutoApprove';
 
 	test('watches managed-settings keys from policy definitions and exposes raw managed settings', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
-		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, policies, callback) => {
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
 			assert.deepStrictEqual(policies, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' } });
 			onDidChange = callback;
 			callback({});
 			return Disposable.None;
 		};
 
-		const service = disposables.add(new CopilotManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({
 			[policyName]: {
 				type: 'boolean',
@@ -48,12 +48,12 @@ suite('CopilotManagedSettingsService', () => {
 
 	test('does not create the watcher until a managed-settings policy definition is registered', async () => {
 		let watcherCreated = false;
-		const watcherFactory: CopilotPolicyWatcherFactory = () => {
+		const watcherFactory: NativePolicyWatcherFactory = () => {
 			watcherCreated = true;
 			return Disposable.None;
 		};
 
-		const service = disposables.add(new CopilotManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({ OtherPolicy: { type: 'boolean' } });
 
 		assert.strictEqual(watcherCreated, false);
@@ -62,13 +62,13 @@ suite('CopilotManagedSettingsService', () => {
 	test('clears stale watcher values when managed-settings definitions are removed', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		let disposeCount = 0;
-		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, _policies, callback) => {
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
 			onDidChange = callback;
 			callback({});
 			return { dispose: () => disposeCount++ };
 		};
 
-		const service = disposables.add(new CopilotManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({
 			[policyName]: {
 				type: 'boolean',
@@ -87,14 +87,14 @@ suite('CopilotManagedSettingsService', () => {
 	test('keeps raw managed settings while definitions are unchanged', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		let watcherCreateCount = 0;
-		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, _policies, callback) => {
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
 			watcherCreateCount++;
 			onDidChange = callback;
 			callback({});
 			return Disposable.None;
 		};
 
-		const service = disposables.add(new CopilotManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({
 			[policyName]: {
 				type: 'boolean',
@@ -126,13 +126,13 @@ suite('CopilotManagedSettingsService', () => {
 	test('removes raw managed settings whose definitions are no longer watched', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const otherManagedSettingKey = 'permissions.otherManagedSetting';
-		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, _policies, callback) => {
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
 			onDidChange = callback;
 			callback({});
 			return Disposable.None;
 		};
 
-		const service = disposables.add(new CopilotManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
 		await service.updatePolicyDefinitions({
 			[policyName]: {
 				type: 'boolean',
@@ -158,7 +158,7 @@ suite('CopilotManagedSettingsService', () => {
 
 	test('channel client keeps newer event state when initial snapshot resolves later', async () => {
 		const channel = disposables.add(new DeferredManagedSettingsChannel());
-		const client = disposables.add(new CopilotManagedSettingsChannelClient(channel));
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel));
 
 		channel.fire({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 		channel.resolveInitialSnapshot({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
@@ -169,7 +169,7 @@ suite('CopilotManagedSettingsService', () => {
 
 	test('channel client updatePolicyDefinitions updates cache without firing change event', async () => {
 		const channel = disposables.add(new DeferredManagedSettingsChannel());
-		const client = disposables.add(new CopilotManagedSettingsChannelClient(channel));
+		const client = disposables.add(new NativeManagedSettingsChannelClient(channel));
 		channel.resolveInitialSnapshot({});
 		await channel.initialSnapshot;
 

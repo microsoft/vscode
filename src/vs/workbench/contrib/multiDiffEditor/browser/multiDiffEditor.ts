@@ -94,7 +94,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
+		this._multiDiffEditorWidget!.setViewModel(this._viewModel, { preserveFocus: options?.preserveFocus });
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {

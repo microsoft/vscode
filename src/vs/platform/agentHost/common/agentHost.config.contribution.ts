@@ -39,6 +39,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',

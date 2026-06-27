@@ -8,8 +8,8 @@
 	position: absolute;
 	max-width: 280px;
 	min-width: 180px;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	background-color: var(--vscode-agentFeedbackEditorWidget-background, var(--vscode-editorWidget-background));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
 	font-size: var(--vscode-agents-fontSize-label1);
@@ -17,6 +17,11 @@
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	z-index: 10;
+}
+
+.hc-black .agent-feedback-widget,
+.hc-light .agent-feedback-widget {
+	box-shadow: none;
 }
 
 .agent-feedback-widget.visible {
@@ -45,7 +50,7 @@
 	height: 0;
 	border-top: 6px solid transparent;
 	border-bottom: 6px solid transparent;
-	border-right: 6px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-right: 6px solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	display: none;
 }
 
@@ -62,7 +67,7 @@
 	height: 0;
 	border-top: 5px solid transparent;
 	border-bottom: 5px solid transparent;
-	border-right: 5px solid var(--vscode-editorWidget-background);
+	border-right: 5px solid var(--vscode-agentFeedbackEditorWidget-background, var(--vscode-editorWidget-background));
 }
 
 /* Header */
@@ -352,4 +357,19 @@
 .agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground);
 	opacity: 1;
+}
+
+/* Accept / Remove action button bar shown for created agent feedback */
+.agent-feedback-widget-actions-bar {
+	display: flex;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.agent-feedback-widget-actions-bar .monaco-button {
+	flex: 1;
+	padding: 2px 10px;
+	width: auto;
+	font-size: var(--vscode-agents-fontSize-label2);
+	line-height: 18px;
 }

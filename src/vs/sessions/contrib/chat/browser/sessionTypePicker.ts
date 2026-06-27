@@ -24,6 +24,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
@@ -179,6 +180,9 @@ export class SessionTypePicker extends Disposable {
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
+		// Onboarding spotlight target — id is referenced by the "new session view"
+		// tour in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker'));
 		this._updateTriggerLabel();
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));

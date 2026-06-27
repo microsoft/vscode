@@ -14,6 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import type { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -198,5 +199,27 @@ export class ChatEditPillElement extends Disposable {
 				persistence: { hideOnKeyDown: true },
 			}));
 		}
+	}
+}
+
+/**
+ * Resolves the given resource and reports whether it has no content, which is
+ * the case when a file was newly created or was empty before an edit.
+ *
+ * The pill consumers use this to decide whether opening a diff editor is
+ * meaningful: a pure addition into an empty (or non-existent) original has
+ * nothing to diff against, so the resulting file should open in a normal
+ * editor instead.
+ */
+export async function isResourceContentEmpty(textModelService: ITextModelService, uri: URI): Promise<boolean> {
+	try {
+		const ref = await textModelService.createModelReference(uri);
+		try {
+			return ref.object.textEditorModel.getValueLength() === 0;
+		} finally {
+			ref.dispose();
+		}
+	} catch {
+		return false;
 	}
 }

@@ -75,12 +75,13 @@ export enum ChatConfiguration {
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
-	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
+	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
 	DefaultConfiguration = 'chat.defaultConfiguration',
+	DefaultModel = 'chat.defaultModel',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -90,7 +91,6 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
-	AgentHostClientTools = 'chat.agentHost.clientTools',
 	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
 	EditorDefaultProvider = 'chat.editor.defaultProvider',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
@@ -133,9 +133,9 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
 
 /**
  * Shape of the {@link ChatConfiguration.DefaultConfiguration}
- * object setting. Controls the starting `mode` and `approvals` for new
- * agent-host sessions (such as Copilot CLI). Both properties are optional —
- * a missing property falls back to the per-axis default.
+ * object setting. Controls the starting `mode` and `approvals` for new agent-host
+ * sessions (such as Copilot CLI). All properties are optional — a missing property
+ * falls back to the per-axis default.
  */
 export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
@@ -282,6 +282,54 @@ export function getDefaultNewChatSessionResource(
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+/**
+ * Storage key for the last-used non-local editor chat session type (agent), persisted at profile scope.
+ */
+export const ChatLastUsedEditorSessionTypeStorageKey = 'chat.lastUsedEditorSessionType';
+
+/**
+ * Resolves the session type (agent) for a new chat editor, preferring the last-used visible non-local agent when `chat.editor.defaultProvider` isn't explicitly configured.
+ */
+export function getNewChatEditorSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): string {
+	const inspected = configurationService.inspect<string>(ChatConfiguration.EditorDefaultProvider);
+	const explicitlyConfigured = inspected.applicationValue !== undefined
+		|| inspected.userValue !== undefined
+		|| inspected.userLocalValue !== undefined
+		|| inspected.userRemoteValue !== undefined
+		|| inspected.workspaceValue !== undefined
+		|| inspected.workspaceFolderValue !== undefined
+		|| inspected.memoryValue !== undefined
+		|| inspected.policyValue !== undefined;
+
+	if (!explicitlyConfigured
+		&& lastUsedSessionType
+		&& lastUsedSessionType !== localChatSessionType
+		&& isVisibleEditorChatSessionType(lastUsedSessionType, configurationService, chatSessionsService)) {
+		return lastUsedSessionType;
+	}
+
+	return getDefaultNewChatSessionType(configurationService, chatSessionsService);
+}
+
+/**
+ * Like {@link getDefaultNewChatSessionResource}, but prefers the user's
+ * last-used session type via {@link getNewChatEditorSessionType}.
+ */
+export function getNewChatEditorSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): URI {
+	const sessionType = getNewChatEditorSessionType(configurationService, chatSessionsService, lastUsedSessionType);
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
 }
 
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {

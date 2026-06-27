@@ -20,6 +20,13 @@ export interface IClaudeSessionOverlay {
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection;
+	/**
+	 * Transport the session most recently materialized under (Phase 19).
+	 * Forward-compat only — written at materialize time but NOT read for
+	 * transport resolution in v1 (transport is resolved host-level). Lets a
+	 * future per-session-transport feature land without a data migration.
+	 */
+	readonly transport?: 'proxy' | 'native';
 }
 
 /**
@@ -32,6 +39,7 @@ export interface IClaudeSessionOverlayUpdate {
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection | null;
+	readonly transport?: 'proxy' | 'native';
 }
 
 /**
@@ -58,6 +66,7 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_MODEL = 'claude.model';
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
 	private static readonly KEY_AGENT = 'claude.agent';
+	private static readonly KEY_TRANSPORT = 'claude.transport';
 
 	constructor(
 		private readonly _provider: AgentProvider,
@@ -90,6 +99,9 @@ export class ClaudeSessionMetadataStore {
 					fields.agent === null ? '' : JSON.stringify({ uri: fields.agent.uri }),
 				));
 			}
+			if (fields.transport) {
+				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT, fields.transport));
+			}
 			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
@@ -109,17 +121,19 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw] = await Promise.all([
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
 				model: parseModelSelection(modelRaw),
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 				agent: parseAgentSelection(agentRaw),
+				transport: transportRaw === 'proxy' || transportRaw === 'native' ? transportRaw : undefined,
 			};
 		} finally {
 			ref.dispose();
@@ -139,8 +153,6 @@ export class ClaudeSessionMetadataStore {
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
 			customizationDirectory: overlay.customizationDirectory,
-			model: overlay.model,
-			agent: overlay.agent,
 		};
 	}
 }

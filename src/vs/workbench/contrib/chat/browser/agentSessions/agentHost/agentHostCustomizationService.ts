@@ -100,9 +100,6 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 					this._fireCustomizationsChanged();
 					this._fireCustomAgentsChanged();
 					break;
-				case ActionType.SessionAgentChanged:
-					this._fireCustomAgentsChanged();
-					break;
 			}
 		}));
 		this._register(this._provisionalSessionService.onDidChange(sessionResource => {
@@ -136,7 +133,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		const sessionState = this._readSessionState(sessionResource);
-		return sessionState?.summary.workingDirectory;
+		return sessionState?.workingDirectory;
 	}
 
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {

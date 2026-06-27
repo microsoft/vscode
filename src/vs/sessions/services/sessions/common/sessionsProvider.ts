@@ -56,6 +56,18 @@ export interface ISessionModelPickerOptions {
 }
 
 /**
+ * Options controlling how a chat is deleted via {@link ISessionsProvider.deleteChat}.
+ */
+export interface IDeleteChatOptions {
+	/**
+	 * Skip the "Are you sure?" confirmation dialog and delete immediately.
+	 * Used when the chat is a transient draft (e.g. an untitled in-composer
+	 * chat) where there is nothing to lose.
+	 */
+	readonly skipConfirmation?: boolean;
+}
+
+/**
  * A sessions provider encapsulates a compute environment.
  * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
@@ -243,8 +255,12 @@ export interface ISessionsProvider {
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
+	 * @param options Optional behavior, e.g. skipping the confirmation dialog.
+	 * @returns `true` if a chat was deleted, `false` if the deletion was a no-op
+	 * (e.g. the chat was unknown, undeletable, or the user cancelled the
+	 * confirmation dialog).
 	 */
-	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
+	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/**
 	 * Create a new chat in the given session and return it.
@@ -253,6 +269,15 @@ export interface ISessionsProvider {
 	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

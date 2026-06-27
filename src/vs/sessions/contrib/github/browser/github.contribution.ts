@@ -16,6 +16,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../servi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
 import { GitHubService, IGitHubService } from './githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
 import './pullRequestActions.js';
 
@@ -222,3 +223,5 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 registerWorkbenchContribution2(GitHubPullRequestPollingContribution.ID, GitHubPullRequestPollingContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
+
+registerSingleton(IPullRequestIconCache, PullRequestIconCache, InstantiationType.Delayed);

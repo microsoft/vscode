@@ -18,7 +18,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -1526,10 +1526,21 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('Model name tooltip', () => {
+		// Hover content may be a plain string or an IMarkdownString; normalize to text for assertions.
+		const hoverText = (content: unknown): string => {
+			if (typeof content === 'string') {
+				return content;
+			}
+			if (isMarkdownString(content)) {
+				return content.value;
+			}
+			return '';
+		};
+
 		test('should set up hover with model name from serialized toolSpecificData', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1555,7 +1566,7 @@ suite('ChatSubagentContentPart', () => {
 		test('should not set up hover when no model name is available', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1581,7 +1592,7 @@ suite('ChatSubagentContentPart', () => {
 		test('should set up hover when tool completes and toolSpecificData has modelName', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1614,6 +1625,104 @@ suite('ChatSubagentContentPart', () => {
 			// Should now have a hover with the model name
 			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Claude Sonnet 4'));
 			assert.ok(modelHover, 'Should set up hover with model name after completion');
+		});
+
+		test('should set up hover with credits from serialized toolSpecificData', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o',
+					credits: 1.5,
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			createPart(serializedInvocation, context);
+
+			// Hover should mention both the model and the credit cost
+			const hover = setupDelayedHoverCalls.find(c => c.content.includes('1.5') && c.content.includes('credits'));
+			assert.ok(hover, 'Should set up hover with credits');
+			assert.ok(hover!.content.includes('GPT-4o'), 'Hover should still include model name');
+		});
+
+		test('should update hover with credits when they arrive after completion', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+				prompt: 'Do stuff',
+				modelName: 'GPT-4o',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			createPart(toolInvocation, context);
+
+			// No credits in the hover yet
+			assert.strictEqual(setupDelayedHoverCalls.find(c => c.content.includes('credit')), undefined, 'Should not show credits before they are reported');
+
+			// Credits accumulate and the subagent completes
+			toolSpecificData.credits = 2;
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+
+			const creditHover = setupDelayedHoverCalls.find(c => c.content.includes('2') && c.content.includes('credits'));
+			assert.ok(creditHover, 'Should set up hover with credits after completion');
+		});
+
+		test('should update hover with model name when it arrives after initial render', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			// Agent host subagents start without a model name; it is reported
+			// later via the child turns' usage events.
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			createPart(toolInvocation, context);
+
+			// No model in the hover yet
+			assert.strictEqual(setupDelayedHoverCalls.find(c => c.content.includes('Model')), undefined, 'Should not show a model before one is reported');
+
+			// Model name arrives while the subagent is still running
+			toolSpecificData.modelName = 'Claude Sonnet 4';
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Claude Sonnet 4'));
+			assert.ok(modelHover, 'Should set up hover with model name after it arrives');
 		});
 	});
 });

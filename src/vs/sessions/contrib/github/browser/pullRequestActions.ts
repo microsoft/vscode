@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, reset } from '../../../../base/browser/dom.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { $ } from '../../../../base/browser/dom.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
+import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -35,14 +39,15 @@ class OpenPullRequestAction extends Action2 {
 		super({
 			id: OpenPullRequestAction.ID,
 			title: localize2('agentSessions.openPullRequest', 'Open Pull Request'),
+			icon: Codicon.gitPullRequest,
 			f1: false,
 			// Pull request pill shown in the session header meta row
 			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that shows the live `#<number>` label.
+			// custom action view item that shows the PR icon + live `#<number>` label.
 			menu: {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 				when: SessionHasPullRequestContext
 			},
 		});
@@ -73,17 +78,18 @@ function getPullRequestUri(session: IActiveSession | undefined): URI | undefined
 // --- Open Pull Request action view item (session header pull request pill)
 
 /**
- * Renders the session's associated pull request as a `#<number>` pill, the label of the
+ * Renders the session's associated pull request as a PR icon + `#<number>` pill, the
  * {@link OpenPullRequestAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row). Activating the item runs the action, which opens the pull
- * request on GitHub.
+ * (the session header meta row). It extends the generic {@link SessionHeaderMetaActionViewItem}
+ * (so it renders consistently with other meta actions) and shows the live `#<number>` as its label.
+ * Activating the item runs the action, which opens the pull request on GitHub.
  *
  * The pull request number is read from the {@link ISessionContext} so the correct per-session
  * pull request is shown even when several session views are visible at once.
  */
-export class OpenPullRequestActionViewItem extends ActionViewItem {
+export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewItem {
 
-	private readonly _pullRequestIdentityObs: IObservable<{ readonly owner: string; readonly repo: string; readonly number: number } | undefined>;
+	private readonly _pullRequestIdentityObs: IObservable<{ readonly owner: string; readonly repo: string; readonly number: number; readonly icon: ThemeIcon | undefined } | undefined>;
 	private readonly _pullRequestObs: IObservable<IGitHubPullRequest | undefined>;
 
 	constructor(
@@ -93,16 +99,16 @@ export class OpenPullRequestActionViewItem extends ActionViewItem {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
-		super(undefined, action, { ...options, icon: false, label: true });
+		super(undefined, action, options);
 
-		this._pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly number: number } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+		this._pullRequestIdentityObs = derivedOpts<{ readonly owner: string; readonly repo: string; readonly number: number; readonly icon: ThemeIcon | undefined } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			if (!gitHubInfo?.pullRequest) {
 				return undefined;
 			}
-			return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, number: gitHubInfo.pullRequest.number };
+			return { owner: gitHubInfo.owner, repo: gitHubInfo.repo, number: gitHubInfo.pullRequest.number, icon: gitHubInfo.pullRequest.icon };
 		});
 
 		this._pullRequestObs = derived(reader => {
@@ -123,20 +129,20 @@ export class OpenPullRequestActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('chat-composite-bar-meta-pr');
+	protected override getIconElement(): HTMLElement | undefined {
+		const icon = this._pullRequestIdentityObs.get()?.icon ?? Codicon.gitPullRequest;
+		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		if (icon.color) {
+			// Inline `!important` wins over `button.css`'s `.monaco-text-button .codicon
+			// { color: inherit !important }`, so the glyph reflects the live PR state color.
+			iconElement.style.setProperty('color', asCssVariable(icon.color.id), 'important');
+		}
+		return iconElement;
 	}
 
-	protected override updateLabel(): void {
-		if (!this.label) {
-			return;
-		}
+	protected override getLabelText(): string {
 		const number = this._pullRequestIdentityObs.get()?.number;
-		reset(
-			this.label,
-			$('span.chat-composite-bar-meta-pr-label', undefined, number !== undefined ? `#${number}` : ''),
-		);
+		return number !== undefined ? `#${number}` : '';
 	}
 
 	protected override getHoverContents(): IManagedHoverContent | undefined {

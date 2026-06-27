@@ -17,7 +17,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -105,6 +105,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	// Model name used by this subagent for hover tooltip
 	private modelName: string | undefined;
+	// Copilot credits (AIC) consumed by this subagent, shown in the hover tooltip
+	private credits: number | undefined;
 	private _isDefaultDescription: boolean;
 	private readonly _hoverDisposable = this._register(new MutableDisposable());
 
@@ -144,12 +146,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	/**
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
 	 */
-	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; isDefaultDescription: boolean; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
+	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; isDefaultDescription: boolean; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined; credits: number | undefined } {
 		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {
-			return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined };
+			return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined, credits: undefined };
 		}
 
 		// Check toolSpecificData first (works for both live and serialized)
@@ -161,6 +163,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				agentName: toolInvocation.toolSpecificData.agentName,
 				prompt: toolInvocation.toolSpecificData.prompt,
 				modelName: toolInvocation.toolSpecificData.modelName,
+				credits: toolInvocation.toolSpecificData.credits,
 			};
 		}
 
@@ -177,10 +180,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				agentName: params?.agentName,
 				prompt: params?.prompt,
 				modelName: undefined,
+				credits: undefined,
 			};
 		}
 
-		return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined };
+		return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined, credits: undefined };
 	}
 
 	constructor(
@@ -198,7 +202,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
-		const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+		const { description, isDefaultDescription, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
 
 		// Build title: "AgentName: description" or "Subagent: description"
 		const rawPrefix = agentName || localize('chat.subagent.prefix', 'Subagent');
@@ -211,6 +215,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.agentName = agentName;
 		this.prompt = prompt;
 		this.modelName = modelName;
+		this.credits = credits;
 		this.isInitiallyComplete = this.element.isComplete;
 
 		const node = this.domNode;
@@ -545,13 +550,62 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private updateHover(): void {
-		if (!this.modelName || !this._collapseButton) {
+		if (!this._collapseButton) {
+			return;
+		}
+
+		const parts: string[] = [];
+		if (this.modelName) {
+			parts.push(localize('chat.subagent.modelTooltip', 'Model: {0}', this.modelName));
+		}
+		if (typeof this.credits === 'number' && this.credits > 0) {
+			const formatted = formatCopilotCredits(this.credits);
+			parts.push(formatted === '1'
+				? localize('chat.subagent.creditTooltip', '{0} credit', formatted)
+				: localize('chat.subagent.creditsTooltip', '{0} credits', formatted));
+		}
+
+		if (parts.length === 0) {
+			this._hoverDisposable.clear();
 			return;
 		}
 
 		this._hoverDisposable.value = this.hoverService.setupDelayedHover(this._collapseButton.element, {
-			content: localize('chat.subagent.modelTooltip', 'Model: {0}', this.modelName),
+			content: parts.join(' • '),
 		});
+	}
+
+	/**
+	 * Re-reads the subagent's credit (AIC) usage from `toolSpecificData` and
+	 * refreshes the hover tooltip when it has changed. Credits can arrive
+	 * incrementally while the subagent runs and continue updating until its
+	 * child turns report their final usage.
+	 */
+	private refreshCreditsFromToolData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind !== 'subagent') {
+			return;
+		}
+		const credits = toolInvocation.toolSpecificData.credits;
+		if (typeof credits === 'number' && credits !== this.credits) {
+			this.credits = credits;
+			this.updateHover();
+		}
+	}
+
+	/**
+	 * Re-reads the subagent's model name from `toolSpecificData` and refreshes
+	 * the hover when it changes. The model can arrive incrementally (e.g. agent
+	 * host subagents report it via their child turns' usage events).
+	 */
+	private refreshModelFromToolData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind !== 'subagent') {
+			return;
+		}
+		const modelName = toolInvocation.toolSpecificData.modelName;
+		if (modelName && modelName !== this.modelName) {
+			this.modelName = modelName;
+			this.updateHover();
+		}
 	}
 
 	/**
@@ -731,6 +785,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 							this.updateHover();
 						}
 					}
+					// Credits (AIC) may arrive at or after completion as the
+					// subagent's child turns report their final usage.
+					this.refreshCreditsFromToolData(toolInvocation);
 
 					// Mark as inactive when the tool completes
 					this.markAsInactive();
@@ -746,6 +803,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						this.modelName = modelName;
 						this.updateHover();
 					}
+					this.refreshCreditsFromToolData(toolInvocation);
 					this.renderPromptSection();
 					this.updateTitle();
 				} else if (toolInvocation.toolSpecificData?.kind === 'subagent') {
@@ -767,6 +825,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						}
 						this.updateTitle();
 					}
+					this.refreshCreditsFromToolData(toolInvocation);
+					this.refreshModelFromToolData(toolInvocation);
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {

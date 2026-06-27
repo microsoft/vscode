@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { ActiveClientToolSet } from '../../../node/activeClientState.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -393,9 +394,10 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
-	test('dynamicToolCall item carries a Client contributor when toolsClientId is set', () => {
-		const state = createCodexSessionMapState();
-		state.toolsClientId = 'win-7';
+	test('dynamicToolCall item carries a Client contributor when a client owns the tool', () => {
+		const toolSet = new ActiveClientToolSet();
+		toolSet.set('win-7', [{ name: 'get_magic_word' }]);
+		const state = createCodexSessionMapState(new Set(), toolSet);
 		const startActions = mapItemStarted(state, {
 			item: { type: 'dynamicToolCall', id: 'dyn_2', namespace: null, tool: 'get_magic_word', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
@@ -416,8 +418,9 @@ suite('codexMapAppServerEvents', () => {
 		// A server tool is registered under its bare name and executes
 		// in-process, so it must not carry a Client contributor even when a
 		// workbench client owns the (other) client tools.
-		const state = createCodexSessionMapState(new Set(['addComment']));
-		state.toolsClientId = 'win-7';
+		const toolSet = new ActiveClientToolSet();
+		toolSet.set('win-7', [{ name: 'get_magic_word' }]);
+		const state = createCodexSessionMapState(new Set(['addComment']), toolSet);
 		const startActions = mapItemStarted(state, {
 			item: { type: 'dynamicToolCall', id: 'dyn_3', namespace: null, tool: 'addComment', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,

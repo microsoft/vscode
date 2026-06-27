@@ -121,10 +121,13 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				return stored;
 			}
 			// The stored folder is no longer part of the workspace (folders
-			// changed); drop the stale selection and fall back to the first folder.
+			// changed); drop the stale selection and fall back below.
 			this._newSessionFolderService.clear(sessionResource!);
 		}
-		return folders[0]?.uri;
+		// No explicit choice for this session yet: default to the folder the
+		// user last picked in this window (if still valid) so a new chat keeps
+		// the previous selection instead of resetting to the first folder.
+		return this._newSessionFolderService.getDefaultFolder() ?? folders[0]?.uri;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {

@@ -170,7 +170,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
 		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const initialModifiedAt = (initialSnapshot.snapshot!.state as ISessionWithDefaultChat).summary.modifiedAt;
+		const initialModifiedAt = Date.parse((initialSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -178,7 +178,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.snapshot!.state as ISessionWithDefaultChat).summary.modifiedAt;
+		const updatedModifiedAt = Date.parse((updatedSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 

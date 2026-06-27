@@ -1048,7 +1048,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
-.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty {
+.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty,
+.interactive-session .chat-secondary-toolbar .chat-input-status-container.has-no-actions {
 	display: none;
 }
 
@@ -3822,6 +3823,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			padding: 2px 5px;
 		}
 
+		.monaco-toolbar .actions-container > .action-item:last-child .action-label {
+			margin-right: 0;
+		}
+
 		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked) {
 			display: flex;
 			align-items: center;
@@ -3839,6 +3844,80 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-foreground);
 			border-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			background-color: var(--vscode-sideBar-background);
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item {
+			display: flex;
+			align-items: stretch;
+			margin-left: 5px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming {
+			border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			background-color: var(--vscode-sideBar-background);
+			border-radius: var(--vscode-cornerRadius-medium);
+			overflow: hidden;
+			margin-right: 5px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child,
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			color: var(--vscode-foreground);
+			border: none;
+			border-radius: 0;
+			margin: 0;
+			background-color: transparent;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child {
+			align-items: center;
+			padding: 1px 10px;
+			background: linear-gradient(90deg,
+					var(--vscode-foreground) 0%,
+					var(--vscode-foreground) 30%,
+					var(--vscode-focusBorder) 50%,
+					var(--vscode-foreground) 70%,
+					var(--vscode-foreground) 100%);
+			background-size: 400% 100%;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: chat-thinking-shimmer 3s linear infinite;
+			will-change: background-position;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child .codicon {
+			margin-right: 4px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel .codicon {
+			margin-right: 0;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child:hover {
+			box-shadow: inset 0 0 0 100px var(--vscode-toolbar-hoverBackground);
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel:hover {
+			background-color: var(--vscode-toolbar-hoverBackground);
+		}
+
+		.monaco-toolbar .action-label.chat-restore-checkpoint-cancel {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			align-self: stretch;
+			margin-right: 0;
+			margin-left: 0;
+			padding: 0 5px;
+		}
+
+		.monaco-toolbar .action-label.chat-restore-checkpoint-cancel.hidden {
+			display: none;
 		}
 	}
 
@@ -3871,6 +3950,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.checkpoint-container:focus-within,
 	.checkpoint-container.group-hovered,
+	.checkpoint-container:has(.chat-restore-checkpoint-item.confirming),
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
@@ -4401,4 +4481,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Voice mode: green disconnect button */
 .chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
 	color: var(--vscode-charts-green, #3fb950) !important;
+}
+
+.monaco-reduce-motion .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-foreground);
 }

@@ -1144,4 +1144,93 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], true);
 		});
 	});
+
+	suite('subagent credits', () => {
+		let creditsCallIdCounter = 0;
+
+		/**
+		 * Creates a RunSubagentTool whose subagent invocation emits the supplied
+		 * usage progress parts, so tests can assert how the subagent's credit
+		 * (AIC) cost is surfaced on its tool's `toolSpecificData`.
+		 */
+		function createCreditTool(usageParts: IChatProgress[]) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, _request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+					progress(usageParts);
+					return {};
+				},
+			};
+
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [{ id: 'req-1' }],
+						acceptResponseProgress: () => { },
+					} as unknown as IChatModel;
+				},
+			};
+
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+
+			return testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				configService,
+				promptsService,
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+		}
+
+		function createSubagentInvocation(): IToolInvocation {
+			return {
+				callId: `credits-call-${++creditsCallIdCounter}`,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'do something', description: 'test' },
+				context: { sessionResource: URI.parse('test://session/credits') },
+				userSelectedTools: { runSubagent: true },
+				toolSpecificData: { kind: 'subagent', description: 'test' },
+			} as IToolInvocation;
+		}
+
+		const countTokens = async () => 0;
+		const noProgress: ToolProgress = { report() { } };
+
+		test('writes the running credit total onto the subagent toolSpecificData', async () => {
+			// Credits are cumulative per usage event; the latest value is the total.
+			const tool = createCreditTool([
+				{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 2 },
+				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 5 },
+			]);
+			const invocation = createSubagentInvocation();
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, 5);
+		});
+
+		test('leaves credits unset when no usage is reported', async () => {
+			const tool = createCreditTool([]);
+			const invocation = createSubagentInvocation();
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, undefined);
+		});
+	});
 });
+

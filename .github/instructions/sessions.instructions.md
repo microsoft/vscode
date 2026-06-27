@@ -59,8 +59,8 @@ Always use `Menus.*` from `browser/menus.ts` — never `MenuId.*` from `vs/platf
 
 All sessions-specific context keys live in `common/contextkeys.ts`:
 - `IsNewChatSessionContext` — whether showing the new session view
-- `ActiveSessionProviderIdContext` — which provider owns the active session
-- `ActiveSessionTypeContext` — session type of the active session
+- `SessionProviderIdContext` — which provider owns the session in scope (the active session globally)
+- `SessionTypeContext` — session type of the session in scope (the active session globally)
 - `IsPhoneLayoutContext` — whether in phone layout mode
 - `ChatBarVisibleContext` / `ChatBarFocusContext` — chat bar state
 

@@ -66,7 +66,6 @@ export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agent
 
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
-	isInsideWorkTree(workingDirectory: URI): Promise<boolean>;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<string | undefined>;
 	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;

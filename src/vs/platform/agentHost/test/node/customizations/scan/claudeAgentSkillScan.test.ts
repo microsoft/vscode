@@ -67,4 +67,21 @@ suite('claudeAgentSkillScan', () => {
 		assert.strictEqual(dup[0].uri.toString(), projectAgent.toString());
 		assert.strictEqual(dup[0].description, 'project');
 	});
+
+	test('a `.claude/skills/<name>` dir that is a native plugin is not surfaced as a standalone skill (PB-8)', async () => {
+		// A plain on-disk skill is surfaced normally.
+		const realSkill = await seed('/workspace/.claude/skills/real/SKILL.md', '---\nname: real\ndescription: Real\n---\nbody');
+		// A `@skills-dir` plugin dir holds a plugin manifest (and may also carry a
+		// top-level SKILL.md) — it belongs to its PluginCustomization, not the
+		// standalone skill list.
+		await seed('/workspace/.claude/skills/tg/.claude-plugin/plugin.json', JSON.stringify({ name: 'tg' }));
+		await seed('/workspace/.claude/skills/tg/SKILL.md', '---\nname: tg\ndescription: plugin\n---\nbody');
+
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+
+		assert.deepStrictEqual(
+			discovered.filter(d => d.customization.type === CustomizationType.Skill).map(d => ({ name: d.name, uri: d.uri.toString() })),
+			[{ name: 'real', uri: realSkill.toString() }],
+		);
+	});
 });

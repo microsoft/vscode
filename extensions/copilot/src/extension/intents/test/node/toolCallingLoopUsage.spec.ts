@@ -191,6 +191,29 @@ describe('ToolCallingLoop usage reporting', () => {
 		expect(stream.usages).toHaveLength(0);
 	});
 
+	it('reports credits-only usage for subagent requests', async () => {
+		const request = createMockChatRequest({
+			subAgentInvocationId: 'subagent-credits-test',
+			subAgentName: 'search'
+		});
+		const loop = instantiationService.createInstance(
+			CreditsTestToolCallingLoop,
+			{
+				conversation: createConversation(request.prompt),
+				toolCallLimit: 1,
+				request,
+			}
+		);
+		disposables.add(loop);
+		const stream = new UsageCapturingStream();
+
+		await loop.runOne(stream, 0, tokenSource.token);
+
+		// Subagents report their running credit total with no token counts so the
+		// subagent tool can surface its own cost without inflating the parent widget.
+		expect(stream.usages).toEqual([{ promptTokens: 0, completionTokens: 0, copilotCredits: 5 }]);
+	});
+
 	it('accumulates copilot credits across iterations within a turn', async () => {
 		const request = createMockChatRequest();
 		const loop = instantiationService.createInstance(

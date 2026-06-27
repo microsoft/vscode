@@ -28,9 +28,9 @@ export type IAgentHostUserMessageSentClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
-	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active client identifier for the session, if any.' };
-	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools provided by the active client, if any.' };
-	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations provided by the active client, if any.' };
+	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
+	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of tools provided by the active clients, if any.' };
+	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of customizations provided by the active clients, if any.' };
 	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the user message.' };
 	owner: 'roblourens';
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
@@ -76,17 +76,17 @@ export class AgentHostTelemetryReporter {
 
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
-		const activeClient = sessionState?.activeClient;
+		const activeClients = sessionState?.activeClients ?? [];
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
 			agentSessionId: AgentSession.id(session),
 			source,
 			isSubagentSession: isSubagentSession(session),
 			turnCount: sessionState?.turns.length ?? 0,
-			...(activeClient ? {
-				activeClientId: activeClient.clientId,
-				activeClientToolCount: activeClient.tools.length,
-				activeClientCustomizationCount: activeClient.customizations?.length ?? 0,
+			...(activeClients.length > 0 ? {
+				activeClientId: activeClients[0].clientId,
+				activeClientToolCount: activeClients.reduce((sum, client) => sum + client.tools.length, 0),
+				activeClientCustomizationCount: activeClients.reduce((sum, client) => sum + (client.customizations?.length ?? 0), 0),
 			} : {}),
 			attachmentCount,
 		});

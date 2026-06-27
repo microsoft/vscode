@@ -90,16 +90,6 @@
 	opacity: 1;
 }
 
-/* In the orange CI banner, the primary action matches the orange accent. */
-.session-input-banner.accent-orange .session-input-banner-action:not(.secondary) {
-	background: var(--vscode-charts-orange);
-	color: var(--vscode-button-foreground);
-}
-
-.session-input-banner.accent-orange .session-input-banner-action:not(.secondary):hover {
-	background: color-mix(in srgb, var(--vscode-charts-orange) 88%, black);
-}
-
 /* Dismiss (x) button. */
 .session-input-banner .session-input-banner-dismiss {
 	display: flex;

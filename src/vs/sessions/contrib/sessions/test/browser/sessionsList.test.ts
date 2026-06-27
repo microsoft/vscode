@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -158,6 +158,77 @@ suite('Sessions - SessionsList Helpers', () => {
 		});
 	});
 
+	suite('limitSessionsForList', () => {
+
+		test('caps sessions and returns a show more item', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2'],
+				showMore: {
+					showMore: true,
+					kind: 'sessions',
+					mode: 'more',
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					remainingCount: 1,
+				},
+			});
+		});
+
+		test('returns all sessions and a show less item when expanded', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: true,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: {
+					showMore: true,
+					kind: 'sessions',
+					mode: 'less',
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					remainingCount: 0,
+				},
+			});
+		});
+
+		test('does not cap when disabled', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: false,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: undefined,
+			});
+		});
+	});
+
 	suite('groupSessionsForList', () => {
 
 		test('shows pinned sessions in a dedicated top section', () => {
@@ -185,6 +256,22 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
+		});
+
+		test('sorts pinned sessions using supplied sort keys', () => {
+			const first = createSession('first', { createdAt: new Date('2024-01-01') });
+			const second = createSession('second', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[first, second],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+				session => session.sessionId === first.sessionId ? 200 : 100,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'pinned', sessions: ['first', 'second'] },
+			]);
 		});
 	});
 

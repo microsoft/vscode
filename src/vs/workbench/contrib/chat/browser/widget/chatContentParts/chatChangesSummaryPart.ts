@@ -31,6 +31,7 @@ import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/c
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -57,6 +58,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatResponseFileChangesService private readonly chatResponseFileChangesService: IChatResponseFileChangesService,
 	) {
 		super();
 
@@ -66,11 +68,27 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
 		this.domNode.tabIndex = 0;
 
+		// Hide the whole summary when there are no changes to show. The part is
+		// created eagerly for completed responses, but session types whose
+		// changes are computed asynchronously (e.g. agent host turn changesets)
+		// only know whether a turn produced edits once the diffs resolve.
+		this._register(autorun(r => {
+			const hasChanges = this.fileChangesDiffsObservable.read(r).length > 0;
+			this.domNode.style.display = hasChanges ? '' : 'none';
+		}));
+
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderFilesList(this.domNode));
 	}
 
 	private computeFileChangesDiffs({ requestId, sessionResource }: IChatFileChangesSummaryPart) {
+		// Prefer a session-type-specific provider (the authoritative source for
+		// session types that own their own change computation); otherwise fall
+		// back to the chat editing session's per-request diffs.
+		const fromProvider = this.chatResponseFileChangesService.getChangesForRequest(sessionResource, requestId);
+		if (fromProvider) {
+			return fromProvider;
+		}
 		return this.chatService.chatModels
 			.map(models => Iterable.find(models, m => isEqual(m.sessionResource, sessionResource)))
 			.map(model => model?.editingSession?.getDiffsForFilesInRequest(requestId))

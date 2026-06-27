@@ -278,10 +278,16 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		return { input };
 	}
 
-	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress): ISession {
+	function makeSession(resource: URI, status: SessionStatus = SessionStatus.InProgress, options?: { folders?: URI[]; changes?: URI[] }): ISession {
+		const workspace = options?.folders
+			? { folders: options.folders.map(root => ({ root, workingDirectory: root })) }
+			: undefined;
+		const changes = (options?.changes ?? []).map(uri => ({ modifiedUri: uri, originalUri: uri }));
 		return {
 			resource,
 			status: observableValue<SessionStatus>('status', status),
+			workspace: observableValue('workspace', workspace),
+			changes: observableValue('changes', changes),
 		} as unknown as ISession;
 	}
 
@@ -402,6 +408,34 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(undefined);
 
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('does not return a session for files outside the session workspace folders', () => {
+		const wsSession = makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')] });
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		// A user-data file outside the workspace is out of scope.
+		assert.strictEqual(service.getSessionForFile(URI.file('/home/user/settings.json')), undefined);
+		// A file inside the workspace folder is in scope.
+		assert.strictEqual(service.getSessionForFile(URI.file('/workspace/a.ts'))?.resource.toString(), sessionS1.toString());
+	});
+
+	test('returns a session for files that are part of its changes even outside the workspace', () => {
+		const changed = URI.file('/outside/changed.ts');
+		const wsSession = makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')], changes: [changed] });
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		assert.strictEqual(service.getSessionForFile(changed)?.resource.toString(), sessionS1.toString());
+	});
+
+	test('does not return a session for output view resources', () => {
+		const wsSession = makeSession(sessionS1, SessionStatus.InProgress, { folders: [URI.file('/workspace')] });
+		sessions.set(sessionS1.toString(), wsSession);
+		setActiveSession(wsSession);
+
+		assert.strictEqual(service.getSessionForFile(URI.from({ scheme: 'output', path: '/workspace/foo' })), undefined);
 	});
 });
 

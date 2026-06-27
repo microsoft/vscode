@@ -778,7 +778,7 @@ SDK; the host does not need to gate.
 | `onClientToolCallComplete(...)` | Host → SDK | Resolves the in-process MCP tool's pending promise | Same mechanism as `respondToUserInputRequest` |
 | `setCustomizationEnabled(uri, enabled)` | Host → SDK | `Query.reloadPlugins()` (runtime) | **Defer-and-coalesce** when busy: set `_pendingPluginReload`, drain at next yield. Idle path applies immediately. The SDK's `reloadPlugins` returns the refreshed `commands / agents / plugins / mcpServers` — useful as a verification probe but not required for correctness |
 | `getCustomizations()` | SDK → Host (projection) | `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` | Compose the live snapshot from runtime SDK queries plus the host plugin manager's enabled set |
-| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` used only as a **filter** when materialized | **Phase 16.** See "Phase 16 — disk-scan customization resolution" below. Pre-materialize: client-pushed ∪ full disk scan + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries |
+| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` + `system/init.plugins` used only as a **filter** when materialized | **Phase 16 + 17.** See "Phase 16 — disk-scan customization resolution" and "Phase 17 — hooks + native plugins" below. Pre-materialize: client-pushed ∪ full disk scan (agents/skills/commands/MCP/rules/hooks/native plugins) + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries; hooks/rules bypass the filter |
 
 **Phase 16 — disk-scan customization resolution.** As shipped,
 `getSessionCustomizations` does **not** project SDK query payloads into
@@ -811,7 +811,46 @@ item's real editable `file:` `uri`:
   fires `onDidCustomizationsChange` so the list updates live.
 - The synthetic-stub `ClaudeSdkCustomizationBundler` (Phase 11) is **deleted**.
 
-**Skills as plugins.** The SDK has no `Options.skills` field. A
+**Phase 17 — hooks + native plugins (surface only).** Phase 17 extends the
+Phase 16 disk scan with two more user/workspace-configured tiers. Both are
+**surface-only**: the SDK already loads them via `settingSources`, so
+`Options.plugins` / `claudeSdkOptions.ts` are **untouched** (plumbing native
+plugins in would double-load — `claudeSkills.ts` skips `.claude` dirs).
+
+- **Hooks** (`scan/claudeHookScan.ts`): reads the `hooks` block from the
+  user/project/local `settings.json` (+ `settings.local.json`) via the shared
+  `parseHooksJson`; surfaces one `HookCustomization` per declaring file under a
+  per-scope `DirectoryCustomization` (`contents: Hook`). There is **no SDK hook
+  enumeration API**, so hooks are disk-only and **bypass** the post-materialize
+  filter (like rules). `disableAllHooks` drops a scope; `managed` is excluded.
+- **Native plugins** (`scan/claudeNativePluginScan.ts`): resolves
+  `enabledPlugins` (precedence `user < project < local`, enabled = value
+  `!== false`) to on-disk roots — marketplace cache
+  (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, newest version by
+  mtime with a numeric-`localeCompare` tie-break) or in-place `@skills-dir` —
+  parses each with the shared multi-format `detectPluginFormat` +
+  `parsePlugin`, and surfaces each as a **top-level** `PluginCustomization`
+  (not a per-scope directory) whose children are the bundled
+  agents/skills/instructions/hooks/MCP. `splitPluginId` guards against path
+  traversal in untrusted-workspace ids.
+- **Post-materialize plugin filter matches on `system/init.plugins[].source`
+  (the `<plugin>@<marketplace>` id), not `path`.** The SDK `init.plugins`
+  `path` is unreliable for a workspace-`local`-scoped plugin (the runtime
+  reports a bogus parent-of-workspace path), so path-matching dropped loaded
+  plugins. The runtime payload carries an undocumented `source` field (= the
+  id); `claudeSdkPipeline.ts` captures it type-safely (the `.d.ts` omits it) and
+  the filter prefers `source === id`, falling back to normalized `path`. Capture
+  runs on **every** `system/init` (ungated by `_isResumed`).
+- **PB-10 — surfaced plugins suppress their own components from the standalone
+  SDK fallbacks.** Once a plugin is shown as a container, the SDK *also* reports
+  its agents/commands/MCP in `supportedAgents`/`supportedCommands`/
+  `mcpServerStatus`, so the Phase-16 SDK-only fallbacks re-surfaced them as
+  duplicate standalone rows. The builder suppresses any fallback whose name
+  matches a surfaced plugin's parsed component name in **both** bare
+  (`inbox-setup`) and namespaced (`<plugin>:inbox-setup`) forms (SDK naming is
+  inconsistent — agents namespaced, skills usually bare). The standalone skill
+  scan also skips any `.claude/skills/<name>/` dir that is itself a plugin root
+  (PB-8), so a `@skills-dir` plugin's skills surface only under its container.
 directory containing a `skills/` subfolder *is* a valid plugin from
 the SDK's point of view (`SdkPluginConfig { type: 'local', path }`).
 The host can pass a "skills-only plugin" directory via

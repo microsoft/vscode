@@ -57,7 +57,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			{
 				icon: Codicon.globe,
 				description: localize('browserToolSet.description', 'Open and interact with integrated browser pages'),
-			}
+				deprecated: true
+			},
 		));
 
 		this._updateToolRegistrations();

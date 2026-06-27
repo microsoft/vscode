@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../files/common/files.js';
-import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type INamedPluginResource, type IParsedAgent, type IParsedSkill } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type INamedPluginResource, type IParsedAgent, type IParsedSkill } from '../../../../../agentPlugins/common/pluginParsers.js';
 
 /**
  * The `.claude/<sub>` directories one scope (project or user) contributes
@@ -32,6 +33,25 @@ function collectByName<T extends INamedPluginResource>(into: Map<string, T>, ite
 			into.set(item.name, item);
 		}
 	}
+}
+
+/**
+ * Drops any skill whose `.claude/skills/<name>/` directory is itself a
+ * native plugin (it holds a plugin manifest in any supported format). Such
+ * a directory is an in-place `@skills-dir` plugin, so its skills are
+ * surfaced under its own `PluginCustomization` container rather than as
+ * duplicate standalone skill rows (Decision PB-8). The check is
+ * self-contained (manifest presence, via the shared
+ * {@link detectPluginFormat}) so it holds for Claude / Open Plugins /
+ * Copilot layouts and regardless of whether the plugin is enabled.
+ */
+async function excludeNativePluginSkills(skills: readonly INamedPluginResource[], fileService: IFileService): Promise<INamedPluginResource[]> {
+	const isPluginDir = await Promise.all(skills.map(async skill => {
+		const dir = dirname(skill.uri);
+		const format = await detectPluginFormat(dir, fileService);
+		return fileService.exists(URI.joinPath(dir, format.manifestPath));
+	}));
+	return skills.filter((_, i) => !isPluginDir[i]);
 }
 
 /**
@@ -75,7 +95,9 @@ export async function scanClaudeDiskCustomizations(
 		]);
 		collectByName(agents, agentRes.map(toParsedAgent));
 		// Skills before commands so a same-named skill wins (spec section 3).
-		collectByName(skills, skillRes.map(toParsedSkill));
+		// Drop `@skills-dir` plugin dirs first — they surface as plugins (PB-8).
+		const standaloneSkills = await excludeNativePluginSkills(skillRes, fileService);
+		collectByName(skills, standaloneSkills.map(toParsedSkill));
 		collectByName(skills, commandRes.map(toParsedSkill));
 	}
 

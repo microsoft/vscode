@@ -276,6 +276,9 @@ export async function showToolsPicker(
 				}
 			}
 			for (const toolSet of toolsService.getToolSetsForModel(model)) {
+				if (toolSet.hiddenInToolsPicker) {
+					continue;
+				}
 				defaultEntries.set(toolSet, false);
 			}
 			toolsEntries = defaultEntries;
@@ -434,6 +437,9 @@ export async function showToolsPicker(
 		};
 
 		for (const toolSet of toolsService.getToolSetsForModel(model)) {
+			if (toolSet.hiddenInToolsPicker) {
+				continue;
+			}
 			if (!toolsEntries.has(toolSet.id)) {
 				continue;
 			}

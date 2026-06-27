@@ -209,6 +209,48 @@ jobs:
           FONTCONFIG_EOF
           echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
 
+      # Root-cause fix for the intermittent Electron startup SIGSEGV on Linux CI.
+      # Symbolizing the crash dumps shows the fault is a Pango concurrency bug, not
+      # a VS Code bug:
+      #
+      #   pango: fc_thread_func -> init_in_thread -> FcInit()       (pangofc-fontmap.c)
+      #   fontconfig: FcInit -> FcConfigParseAndLoadFromMemory -> _FcConfigParse
+      #   libexpat: XML_ParseBuffer -> libc (NULL deref, SIGSEGV)
+      #
+      # Pango >= 1.52's pango_fc_font_map_init() unconditionally spawns a
+      # "[pango] fontconfig" thread that runs FcInit(). That races against the
+      # Electron/Chromium main thread's own fontconfig use during startup and
+      # corrupts fontconfig's global config while it is being parsed. There is no
+      # env var to disable the Pango thread, and it is still present in Pango 1.56.
+      #
+      # Eliminate the race by initializing fontconfig once, single-threaded, from
+      # an ELF constructor that runs before main() (and therefore before any thread
+      # exists). Pango's later threaded FcInit() then finds fontconfig already
+      # initialized and returns immediately, so the concurrent parse never happens.
+      - name: Pre-initialize fontconfig to avoid Pango threaded FcInit crash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/fcpreinit.c" <<'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+
+          __attribute__((constructor))
+          static void preinit_fontconfig(void)
+          {
+            void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+            if (handle) {
+              int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+              if (fc_init) {
+                fc_init();
+              }
+            }
+          }
+          CEOF
+          gcc -shared -fPIC -O2 -o "$RUNNER_TEMP/libfcpreinit.so" "$RUNNER_TEMP/fcpreinit.c" -ldl
+          echo "Built fontconfig pre-init shim at $RUNNER_TEMP/libfcpreinit.so"
+          # Preload it for every subsequent step that launches Electron/Chromium.
+          echo "LD_PRELOAD=$RUNNER_TEMP/libfcpreinit.so${LD_PRELOAD:+:$LD_PRELOAD}" >> "$GITHUB_ENV"
+
       - name: Fontconfig diagnostics and cache reset
         run: |
           set -e
@@ -244,6 +286,12 @@ jobs:
           echo ""
           echo "--- fontconfig version ---"
           fc-cache --version 2>&1 | head -1
+          echo ""
+          echo "--- fontconfig pre-init shim (LD_PRELOAD) ---"
+          echo "LD_PRELOAD=${LD_PRELOAD:-<unset>}"
+          if [ -n "${LD_PRELOAD:-}" ]; then
+            ls -l "${LD_PRELOAD%%:*}" 2>/dev/null || true
+          fi
         continue-on-error: true
 
       - name: Transpile client and extensions

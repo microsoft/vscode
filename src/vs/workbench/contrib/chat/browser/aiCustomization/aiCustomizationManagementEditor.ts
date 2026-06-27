@@ -40,6 +40,8 @@ import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
+import { ToolsListWidget } from './toolsListWidget.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
@@ -54,7 +56,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -79,17 +81,19 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { Action } from '../../../../../base/common/actions.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IExtension } from '../../../extensions/common/extensions.js';
 import { EmbeddedMcpServerDetail } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
+import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 
 const $ = DOM.$;
 
@@ -264,10 +268,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
+	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
 	private mcpContentContainer: HTMLElement | undefined;
 	private pluginContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
+	private toolsContentContainer: HTMLElement | undefined;
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -301,7 +307,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingPromptType: PromptsType | undefined;
 	private currentEditingReadOnly = false;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail' = 'list';
+	private viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 
 	// Embedded MCP server detail view
 	private mcpDetailContainer: HTMLElement | undefined;
@@ -315,6 +321,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
 	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
 
+	// Embedded tool-contributing extension detail view
+	private toolsDetailContainer: HTMLElement | undefined;
+	private embeddedToolDetail: EmbeddedExtensionToolsDetail | undefined;
+	private readonly toolsDetailDisposables = this._register(new DisposableStore());
+
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
 	private readonly allSections: ISectionItem[] = [];
@@ -327,11 +338,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private _editorContentChanged = false;
 	private _previousActiveHarnessId: string | undefined;
 
-	// Harness dropdown
-	private harnessDropdownContainer: HTMLElement | undefined;
-	private harnessDropdownButton: HTMLElement | undefined;
-	private harnessDropdownIcon: HTMLElement | undefined;
-	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
 	private homeButtonIcon: HTMLElement | undefined;
@@ -359,7 +365,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -396,6 +401,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
 			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
+			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
 		for (const id of this.workspaceService.managementSections) {
 			const info = sectionInfo[id];
@@ -468,6 +474,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.listWidget.layout(height - 16, width - 24);
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					this.pluginListWidget?.layout(height - 16, width - 24);
+					this.toolsListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
 					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
@@ -508,14 +515,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.splitView.resizeView(0, SIDEBAR_DEFAULT_WIDTH);
 			this.splitView.resizeView(1, totalWidth - SIDEBAR_DEFAULT_WIDTH);
 		}));
-	}
-
-	/**
-	 * Whether the harness selector UI is enabled.
-	 * When disabled, the editor behaves as if "Local" is always selected.
-	 */
-	private get isHarnessSelectorEnabled(): boolean {
-		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
 	private getActiveHarnessLabel(): string {
@@ -564,7 +563,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createSidebar(): void {
 		const sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
 
-		// Header row with home button and optional harness dropdown
 		this.createSidebarHeader(sidebarContent);
 
 		// Main sections list container (takes remaining space)
@@ -614,8 +612,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessContextKey.set(activeId);
 			this.updateHomeButtonHarnessPresentation();
 			this.rebuildVisibleSections();
-			this.ensureHarnessDropdown();
-			this.updateHarnessDropdown();
 			// Reset counts to zero immediately on harness switch to prevent
 			// stale counts from the previous harness flashing before the async
 			// count refresh completes. Only reset when the active harness
@@ -654,67 +650,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 		this.updateHomeButtonHarnessPresentation();
 
-		// Harness dropdown (shown when multiple harnesses available)
-		//this.createHarnessDropdown(headerRow);
 		this.updateHomeButtonStyle();
-	}
-
-	private createHarnessDropdown(parent: HTMLElement): void {
-		if (!this.isHarnessSelectorEnabled) {
-			return;
-		}
-
-		const container = this.harnessDropdownContainer = DOM.append(parent, $('.sidebar-harness-dropdown'));
-
-		this.harnessDropdownButton = DOM.append(container, $('button.harness-dropdown-button'));
-		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
-		this.harnessDropdownButton.setAttribute('aria-haspopup', 'listbox');
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.harnessDropdownButton, () => {
-			const descriptor = this.harnessService.findHarnessById(this.harnessService.activeHarness.get());
-			return descriptor?.label ?? '';
-		}));
-
-		this.harnessDropdownIcon = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-icon'));
-		this.harnessDropdownLabel = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-label'));
-		DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-chevron.codicon.codicon-chevron-down'));
-
-		this.updateHarnessDropdown();
-
-		this.editorDisposables.add(DOM.addDisposableListener(this.harnessDropdownButton, 'click', () => {
-			this.showHarnessMenu();
-		}));
-	}
-
-	/**
-	 * Lazily creates the harness dropdown if it doesn't exist but
-	 * multiple harnesses are now available, or hides it if only one
-	 * harness remains (e.g. after an extension-contributed harness is
-	 * unregistered).
-	 */
-	private ensureHarnessDropdown(): void {
-		if (!this.isHarnessSelectorEnabled && this.harnessDropdownContainer) {
-			// Setting is off — remove the dropdown entirely
-			this.harnessDropdownContainer.remove();
-			this.harnessDropdownContainer = undefined;
-			this.harnessDropdownButton = undefined;
-			this.harnessDropdownIcon = undefined;
-			this.harnessDropdownLabel = undefined;
-			this.updateHomeButtonStyle();
-		} else if (this.isHarnessSelectorEnabled && !this.harnessDropdownContainer && this.sidebarHeaderContainer) {
-			this.createHarnessDropdown(this.sidebarHeaderContainer);
-			this.updateHomeButtonStyle();
-		}
-		// Visibility is handled by updateHarnessDropdown based on harness count
 	}
 
 	private updateHomeButtonStyle(): void {
 		if (!this.homeButtonLabel || !this.homeButton) {
 			return;
 		}
-		// Show full label when harness dropdown is hidden, icon-only when visible
-		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
-		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
-		this.homeButton.style.flex = harnessVisible ? '' : '1';
+		this.homeButtonLabel.style.display = '';
+		this.homeButton.style.flex = '1';
 	}
 
 	private updateHomeButtonHarnessPresentation(): void {
@@ -729,46 +673,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
-	}
-
-	private updateHarnessDropdown(): void {
-		if (!this.harnessDropdownContainer || !this.harnessDropdownIcon || !this.harnessDropdownLabel) {
-			return;
-		}
-		const harnesses = this.harnessService.availableHarnesses.get();
-		// Hide dropdown when only one harness is available
-		this.harnessDropdownContainer.style.display = harnesses.length <= 1 ? 'none' : '';
-		this.updateHomeButtonStyle();
-
-		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = harnesses.find(h => h.id === activeId);
-		if (descriptor) {
-			this.harnessDropdownIcon.className = 'harness-dropdown-icon';
-			this.harnessDropdownIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
-			this.harnessDropdownLabel.textContent = descriptor.label;
-		}
-	}
-
-	private showHarnessMenu(): void {
-		if (!this.harnessDropdownButton) {
-			return;
-		}
-		const harnesses = this.harnessService.availableHarnesses.get();
-		const activeId = this.harnessService.activeHarness.get();
-
-		const actions = harnesses.map(h => {
-			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
-				this.harnessService.setActiveSession(this.harnessService.getSessionResourceForHarness(h.id));
-			});
-			action.checked = h.id === activeId;
-			return action;
-		});
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.harnessDropdownButton!,
-			getActions: () => actions,
-			getCheckedActionsRepresentation: () => 'radio',
-		});
 	}
 
 	private createWelcomePage(parent: HTMLElement): void {
@@ -924,6 +828,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
+		// Container for Tools content.
+		if (hasSections.has(AICustomizationManagementSection.Tools)) {
+			this.toolsContentContainer = DOM.append(contentInner, $('.tools-content-container'));
+			// Tools customizations only target the agent host (Copilot CLI), in both windows.
+			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
+			this.toolsContentContainer.appendChild(this.toolsListWidget.element);
+
+			// Embedded tool-contributing extension detail view
+			this.toolsDetailContainer = DOM.append(contentInner, $('.tools-detail-container'));
+			this.createEmbeddedToolDetail();
+
+			this.editorDisposables.add(this.toolsListWidget.onDidSelectExtension(extension => {
+				this.showEmbeddedToolDetail(extension);
+			}));
+		}
+
 		// Embedded editor container
 		this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
 		this.createEmbeddedEditor();
@@ -956,6 +876,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(AICustomizationManagementSection.Models, count);
 			}));
 			this.modelsWidget.fireItemCount();
+		}
+		if (this.toolsListWidget) {
+			this.editorDisposables.add(this.toolsListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Tools, count);
+			}));
+			this.toolsListWidget.fireItemCount();
 		}
 
 		// Per-prompts-section autoruns: drive sidebar counts from the items model,
@@ -1012,6 +938,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
+		if (this.viewMode === 'toolsDetail') {
+			this.goBackFromToolDetail();
+		}
 
 		this.selectedSection = undefined;
 		this.sectionContextKey.set('');
@@ -1043,6 +972,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
+		}
+		if (this.viewMode === 'toolsDetail') {
+			this.goBackFromToolDetail();
 		}
 
 		this.selectedSection = section;
@@ -1086,6 +1018,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1123,12 +1057,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isEditorMode = this.viewMode === 'editor';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
 		const isPluginDetailMode = this.viewMode === 'pluginDetail';
-		const isDetailMode = isMcpDetailMode || isPluginDetailMode;
+		const isToolsDetailMode = this.viewMode === 'toolsDetail';
+		const isDetailMode = isMcpDetailMode || isPluginDetailMode || isToolsDetailMode;
 		const isWelcome = this.selectedSection === undefined;
 		const isPromptsSection = this.selectedSection !== undefined && this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
+		const isToolsSection = this.selectedSection === AICustomizationManagementSection.Tools;
 
 		if (this.welcomePage) {
 			this.welcomePage.container.style.display = isWelcome && !isEditorMode && !isDetailMode ? '' : 'none';
@@ -1150,6 +1086,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
+		}
+		if (this.toolsContentContainer) {
+			this.toolsContentContainer.style.display = !isEditorMode && !isDetailMode && isToolsSection ? '' : 'none';
+		}
+		if (this.toolsDetailContainer) {
+			this.toolsDetailContainer.style.display = isToolsDetailMode ? '' : 'none';
 		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
@@ -1278,62 +1220,42 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const allFolders = await this.promptsService.getSourceFolders(type);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-
-		// Partition folders by whether they're under the active project root.
-		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
-		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
-		// so we use the project root as the authoritative boundary.
-		let matchingFolders;
-		if (target === 'workspace') {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => {
-					if (!isEqualOrParent(f.uri, projectRoot)) {
-						return false;
-					}
-					// When the active harness specifies workspaceSubpaths, only offer
-					// directories whose path includes one of those sub-paths.
-					if (subpaths) {
-						return matchesWorkspaceSubpath(f.uri.path, subpaths);
-					}
-					return true;
-				})
-				: [];
-		} else {
-			matchingFolders = projectRoot
-				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
-				: allFolders;
-
-			// When the active harness restricts user roots, only offer
-			// directories under the harness-accessible user roots
-			// (e.g. Claude → ~/.claude only, not ~/.copilot or profile paths).
-			const filter = this.harnessService.getStorageSourceFilter(type);
-			if (filter.includedUserFileRoots) {
-				const roots = filter.includedUserFileRoots;
-				matchingFolders = matchingFolders.filter(f =>
-					roots.some(root => isEqualOrParent(f.uri, root))
-				);
-			}
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
 		}
 
-		// Deduplicate by URI (getSourceFolders may return the same path
-		// from both config-based discovery and the AgenticPromptsService override)
-		const seen = new Set<string>();
-		matchingFolders = matchingFolders.filter(f => {
-			const key = f.uri.toString();
-			if (seen.has(key)) {
-				return false;
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const matchingFolders: ICustomizationSourceFolder[] = [];
+		const hasSeen = new ResourceSet();
+		for (const f of allFolders) {
+			if (target === 'workspace') {
+				if (projectRoot && isEqualOrParent(f.uri, projectRoot) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
+			} else {
+				if ((!projectRoot || !isEqualOrParent(f.uri, projectRoot)) && !hasSeen.has(f.uri)) {
+					hasSeen.add(f.uri);
+					matchingFolders.push(f);
+				}
 			}
-			seen.add(key);
-			return true;
-		});
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — return undefined so the command can fall
@@ -1347,7 +1269,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
-			label: this.promptsService.getPromptLocationLabel(folder),
+			label: folder.label,
 			description: folder.uri.fsPath,
 			uri: folder.uri,
 		}));
@@ -1402,6 +1324,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
+		if (this.viewMode === 'toolsDetail') {
+			this.goBackFromToolDetail();
+		}
 		// Clear transient folder override on close
 		this.workspaceService.clearOverrideProjectRoot();
 		this.disposeBuiltinEditingSessions();
@@ -1437,6 +1362,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
+		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1459,6 +1386,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (this.viewMode === 'pluginDetail') {
 				this.goBackFromPluginDetail();
+			}
+			if (this.viewMode === 'toolsDetail') {
+				this.goBackFromToolDetail();
 			}
 			this.selectedSection = sectionId;
 			this.sectionContextKey.set(sectionId);
@@ -2404,6 +2334,60 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+	}
+
+	//#endregion
+
+	//#region Embedded Tool Extension Detail
+
+	private createEmbeddedToolDetail(): void {
+		if (!this.toolsDetailContainer) {
+			return;
+		}
+
+		// Container for the compact tool extension detail component
+		const detailBody = DOM.append(this.toolsDetailContainer, $('.tools-detail-editor-container'));
+
+		this.embeddedToolDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedExtensionToolsDetail, detailBody));
+
+		// Back button rendered into the detail's leading slot
+		const backButton = DOM.append(this.embeddedToolDetail.leadingSlot, $('button.editor-back-button'));
+		backButton.setAttribute('type', 'button');
+		backButton.setAttribute('aria-label', localize('backToToolsList', "Back to tools"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToToolsListTooltip', "Back to tools")));
+		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		backIconEl.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
+			this.goBackFromToolDetail();
+		}));
+	}
+
+	private async showEmbeddedToolDetail(extension: IExtension): Promise<void> {
+		if (!this.embeddedToolDetail) {
+			return;
+		}
+
+		this.viewMode = 'toolsDetail';
+		this.updateContentVisibility();
+
+		this.toolsDetailDisposables.clear();
+		this.embeddedToolDetail.setInput(extension);
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
+	private goBackFromToolDetail(): void {
+		this.toolsDetailDisposables.clear();
+		this.embeddedToolDetail?.clearInput();
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.toolsListWidget?.focusSearch();
 	}
 
 	//#endregion

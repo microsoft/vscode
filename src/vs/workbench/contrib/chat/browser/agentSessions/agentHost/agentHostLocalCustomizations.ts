@@ -59,7 +59,7 @@ export interface ILocalCustomizationFile {
  *
  * This is the single source of truth used by both the AI Customization view
  * (to render disable affordances) and the agent host wire (to compute the
- * `customizations` set published via `activeClientChanged`).
+ * `customizations` set published via `activeClientSet`).
  *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
@@ -186,7 +186,7 @@ export function collectNonPluginMcpServers(mcpService: IMcpService): ISyncableMc
 }
 
 /**
- * Resolves the customization refs to include in an `activeClientChanged`
+ * Resolves the customization refs to include in an `activeClientSet`
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files

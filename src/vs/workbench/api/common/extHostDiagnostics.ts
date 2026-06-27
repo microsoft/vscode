@@ -327,7 +327,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 						index.set(uri.toString(), idx);
 						res.push([uri, []]);
 					}
-					res[idx][1] = res[idx][1].concat(...diagnostics);
+					res[idx][1] = res[idx][1].concat(diagnostics);
 				});
 			}
 			return res;

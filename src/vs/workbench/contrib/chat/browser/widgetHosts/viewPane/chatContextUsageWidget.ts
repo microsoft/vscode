@@ -20,13 +20,41 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
 const $ = dom.$;
+
+/**
+ * Resolves the input-token denominator used by the context-usage gauge.
+ *
+ * Resolution order, mirroring the request path's `applyContextSizeOverride`:
+ *   1. An explicit `contextSize` in the resolved model configuration.
+ *   2. The schema's default `contextSize` tier (e.g. 200K). Used when the
+ *      resolved configuration is missing `contextSize` (e.g. the schema default
+ *      has not loaded yet) so the gauge denominator agrees with the size the
+ *      request actually uses instead of jumping to the model's full native
+ *      window. See issue #320393.
+ *   3. The model's full native window (`maxInputTokens`). Models without a
+ *      context-size picker have no such schema property and land here, where
+ *      default and max are the same value.
+ *
+ * @internal - exported for testing
+ */
+export function resolveContextWindowInputTokens(
+	modelConfiguration: IStringDictionary<unknown> | undefined,
+	configurationSchema: ILanguageModelConfigurationSchema | undefined,
+	maxInputTokens: number | undefined,
+): number | undefined {
+	const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
+	const schemaDefaultContextSize = configurationSchema?.properties?.contextSize?.default;
+	return configuredContextSize
+		?? (typeof schemaDefaultContextSize === 'number' ? schemaDefaultContextSize : undefined)
+		?? maxInputTokens;
+}
 
 /**
  * A reusable circular progress indicator that displays a ring.
@@ -103,6 +131,13 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
 	private _currentModelId: string | undefined;
+	/**
+	 * The model the user currently has selected in the picker. When set it
+	 * overrides the last request's model for computing the context-window
+	 * denominator, so switching models updates the widget before the next
+	 * request is sent. The usage numerator still comes from the last response.
+	 */
+	private _selectedModelId: string | undefined;
 	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
@@ -299,10 +334,57 @@ export class ChatContextUsageWidget extends Disposable {
 	): void {
 		this._modelConfigurationResolver = resolver;
 		this._modelConfigurationListener.value = onDidChange(modelId => {
-			if (this._currentResponse && this._currentModelId === modelId) {
-				this.updateFromResponse(this._currentResponse, modelId);
+			const affectsDisplayedModel = this._currentModelId === modelId || this._selectedModelId === modelId;
+			if (this._currentResponse && this._currentModelId && affectsDisplayedModel) {
+				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}
 		});
+	}
+
+	/**
+	 * Sets the model the user currently has selected in the picker. The
+	 * context-window denominator then reflects this model immediately, even
+	 * before a request is sent with it. The usage numerator still comes from the
+	 * last completed response.
+	 */
+	setSelectedModel(modelId: string | undefined): void {
+		if (this._selectedModelId === modelId) {
+			return;
+		}
+		this._selectedModelId = modelId;
+		if (this._currentResponse && this._currentModelId) {
+			this.updateFromResponse(this._currentResponse, this._currentModelId);
+		}
+	}
+
+	/**
+	 * Resolves a model's context-window dimensions, or `undefined` when it has no usable window. A meta-model such as
+	 * "auto" advertises a zero-sized window, so it resolves to `undefined` and the caller falls back to the model that
+	 * actually served the request (see issue #321781).
+	 */
+	private resolveContextWindow(modelId: string | undefined): { maxOutputTokens: number | undefined; totalContextWindow: number } | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		// Computing the total context window needs the model's metadata, notably its output-token budget
+		// (`maxOutputTokens`), which — unlike the input window — has no configuration fallback. Right after a reload the
+		// model provider may not have registered the selected model yet while a persisted `contextSize` is already
+		// resolvable, so the window would be computed input-only (e.g. 272K instead of 272K + 128K for GPT-5). Bail out
+		// until metadata is available rather than render a misleading partial value; the widget re-renders on model
+		// registration (`onDidChangeLanguageModels`) and on model selection.
+		if (!modelMetadata) {
+			return undefined;
+		}
+		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
+		const maxOutputTokens = modelMetadata.maxOutputTokens;
+		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		if (totalContextWindow <= 0) {
+			return undefined;
+		}
+		return { maxOutputTokens, totalContextWindow };
 	}
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
@@ -311,31 +393,34 @@ export class ChatContextUsageWidget extends Disposable {
 		// When a meta-model (e.g. "auto") routes to a concrete model, the
 		// usage reports the actual model that served the request.
 		const effectiveModelId = usage?.actualModelId ?? modelId;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(effectiveModelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(effectiveModelId) ?? this.languageModelsService.getModelConfiguration(effectiveModelId);
-		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
-		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
-		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
-		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
-		if (!usage || totalContextWindow <= 0) {
+		// The denominator (context window) follows the currently selected model so switching models updates the widget
+		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
+		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
+		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
+		if (!usage || !contextWindow) {
 			if (!this.currentData) {
 				this.hide();
 			}
 			return;
 		}
 
+		const { maxOutputTokens, totalContextWindow } = contextWindow;
+
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const outputBuffer = usage.outputBuffer;
 		const usedTokens = promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
-		// Remaining reserve = whatever the model reserved minus what completions
-		// have already consumed. Once completions exceed the reserve, it drops to 0.
-		const outputBufferPercentage = outputBuffer !== undefined
-			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
+		// The reserve band is a property of the model the user currently has
+		// selected (how much of its window is set aside for output), not of the
+		// past response, so it is derived from the selected model's max output
+		// tokens rather than `usage`. Remaining reserve = that reserve minus what
+		// completions have already consumed; once completions exceed it, it drops
+		// to 0.
+		const outputBufferPercentage = maxOutputTokens !== undefined
+			? (Math.max(0, maxOutputTokens - completionTokens) / totalContextWindow) * 100
 			: undefined;
 
 		this.render({

@@ -22,6 +22,7 @@ import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
 import './media/scrollShadows.css';
+import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
 
@@ -61,6 +62,7 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'paneHeaders', layoutAffecting: true },
 	{ id: 'roundedCorners' },
 	{ id: 'scrollShadows' },
+	{ id: 'shadows' },
 	{ id: 'statusBar' },
 	{ id: 'tabs' }
 ];
