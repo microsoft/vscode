@@ -161,7 +161,12 @@ export class AgentSideEffects extends Disposable {
 				// owning session before notifying the agent.
 				const sessionChannel = isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(envelope.channel), action.toolCallId, action.result);
+				// The agent keys its sessions by the raw session id (the chat
+				// URI's path is a base64 blob, not a session id), so hand over
+				// the session URI for the default chat. Peer (non-default) chats
+				// are tracked by their own chat URI, so forward those as-is.
+				const completionChannel = isDefaultChatUri(envelope.channel) ? sessionChannel : envelope.channel;
+				agent?.onClientToolCallComplete(URI.parse(completionChannel), action.toolCallId, action.result);
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -925,8 +930,12 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
-				const agent = this._options.getAgent(parseRequiredSessionUriFromChatUri(channel));
-				agent?.onClientToolCallComplete(URI.parse(channel), action.toolCallId, action.result);
+				const agent = this._options.getAgent(sessionChannel);
+				// Hand over the session URI for the default chat (the chat URI's
+				// path is a base64 blob, not the session id the agent keys by);
+				// peer (non-default) chats resolve via their own chat URI.
+				const completionChannel = isDefaultChatUri(channel) ? sessionChannel : channel;
+				agent?.onClientToolCallComplete(URI.parse(completionChannel), action.toolCallId, action.result);
 				break;
 			}
 		}
