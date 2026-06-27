@@ -242,11 +242,11 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 				message: { text: 'hello world', origin: { kind: MessageKind.User } },
 			};
-			sideEffects.handleAction(sessionUri.toString(), action);
+			sideEffects.handleAction(defaultChatUri, action);
 
 			await waitForSendMessageCalls(1);
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
 		test('logs telemetry when sending a direct user message', () => {
@@ -293,13 +293,14 @@ suite('AgentSideEffects', () => {
 				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }] },
 			};
 
-			sideEffects.handleAction(sessionUri.toString(), action);
+			sideEffects.handleAction(defaultChatUri, action);
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'hello world',
 				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }],
+				chat: URI.parse(defaultChatUri),
 			}]);
 		});
 
@@ -327,7 +328,7 @@ suite('AgentSideEffects', () => {
 				},
 			};
 
-			sideEffects.handleAction(sessionUri.toString(), action);
+			sideEffects.handleAction(defaultChatUri, action);
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
@@ -345,6 +346,7 @@ suite('AgentSideEffects', () => {
 						},
 					},
 				}],
+				chat: URI.parse(defaultChatUri),
 			}]);
 		});
 
@@ -590,7 +592,7 @@ suite('AgentSideEffects', () => {
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
@@ -598,7 +600,7 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }]);
 		});
 
 		test('waits for model selection before sending the message', async () => {
@@ -611,12 +613,12 @@ suite('AgentSideEffects', () => {
 				agent.changeModelCalls.push({ session, model, chat });
 				await changeModelSettled;
 			};
-			agent.sendMessage = async (session, prompt, attachments, _turnId, chat) => {
-				agent.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
+			agent.sendMessage = async (session, chat, prompt, attachments) => {
+				agent.sendMessageCalls.push({ session, prompt, attachments, chat });
 				resolveSend();
 			};
 
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'gpt-5' } },
@@ -627,14 +629,14 @@ suite('AgentSideEffects', () => {
 				changeModelCalls: agent.changeModelCalls,
 				sendMessageCalls: agent.sendMessageCalls,
 			}, {
-				changeModelCalls: [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: undefined }],
+				changeModelCalls: [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' }, chat: URI.parse(defaultChatUri) }],
 				sendMessageCalls: [],
 			});
 
 			resolveChangeModel();
 			await sendStarted;
 
-			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello', attachments: undefined }]);
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
 		test('forwards the chat channel for an additional (peer) chat', async () => {
@@ -658,7 +660,7 @@ suite('AgentSideEffects', () => {
 
 		test('calls changeAgent on the agent for the session default chat before sending the message', async () => {
 			setupSession();
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, agent: { uri: 'file:///agents/reviewer.md' } },
@@ -666,7 +668,7 @@ suite('AgentSideEffects', () => {
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: undefined }]);
+			assert.deepStrictEqual(agent.changeAgentCalls, [{ session: URI.parse(sessionUri.toString()), agent: { uri: 'file:///agents/reviewer.md' }, chat: URI.parse(defaultChatUri) }]);
 		});
 
 		test('forwards the chat channel for an additional (peer) chat', async () => {

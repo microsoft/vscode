@@ -779,15 +779,13 @@ export class AgentSideEffects extends Disposable {
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
 				const { model, permissionLevel } = this._getTurnTelemetryContext(state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
-				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					const errCode = (err as { code?: number })?.code;
-					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
-					this._stateManager.dispatchServerAction(channel, {
-						type: ActionType.ChatError,
-						turnId: action.turnId,
-						error: buildSendFailedError(err),
-					});
-					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
+				void this._sendTurnMessage({
+					agent,
+					sessionChannel,
+					turnChannel: channel,
+					chat: channel,
+					message: action.message,
+					turnId: action.turnId,
 				});
 				break;
 			}
@@ -1115,7 +1113,6 @@ export class AgentSideEffects extends Disposable {
 		// additional chat channel, the SDK conversation is owned by the
 		// parent session: look up the provider by the parent session URI and
 		// pass the chat channel so the harness routes to the right peer chat.
-		const chatTarget = isDefaultChatUri(session) ? undefined : session;
 		const agent = this._options.getAgent(sessionChannel);
 		if (!agent) {
 			this._stateManager.dispatchServerAction(session, {
@@ -1135,7 +1132,7 @@ export class AgentSideEffects extends Disposable {
 			agent,
 			sessionChannel,
 			turnChannel: session,
-			chat: chatTarget,
+			chat: session,
 			message: msg.message,
 			turnId,
 		});
@@ -1161,15 +1158,15 @@ export class AgentSideEffects extends Disposable {
 		sessionChannel: ProtocolURI;
 		/** The channel the turn runs on — where `ChatError` / turn completion are reported. */
 		turnChannel: ProtocolURI;
-		/** Peer-chat channel URI to route to, when the turn targets a non-default chat. */
-		chat: ProtocolURI | undefined;
+		/** Chat channel URI the turn targets. */
+		chat: ProtocolURI;
 		message: Message;
 		turnId: string;
 	}): Promise<void> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId } = options;
 
 		const sessionUri = URI.parse(sessionChannel);
-		const chatUri = chat ? URI.parse(chat) : undefined;
+		const chatUri = URI.parse(chat);
 		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
 			const changeModel = agent.changeModel?.(sessionUri, message.model, chatUri);
@@ -1188,7 +1185,7 @@ export class AgentSideEffects extends Disposable {
 
 		await Promise.all(selectionUpdates);
 
-		await agent.sendMessage(URI.parse(sessionChannel), message.text, message.attachments, turnId, chatUri).catch(err => {
+		await agent.sendMessage(URI.parse(sessionChannel), chatUri, message.text, message.attachments, turnId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {

@@ -132,10 +132,8 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
-		// Only record `chat` when defined so existing single-chat assertions
-		// that compare against `{ session, prompt, attachments }` still match.
-		const call = chat ? { session, prompt, attachments, chat } : { session, prompt, attachments };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+		const call = { session, prompt, attachments, chat };
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
@@ -404,7 +402,7 @@ export class ScriptedMockAgent implements IAgent {
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
 	}
 
-	async sendMessage(session: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, _chat: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}

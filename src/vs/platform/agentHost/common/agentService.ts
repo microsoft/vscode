@@ -937,10 +937,8 @@ export interface IAgent {
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Send a user message into an existing session. When `chat` is provided
-	 * (and differs from the default chat), the harness routes the message to
-	 * that specific chat within a multi-chat session. */
-	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void>;
+	/** Send a user message into a chat within an existing session. */
+	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session, backed by a new
