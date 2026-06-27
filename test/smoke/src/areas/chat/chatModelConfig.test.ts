@@ -76,10 +76,15 @@ const CONFIG_CASES: readonly ConfigCase[] = [
 
 /**
  * Find the latest `/responses` request (at or after `fromIndex`) sent for the
- * mock model whose body carries the given scenario tag. The Responses API
- * request includes the user prompt (with its `[scenario:...]` tag) in the
- * `input` array, so a substring match on the serialized body — combined with
- * the `model` field — uniquely identifies the main agent request for a turn.
+ * mock model whose *current* user turn carries the given scenario tag.
+ *
+ * The Responses API request replays the whole conversation in its `input`
+ * array, so an earlier turn's `[scenario:...]` tag lingers in the history of
+ * later requests — and ancillary requests (e.g. title generation) can replay
+ * that same history. Matching the serialized body anywhere would therefore pick
+ * the wrong request, so we check only the latest `user` input item (the prompt
+ * just sent for this turn), mirroring how the mock server resolves the active
+ * scenario.
  */
 function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, scenarioTag: string): any | undefined {
 	for (let i = requests.length - 1; i >= fromIndex; i--) {
@@ -87,11 +92,33 @@ function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, sc
 		if (request.path !== '/responses' || request.body?.model !== MODEL_ID) {
 			continue;
 		}
-		if (JSON.stringify(request.body).includes(scenarioTag)) {
+		if (latestUserInputCarriesTag(request.body, scenarioTag)) {
 			return request.body;
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Whether the latest `user` item in a Responses API request's `input` array
+ * contains `scenarioTag`. The item's `content` is either a plain string or an
+ * array of `{ text }` parts (matching the mock server's own scenario parsing).
+ */
+function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
+	const input = Array.isArray(body?.input) ? body.input : [];
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item = input[i];
+		if (item?.role !== 'user') {
+			continue;
+		}
+		const content = typeof item.content === 'string'
+			? item.content
+			: Array.isArray(item.content)
+				? item.content.map((part: any) => part?.text ?? '').join('')
+				: '';
+		return content.includes(scenarioTag);
+	}
+	return false;
 }
 
 /**
@@ -147,7 +174,7 @@ export function setup(logger: Logger) {
 				registerScenario(testCase.scenarioId, new ScenarioBuilder().emit(testCase.reply).build());
 			}
 
-			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`) });
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), captureRequests: true });
 			logger.log(`[Chat Model Config] mock LLM server started at ${mockServer.url}`);
 		});
 

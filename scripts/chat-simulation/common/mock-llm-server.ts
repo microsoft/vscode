@@ -1791,6 +1791,10 @@ interface MockLlmServerHandle {
 	 * `body` is the JSON-parsed request payload (or the raw string when parsing
 	 * fails). Used by tests to assert what the client forwarded to the server
 	 * (e.g. `reasoning.effort` or the context-management `compact_threshold`).
+	 *
+	 * Returns an empty array unless the server was started with
+	 * {@link StartServerOptions.captureRequests} set — request capture is off by
+	 * default so perf/mem-leak harnesses don't retain request bodies.
 	 */
 	getRequests(): CapturedRequest[];
 }
@@ -1807,6 +1811,15 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/**
+	 * When `true`, the server retains the parsed body of every `/chat/completions`
+	 * and `/responses` POST so tests can assert what the client forwarded (see
+	 * {@link MockLlmServerHandle.getRequests}). Defaults to `false`: perf/mem-leak
+	 * harnesses generate large volumes of traffic, so capture stays off to avoid
+	 * unbounded in-memory retention of request bodies. Only the smoke suites that
+	 * call `getRequests()` enable it.
+	 */
+	captureRequests?: boolean;
 }
 
 /**
@@ -1832,8 +1845,11 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 		serverEvents.on('scenarioCompletion', onCompletion);
 
 		// Accumulate the parsed bodies of chat requests so tests can assert what
-		// the client forwarded (see MockLlmServerHandle.getRequests).
+		// the client forwarded (see MockLlmServerHandle.getRequests). Off by default
+		// so the listener (and its JSON.parse + unbounded retention) is never wired
+		// up for perf/mem-leak harnesses that don't assert on request bodies.
 		const capturedRequests: CapturedRequest[] = [];
+		const captureRequests = options?.captureRequests ?? false;
 		const onCapturedRequest = (info: { path: string; method: string; body: string }) => {
 			let parsed: any = info.body;
 			try {
@@ -1843,7 +1859,9 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
 		};
-		serverEvents.on('capturedRequest', onCapturedRequest);
+		if (captureRequests) {
+			serverEvents.on('capturedRequest', onCapturedRequest);
+		}
 
 		const server = http.createServer((req, res) => {
 			reqCount++;
@@ -1859,7 +1877,9 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 				url,
 				close: () => new Promise<void>((resolve, reject) => {
 					serverEvents.removeListener('scenarioCompletion', onCompletion);
-					serverEvents.removeListener('capturedRequest', onCapturedRequest);
+					if (captureRequests) {
+						serverEvents.removeListener('capturedRequest', onCapturedRequest);
+					}
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
 				requestCount: () => reqCount,
