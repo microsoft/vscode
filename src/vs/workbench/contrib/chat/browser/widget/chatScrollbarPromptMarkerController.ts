@@ -74,6 +74,9 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private readonly parentPointerUpListener = this._register(
 		new MutableDisposable(),
 	);
+	private readonly parentPointerCancelListener = this._register(
+		new MutableDisposable(),
+	);
 	private pointerDownListenerParent: HTMLElement | undefined;
 	private visible = true;
 	private enabled = true;
@@ -112,7 +115,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 		if (!visible) {
-			this.clearClickSuppression();
+			this.resetGestureState();
 			this.cancelPendingFocusRetries();
 		}
 		this.updateContainerVisibility();
@@ -130,7 +133,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		}
 		this.enabled = enabled;
 		if (!enabled) {
-			this.clearClickSuppression();
+			this.resetGestureState();
 			this.cancelPendingFocusRetries();
 			this.clearMarkers();
 		}
@@ -184,6 +187,12 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				(event) => this.onOverviewRulerPointerUp(event),
 				true,
 			);
+			this.parentPointerCancelListener.value = dom.addDisposableListener(
+				layoutInfo.parent,
+				'pointercancel',
+				() => this.onOverviewRulerPointerCancel(),
+				true,
+			);
 		}
 		this.updateContainerVisibility();
 		this.renderMarkers();
@@ -218,6 +227,11 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private clearClickSuppression(): void {
 		this.suppressNextClick = false;
 		this._clickSuppressionDisposable.clear();
+	}
+
+	private resetGestureState(): void {
+		this.markerActivated = false;
+		this.clearClickSuppression();
 	}
 
 	private scheduleFocusRetry(targetWindow: Window, callback: () => void): IDisposable {
@@ -399,12 +413,18 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	}
 
 	private onOverviewRulerPointerDown(event: PointerEvent): void {
+		// Only the primary button activates markers for mouse pointers; touch/pen
+		// always go through since they have no button semantics.
+		if (event.pointerType === 'mouse' && event.button !== 0) {
+			return;
+		}
+
 		const target = this.getTargetAtPoint(event.clientX, event.clientY);
 		if (!target) {
 			return;
 		}
 
-		this.clearClickSuppression();
+		this.resetGestureState();
 		this.markerActivated = true;
 		event.preventDefault();
 		event.stopPropagation();
@@ -424,6 +444,13 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		});
 		event.preventDefault();
 		event.stopPropagation();
+	}
+
+	private onOverviewRulerPointerCancel(): void {
+		// The gesture was interrupted (e.g. OS scroll/zoom takeover, pointer left
+		// the page). Drop any armed suppression so a later unrelated pointerup or
+		// click is not swallowed.
+		this.resetGestureState();
 	}
 
 	private onOverviewRulerClick(event: MouseEvent): void {
