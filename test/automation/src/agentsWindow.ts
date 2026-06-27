@@ -717,7 +717,19 @@ export class AgentsWindow {
 		let lastError: unknown;
 		while (Date.now() < deadline) {
 			try {
-				await widget.hover();
+				// Trigger the gauge's delayed (non-sticky) hover with a raw pointer
+				// move to its center. A normal hover() waits on Playwright
+				// actionability — the gauge expands on hover and its progress arc
+				// animates, so the stability check can hang for the full timeout and
+				// eat the whole deadline (defeating this retry loop). Moving the
+				// pointer away first guarantees a fresh mouse-enter that (re-)opens
+				// the hover on every attempt.
+				const box = await widget.boundingBox();
+				if (!box) {
+					throw new Error('context-usage gauge has no bounding box');
+				}
+				await page.mouse.move(0, 0);
+				await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 				await label.waitFor({ state: 'visible', timeout: 5_000 });
 				const text = (await label.textContent()) ?? '';
 				// Move the pointer off the gauge so the non-sticky hover auto-hides
