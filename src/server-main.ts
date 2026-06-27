@@ -167,11 +167,11 @@ function sanitizeStringArg(val: unknown): string | undefined {
  * `Unknown reconnection token` reconnection failures). The handlers tell apart a
  * self-exit (`beforeExit`), an external kill (`signal`) and a crash
  * (`uncaughtExceptionMonitor`). Gated behind the `VSCODE_SERVER_EXIT_DIAGNOSTICS`
-	 * env var (set by the smoke tests) so it adds no product noise. Lines are
-	 * appended synchronously to a `server-exit-diagnostics.log` file in the server's
-	 * `--logsPath` directory (falling back to `os.tmpdir()` when `--logsPath` is not
-	 * provided) so they survive process teardown (an async stdio write from an
-	 * `exit` handler does not).
+ * env var (set by the smoke tests) so it adds no product noise. Lines are
+ * appended synchronously to a `server-exit-diagnostics.log` file in the server's
+ * `--logsPath` directory (falling back to `os.tmpdir()` when `--logsPath` is not
+ * provided) so they survive process teardown (an async stdio write from an
+ * `exit` handler does not).
  */
 function installServerProcessExitDiagnostics(): void {
 	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
@@ -195,18 +195,16 @@ function installServerProcessExitDiagnostics(): void {
 		// best effort: the directory is normally created by the server already
 	}
 
+	// Write only to the file, never to stdout/stderr. The whole point of these
+	// diagnostics is to capture *why* the server's stdio pipe dies, so writing
+	// to that same (potentially broken) pipe is exactly what we must avoid: a
+	// failed `console.error` write throws `EPIPE`, which Node promotes to an
+	// uncaught exception, which re-enters the `uncaughtExceptionMonitor` handler
+	// below — an infinite loop that produced a 386MB log in one CI run.
 	const log = (message: string) => {
 		const line = `[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`;
-		// File write is authoritative and survives process teardown.
 		try {
 			fs.appendFileSync(diagnosticsFile, `${line}\n`);
-		} catch {
-			// ignore logging failures while the process is tearing down
-		}
-		// Also mirror to stderr so the line is visible live in the test
-		// resolver's captured output channel during normal operation.
-		try {
-			console.error(line);
 		} catch {
 			// ignore logging failures while the process is tearing down
 		}
@@ -231,8 +229,21 @@ function installServerProcessExitDiagnostics(): void {
 	// `uncaughtExceptionMonitor` is observational: it runs before the process
 	// crashes but does NOT prevent the default crash, so the real failure mode
 	// is preserved. It also fires for unhandled rejections that get promoted to
-	// uncaught exceptions by Node's default policy.
-	process.on('uncaughtExceptionMonitor', (err, origin) => log(`'uncaughtExceptionMonitor' (origin: ${origin}): ${err?.stack || err}`));
+	// uncaught exceptions by Node's default policy. Guard against re-entrancy:
+	// if logging an exception were to itself throw (and get promoted to another
+	// uncaught exception), we must not recurse into this handler forever.
+	let handlingUncaughtException = false;
+	process.on('uncaughtExceptionMonitor', (err, origin) => {
+		if (handlingUncaughtException) {
+			return;
+		}
+		handlingUncaughtException = true;
+		try {
+			log(`'uncaughtExceptionMonitor' (origin: ${origin}): ${err?.stack || err}`);
+		} finally {
+			handlingUncaughtException = false;
+		}
+	});
 
 	const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK', 'SIGQUIT'];
 	for (const signal of signals) {
