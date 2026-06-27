@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, describeRepeat, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -485,7 +485,13 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe('Agents Window (model configuration)', function () {
+	// FLAKE-BUST: run the whole suite (fresh agents-window launch + teardown)
+	// this many times so each iteration exercises the slow cold-start path that
+	// triggered the model-selection flake. Revert to a single `describe` before
+	// merging.
+	const FLAKE_BUST_ITERATIONS = 10;
+
+	describeRepeat(FLAKE_BUST_ITERATIONS, 'Agents Window (model configuration)', function () {
 		// Cold start of the Local session's copilot-chat exthost plus model
 		// registration can take a while on CI; match the 5-minute budget used
 		// by the other Agents Window describes.
