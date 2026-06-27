@@ -13,14 +13,22 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
+
+/** Command that sends the `fix-ci` prompt for the active session's failed checks. */
+export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';
+
+/** Command that opens the Changes view and reveals (expands + focuses) the CI checks section. */
+export const REVEAL_CI_CHECKS_COMMAND_ID = 'sessions.action.revealCIChecks';
+
+/** Slash command that invokes the built-in `fix-ci` skill. */
+const FIX_CI_QUERY = '/fix-ci';
 
 // --- Shared CI check utilities ------------------------------------------------
 
@@ -65,7 +73,12 @@ export function getFailedChecks(checks: readonly IGitHubCICheck[]): readonly IGi
 	return checks.filter(check => getCheckGroup(check) === CICheckGroup.Failed);
 }
 
-export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>): string {
+/** Builds the GitHub pull request URL for a CI model's coordinates. */
+export function getPullRequestUrl(coords: { owner: string; repo: string; prNumber: number }): string {
+	return `https://github.com/${coords.owner}/${coords.repo}/pull/${coords.prNumber}`;
+}
+
+export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>, prUrl?: string): string {
 	const sections = failedChecks.map(({ check, annotations }) => {
 		const parts = [
 			`Check: ${check.name}`,
@@ -81,15 +94,17 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
 		return parts.join('\n');
 	});
 
-	return [
-		'Please fix the failed CI checks for this session immediately.',
-		'Use the failed check information below, including annotations and check output, to identify the root causes and make the necessary code changes.',
-		'Focus on resolving these CI failures. Avoid unrelated changes unless they are required to fix the checks.',
-		'',
+	const lines = [FIX_CI_QUERY];
+	if (prUrl) {
+		lines.push(`Pull request: ${prUrl}`);
+	}
+	lines.push(
 		'Failed CI checks:',
 		'',
 		sections.join('\n\n---\n\n'),
-	].join('\n');
+	);
+
+	return lines.join('\n');
 }
 
 /**
@@ -119,7 +134,7 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 
 class FixCIChecksAction extends Action2 {
 
-	static readonly ID = 'sessions.action.fixCIChecks';
+	static readonly ID = FIX_CI_CHECKS_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -138,12 +153,12 @@ class FixCIChecksAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const gitHubService = accessor.get(IGitHubService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionManagementService.activeSession.get();
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
@@ -164,16 +179,15 @@ class FixCIChecksAction extends Action2 {
 			return { check, annotations };
 		}));
 
-		const prompt = buildFixChecksPrompt(failedCheckDetails);
+		const prompt = buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel));
 		const sessionResource = activeSession.resource;
-		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource)
-			?? await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
 			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for session', sessionResource.toString());
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt, { noCommandDetection: true });
+		await chatWidget.acceptInput(prompt);
 	}
 }
 

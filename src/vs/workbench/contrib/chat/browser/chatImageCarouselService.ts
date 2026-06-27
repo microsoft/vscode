@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -100,7 +103,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -118,12 +121,24 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption }))
+				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
 
 	return sections;
+}
+
+/**
+ * Converts an extracted image caption to plain display text, stripping
+ * Markdown syntax (e.g. "Viewed image [](file:///path/img.png)" becomes
+ * "Viewed image img.png") the same way chat renders tool invocation messages.
+ */
+function toCaptionText(caption: string | IMarkdownString | undefined): string | undefined {
+	if (caption === undefined) {
+		return undefined;
+	}
+	return typeof caption === 'string' ? caption : stripIcons(renderAsPlaintext(caption, { useLinkFormatter: true }));
 }
 
 /**
@@ -231,7 +246,12 @@ export function buildCollectionArgs(
  * Builds the single-image arguments for the carousel command.
  */
 export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarouselSingleImageArgs {
-	const name = resource.path.split('/').pop() ?? 'image';
+	let name = resource.path.split('/').pop() ?? 'image';
+	try {
+		name = decodeURIComponent(name);
+	} catch {
+		// keep raw segment if it isn't valid percent-encoding
+	}
 	const mimeType = getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
 	return { name, mimeType, data, title: name };
 }

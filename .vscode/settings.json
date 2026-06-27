@@ -71,6 +71,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"src/vs/platform/agentHost/common/state/protocol/**": true,
+		"src/vs/platform/agentHost/node/codex/protocol/generated/**": true,
 		"test/integration/browser/out/**": true,
 		// "src/vs/sessions/**": true
 	},
@@ -144,7 +145,8 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"product.overrides.json"
+		"product.overrides.json",
+		"**/node_modules/**",
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
@@ -155,6 +157,7 @@
 	],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
+	"githubPullRequests.enableAttestationCommits": true,
 	// --- Testing & Debugging ---
 	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {

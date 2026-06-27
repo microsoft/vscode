@@ -114,6 +114,16 @@ OTel is **off by default** with zero overhead. It activates when:
 
 ## What Gets Exported
 
+> ### Attribute namespaces & dual-emit policy
+>
+> Copilot Chat emits OTel attributes under three namespaces:
+>
+> - **`gen_ai.*`** — [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Use these whenever a standard key exists.
+> - **`github.copilot.*`** — Canonical Copilot-specific namespace. Prefer this for new dashboards and alerts.
+> - **`copilot_chat.*`** — Original VS Code extension namespace. Several keys (notably `copilot_chat.repo.*` and `gen_ai.usage.reasoning_tokens`) are now **dual-emitted alongside the `github.copilot.*` equivalents**. Tables below mark these rows as **Legacy** with a pointer to the preferred key.
+>
+> Legacy keys continue to emit indefinitely so existing collectors, dashboards, and downstream consumers (Agent Debug Log, Chronicle, SQLite span store) keep working without changes. There is no sunset date.
+
 ### Traces
 
 Copilot Chat emits a hierarchical span tree for each agent interaction:
@@ -126,6 +136,8 @@ invoke_agent copilot                           [~15s]
   ├── chat gpt-4o                              [~4s]  (LLM generates final response)
   └── (span ends)
 ```
+
+Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as the root span and nested `chat` / `execute_tool` children.
 
 **`invoke_agent`** — wraps the entire agent orchestration (all LLM calls + tool executions).
 
@@ -141,6 +153,14 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.usage.output_tokens` | Recommended | `3200` |
 | `gen_ai.usage.cache_read.input_tokens` | When available | `8000` |
 | `gen_ai.usage.cache_creation.input_tokens` | When available | `4200` |
+| `github.copilot.agent.type` | Always | `builtin` \| `custom` \| `plugin` |
+| `github.copilot.git.repository` | When in a repo | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | When in a repo | `main` |
+| `github.copilot.git.commit_sha` | When in a repo | `deadbeef...` |
+| `github.copilot.github.org` | GitHub remotes only | `microsoft` |
+| `copilot_chat.repo.remote_url` | **Legacy** — prefer `github.copilot.git.repository` | `https://github.com/...` |
+| `copilot_chat.repo.head_branch_name` | **Legacy** — prefer `github.copilot.git.branch` | `main` |
+| `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
 | `copilot_chat.turn_count` | Always | `4` |
 | `error.type` | On error | `Error` |
 | `gen_ai.input.messages` | Opt-in (captureContent) | `[{"role":"user",...}]` |
@@ -166,7 +186,11 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.usage.output_tokens` | On response | `250` |
 | `gen_ai.usage.cache_read.input_tokens` | When available | `1200` |
 | `gen_ai.usage.cache_creation.input_tokens` | When available | `300` |
+| `gen_ai.usage.reasoning.output_tokens` | When available | `512` |
+| `gen_ai.usage.reasoning_tokens` | **Legacy** — prefer `gen_ai.usage.reasoning.output_tokens` | `512` |
 | `copilot_chat.time_to_first_token` | On response | `450` |
+| `gen_ai.request.stream` | Streaming responses | `true` |
+| `gen_ai.response.time_to_first_chunk` | Streaming responses (seconds) | `0.45` |
 | `server.address` | When available | `api.github.com` |
 | `copilot_chat.debug_name` | When available | `agentMode` |
 | `error.type` | On error | `TimeoutError` |
@@ -182,6 +206,13 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.tool.type` | Required | `function` or `extension` (MCP tools) |
 | `gen_ai.tool.call.id` | Recommended | `call_abc123` |
 | `gen_ai.tool.description` | When available | `Read the contents of a file` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools | `create` \| `update` \| `str_replace` \| `insert` |
+| `github.copilot.tool.parameters.skill_name` | When invoking a skill | `auto-perf-optimize` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools, opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools, opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
 | `error.type` | On error | `FileNotFoundError` |
 | `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"filePath":"/src/index.ts"}` |
 | `gen_ai.tool.call.result` | Opt-in (captureContent) | `(file contents or summary)` |
@@ -194,6 +225,8 @@ invoke_agent copilot                           [~15s]
 |---|---|---|---|
 | `gen_ai.client.operation.duration` | Histogram | s | LLM API call duration |
 | `gen_ai.client.token.usage` | Histogram | tokens | Token counts (input/output) |
+| `gen_ai.client.operation.time_to_first_chunk` | Histogram | s | Time to first streaming chunk |
+| `gen_ai.client.operation.time_per_output_chunk` | Histogram | s | Inter-chunk latency after the first chunk |
 
 **`gen_ai.client.operation.duration` attributes:**
 
@@ -217,6 +250,17 @@ invoke_agent copilot                           [~15s]
 | `gen_ai.request.model` | Requested model |
 | `gen_ai.response.model` | Resolved model |
 | `server.address` | Server hostname |
+
+**`gen_ai.client.operation.time_to_first_chunk` / `gen_ai.client.operation.time_per_output_chunk` attributes:**
+
+| Attribute | Description |
+|---|---|
+| `gen_ai.operation.name` | Operation type (e.g., `chat`) |
+| `gen_ai.provider.name` | Provider (e.g., `github`, `anthropic`, `gemini`) |
+| `gen_ai.request.model` | Requested model |
+| `gen_ai.response.model` | Resolved model (when known) |
+
+> Both metrics are tagged with `gen_ai.response.model` for per-model slicing. `time_per_output_chunk` is emitted only on the primary GitHub streaming path; BYOK providers (Anthropic, Gemini) emit `time_to_first_chunk` only, as they do not expose per-chunk arrival timing.
 
 #### Extension-Specific Metrics
 
@@ -256,7 +300,10 @@ These metrics track the activity and outcomes of agentic code changes across all
 | `copilot_chat.agent.summarization.count` | Counter | events | Context summarization outcomes (applied/failed) |
 | `copilot_chat.pull_request.count` | Counter | PRs | Pull requests created via CLI agent |
 | `copilot_chat.cloud.session.count` | Counter | sessions | Cloud/remote agent sessions by partner |
-| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications |
+| `copilot_chat.cloud.pr_ready.count` | Counter | events | Remote agent job PR ready notifications (v1/Jobs API only) |
+| `copilot_chat.cloud.operation.count` | Counter | operations | Cloud backend operation outcomes (create, fetch, follow-up, PR) by backend version |
+| `copilot_chat.cloud.operation.duration` | Histogram | ms | Cloud backend operation latency by backend version |
+| `copilot_chat.cloud.error.count` | Counter | errors | Cloud backend operation failures by backend version and error type |
 
 **`copilot_chat.edit.acceptance.count` attributes:** `copilot_chat.edit.source` (`inline_chat`/`chat_editing`/`chat_editing_hunk`/`apply_patch`/`replace_string`/`code_mapper`), `copilot_chat.edit.outcome` (`accepted`/`rejected`), `copilot_chat.language_id` (optional)
 
@@ -276,7 +323,15 @@ These metrics track the activity and outcomes of agentic code changes across all
 
 **`copilot_chat.agent.summarization.count` attributes:** `outcome` (`applied`/`failed`)
 
-**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`)
+**`copilot_chat.cloud.session.count` attributes:** `partner_agent` (`copilot`/`claude`/`codex`), `github.copilot.cloud.backend_version` (`v1`/`v2`, optional)
+
+**`copilot_chat.cloud.pr_ready.count` attributes:** `github.copilot.cloud.backend_version` (`v1`, optional)
+
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
+
+**`copilot_chat.cloud.operation.duration` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`)
+
+**`copilot_chat.cloud.error.count` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`), `error.type` (low-cardinality classifier, e.g. `http_500`)
 
 ### Events
 
@@ -613,11 +668,16 @@ copilot-chat invoke_agent claude               [~33s]
 | `gen_ai.agent.name` | `claude` |
 | `gen_ai.provider.name` | `github` |
 | `gen_ai.request.model` | `claude-haiku-4.5` |
-| `gen_ai.response.model` | `claude-haiku-4-5` |
+| `gen_ai.response.model` | `claude-haiku-4.5` |
 | `gen_ai.usage.input_tokens` | `103739` (parent-only, excludes subagent tokens) |
 | `gen_ai.usage.output_tokens` | `1100` |
 | `gen_ai.usage.cache_read.input_tokens` | `64062` |
 | `gen_ai.usage.cache_creation.input_tokens` | `39629` |
+| `github.copilot.agent.type` | `builtin` |
+| `github.copilot.git.repository` | `https://github.com/microsoft/vscode.git` |
+| `github.copilot.git.branch` | `main` |
+| `github.copilot.git.commit_sha` | `deadbeef...` |
+| `github.copilot.github.org` | `microsoft` |
 | `copilot_chat.turn_count` | `8` |
 | `copilot_chat.total_cost_usd` | `0.067` (session-wide, includes subagents) |
 | `copilot_chat.chat_session_id` | VS Code session ID |
@@ -626,7 +686,31 @@ copilot-chat invoke_agent claude               [~33s]
 
 **`execute_tool`** — one span per tool invocation. When the tool is `Agent` (subagent), child `chat` and `execute_tool` spans are nested underneath, giving full subagent visibility.
 
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_tool` |
+| `gen_ai.tool.name` | Required | `Edit` |
+| `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
+| `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
+| `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
+| `github.copilot.tool.parameters.command` | Shell tools (`Bash`), opt-in (captureContent) | `npm test` (truncated to 256 chars) |
+| `github.copilot.tool.parameters.file_path` | File tools (`Read`, `Edit`, `MultiEdit`, `Write`, `NotebookEdit`), opt-in (captureContent) | `/src/app.ts` |
+| `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
+| `gen_ai.tool.call.arguments` | Opt-in (captureContent) | `{"file_path":"/src/app.ts",...}` |
+
 **`execute_hook`** — one span per Claude hook execution (e.g., `Stop` hooks).
+
+| Attribute | Requirement | Example |
+|---|---|---|
+| `gen_ai.operation.name` | Required | `execute_hook` |
+| `copilot_chat.hook_type` | Required | `PreToolUse` |
+| `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
+| `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |
+| `github.copilot.hook.duration` | Always | `0.142` (seconds) |
+| `github.copilot.hook.tool_names` | When tool-scoped | `["bash"]` (JSON array) |
+| `copilot_chat.hook_input` | Always | hook input payload (truncated) |
+| `copilot_chat.hook_output` | On success | hook stdout (truncated) |
+| `error.type` | On error | `Error` |
 
 ---
 

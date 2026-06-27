@@ -10,17 +10,17 @@ import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hove
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
-		currentEditingStorage: string | undefined;
+		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -51,7 +51,7 @@ suite('aiCustomizationManagementEditor', () => {
 	function createTestEditor(hoverService?: IHoverService, configurationService?: IConfigurationService): TestableEditor {
 		const editor = Object.create(AICustomizationManagementEditor.prototype) as unknown as TestableEditor;
 		editor.currentEditingPromptType = undefined;
-		editor.currentEditingStorage = undefined;
+		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -96,7 +96,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('uses edit copy for built-in skills that support raw overrides', () => {
 		const editor = createTestEditor();
 		editor.currentEditingPromptType = PromptsType.skill;
-		editor.currentEditingStorage = BUILTIN_STORAGE;
+		editor.currentEditingSource = AICustomizationSources.builtin;
 		editor.currentEditingReadOnly = true;
 		editor.editorDisplayMode = 'preview';
 
@@ -109,7 +109,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('uses view-raw copy for true read-only extension content', () => {
 		const editor = createTestEditor();
 		editor.currentEditingPromptType = PromptsType.agent;
-		editor.currentEditingStorage = 'extension';
+		editor.currentEditingSource = AICustomizationSources.extension;
 		editor.currentEditingReadOnly = true;
 		editor.editorDisplayMode = 'preview';
 
@@ -155,7 +155,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
 		}));
 		editor.currentEditingPromptType = PromptsType.agent;
-		editor.currentEditingStorage = BUILTIN_STORAGE;
+		editor.currentEditingSource = AICustomizationSources.builtin;
 		editor.currentEditingReadOnly = false;
 		editor.editorDisplayMode = 'preview';
 

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 use base64::{engine::general_purpose as b64, Engine as _};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
 	net::{IpAddr, Ipv4Addr, SocketAddr},
 	str::FromStr,
+	sync::Arc,
 	time::Duration,
 };
 use sysinfo::Pid;
@@ -49,6 +50,7 @@ use crate::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
+		SharedActiveAgentHost,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -148,24 +150,27 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
-	// Ensure a per-machine agent host supervisor is running on the remote
-	// (the SSH/`command-shell` entry point) so the renderer that connects
-	// to the spawned VS Code server can reach the agent host via the
-	// `agentHostProxy` IPC channel. Best-effort: if the supervisor can't
-	// be started we still serve the stream so editing / extension host
-	// keep working — the renderer will just see "Unknown channel:
-	// agentHostProxy".
-	let agent_host_bridge = match ensure_supervisor_running(&ctx.paths, &ctx.log).await {
-		Ok(a) => Some(a),
-		Err(e) => {
-			warning!(
-				ctx.log,
-				"Could not start agent host supervisor; the renderer will not be able to reach it: {}",
-				e
-			);
-			None
+	// Kick off the agent host supervisor in the background. The supervisor
+	// is what lets the renderer reach the agent host via the
+	// `agentHostProxy` IPC channel on the spawned VS Code server. We do
+	// NOT await it here — `command-shell` needs to start listening
+	// immediately. `handle_serve` awaits the shared future on demand and
+	// mixes the bridge endpoint into the per-request `code_server_args`.
+	// On failure the renderer just won't see `agentHostProxy`; editing
+	// and the extension host still work.
+	let active_agent_host: SharedActiveAgentHost = {
+		let paths = ctx.paths.clone();
+		let log = ctx.log.clone();
+		async move {
+			ensure_supervisor_running(&paths, &log)
+				.await
+				.map(Arc::new)
+				.map_err(Arc::new)
 		}
+		.boxed()
+		.shared()
 	};
+	tokio::spawn(active_agent_host.clone());
 
 	let mut params = ServeStreamParams {
 		log: ctx.log,
@@ -177,13 +182,10 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
+		active_agent_host: Some(active_agent_host),
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
-
-	if let Some(a) = &agent_host_bridge {
-		a.apply_to_bridge(&mut params.code_server_args);
-	}
 
 	let mut listener: Box<dyn AsyncRWAccepter> =
 		match (args.on_port.first(), &args.on_host, args.on_socket) {

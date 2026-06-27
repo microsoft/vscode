@@ -19,8 +19,8 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) { }
 
-	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void> {
-		const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), `${exportName}.zip`);
+	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<boolean> {
+		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
 		const saveUri = await this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
 			defaultUri,
@@ -29,10 +29,11 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		});
 
 		if (!saveUri) {
-			return;
+			return false;
 		}
 
 		await this.nativeHostService.createZipFile(saveUri, [...files]);
+		return true;
 	}
 }
 

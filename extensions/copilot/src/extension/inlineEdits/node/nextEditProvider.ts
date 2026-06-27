@@ -97,6 +97,7 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 	docContents: StringText;
 	editsSoFar: StringEdit;
 	nextEdits: StringReplacement[];
+	patchIndices: (number | undefined)[];
 	docId: DocumentId;
 }> {
 	const statePerDoc = new CachedFunction((id: DocumentId) => {
@@ -111,6 +112,7 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 						docContents: baseDocState,
 						editsSoFar: StringEdit.empty,
 						nextEdits: [] as StringReplacement[],
+						patchIndices: [] as (number | undefined)[],
 						docId: id,
 					};
 				}
@@ -122,12 +124,30 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 			docContents: doc.documentAfterEdits,
 			editsSoFar: StringEdit.empty,
 			nextEdits: [] as StringReplacement[],
+			patchIndices: [] as (number | undefined)[],
 			docId: id,
 		};
 	});
 
 
 	return statePerDoc;
+}
+
+/**
+ * Computes the originating model-patch index for a served edit. In the rebase path
+ * the served edit is addressed by `rebasedEditIndex` into the entry's bundled
+ * `patchIndices`; otherwise the entry carries its own `patchIndex`.
+ *
+ * Invariant: `rebasedEditIndex` is only ever set for entry 0 (the sole entry given a
+ * `patchIndices` bundle), so whenever it is defined `patchIndices` is defined too.
+ * We therefore deliberately do NOT fall back to `patchIndex` in the rebase branch: a
+ * served bundle slot of `undefined` is a genuine "no originating patch" attribution
+ * and must not be masked by entry 0's own patch index.
+ */
+function getSourcePatchIndex(cachedEdit: CachedOrRebasedEdit): number | undefined {
+	return cachedEdit.rebasedEditIndex !== undefined
+		? cachedEdit.patchIndices?.[cachedEdit.rebasedEditIndex]
+		: cachedEdit.patchIndex;
 }
 
 export interface NESInlineCompletionContext extends vscode.InlineCompletionContext {
@@ -361,6 +381,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			telemetryBuilder.setHeaderRequestId(req.headerRequestId);
 			telemetryBuilder.setIsFromCache();
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
+			// Attribute the served edit to its originating model patch.
+			telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(cachedEdit));
 			// back-date the recording bookmark of the cached edit to the bookmark of the original request.
 			logContext.recordingBookmark = req.log.recordingBookmark;
 			cacheEntry = cachedEdit.baseCacheEntry ?? cachedEdit;
@@ -406,6 +428,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						edit = { actualEdit: suggestedNextEdit, isFromCursorJump: result.val.isFromCursorJump };
 						isFromSpeculativeRequest = result.val.isFromSpeculativeRequest ?? false;
 						cacheEntry = result.val.baseCacheEntry ?? result.val;
+						// Attribute the served (first/fresh) edit to its originating model patch.
+						telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(result.val));
 					}
 				}
 			}
@@ -474,7 +498,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	private determineNesConfigs(telemetryBuilder: LlmNESTelemetryBuilder, logContext: InlineEditRequestLogContext): INesConfigs {
 		const nesConfigs: INesConfigs = {
 			isAsyncCompletions: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService),
-			isEagerBackupRequest: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsEagerBackupRequest, this._expService),
 		};
 
 		telemetryBuilder.setNESConfigs({ ...nesConfigs });
@@ -576,48 +599,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					return firstEdit.map(val => ({ ...val, isFromSpeculativeRequest: true }));
 				}
 				return nextEditResult.nextEdit.isError() ? nextEditResult.nextEdit : requestToReuse.firstEdit.p;
-			} else if (nesConfigs.isEagerBackupRequest) {
-				// The pending request is stale (document diverged). Start a backup request
-				// in parallel so that if rebase fails, we already have a head start.
-				logger.trace('starting eager backup request in parallel with rebase attempt');
-
-				// _executeNewNextEditRequest cancels the current _pendingStatelessNextEditRequest,
-				// but we're still trying to join+rebase requestToReuse. Temporarily clear the
-				// pending field so the stale request isn't cancelled prematurely.
-				this._pendingStatelessNextEditRequest = null;
-				const backupPromise = this._executeNewNextEditRequest(req, doc, historyContext, nesConfigs, shouldExpandEditWindow, logger, telemetryBuilder, cancellationToken);
-				const cancelBackupRequest = () => {
-					void backupPromise
-						.then(r => r.nextEditRequest.cancellationTokenSource.cancel())
-						.catch(() => undefined);
-				};
-
-				// Simultaneously attempt to join + rebase the stale request
-				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
-				const cacheResult = await requestToReuse.firstEdit.p;
-				if (cacheResult.isOk() && cacheResult.val.edit) {
-					const rebaseResult = this._nextEditCache.tryRebaseCacheEntry(cacheResult.val, documentAtInvocationTime, selectionAtInvocationTime);
-					if (rebaseResult.edit) {
-						logger.trace('rebase succeeded, cancelling eager backup request');
-						cancelBackupRequest();
-						telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-						return Result.ok(rebaseResult.edit);
-					}
-					this._logRebaseFailure(rebaseResult.failureInfo, logContext);
-				}
-
-				if (cancellationToken.isCancellationRequested) {
-					logger.trace('cancelled after rebase failed (eager backup path)');
-					cancelBackupRequest();
-					telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-					return Result.error(new NoNextEditReason.GotCancelled('afterFailedRebase'));
-				}
-
-				// Rebase failed — use the backup request that's already been running in parallel
-				logger.trace('rebase failed, using eager backup request');
-				const backupRes = await backupPromise;
-				telemetryBuilder.setStatelessNextEditTelemetry(backupRes.nextEditResult.telemetry);
-				return backupRes.nextEditResult.nextEdit.isError() ? backupRes.nextEditResult.nextEdit : backupRes.nextEditRequest.firstEdit.p;
 			} else {
 				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
 
@@ -698,12 +679,20 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('_executeNewNextEditRequest');
 
-		const recording = this._debugRecorder?.getRecentLog();
-
 		const logContext = req.log;
+
+		// Refresh the recording bookmark to the moment we snapshot document/selection state
+		// for the prompt. The bookmark created at provider entry can be stale by the time
+		// we reach here (after debounce/awaits)
+		if (this._debugRecorder) {
+			const refreshedBookmark = this._debugRecorder.createBookmark();
+			logContext.recordingBookmark = refreshedBookmark;
+			telemetryBuilder.setRequestBookmark(refreshedBookmark);
+		}
 
 		const activeDocAndIdx = assertDefined(historyContext.getDocumentAndIdx(curDocId));
 		const activeDocSelection = doc.selection.get()[0] as OffsetRange | undefined;
+		const recording = this._debugRecorder?.getRecentLog();
 
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
@@ -726,7 +715,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			nLinesEditWindow,
 			false, // isSpeculative
 			logContext,
-			req.log.recordingBookmark,
+			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
 		);
@@ -784,7 +773,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		let ithEdit = -1;
 
-		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
+		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId; readonly patchIndex?: number }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
 			++ithEdit;
 			const myLogger = logger.createSubLogger('processEdit');
 			myLogger.trace(`processing edit #${ithEdit} (starts at 0)`);
@@ -819,6 +808,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				// populate the cache
 				const nextEditReplacement = rebasedEdit.replacements[0];
 				targetDocState.nextEdits.push(nextEditReplacement);
+				targetDocState.patchIndices.push(streamedEdit.patchIndex);
 				cachedEdit = this._nextEditCache.setKthNextEdit(
 					targetDocState.docId,
 					targetDocState.docContents,
@@ -828,7 +818,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					ithEdit === 0 ? targetDocState.nextEdits : undefined,
 					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
 					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined }
+					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
 			}
@@ -1368,6 +1358,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						if (rebasedEdit.replacements.length === 1) {
 							const nextEditReplacement = rebasedEdit.replacements[0];
 							targetDocState.nextEdits.push(nextEditReplacement);
+							targetDocState.patchIndices.push(streamedEdit.patchIndex);
 
 							// Populate the cache with the speculative result
 							const cachedEdit = this._nextEditCache.setKthNextEdit(
@@ -1379,7 +1370,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								ithEdit === 0 ? targetDocState.nextEdits : undefined,
 								undefined, // no userEditSince for speculative
 								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined }
+								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 							);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {

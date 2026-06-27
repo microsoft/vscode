@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { AgentProvider, AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
+import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -19,16 +19,27 @@ export interface IClaudeSessionOverlay {
 	readonly customizationDirectory?: URI;
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
+	readonly agent?: AgentSelection;
+	/**
+	 * Transport the session most recently materialized under (Phase 19).
+	 * Forward-compat only — written at materialize time but NOT read for
+	 * transport resolution in v1 (transport is resolved host-level). Lets a
+	 * future per-session-transport feature land without a data migration.
+	 */
+	readonly transport?: 'proxy' | 'native';
 }
 
 /**
  * Write view: any subset of the overlay fields. Fields left `undefined`
- * are not touched (only-write-on-defined semantics).
+ * are not touched (only-write-on-defined semantics). Pass `null` for
+ * `agent` to clear a previously persisted selection.
  */
 export interface IClaudeSessionOverlayUpdate {
 	readonly customizationDirectory?: URI;
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
+	readonly agent?: AgentSelection | null;
+	readonly transport?: 'proxy' | 'native';
 }
 
 /**
@@ -54,6 +65,8 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_CUSTOMIZATION_DIRECTORY = 'claude.customizationDirectory';
 	private static readonly KEY_MODEL = 'claude.model';
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
+	private static readonly KEY_AGENT = 'claude.agent';
+	private static readonly KEY_TRANSPORT = 'claude.transport';
 
 	constructor(
 		private readonly _provider: AgentProvider,
@@ -80,6 +93,15 @@ export class ClaudeSessionMetadataStore {
 			if (fields.permissionMode) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE, fields.permissionMode));
 			}
+			if (fields.agent !== undefined) {
+				work.push(db.setMetadata(
+					ClaudeSessionMetadataStore.KEY_AGENT,
+					fields.agent === null ? '' : JSON.stringify({ uri: fields.agent.uri }),
+				));
+			}
+			if (fields.transport) {
+				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT, fields.transport));
+			}
 			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
@@ -99,15 +121,19 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw] = await Promise.all([
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
 				model: parseModelSelection(modelRaw),
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
+				agent: parseAgentSelection(agentRaw),
+				transport: transportRaw === 'proxy' || transportRaw === 'native' ? transportRaw : undefined,
 			};
 		} finally {
 			ref.dispose();
@@ -127,9 +153,23 @@ export class ClaudeSessionMetadataStore {
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
 			customizationDirectory: overlay.customizationDirectory,
-			model: overlay.model,
 		};
 	}
+}
+
+function parseAgentSelection(raw: string | undefined): AgentSelection | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const value: { uri?: unknown } = JSON.parse(raw);
+		if (value && typeof value === 'object' && typeof value.uri === 'string') {
+			return { uri: value.uri };
+		}
+	} catch {
+		// fall through
+	}
+	return undefined;
 }
 
 function serializeModelSelection(model: ModelSelection): string {
