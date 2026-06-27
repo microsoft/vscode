@@ -448,49 +448,31 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		});
 	});
 
-	suite('feedback comment tools', () => {
+	suite('feedback comment tools (delegated to the shared server-tool group)', () => {
 
 		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
 			return typeof msg === 'string' ? msg : msg.markdown;
 		}
 
-		test('listComments past tense reports the comment count from the result', () => {
-			const result = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
-			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, result)), 'Checked 3 comments');
-		});
-
-		test('listComments past tense uses the singular form for one comment', () => {
-			const result = JSON.stringify({ comments: [{ id: 'a' }] });
-			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, result)), 'Checked 1 comment');
-		});
-
-		test('listComments past tense falls back when the result is missing or malformed', () => {
-			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true)), 'Checked comments');
-			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, true, 'not json')), 'Checked comments');
-		});
-
-		test('comment tools have dedicated invocation and past tense messages', () => {
+		// Exhaustive per-tool/count coverage lives in serverToolGroups.test.ts.
+		// These smoke checks only assert that the Copilot display functions
+		// delegate to the shared group instead of falling through to the
+		// generic `Using/Used "<tool>"` fallback.
+		test('Copilot display delegates to the shared group', () => {
+			const listResult = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] });
 			assert.deepStrictEqual({
-				addInvoke: text(getInvocationMessage('addComment', 'Add Comment', undefined)),
-				addPast: text(getPastTenseMessage('addComment', 'Add Comment', undefined, true)),
-				deleteInvoke: text(getInvocationMessage('deleteComments', 'Delete Comments', undefined)),
-				deletePast: text(getPastTenseMessage('deleteComments', 'Delete Comments', undefined, true)),
-				resolveInvoke: text(getInvocationMessage('resolveComments', 'Resolve Comments', undefined)),
-				resolvePast: text(getPastTenseMessage('resolveComments', 'Resolve Comments', undefined, true)),
-				viewInvoke: text(getInvocationMessage('viewUnreviewedComments', 'View Comments', undefined)),
-				viewPast: text(getPastTenseMessage('viewUnreviewedComments', 'View Comments', undefined, true)),
-				listInvoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				displayName: getToolDisplayName('listComments'),
+				invoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
 			}, {
-				addInvoke: 'Adding comment',
-				addPast: 'Added comment',
-				deleteInvoke: 'Deleting comments',
-				deletePast: 'Deleted comments',
-				resolveInvoke: 'Resolving comments',
-				resolvePast: 'Resolved comments',
-				viewInvoke: 'Viewing comments',
-				viewPast: 'Viewed comments',
-				listInvoke: 'Checking comments',
+				displayName: 'List Comments',
+				invoke: 'Checking comments',
+				past: 'Checked 2 comments',
 			});
+		});
+
+		test('failed feedback tool still uses the generic failure message', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, false)), '"List Comments" failed');
 		});
 	});
 

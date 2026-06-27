@@ -343,8 +343,12 @@ function mapUserMessage(
 			content.push(fileEdit);
 		}
 		const info = state.toolCalls.lookup(block.tool_use_id)?.info;
+		const resultText = content
+			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
+			.join('\n');
 		const pastTenseMessage: StringOrMarkdown = info
-			? getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError)
+			? getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError, resultText)
 			: `${getClaudeToolDisplayName(tracked.toolName)} finished`;
 		signals.push({
 			kind: 'action',
