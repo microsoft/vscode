@@ -18,13 +18,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
-const TRY_AUTO_COMMAND_ID = 'workbench.action.chat.quotaTrajectoryTryAuto';
 const TRAJECTORY_NUDGE_TREATMENT_NAME = 'config.chatQuotaTrajectoryNudge';
 
 // --- Mock IChatEntitlementService -------------------------------------------
@@ -256,35 +254,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			},
 			lookupLanguageModelByQualifiedName: () => undefined,
 		} as unknown as ILanguageModelsService;
-		const switchedModels: string[] = [];
-		const chatWidget = {
-			input: {
-				switchToAutoModel() {
-					const autoId = modelIds.find(id => languageModelsService.lookupLanguageModel(id)?.id === 'auto');
-					if (!autoId) {
-						return false;
-					}
-					switchedModels.push(autoId);
-					return true;
-				},
-			},
-		};
-		const chatWidgetService = {
-			_serviceBrand: undefined,
-			lastFocusedWidget: chatWidget,
-			onDidAddWidget: Event.None,
-			onDidBackgroundSession: Event.None,
-			onDidChangeFocusedWidget: Event.None,
-			onDidChangeFocusedSession: Event.None,
-			reveal: async () => true,
-			revealWidget: async () => undefined,
-			getAllWidgets: () => [chatWidget],
-			getWidgetByInputUri: () => undefined,
-			openSession: async () => undefined,
-			getWidgetBySessionResource: () => undefined,
-			getWidgetsByLocations: () => [],
-			register: () => ({ dispose() { } }),
-		} as unknown as IChatWidgetService;
 
 		// Track disposables for emitters
 		store.add(entitlementMock.onDidChangeQuotaRemaining);
@@ -300,10 +269,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			assignmentMock.service,
 			modelOpts?.telemetryService ?? new NullTelemetryServiceShape(),
 			new NullLogService(),
-			chatWidgetService,
 		));
 
-		return { contribution, entitlementMock, notificationMock, storageService, assignmentMock, switchedModels };
+		return { contribution, entitlementMock, notificationMock, storageService, assignmentMock };
 	}
 
 	function updateQuotas(
@@ -755,13 +723,8 @@ suite('ChatQuotaNotificationContribution', () => {
 			const notification = notificationMock.getNotification();
 			assert.ok(notification);
 			const message = notification.message;
-			const tryAutoLink = createMarkdownCommandLink({
-				text: 'Try auto',
-				id: TRY_AUTO_COMMAND_ID,
-				tooltip: 'Try Auto',
-			});
 			const learnMoreLink = createMarkdownCommandLink({
-				text: 'learn about optimizing usage',
+				text: 'Learn about optimizing usage',
 				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
 				tooltip: 'Learn about optimizing usage',
 			});
@@ -771,76 +734,10 @@ suite('ChatQuotaNotificationContribution', () => {
 				actions: notification.actions.length,
 				autoDismissOnMessage: notification.autoDismissOnMessage,
 			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${tryAutoLink} or ${learnMoreLink}.`,
+				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}.`,
 				severity: ChatInputNotificationSeverity.Info,
 				actions: 0,
 				autoDismissOnMessage: false,
-			});
-		});
-
-		test('omits Try auto link when Auto is already selected', async () => {
-			const telemetryService = new TestTelemetryService();
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { selectedModelId: 'copilot/auto', trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-
-			const notification = notificationMock.getNotification();
-			assert.ok(notification);
-			const message = notification.message;
-			const learnMoreLink = createMarkdownCommandLink({
-				text: 'Learn about optimizing usage',
-				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
-				tooltip: 'Learn about optimizing usage',
-			});
-			assert.deepStrictEqual({
-				message: typeof message === 'string' ? message : message.value,
-				enrollmentTelemetry: telemetryService.events[0],
-			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}.`,
-				enrollmentTelemetry: {
-					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'alreadyAuto' },
-				},
-			});
-		});
-
-		test('omits Try auto link when the Copilot CLI Auto model is already selected', async () => {
-			const telemetryService = new TestTelemetryService();
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { selectedModelId: 'copilotcli:auto', trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-
-			const notification = notificationMock.getNotification();
-			assert.ok(notification);
-			const message = notification.message;
-			const learnMoreLink = createMarkdownCommandLink({
-				text: 'Learn about optimizing usage',
-				id: CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID,
-				tooltip: 'Learn about optimizing usage',
-			});
-			assert.deepStrictEqual({
-				message: typeof message === 'string' ? message : message.value,
-				enrollmentTelemetry: telemetryService.events[0],
-			}, {
-				message: `You're likely to exhaust your AI credits before your billing period. ${learnMoreLink}.`,
-				enrollmentTelemetry: {
-					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'alreadyAuto' },
-				},
 			});
 		});
 
@@ -901,9 +798,9 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(typeof message !== 'string' && message.value.includes('exhaust your AI credits'));
 		});
 
-		test('try auto command switches to Auto and logs telemetry', async () => {
+		test('learn more command logs link-clicked telemetry', async () => {
 			const telemetryService = new TestTelemetryService();
-			const { switchedModels } = createContribution({
+			createContribution({
 				entitlement: ChatEntitlement.Pro,
 				quotas: {
 					resetDate: makeResetDate(24),
@@ -913,32 +810,21 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, { trajectoryTreatment: true, telemetryService });
 
 			await flushPromises();
-			const command = CommandsRegistry.getCommand(TRY_AUTO_COMMAND_ID);
+			const command = CommandsRegistry.getCommand(CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID);
 			assert.ok(command);
-			command.handler({} as never);
+			command.handler({ get: () => ({ open: async () => true }) } as never);
+			await flushPromises();
 
-			assert.deepStrictEqual({
-				events: telemetryService.events,
-				switchedModels,
-			}, {
-				events: [
-					{
-						name: 'chatQuotaTrajectoryNudgeEnrolled',
-						data: {
-							treatment: true,
-							entitlement: 'Pro',
-							averageDailyUsage: 4.67,
-							percentUsed: 28,
-							linkToAuto: 'enabled',
-						},
-					},
-					{
-						name: 'chatQuotaTrajectoryNudgeTryAutoClicked',
-						data: undefined,
-					},
-				],
-				switchedModels: ['copilot/auto'],
-			});
+			assert.deepStrictEqual(telemetryService.events, [
+				{
+					name: 'chatQuotaTrajectoryNudgeEnrolled',
+					data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28 },
+				},
+				{
+					name: 'chatQuotaTrajectoryNudgeLinkClicked',
+					data: undefined,
+				},
+			]);
 		});
 
 		test('logs enrollment telemetry for control assignment without showing nudge', async () => {
@@ -960,7 +846,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			}, {
 				events: [{
 					name: 'chatQuotaTrajectoryNudgeEnrolled',
-					data: { treatment: false, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28, linkToAuto: 'enabled' },
+					data: { treatment: false, entitlement: 'Pro', averageDailyUsage: 4.67, percentUsed: 28 },
 				}],
 				notification: undefined,
 			});
@@ -1206,22 +1092,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				lookupLanguageModel: (): ILanguageModelChatMetadata | undefined => undefined,
 				lookupLanguageModelByQualifiedName: () => undefined,
 			} as unknown as ILanguageModelsService;
-			const chatWidgetService = {
-				_serviceBrand: undefined,
-				lastFocusedWidget: undefined,
-				onDidAddWidget: Event.None,
-				onDidBackgroundSession: Event.None,
-				onDidChangeFocusedWidget: Event.None,
-				onDidChangeFocusedSession: Event.None,
-				reveal: async () => true,
-				revealWidget: async () => undefined,
-				getAllWidgets: () => [],
-				getWidgetByInputUri: () => undefined,
-				openSession: async () => undefined,
-				getWidgetBySessionResource: () => undefined,
-				getWidgetsByLocations: () => [],
-				register: () => ({ dispose() { } }),
-			} as unknown as IChatWidgetService;
 
 			store.add(entitlementMock.onDidChangeQuotaRemaining);
 			store.add(entitlementMock.onDidChangeQuotaExceeded);
@@ -1236,7 +1106,6 @@ suite('ChatQuotaNotificationContribution', () => {
 				assignmentMock.service,
 				new NullTelemetryServiceShape(),
 				new NullLogService(),
-				chatWidgetService,
 			));
 
 			// Initially deferred — BYOK model

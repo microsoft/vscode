@@ -1578,24 +1578,3 @@ suite('createModelConfigurationActions', function () {
 	});
 });
 
-suite('ILanguageModelChatMetadata.isAutoModel', function () {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function metadata(props: Partial<ILanguageModelChatMetadata>): ILanguageModelChatMetadata {
-		return props as ILanguageModelChatMetadata;
-	}
-
-	test('matches the Copilot panel Auto model by metadata id', () => {
-		assert.strictEqual(ILanguageModelChatMetadata.isAutoModel(metadata({ id: 'auto', vendor: 'copilot' })), true);
-	});
-
-	test('matches host-specific Auto models (e.g. the Copilot CLI harness) by metadata id', () => {
-		assert.strictEqual(ILanguageModelChatMetadata.isAutoModel(metadata({ id: 'auto', vendor: 'copilotcli' })), true);
-	});
-
-	test('does not match non-Auto models', () => {
-		assert.strictEqual(ILanguageModelChatMetadata.isAutoModel(metadata({ id: 'gpt-4', vendor: 'copilot' })), false);
-		assert.strictEqual(ILanguageModelChatMetadata.isAutoModel(metadata({ id: 'auto-complete', vendor: 'copilot' })), false);
-	});
-});

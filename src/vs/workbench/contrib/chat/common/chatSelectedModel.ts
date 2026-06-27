@@ -192,24 +192,3 @@ export function isSelectedModelCopilot(
 	}
 	return vendor === COPILOT_VENDOR_ID;
 }
-
-/**
- * Returns whether the currently selected chat model is the "Auto" model.
- *
- * Resolves the selection to registered metadata (handling both the short,
- * lower-cased `chatModelId` context-key value and the fully-qualified,
- * persisted identifier) and tests it with
- * {@link ILanguageModelChatMetadata.isAutoModel}. Matching on the well-known
- * metadata id (rather than a fixed identifier) means this also recognizes the
- * Auto model of session types whose identifier is host-specific, e.g. the
- * Copilot CLI agent host's `copilotcli:auto`. Returns `false` when no model is
- * selected or the selection cannot be resolved to a registered model.
- */
-export function isSelectedModelAuto(
-	contextKeyService: IContextKeyService,
-	storageService: IStorageService,
-	languageModelsService: ILanguageModelsService,
-): boolean {
-	const metadata = getSelectedModelMetadata(contextKeyService, storageService, languageModelsService);
-	return !!metadata && ILanguageModelChatMetadata.isAutoModel(metadata);
-}
