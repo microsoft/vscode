@@ -38,7 +38,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
-import { IChatSendRequestOptions, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -2672,14 +2672,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 		};
 
-		await this._updateChatSessionState(chatResource, selectedModelId, selectedAgentUri);
-
-		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
+		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
+		if (!modelRef) {
+			throw new Error(`[${this.id}] Unable to load chat session ${chatResource.toString()}`);
 		}
 
-		await this._updateChatSessionState(chatResource, selectedModelId, selectedAgentUri, { clearDraft: true });
+		try {
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri);
+
+			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
+			if (result.kind === 'rejected') {
+				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
+			}
+
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true });
+		} finally {
+			modelRef.dispose();
+		}
 
 		// First request sent: revert to the host-reported status.
 		cached.markChatAsSent(chatResource.fragment);
@@ -2693,23 +2702,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		try {
-			const inputModel = modelRef.object.inputModel;
-			if (!inputModel) {
-				return;
-			}
-			if (modelId) {
-				const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
-				if (languageModel) {
-					inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
-				}
-			}
-			inputModel.setState({
-				mode: { id: agentUri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent },
-				...(options?.clearDraft ? { inputText: '', attachments: [], selections: [] } : {}),
-			});
+			this._applyChatSessionState(modelRef, modelId, agentUri, options);
 		} finally {
 			modelRef.dispose();
 		}
+	}
+
+	private _applyChatSessionState(modelRef: IChatModelReference, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): void {
+		const inputModel = modelRef.object.inputModel;
+		if (!inputModel) {
+			return;
+		}
+		if (modelId) {
+			const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
+			if (languageModel) {
+				inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
+			}
+		}
+		inputModel.setState({
+			mode: { id: agentUri ?? ChatMode.Agent.id, kind: ChatModeKind.Agent },
+			...(options?.clearDraft ? { inputText: '', attachments: [], selections: [] } : {}),
+		});
 	}
 
 	private async _sendNewSessionRequest(newSession: NewSession, chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
