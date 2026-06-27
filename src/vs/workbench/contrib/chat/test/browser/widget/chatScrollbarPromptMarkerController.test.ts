@@ -835,7 +835,7 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			const heights = new Map([['r1', 100]]);
 			const tops = new Map([['r1', 0]]);
 			const calls: string[] = [];
-			let hasElementCountdown = 3;
+			let hasElementCountdown = 1;
 			const host = new class extends FakeHost {
 				constructor() {
 					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
@@ -967,20 +967,48 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			} as unknown as PointerEvent;
 			controller['onOverviewRulerPointerUp'](pointerupEvent);
 
-			// pointerup resets markerActivated as a safety net
 			assert.strictEqual(controller['markerActivated'], false);
+			assert.strictEqual(controller['suppressNextClick'], true);
 			assert.strictEqual(pointerupPrevented, true);
 			assert.strictEqual(pointerupStopped, true);
 
-			// Click after pointerup: markerActivated is already false, so click is not suppressed
 			let clickPrevented = false;
+			let clickStopped = false;
 			const clickEvent = {
 				preventDefault: () => { clickPrevented = true; },
-				stopPropagation: () => { },
+				stopPropagation: () => { clickStopped = true; },
 			} as unknown as MouseEvent;
 			controller['onOverviewRulerClick'](clickEvent);
 
-			assert.strictEqual(clickPrevented, false);
+			assert.strictEqual(clickPrevented, true);
+			assert.strictEqual(clickStopped, true);
+			assert.strictEqual(controller['suppressNextClick'], false);
+		});
+
+		test('click suppression clears on the next frame when no click follows pointerup', async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			controller['markerActivated'] = true;
+
+			controller['onOverviewRulerPointerUp']({
+				preventDefault: () => { },
+				stopPropagation: () => { },
+			} as unknown as PointerEvent);
+
+			assert.strictEqual(controller['suppressNextClick'], true);
+
+			await flushAnimationFrames();
+
+			assert.strictEqual(controller['suppressNextClick'], false);
 		});
 
 		test('click and pointerup are not suppressed when markerActivated is false', () => {

@@ -78,9 +78,11 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private visible = true;
 	private enabled = true;
 	private markerActivated = false;
+	private suppressNextClick = false;
 	private _lastScrollHeight = -1;
 	private _lastRenderHeight = -1;
 	private readonly _focusRetryDisposable = this._register(new MutableDisposable());
+	private readonly _clickSuppressionDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly host: IChatScrollbarPromptMarkerHost,
@@ -110,6 +112,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 		if (!visible) {
+			this.clearClickSuppression();
 			this.cancelPendingFocusRetries();
 		}
 		this.updateContainerVisibility();
@@ -127,6 +130,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		}
 		this.enabled = enabled;
 		if (!enabled) {
+			this.clearClickSuppression();
 			this.cancelPendingFocusRetries();
 			this.clearMarkers();
 		}
@@ -209,6 +213,11 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 
 	private cancelPendingFocusRetries(): void {
 		this._focusRetryDisposable.clear();
+	}
+
+	private clearClickSuppression(): void {
+		this.suppressNextClick = false;
+		this._clickSuppressionDisposable.clear();
 	}
 
 	private scheduleFocusRetry(targetWindow: Window, callback: () => void): IDisposable {
@@ -395,6 +404,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			return;
 		}
 
+		this.clearClickSuppression();
 		this.markerActivated = true;
 		event.preventDefault();
 		event.stopPropagation();
@@ -405,21 +415,24 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 		if (!this.markerActivated) {
 			return;
 		}
-		// Suppress pointerup so the scrollbar doesn't process it and steal focus.
-		// Reset the flag here as a safety net in case the subsequent click event
-		// does not fire (e.g. on touch/pen devices where click may be suppressed).
+		// Suppress pointerup so the scrollbar doesn't process it and steal focus,
+		// then swallow the follow-on click if it arrives.
 		this.markerActivated = false;
+		this.suppressNextClick = true;
+		this._clickSuppressionDisposable.value = this.scheduleFocusRetry(dom.getWindow(this.container), () => {
+			this.suppressNextClick = false;
+		});
 		event.preventDefault();
 		event.stopPropagation();
 	}
 
 	private onOverviewRulerClick(event: MouseEvent): void {
-		if (!this.markerActivated) {
+		if (!this.suppressNextClick) {
 			return;
 		}
 		// Swallow the click that follows pointerdown so the scrollbar doesn't
 		// process it and steal focus from the target request.
-		this.markerActivated = false;
+		this.clearClickSuppression();
 		event.preventDefault();
 		event.stopPropagation();
 	}
