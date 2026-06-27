@@ -478,7 +478,7 @@ class MockModelService extends mock<IModelService>() {
 	private readonly _models = new Map<string, ITextModel>();
 
 	setModelContent(uri: URI, content: string): void {
-		this._models.set(uri.toString(), { getValue: () => content } as ITextModel);
+		this._models.set(uri.toString(), { getValue: () => content, getValueLength: () => content.length } as ITextModel);
 	}
 
 	override getModel(uri: URI): ITextModel | null {

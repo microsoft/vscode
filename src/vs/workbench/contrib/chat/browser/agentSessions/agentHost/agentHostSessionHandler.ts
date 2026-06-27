@@ -3682,22 +3682,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Dedupe identity for a file/implicit entry: rebased URI, suffixed with the range for a selection. */
-	private _fileEntryDedupeKey(v: IChatRequestVariableEntry, sessionResource: URI): string | undefined {
-		if (v.kind !== 'file' && v.kind !== 'implicit') {
+	private _fileEntryDedupeKey(entry: IChatRequestVariableEntry, sessionResource: URI): string | undefined {
+		if (entry.kind !== 'file' && entry.kind !== 'implicit') {
 			return undefined;
 		}
-		const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
+		const uri = isLocation(entry.value) ? entry.value.uri : (entry.value instanceof URI ? entry.value : undefined);
 		if (!uri) {
 			return undefined;
 		}
-		const selection = this._entrySelection(v);
+		const selection = this._entrySelection(entry);
 		return this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, sessionResource).toString(), selection);
 	}
 
 	/** The selection range carried by a file/implicit entry, or `undefined` for whole-document references. */
-	private _entrySelection(v: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
-		const isSelectionEntry = (v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value);
-		return isSelectionEntry ? { range: this._toTextRange((v.value as Location).range) } : undefined;
+	private _entrySelection(entry: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
+		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(entry.value);
+		return isSelectionEntry ? { range: this._toTextRange((entry.value as Location).range) } : undefined;
 	}
 
 	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
@@ -3724,9 +3724,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!model) {
 			return undefined;
 		}
-		const buffer = VSBuffer.fromString(model.getValue());
-		if (buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
-			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: ${buffer.byteLength} bytes exceeds cap`);
+		const buffer = model.getValueLength() > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : VSBuffer.fromString(model.getValue());
+		if (!buffer || buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
+			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: exceeds ${MAX_INLINED_UNSAVED_EDITOR_BYTES} byte cap`);
 			return undefined;
 		}
 		const selection = this._entrySelection(v);
