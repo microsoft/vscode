@@ -781,6 +781,34 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.deepStrictEqual(calls, ['reveal']);
 		}));
 
+		test('dispose cancels pending focus retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const calls: string[] = [];
+			let hasElementAttempts = 0;
+			const host = new class extends FakeHost {
+				constructor() {
+					super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+				}
+				override reveal() { calls.push('reveal'); }
+				override focusItem() { calls.push('focusItem'); }
+				override hasElement() {
+					hasElementAttempts++;
+					return hasElementAttempts > 1;
+				}
+			}();
+			const controller = createController(host, ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus);
+
+			controller['revealItem'](req);
+			controller.dispose();
+
+			await flushAnimationFrames();
+
+			assert.deepStrictEqual(calls, ['reveal']);
+		}));
+
 		test('with Reveal calls reveal only and never focusItem', () => {
 			const req = makeRequest('r1');
 			const layoutInfo = makeLayoutInfo(14);
