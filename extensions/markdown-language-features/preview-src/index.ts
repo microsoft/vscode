@@ -27,11 +27,11 @@ let lineChanges = settings.settings.lineChanges;
 const vscode = acquireVsCodeApi();
 
 const onDiffScroll = (mappedLine: number) => {
-	scrollDisabledCount++;
+	scrollDisabledCount = 1;
 	doAfterImagesLoaded(() => {
 		scrollToRevealSourceLine(mappedLine, documentVersion, settings);
 		if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
-		scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = Math.max(0, scrollDisabledCount - 1); }, 100);
+		scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
 	});
 };
 const diffScrollSyncManager = settings.settings.diffScrollSync
