@@ -57,7 +57,7 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('flattens scalar telemetry leaves and carries resourceAttributes as a single JSON key', () => {
+	test('flattens scalar telemetry leaves and carries resourceAttributes and headers as single JSON keys', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			telemetry: {
 				enabled: true,
@@ -206,5 +206,16 @@ suite('adaptManagedSettings', () => {
 		} as IManagedSettingsResponse), {
 			managedSettings: {},
 		});
+	});
+
+	test('resilience: telemetry map keys that could pollute the prototype are dropped', () => {
+		// JSON.parse yields an OWN enumerable `__proto__` data property on the nested map.
+		const response = JSON.parse('{"telemetry":{"resourceAttributes":{"__proto__":"polluted","constructor":"x","service.namespace":"acme"}}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+		});
+		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
 	});
 });

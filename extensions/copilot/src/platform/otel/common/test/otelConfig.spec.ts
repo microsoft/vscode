@@ -162,6 +162,18 @@ describe('resolveOTelConfig', () => {
 		expect(config.otlpEndpoint).toBe('http://collector:4317');
 	});
 
+	it('infers grpc transport from settingExporterType when no env/policy protocol is set', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingEnabled: true,
+			settingExporterType: 'otlp-grpc',
+			settingOtlpEndpoint: 'http://collector:4317/some/path',
+		}));
+		expect(config.otlpProtocol).toBe('grpc');
+		expect(config.exporterType).toBe('otlp-grpc');
+		// gRPC parsing keeps only the origin
+		expect(config.otlpEndpoint).toBe('http://collector:4317');
+	});
+
 	it('preserves service version and session id', () => {
 		const config = resolveOTelConfig(makeInput({
 			settingEnabled: true,

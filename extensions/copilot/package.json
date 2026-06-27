@@ -5282,7 +5282,7 @@
             "policyReference": {
               "name": "CopilotOtelEnabled"
             },
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Configurable in user settings only. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Precedence: enterprise policy > env var `COPILOT_OTEL_ENABLED` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5300,7 +5300,7 @@
             "policyReference": {
               "name": "CopilotOtelProtocol"
             },
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings only. Requires window reload.",
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5318,7 +5318,7 @@
             "policyReference": {
               "name": "CopilotOtelOtlpProtocol"
             },
-            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Configurable in user settings only. Requires window reload.",
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Precedence: enterprise policy > env var > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5330,7 +5330,7 @@
             "policyReference": {
               "name": "CopilotOtelEndpoint"
             },
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Precedence: enterprise policy > env var `OTEL_EXPORTER_OTLP_ENDPOINT` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5342,7 +5342,7 @@
             "policyReference": {
               "name": "CopilotOtelCaptureContent"
             },
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Configurable in user settings only. Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Precedence: enterprise policy > env var `COPILOT_OTEL_CAPTURE_CONTENT` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5406,7 +5406,7 @@
             "policyReference": {
               "name": "CopilotOtelOutfile"
             },
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings only. Requires window reload.",
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
             "tags": [
               "advanced"
             ]

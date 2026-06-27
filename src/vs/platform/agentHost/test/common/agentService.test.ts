@@ -230,4 +230,13 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 		assert.deepStrictEqual(sanitizeAgentHostOTelPolicySettings(null), {});
 		assert.deepStrictEqual(sanitizeAgentHostOTelPolicySettings('x'), {});
 	});
+
+	test('resourceAttributes drop prototype-pollution keys', () => {
+		// JSON.parse yields an OWN enumerable `__proto__` data property; the sanitizer must not
+		// copy it onto the result (which would trigger the prototype setter).
+		const raw = JSON.parse('{"resourceAttributes":{"__proto__":"polluted","constructor":"x","service.namespace":"acme"}}');
+		const result = sanitizeAgentHostOTelPolicySettings(raw);
+		assert.deepStrictEqual(result.resourceAttributes, { 'service.namespace': 'acme' });
+		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+	});
 });

@@ -170,12 +170,13 @@ export function resolveOTelConfig(input: OTelConfigInput): OTelConfig {
 		enabledVia = 'dbSpanExporterOnly';
 	}
 
-	// Protocol (transport): policy > env > default
+	// Protocol (transport): policy > env > setting exporter type > default
 	const rawProtocol = input.policyExporterType === 'otlp-grpc'
 		? 'grpc'
 		: input.policyExporterType === 'otlp-http'
 			? 'http'
-			: env['OTEL_EXPORTER_OTLP_PROTOCOL'] ?? env['COPILOT_OTEL_PROTOCOL'];
+			: (env['OTEL_EXPORTER_OTLP_PROTOCOL'] ?? env['COPILOT_OTEL_PROTOCOL']
+				?? (input.settingExporterType === 'otlp-grpc' ? 'grpc' : input.settingExporterType === 'otlp-http' ? 'http' : undefined));
 	const protocol: 'grpc' | 'http' = rawProtocol === 'grpc' ? 'grpc' : 'http';
 
 	// Wire protocol (json vs protobuf within http): policy > env > setting > default(http/json).

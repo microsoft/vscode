@@ -289,6 +289,9 @@ function encodeStringMap(value: unknown): Record<string, string> | undefined {
 	}
 	const out: Record<string, string> = {};
 	for (const [k, v] of Object.entries(value)) {
+		if (k === '__proto__' || k === 'constructor' || k === 'prototype') {
+			continue; // defend the shared normalizer against prototype pollution
+		}
 		if (isString(v)) {
 			out[k] = v;
 		} else if (typeof v === 'number' || typeof v === 'boolean') {

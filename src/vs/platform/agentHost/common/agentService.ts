@@ -403,6 +403,9 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		}
 		const out: Record<string, string> = {};
 		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+			if (k === '__proto__' || k === 'constructor' || k === 'prototype') {
+				continue; // defend the IPC boundary against prototype pollution
+			}
 			if (typeof v === 'string') {
 				out[k] = v;
 			}
