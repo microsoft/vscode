@@ -39,7 +39,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
-import { feedbackServerToolGroup } from './shared/agentFeedbackServerTools.js';
+import { serverToolGroups } from './shared/serverToolGroups.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
@@ -336,7 +336,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// state. Tool groups are contributed here at startup (feedback today) and
 		// handed to providers that support them during registration (see
 		// registerProvider).
-		this._serverToolHost = new AgentServerToolHost(this._stateManager, [feedbackServerToolGroup]);
+		this._serverToolHost = new AgentServerToolHost(this._stateManager, serverToolGroups);
 	}
 
 	// ---- provider registration ----------------------------------------------

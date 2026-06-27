@@ -13,6 +13,7 @@ import type { IAgentToolPendingConfirmationSignal } from '../../common/agentServ
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -475,6 +476,10 @@ function md(value: string): StringOrMarkdown {
 }
 
 export function getToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case CopilotToolName.StrReplaceEditor:
 		case CopilotToolName.Edit:
@@ -534,6 +539,11 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
+
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
@@ -639,9 +649,14 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+
+	const serverDisplay = getServerToolDisplay(toolName, parameters, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
 	}
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
