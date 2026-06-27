@@ -33,8 +33,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
+			refreshSessionGitState: sessionKey => this._gitStateService.refreshSessionGitState2(sessionKey),
 			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
-			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
 	}
 
@@ -127,15 +127,6 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				operations: operations ? [...operations] : undefined,
 			});
 		}
-	}
-
-	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
-		const gitState = await this._gitStateService.refreshSessionGitState(sessionKey);
-		if (!gitState) {
-			return;
-		}
-
-		this.updateOperations(sessionKey, undefined, gitState);
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {

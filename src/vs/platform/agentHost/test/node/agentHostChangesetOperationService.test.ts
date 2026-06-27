@@ -64,8 +64,7 @@ class TestContribution implements IChangesetOperationContribution {
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
-	readonly onDidChangeSessionGitState = Event.None;
-	readonly onDidRunSessionGitStateRefresh = Event.None;
+	readonly onDidRefreshSessionGitState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
 		return undefined;

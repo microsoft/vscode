@@ -16,8 +16,7 @@ import { ChangesetKind } from '../../common/changesetUri.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeSessionGitState = Event.None;
-	readonly onDidRunSessionGitStateRefresh = Event.None;
+	readonly onDidRefreshSessionGitState = Event.None;
 	async refreshSessionGitState(): Promise<ISessionGitState | undefined | null> { return undefined; }
 	async refreshSessionGitState2(): Promise<void> { }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }

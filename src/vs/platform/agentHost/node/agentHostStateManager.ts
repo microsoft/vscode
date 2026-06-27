@@ -396,7 +396,7 @@ export class AgentHostStateManager extends Disposable {
 	 * notification because the session is already known to clients via
 	 * `listSessions`.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[]): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], meta?: Record<string, unknown>): SessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.warn(`[AgentHostStateManager] Session already exists (restore): ${key}`);
@@ -405,6 +405,7 @@ export class AgentHostStateManager extends Disposable {
 
 		const state: SessionState = {
 			...createSessionState(summary),
+			_meta: meta,
 			lifecycle: SessionLifecycle.Ready,
 		};
 		this._sessionStates.set(key, state);

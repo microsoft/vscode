@@ -11,7 +11,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { IAgentService } from '../../common/agentService.js';
 import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentHostGitStateService, META_GIT_STATE } from '../../node/agentHostGitStateService.js';
+import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
+import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -53,17 +54,14 @@ suite('AgentHostGitStateService', () => {
 			sessionDataService,
 		));
 
-		const changeEvents: string[] = [];
 		const runEvents: string[] = [];
-		disposables.add(service.onDidChangeSessionGitState(key => changeEvents.push(key)));
-		disposables.add(service.onDidRunSessionGitStateRefresh(key => runEvents.push(key)));
+		disposables.add(service.onDidRefreshSessionGitState(key => runEvents.push(key)));
 
 		return {
 			stateManager,
 			db,
 			service,
 			gitCalls,
-			changeEvents,
 			runEvents,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
@@ -96,11 +94,9 @@ suite('AgentHostGitStateService', () => {
 
 		assert.deepStrictEqual({
 			gitCalls: h.gitCalls,
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents
 		}, {
 			gitCalls: [],
-			changeEvents: [],
 			runEvents: []
 		});
 	});
@@ -129,24 +125,20 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('unchanged git state only fires the run-refresh event', async () => {
-		const gitState: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
-		h.setGitResult(gitState);
+	test('unchanged git state still fires the run-refresh event', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
+			const h = createHarness();
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
+			h.setGitResult(gitState);
 
-		await h.service.refreshSessionGitState2(SESSION, undefined);
+			await h.service.refreshSessionGitState2(SESSION, undefined);
 
-		assert.deepStrictEqual({
-			changeEvents: h.changeEvents,
-			runEvents: h.runEvents
-		}, {
-			changeEvents: [],
-			runEvents: [SESSION]
+			assert.deepStrictEqual(h.runEvents, [SESSION]);
 		});
 	});
 
-	test('changed git state updates the session meta and fires both events', async () => {
+	test('changed git state updates the session meta and fires the run-refresh event', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
@@ -157,11 +149,9 @@ suite('AgentHostGitStateService', () => {
 
 			assert.deepStrictEqual({
 				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-				changeEvents: h.changeEvents,
 				runEvents: h.runEvents,
 			}, {
 				gitState: next,
-				changeEvents: [SESSION],
 				runEvents: [SESSION],
 			});
 		});
@@ -195,11 +185,9 @@ suite('AgentHostGitStateService', () => {
 
 		assert.deepStrictEqual({
 			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents,
 		}, {
 			gitState: undefined,
-			changeEvents: [],
 			runEvents: [],
 		});
 	});
@@ -212,10 +200,8 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState2(SESSION, undefined);
 
 		assert.deepStrictEqual({
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents
 		}, {
-			changeEvents: [],
 			runEvents: []
 		});
 	});
