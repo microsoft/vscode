@@ -37,6 +37,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/age
 import { buildSubagentSessionUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -58,7 +59,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -639,6 +640,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 	) {
 		super();
@@ -3635,10 +3637,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Forward the active editor (which the suggested-context flow otherwise omits) as ambient context, deduped against
-	 * files the user attached explicitly. Unsaved handling lives in {@link _convertVariableToAttachment}.
+	 * Forward the active editor (which the suggested-context flow omits in agent mode) as ambient context, deduped
+	 * against files the user attached explicitly. Gated on
+	 * {@link ChatConfiguration.ImplicitContextActiveEditorInAgentSessions} (on by default, off in the Agents window).
+	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditorInAgentSessions)) {
+			return;
+		}
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
 		if (!implicitContext) {
 			return;

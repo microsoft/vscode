@@ -102,6 +102,7 @@ export enum ChatConfiguration {
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
+	ImplicitContextActiveEditorInAgentSessions = 'chat.implicitContext.includeActiveEditorInAgentSessions',
 }
 
 /**

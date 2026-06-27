@@ -32,7 +32,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -504,7 +504,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, configOverrides?: Record<string, unknown>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -565,7 +565,18 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
-		getValue: (...args: any[]) => typeof args[0] === 'string' && args[0] === 'chat.agentHost.clientTools' ? [] : true,
+		getValue: (...args: any[]) => {
+			const key = args[0];
+			if (typeof key === 'string') {
+				if (configOverrides && Object.hasOwn(configOverrides, key)) {
+					return configOverrides[key];
+				}
+				if (key === 'chat.agentHost.clientTools') {
+					return [];
+				}
+			}
+			return true;
+		},
 	});
 	instantiationService.stub(ILanguageModelToolsService, {
 		observeTools: () => observableValue('tools', []),
@@ -709,8 +720,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; provider?: string }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; provider?: string; configOverrides?: Record<string, unknown> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.configOverrides);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -4832,6 +4843,28 @@ suite('AgentHostChatContribution', () => {
 					displayKind: 'document',
 				},
 			]);
+		}));
+
+		test('active editor implicit context is not forwarded when the setting is disabled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, {
+				configOverrides: { [ChatConfiguration.ImplicitContextActiveEditorInAgentSessions]: false },
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-disabled' });
+			const fileUri = URI.file('/workspace/foo.ts');
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'foo.ts', isSelection: false, uri: fileUri, value: fileUri },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what\'s in this file?',
+				sessionResource,
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('active editor implicit context is forwarded as a document attachment for agent sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
