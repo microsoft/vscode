@@ -562,15 +562,29 @@ suite('CopilotAgent', () => {
 			token: copilotApiService.utilityCalls[0]?.token,
 			promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Add agent host config')),
 		}, {
-			generated: 'agents/add-agent-host-config-12345678',
-			fallback: 'agents/add-agent-host-config-12345678',
+			generated: 'agents/add-agent-host-config',
+			fallback: 'agents/add-agent-host-config',
 			token: 'token',
 			promptIncludesUserText: true,
 		});
 	});
 
+	test('appends a short session-id suffix when the branch name already exists', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'add-agent-host-config';
+		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+
+		assert.deepStrictEqual({
+			unique: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async () => false }),
+			collision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async name => name === 'agents/add-agent-host-config' }),
+		}, {
+			unique: 'agents/add-agent-host-config',
+			collision: 'agents/add-agent-host-config-12345678',
+		});
+	});
+
 	test('uses Git extension branch-derived worktree folder names', () => {
-		assert.strictEqual(getCopilotWorktreeName('agents/add-agent-host-config-12345678'), 'agents-add-agent-host-config-12345678');
+		assert.strictEqual(getCopilotWorktreeName('agents/add-agent-host-config-12345678'), 'add-agent-host-config-12345678');
 	});
 
 	test('keeps generated branch names short', async () => {
@@ -580,7 +594,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			(await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' })).length,
-			'agents/'.length + 48 + '-12345678'.length,
+			'agents/'.length + 48,
 		);
 	});
 
@@ -625,7 +639,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
-			'agents/add-agent-host-config-12345678',
+			'agents/add-agent-host-config',
 		);
 	});
 
@@ -636,7 +650,7 @@ suite('CopilotAgent', () => {
 
 		assert.strictEqual(
 			await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token' }),
-			'agents/add-agent-host-config-12345678',
+			'agents/add-agent-host-config',
 		);
 	});
 
@@ -2633,7 +2647,7 @@ suite('CopilotAgent', () => {
 				//    before constructing the SDK session. Verifies that the
 				//    real production code path persists branch metadata and
 				//    queues the live announcement.
-				const expectedBranchName = `agents/add-feature-${sessionId.substring(0, 8)}`;
+				const expectedBranchName = `agents/add-feature`;
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
 					config: { isolation: 'worktree', branch: 'main' },

@@ -49,7 +49,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
-import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
+import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -229,7 +229,12 @@ export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
 }
 
 export function getCopilotWorktreeName(branchName: string): string {
-	return branchName.replace(/\//g, '-');
+	// Strip the `agents/` branch prefix so the worktree directory name stays
+	// concise, then flatten any remaining path separators.
+	const withoutPrefix = branchName.startsWith(COPILOT_BRANCH_PREFIX)
+		? branchName.substring(COPILOT_BRANCH_PREFIX.length)
+		: branchName;
+	return withoutPrefix.replace(/\//g, '-');
 }
 
 /**
@@ -1011,8 +1016,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				modifiedTime: s.modifiedTime.getTime(),
 				project,
 				summary: s.summary,
-				model: metadata.model,
-				agent: metadata.agent,
 				workingDirectory,
 				customizationDirectory: metadata.customizationDirectory,
 			};
@@ -1050,8 +1053,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
-			model: storedMetadata?.model,
-			agent: storedMetadata?.agent,
 			workingDirectory,
 			customizationDirectory: storedMetadata?.customizationDirectory,
 		};
@@ -2396,7 +2397,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchName = await this._branchNameGenerator.generateBranchName({ sessionId, message: prompt, githubToken: this._githubToken });
+		const branchName = await this._branchNameGenerator.generateBranchName({
+			sessionId,
+			message: prompt,
+			githubToken: this._githubToken,
+			// Treat a failed existence check as a collision so we fall back to a
+			// suffixed branch name rather than risk `addWorktree` failing because
+			// the branch already exists.
+			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => true),
+		});
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;

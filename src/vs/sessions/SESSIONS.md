@@ -217,6 +217,13 @@ when one exists or showing the empty placeholder otherwise. Internal callers
 (restore fallback, archive, background reseed, and the close-session fallback)
 invoke `openNewSession()` the same way.
 
+The new-session input separately persists its text and attachments in
+workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
+disposed (for example, when navigating to an existing session), and the
+replacement widget restores it when the user returns to the new-session view.
+Starting a send clears the stored draft before request dispatch and any view
+replacement.
+
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via
 `openNewSession`) **before** creating and sending the session, and skips the
