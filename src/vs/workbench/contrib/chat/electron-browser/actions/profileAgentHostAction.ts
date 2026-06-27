@@ -21,10 +21,11 @@ import { createDecorator, ServicesAccessor } from '../../../../../platform/insta
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IV8InspectProfilingService, IV8Profile } from '../../../../../platform/profiling/common/profiling.js';
+import { IV8InspectProfilingService, IV8Profile, Utils } from '../../../../../platform/profiling/common/profiling.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 const enum AgentHostProfileState {
@@ -63,6 +64,7 @@ class AgentHostProfileService extends Disposable implements IAgentHostProfileSer
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -211,20 +213,26 @@ class AgentHostProfileService extends Disposable implements IAgentHostProfileSer
 	}
 
 	private async saveProfile(profile: IV8Profile): Promise<URI | undefined> {
-		const profileUri = await this.fileDialogService.showSaveDialog({
+		let profileUri = await this.fileDialogService.showSaveDialog({
 			title: localize('profileAgentHost.saveDialogTitle', "Save Agent Host Profile"),
 			availableFileSystems: [Schemas.file],
 			defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `AgentHost-CPU-${new Date().toISOString().replace(/[-:]/g, '')}.cpuprofile`),
 			filters: [{
 				name: localize('profileAgentHost.cpuProfiles', "CPU Profiles"),
-				extensions: ['cpuprofile'],
+				extensions: ['cpuprofile', 'txt'],
 			}],
 		});
 		if (!profileUri) {
 			return undefined;
 		}
 
-		await this.fileService.writeFile(profileUri, VSBuffer.fromString(JSON.stringify(profile, undefined, '\t')));
+		let dataToWrite = profile;
+		if (this.environmentService.isBuilt) {
+			dataToWrite = Utils.rewriteAbsolutePaths(dataToWrite, 'piiRemoved');
+			profileUri = URI.file(`${profileUri.fsPath}.txt`);
+		}
+
+		await this.fileService.writeFile(profileUri, VSBuffer.fromString(JSON.stringify(dataToWrite, undefined, '\t')));
 		return profileUri;
 	}
 }
