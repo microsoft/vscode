@@ -3675,7 +3675,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (entry.kind !== 'file' && entry.kind !== 'implicit') {
 			return undefined;
 		}
-		const uri = isLocation(entry.value) ? entry.value.uri : (entry.value instanceof URI ? entry.value : undefined);
+		const value = entry.value;
+		const uri = isLocation(value) ? value.uri : (value instanceof URI ? value : undefined);
 		if (!uri) {
 			return undefined;
 		}
@@ -3685,8 +3686,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** The selection range carried by a file/implicit entry, or `undefined` for whole-document references. */
 	private _entrySelection(entry: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
-		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(entry.value);
-		return isSelectionEntry ? { range: this._toTextRange((entry.value as Location).range) } : undefined;
+		const value = entry.value;
+		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(value);
+		return isSelectionEntry ? { range: this._toTextRange((value as Location).range) } : undefined;
 	}
 
 	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
