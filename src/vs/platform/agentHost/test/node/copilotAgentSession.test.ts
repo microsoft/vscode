@@ -26,7 +26,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -397,6 +397,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		CopilotAgentSession,
 		{
 			sessionUri,
+			chatChannelUri: URI.parse(buildDefaultChatUri(sessionUri)),
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
@@ -3926,7 +3927,7 @@ suite('CopilotAgentSession', () => {
 			const tools = runtime.createServerSdkTools();
 			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
 
-			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+			const sessionUri = buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'));
 			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');

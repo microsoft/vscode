@@ -617,6 +617,14 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
 }
 
+const SUBAGENT_CHAT_ID = 'subagent';
+
+export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
+	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
+	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
+	return `${AHP_CHAT_SCHEME}://${SUBAGENT_CHAT_ID}/${encoded}/${encodeURIComponent(toolCallId)}`;
+}
+
 /**
  * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
  * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
@@ -637,6 +645,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
 		return undefined;
 	}
 	try {
+		if (parsed.authority === SUBAGENT_CHAT_ID) {
+			const [sessionPart, ...toolCallIdParts] = encoded.split('/');
+			const toolCallId = toolCallIdParts.join('/');
+			if (!sessionPart || !toolCallId) {
+				return undefined;
+			}
+			return { session: decodeBase64(sessionPart).toString(), chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
+		}
 		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
 	} catch {
 		return undefined;
@@ -651,6 +667,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
  */
 export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
 	return parseChatUri(uri)?.session;
+}
+
+export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceURI): string {
+	const session = parseDefaultChatUri(uri);
+	if (session === undefined) {
+		throw new Error(`Malformed AHP chat URI: ${typeof uri === 'string' ? uri : uri.toString()}`);
+	}
+	return session;
 }
 
 /** Returns `true` when `uri` is the default chat of its session. */
