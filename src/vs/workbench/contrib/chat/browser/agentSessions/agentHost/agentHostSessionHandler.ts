@@ -3632,58 +3632,61 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Forward the active editor (which the suggested-context flow otherwise omits) as ambient context, deduped against
-	 * explicit attachments. Copilot CLI inlines unsaved buffers; other backends skip untitled and read from disk.
+	 * files the user attached explicitly. Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
 		if (!implicitContext) {
 			return;
 		}
-		// Key on URI *and* selection range so a whole-document reference and a selection for the same file coexist.
+		// Dedupe keys come from the source entries, not the produced attachments, so inlined unsaved buffers (which
+		// carry no URI) still dedupe.
 		const existingKeys = new Set<string>();
-		for (const attachment of attachments) {
-			if (attachment.type === MessageAttachmentKind.Resource) {
-				existingKeys.add(this._attachmentDedupeKey(attachment.uri, attachment.selection));
+		for (const v of request.variables.variables) {
+			const key = this._fileEntryDedupeKey(v, request.sessionResource);
+			if (key) {
+				existingKeys.add(key);
 			}
 		}
 		for (const entry of implicitContext.values) {
 			if (entry.value === undefined) {
 				continue;
 			}
-			const uri = entry.uri;
-			if (uri && this._isUnsavedResource(uri)) {
-				if (this._config.provider === SessionType.CopilotCLI) {
-					const selection = entry.isSelection && isLocation(entry.value)
-						? { range: this._toTextRange(entry.value.range) }
-						: undefined;
-					const embedded = this._buildUnsavedEditorAttachment(uri, entry.name, selection);
-					if (embedded) {
-						const dedupeKey = this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, request.sessionResource).toString(), selection);
-						if (!existingKeys.has(dedupeKey)) {
-							existingKeys.add(dedupeKey);
-							attachments.push(embedded);
-						}
-						continue;
-					}
-					// Couldn't inline (no model or too large): untitled has no on-disk fallback, so drop it; a dirty
-					// saved file falls through to its (stale) on-disk path below.
-					if (uri.scheme === Schemas.untitled) {
-						continue;
-					}
-				} else if (uri.scheme === Schemas.untitled) {
-					// Untitled has no on-disk path, so a path reference would be unreadable here.
+			// Non-Copilot-CLI backends can't read an untitled buffer, so don't forward it as a broken path.
+			if (this._config.provider !== SessionType.CopilotCLI && entry.uri?.scheme === Schemas.untitled) {
+				continue;
+			}
+			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
+			if (key) {
+				if (existingKeys.has(key)) {
 					continue;
 				}
+				existingKeys.add(key);
 			}
 			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
-			if (!Array.isArray(attachment) && attachment?.type === MessageAttachmentKind.Resource) {
-				const key = this._attachmentDedupeKey(attachment.uri, attachment.selection);
-				if (!existingKeys.has(key)) {
-					existingKeys.add(key);
-					attachments.push(attachment);
-				}
+			if (!Array.isArray(attachment) && attachment) {
+				attachments.push(attachment);
 			}
 		}
+	}
+
+	/** Dedupe identity for a file/implicit entry: rebased URI, suffixed with the range for a selection. */
+	private _fileEntryDedupeKey(v: IChatRequestVariableEntry, sessionResource: URI): string | undefined {
+		if (v.kind !== 'file' && v.kind !== 'implicit') {
+			return undefined;
+		}
+		const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
+		if (!uri) {
+			return undefined;
+		}
+		const selection = this._entrySelection(v);
+		return this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, sessionResource).toString(), selection);
+	}
+
+	/** The selection range carried by a file/implicit entry, or `undefined` for whole-document references. */
+	private _entrySelection(v: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
+		const isSelectionEntry = (v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value);
+		return isSelectionEntry ? { range: this._toTextRange((v.value as Location).range) } : undefined;
 	}
 
 	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
@@ -3698,6 +3701,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** A resource is unsaved when it's untitled or a saved file with in-memory (dirty) changes. */
 	private _isUnsavedResource(uri: URI): boolean {
 		return uri.scheme === Schemas.untitled || this._workingCopyService.isDirty(uri);
+	}
+
+	/**
+	 * Convert an unsaved (untitled or dirty) file/implicit attachment: Copilot CLI inlines the live buffer, other
+	 * backends use the on-disk path. Returns `'fallthrough'` to request the normal on-disk path conversion.
+	 */
+	private _convertUnsavedFileAttachment(v: IChatRequestVariableEntry, uri: URI): MessageAttachment | undefined | 'fallthrough' {
+		if (this._config.provider !== SessionType.CopilotCLI) {
+			return 'fallthrough';
+		}
+		const embedded = this._buildUnsavedEditorAttachment(uri, v.name, this._entrySelection(v));
+		if (embedded) {
+			return embedded;
+		}
+		// Couldn't inline: untitled has no on-disk fallback, so drop it; a dirty saved file falls through to its path.
+		return uri.scheme === Schemas.untitled ? undefined : 'fallthrough';
 	}
 
 	/**
@@ -3746,6 +3765,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
+		// Unsaved (untitled or dirty) files: content on disk is missing or stale, so route through special handling.
+		if (v.kind === 'file' || v.kind === 'implicit') {
+			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
+			if (uri && this._isUnsavedResource(uri)) {
+				const unsaved = this._convertUnsavedFileAttachment(v, uri);
+				if (unsaved !== 'fallthrough') {
+					return unsaved;
+				}
+			}
+		}
 		// File / implicit attachments: a Location → selection, a URI → resource.
 		// Only an implicit selection becomes a `selection`; an implicit visible
 		// document is forwarded as a plain document reference (its viewport range
