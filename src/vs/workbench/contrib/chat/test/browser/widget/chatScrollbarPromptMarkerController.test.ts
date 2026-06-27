@@ -1031,6 +1031,113 @@ suite('ChatScrollbarPromptMarkerController', () => {
 		});
 	});
 
+	test('non-primary mouse button does not activate or reveal', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const calls: string[] = [];
+		const host = new class extends FakeHost {
+			constructor() {
+				super({ renderHeight: 200, scrollHeight: 200, items: [req], heights, tops, layoutInfo });
+			}
+			override reveal() { calls.push('reveal'); }
+		}();
+		const controller = createController(host);
+
+		controller.layout();
+		const container = controller['container'];
+		container.getBoundingClientRect = () => ({
+			width: 14, height: 200, x: 0, y: 0,
+			left: 0, top: 0, right: 14, bottom: 200,
+			toJSON: () => ({}),
+		});
+
+		let prevented = false;
+		const event = {
+			clientX: 7, clientY: 2,
+			pointerType: 'mouse',
+			button: 2,
+			preventDefault: () => { prevented = true; },
+			stopPropagation: () => { },
+		} as unknown as PointerEvent;
+
+		controller['onOverviewRulerPointerDown'](event);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(prevented, false);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('pointercancel resets gesture state so a later pointerup does not arm suppression', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller['onOverviewRulerPointerCancel']();
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+
+		let pointerupPrevented = false;
+		controller['onOverviewRulerPointerUp']({
+			preventDefault: () => { pointerupPrevented = true; },
+			stopPropagation: () => { },
+		} as unknown as PointerEvent);
+
+		assert.strictEqual(pointerupPrevented, false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
+	test('setVisible(false) mid-gesture resets markerActivated', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller.setVisible(false);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
+	test('setEnabled(false) mid-gesture resets markerActivated', () => {
+		const req = makeRequest('r1');
+		const layoutInfo = makeLayoutInfo(14);
+		const heights = new Map([['r1', 100]]);
+		const tops = new Map([['r1', 0]]);
+		const host = new FakeHost({
+			renderHeight: 200, scrollHeight: 200,
+			items: [req], heights, tops, layoutInfo,
+		});
+		const controller = createController(host);
+
+		controller.layout();
+		controller['markerActivated'] = true;
+
+		controller.setEnabled(false);
+
+		assert.strictEqual(controller['markerActivated'], false);
+		assert.strictEqual(controller['suppressNextClick'], false);
+	});
+
 	suite('lifecycle and memory leaks', () => {
 		test('after dispose: container is removed from DOM, maps are empty, and no parent listeners remain', () => {
 			const req = makeRequest('r1');
