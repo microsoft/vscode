@@ -872,13 +872,13 @@ export type AgentSignal =
  * dispatches the action through the state manager after routing via
  * {@link IAgentActionSignal.parentToolCallId} (if set).
  *
- * Agents are responsible for populating `session` and any `turnId` /
+ * Agents are responsible for populating the target channel and any `turnId` /
  * `partId` fields on the action.
  */
 export interface IAgentActionSignal {
 	readonly kind: 'action';
-	/** Top-level session URI. For inner subagent events this is the parent session — see {@link parentToolCallId}. */
-	readonly session: URI;
+	/** Target session or chat channel URI. For inner subagent events this is the parent session — see {@link parentToolCallId}. */
+	readonly resource: URI;
 	/** Protocol action to dispatch. */
 	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
@@ -901,7 +901,8 @@ export interface IAgentActionSignal {
  */
 export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
-	readonly session: URI;
+	/** Target chat channel URI containing the tool call. */
+	readonly chat: URI;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
@@ -933,7 +934,7 @@ export interface IAgentToolPendingConfirmationSignal {
  */
 export interface IAgentSubagentStartedSignal {
 	readonly kind: 'subagent_started';
-	readonly session: URI;
+	readonly chat: URI;
 	readonly toolCallId: string;
 	readonly agentName: string;
 	readonly agentDisplayName: string;
@@ -949,14 +950,14 @@ export interface IAgentSubagentStartedSignal {
  */
 export interface IAgentSubagentCompletedSignal {
 	readonly kind: 'subagent_completed';
-	readonly session: URI;
+	readonly chat: URI;
 	readonly toolCallId: string;
 }
 
 /** A steering message was consumed (sent to the model). */
 export interface IAgentSteeringConsumedSignal {
 	readonly kind: 'steering_consumed';
-	readonly session: URI;
+	readonly chat: URI;
 	readonly id: string;
 }
 
@@ -1088,10 +1089,8 @@ export interface IAgent {
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
-	/** Send a user message into an existing session. When `chat` is provided
-	 * (and differs from the default chat), the harness routes the message to
-	 * that specific chat within a multi-chat session. */
-	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void>;
+	/** Send a user message into a chat within an existing session. */
+	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session, backed by a new

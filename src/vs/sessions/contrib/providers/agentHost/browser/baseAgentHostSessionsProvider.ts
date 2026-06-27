@@ -45,7 +45,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -197,6 +197,7 @@ class AdditionalChat extends Disposable {
 			isRead: constObservable(true),
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
+			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind) } : undefined,
 		};
 	}
 
@@ -240,6 +241,17 @@ class AdditionalChat extends Disposable {
  * sessions UI. A single concrete class for both local and remote agent
  * hosts — variation flows through {@link IAgentHostAdapterOptions}.
  */
+export function toSessionChatOriginKind(kind: string): ChatOriginKind {
+	switch (kind) {
+		case ChatOriginKind.Tool:
+			return ChatOriginKind.Tool;
+		case ChatOriginKind.Fork:
+			return ChatOriginKind.Fork;
+		default:
+			return ChatOriginKind.User;
+	}
+}
+
 export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	readonly sessionId: string;
