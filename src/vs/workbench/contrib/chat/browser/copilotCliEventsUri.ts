@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 // Scheme conventions for `copilotcli` chat sessions:
@@ -149,4 +150,37 @@ export function resolveEventsUri(
 function getRawSessionId(sessionResource: URI): string | undefined {
 	const rawId = sessionResource.path.startsWith('/') ? sessionResource.path.substring(1) : sessionResource.path;
 	return rawId || undefined;
+}
+
+/**
+ * Resolves the host-local filesystem path string of a Copilot CLI session's
+ * `events.jsonl`, suitable for tooling that runs **on the host** (e.g. the
+ * agent's terminal), as opposed to a workbench {@link URI} consumed by the
+ * file service.
+ *
+ * Reuses {@link resolveEventsUri} so it stays in lockstep with the resolution
+ * used by the chat debug panel and the "Open Copilot CLI State File" command,
+ * then unwraps the result into a plain path:
+ * - a local `file://` URI becomes its `fsPath` (same machine as the host).
+ * - a remote `vscode-agent-host://` URI is unwrapped to the underlying file
+ *   URI whose `path` is the real path on the remote host the agent runs on.
+ *
+ * Returns `undefined` when the session is not a Copilot CLI session or the
+ * path cannot be resolved (e.g. a remote host that reported no home directory).
+ */
+export function buildHostLocalEventsPath(
+	sessionResource: URI | undefined,
+	userHome: URI,
+	getConnectionByAuthority: (authority: string) => IRemoteAgentHostConnectionInfo | undefined,
+): string | undefined {
+	const result = resolveEventsUri(sessionResource, userHome, getConnectionByAuthority);
+	if (result.kind !== 'ok') {
+		return undefined;
+	}
+	if (result.resource.scheme === Schemas.file) {
+		return result.resource.fsPath;
+	}
+	// A remote agent-host URI wraps the host-local file URI; its `path` is the
+	// real path on the remote host where the agent (and the skill) execute.
+	return fromAgentHostUri(result.resource).path;
 }
