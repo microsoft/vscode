@@ -570,7 +570,11 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			try {
-				await app.workbench.agentsWindow.waitForNewSessionView();
+				// Reset to a fresh new-session homepage at the start of each run.
+				// After a completed run the window is left on the active session, so
+				// a plain `waitForNewSessionView` would hang waiting for a view that
+				// only shows for a fresh session; `startNewSession` navigates back.
+				await app.workbench.agentsWindow.startNewSession();
 				await app.workbench.agentsWindow.selectSessionType('Local');
 
 				// Warm up: the first Local message activates copilot-chat in the
