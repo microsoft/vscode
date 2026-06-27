@@ -167,10 +167,11 @@ function sanitizeStringArg(val: unknown): string | undefined {
  * `Unknown reconnection token` reconnection failures). The handlers tell apart a
  * self-exit (`beforeExit`), an external kill (`signal`) and a crash
  * (`uncaughtExceptionMonitor`). Gated behind the `VSCODE_SERVER_EXIT_DIAGNOSTICS`
- * env var (set by the smoke tests) so it adds no product noise. Lines are
- * appended synchronously to a `server-exit-diagnostics.log` file in the server's
- * `--logsPath` directory so they survive process teardown (an async stdio write
- * from an `exit` handler does not).
+	 * env var (set by the smoke tests) so it adds no product noise. Lines are
+	 * appended synchronously to a `server-exit-diagnostics.log` file in the server's
+	 * `--logsPath` directory (falling back to `os.tmpdir()` when `--logsPath` is not
+	 * provided) so they survive process teardown (an async stdio write from an
+	 * `exit` handler does not).
  */
 function installServerProcessExitDiagnostics(): void {
 	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
