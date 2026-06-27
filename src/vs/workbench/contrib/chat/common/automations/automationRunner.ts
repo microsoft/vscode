@@ -10,22 +10,16 @@ import { AutomationRunTrigger, IAutomation } from './automation.js';
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
 /**
- * Owns the act of running a single automation: claim the per-automation
- * slot, record the run, drive the chat session, and report success or
- * failure back to {@link IAutomationService}.
- *
- * Implemented by `AutomationRunner` (sessions layer), which delegates to
- * `ISessionsManagementService` to spawn a fresh session and seed it with
- * the automation's prompt.
+ * Runs a single automation: claim the per-automation slot, record the run,
+ * drive the chat session, report success/failure to {@link IAutomationService}.
+ * Implemented in the sessions layer via `ISessionsManagementService`.
  */
 export interface IAutomationRunner {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Runs `automation` once. Resolves when the run kickoff is finished
-	 * (or skipped because another run for the same automation was
-	 * already in flight). Never throws; failures are recorded on the
-	 * run row attached to {@link IAutomationService}.
+	 * Runs `automation` once (skips if another run for it is already in flight).
+	 * Never throws — failures are recorded on the run row in {@link IAutomationService}.
 	 */
 	runOnce(
 		automation: IAutomation,

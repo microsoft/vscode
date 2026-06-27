@@ -6,13 +6,8 @@
 import { URI } from '../../../../../base/common/uri.js';
 
 /**
- * How often an automation runs.
- *
- * - `manual`: never runs on a schedule; the user must trigger it explicitly.
- * - `hourly`: runs every hour from the moment it is created or updated.
- * - `daily`: runs once per day at the configured local-time hour and minute.
- * - `weekly`: runs once per week at the configured local-time hour, minute,
- *   and day-of-week.
+ * How often an automation runs. `hourly` fires every hour from creation/update;
+ * `daily`/`weekly` fire at the configured local-time hour/minute (and day-of-week).
  */
 export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly';
 
@@ -50,19 +45,13 @@ export interface IAutomation {
 	readonly folderUri: URI;
 
 	/**
-	 * Identifier of the sessions provider that should serve the scheduled
-	 * run (e.g. `local-agent-host`, `copilot-chat`). Omitted on automations
-	 * created before the picker existed; the runner then falls back to the
-	 * workspace's default provider.
+	 * Sessions provider for the scheduled run (e.g. `local-agent-host`). Omitted
+	 * on automations predating the picker; the runner then falls back to the
+	 * workspace default provider.
 	 */
 	readonly providerId?: string;
 
-	/**
-	 * Identifier of the session type to create within {@link providerId}.
-	 * Captured alongside {@link providerId} when the user picks a session
-	 * type in the create/edit dialog so scheduled runs spin up the same
-	 * kind of session every time.
-	 */
+	/** Session type to create within {@link providerId}, captured alongside it. */
 	readonly sessionTypeId?: string;
 
 	/** Optional language model identifier to seed the new session with. */
@@ -85,24 +74,14 @@ export interface IAutomation {
 	readonly nextRunAt?: string;
 }
 
-/**
- * Status of an individual automation run.
- */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
- * What kicked off a run.
- *
- * - `schedule`: due-time was reached during a normal scheduler tick.
- * - `catch_up`: due-time was reached while VS Code was closed and the run
- *   fires once at the next startup.
- * - `manual`: user clicked "Run now".
+ * What kicked off a run. `catch_up` fires once at startup for a due-time that
+ * passed while VS Code was closed.
  */
 export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
 
-/**
- * A single recorded execution of an automation.
- */
 export interface IAutomationRun {
 	readonly id: string;
 	readonly automationId: string;
@@ -116,9 +95,6 @@ export interface IAutomationRun {
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 
-	/**
-	 * Identifier of the workbench window that claimed this run. Used by the
-	 * leader-election guard to avoid duplicate execution across windows.
-	 */
+	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
 	readonly leaderWindowId: number;
 }

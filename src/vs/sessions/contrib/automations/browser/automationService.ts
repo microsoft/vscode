@@ -30,7 +30,6 @@ const STORAGE_KEY = 'chat.automations.ledger';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
-// Cap run history to prevent unbounded growth.
 const MAX_RUNS_PER_AUTOMATION = 50;
 
 interface ISerializedAutomation {
@@ -402,7 +401,7 @@ function deserializeAutomation(s: ISerializedAutomation): IAutomation {
 	const revivedUri = URI.revive(s.folderUri);
 	const folderUri = revivedUri;
 
-	// Validate permissionLevel - default to most restrictive if invalid
+	// Default to most restrictive if the persisted value is invalid.
 	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
 		? s.permissionLevel
 		: ChatPermissionLevel.Default;

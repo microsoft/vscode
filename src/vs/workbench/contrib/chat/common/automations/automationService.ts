@@ -12,10 +12,7 @@ export const IAutomationService = createDecorator<IAutomationService>('automatio
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
- * `nextRunAt`.
- *
- * `folderUri` is required — every automation must target a specific
- * workspace folder so the spawned session has project context.
+ * `nextRunAt`. `folderUri` is required.
  */
 export interface ICreateAutomationOptions {
 	readonly name: string;
@@ -31,10 +28,9 @@ export interface ICreateAutomationOptions {
 }
 
 /**
- * Patch for `updateAutomation`. Fields not present are left unchanged.
- * Pass `null` for `providerId`, `sessionTypeId`, `modelId`, `mode`, or
- * `permissionLevel` to clear them. `folderUri` cannot be cleared — pass
- * a new URI to change which folder the automation runs in.
+ * Patch for `updateAutomation`. Absent fields are unchanged. Pass `null` for
+ * `providerId`/`sessionTypeId`/`modelId`/`mode`/`permissionLevel` to clear them;
+ * `folderUri` cannot be cleared.
  */
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
@@ -49,9 +45,7 @@ export interface IUpdateAutomationOptions {
 	readonly enabled?: boolean;
 }
 
-/**
- * Patch for `updateRun`. Fields not present are left unchanged.
- */
+/** Patch for `updateRun`. Absent fields are unchanged. */
 export interface IUpdateAutomationRunOptions {
 	readonly status?: IAutomationRun['status'];
 	readonly sessionId?: string;
@@ -60,11 +54,9 @@ export interface IUpdateAutomationRunOptions {
 }
 
 /**
- * Manages the persistent list of scheduled automations and their run history.
- *
- * The service is the single mutation point for both definitions and runs;
- * the scheduler, runner, and UI all flow through it so cross-window
- * propagation, persistence, and observable updates stay consistent.
+ * Persistent store for automations and their run history, and the single
+ * mutation point — scheduler, runner, and UI all flow through it to keep
+ * cross-window propagation, persistence, and observables consistent.
  */
 export interface IAutomationService {
 	readonly _serviceBrand: undefined;
@@ -85,34 +77,21 @@ export interface IAutomationService {
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
 	deleteAutomation(id: string): Promise<void>;
 
-	/**
-	 * Records a new run as `pending`. Called by the scheduler/runner.
-	 * Throws if the automation does not exist.
-	 */
+	/** Records a new run as `pending`. Throws if the automation does not exist. */
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun>;
 
-	/**
-	 * Applies a patch to an existing run. Returns the updated run, or
-	 * `undefined` if no run with that id exists.
-	 */
+	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
 
-	/**
-	 * Returns the most recent `pending` or `running` run for an automation,
-	 * or `undefined` if none. Used by the runner's per-automation claim.
-	 */
+	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
 
-	/**
-	 * Marks all stuck runs (pending or running) as failed with the given
-	 * message. Called on startup to recover from crashes.
-	 */
+	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
 
 	/**
-	 * Sets `lastRunAt = now` and recomputes `nextRunAt` from the current
-	 * schedule. Called by the scheduler right after dispatching a run, so
-	 * the same automation is not picked up twice on a subsequent tick.
+	 * Sets `lastRunAt = now` and recomputes `nextRunAt`. Called right after
+	 * dispatch so the same automation isn't picked up twice on the next tick.
 	 */
 	advanceNextRunAt(id: string, now?: Date): Promise<IAutomation | undefined>;
 }

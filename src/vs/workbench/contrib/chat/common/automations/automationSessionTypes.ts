@@ -7,12 +7,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 /**
- * A single (provider, session-type) choice that an automation can target.
- *
- * Automations capture the user's pick at creation time and reuse it on every
- * scheduled run so the runner can spin up a session of the same kind every
- * time, regardless of which provider happens to be the workspace default
- * when the run fires.
+ * A (provider, session-type) choice an automation can target. Captured at
+ * creation and reused on every run, independent of the workspace default.
  */
 export interface IAutomationSessionTypeChoice {
 	readonly providerId: string;

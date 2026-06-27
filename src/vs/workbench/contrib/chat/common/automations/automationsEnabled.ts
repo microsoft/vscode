@@ -17,11 +17,7 @@ export const CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING = 'chat.automations.ru
 /** Default for {@link CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING}. */
 export const DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES = 30;
 
-/**
- * Context key mirroring {@link CHAT_AUTOMATIONS_ENABLED_SETTING}. Use this
- * in `when` clauses on menus and commands so the feature's UI only shows
- * when the setting is enabled.
- */
+/** Context key mirroring {@link CHAT_AUTOMATIONS_ENABLED_SETTING}, for `when` clauses on menus/commands. */
 export const ChatAutomationsEnabledContext = new RawContextKey<boolean>('chatAutomationsEnabled', false, {
 	type: 'boolean',
 	description: 'True when the chat Automations feature is enabled via the chat.automations.enabled setting.',
