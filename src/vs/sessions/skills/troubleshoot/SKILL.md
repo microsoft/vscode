@@ -130,7 +130,7 @@ Use a streaming `jq` program (macOS/Linux) or a streaming Node `readline` pass (
 - Locate the newest log: `ls -t "${XDG_STATE_HOME:-$HOME}"/.copilot/session-state/*/events.jsonl | head -n 1`
 - Check size first: `ls -lh <logPath>`
 - Errors: `grep '"success":false' <logPath>` (tool failures) and `grep '"type":"tool.execution_complete"' <logPath>`
-- Count events by type: `jq -r '.type' <logPath> | sort | uniq -c | sort -rn`
+- Count events by type (streaming): `jq -nr 'reduce inputs as $i ({}; .[$i.type] += 1) | to_entries | sort_by(-.value)[] | "\(.value) \(.key)"' <logPath>`
 - Tool calls: `jq -c 'select(.type=="tool.execution_start") | {tool:.data.toolName, id:.data.toolCallId}' <logPath>`
 - User messages: `jq -c 'select(.type=="user.message") | .data.content' <logPath>`
 - Assistant turns: `jq -c 'select(.type=="assistant.message") | {model:.data.model, out:.data.outputTokens}' <logPath>`

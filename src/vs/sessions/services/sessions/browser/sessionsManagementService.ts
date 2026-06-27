@@ -423,7 +423,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (eventPaths.length === 0) {
 			return result;
 		}
-		return { ...result, query: `${options.query}\n\nSession log: ${eventPaths.join(', ')}` };
+		return { ...result, query: `${result.query}\n\nSession log: ${eventPaths.join(', ')}` };
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
