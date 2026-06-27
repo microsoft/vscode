@@ -328,6 +328,9 @@ export async function mapSessionEvents(
 				const content = d.content ?? '';
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
+				if (!content && !reasoningText && !hasToolRequests) {
+					break;
+				}
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				// When this is the first event in a turn (no parent builder
 				// yet), seed the builder with the SDK envelope id so the

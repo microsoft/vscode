@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, TurnState, type ResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
-suite('mapSessionEvents — task_complete rendering', () => {
+suite('mapSessionEvents — history replay', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -110,6 +110,35 @@ suite('mapSessionEvents — task_complete rendering', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('ignores empty assistant messages between model rounds', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Investigate this issue' } },
+			{ type: 'assistant.message', id: 'tool-round', data: { interactionId: 'interaction-1', content: 'I will investigate.', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo investigating' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'investigating\n' } } },
+			{ type: 'assistant.message', id: 'empty-round', data: { interactionId: 'interaction-1', content: '', toolRequests: [], reasoningOpaque: 'opaque-reasoning' } },
+			{ type: 'assistant.message', id: 'final-round', data: { interactionId: 'interaction-1', content: 'Investigation complete.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: 'Investigate this issue',
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'I will investigate.' },
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'Investigation complete.' },
+			],
+		}]);
 	});
 });
 
