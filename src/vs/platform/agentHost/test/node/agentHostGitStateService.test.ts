@@ -44,7 +44,7 @@ suite('AgentHostGitStateService', () => {
 		};
 
 		// The octokit and agent services are only used by the GitHub
-		// pull-request flow, which `refreshSessionGitState2` does not touch.
+		// pull-request flow, which `refreshSessionGitState` does not touch.
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,

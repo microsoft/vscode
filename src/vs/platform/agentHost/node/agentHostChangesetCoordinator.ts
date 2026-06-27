@@ -322,7 +322,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/**
 	 * Called when a session's Git state is refreshed.
 	 */
-	private async onDidRunSessionGitStateRefresh(sessionStr: string) {
+	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
 		// Git state has been refreshed so we need to recompute every
 		// changeset currently subscribed for the session (the service
 		// reads the exposed subscription list).
@@ -376,7 +376,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 		let changed = false;
 		const nextChangesets = changesets.map(changeset => {
-			if (changeset.uriTemplate === branchUri) {
+			if (changeset.uriTemplate !== branchUri) {
 				return changeset;
 			}
 			if (changeset.description === description) {

@@ -104,7 +104,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
 			try {
-				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState2] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
+				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
 				const gitState = await this._gitService.getSessionGitState(workingDirectory);
 				if (!gitState) {
@@ -137,7 +137,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					return;
 				}
 
-				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState2] Failed to compute git state for ${sessionKey}:`, error);
+				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
 		});
 	}

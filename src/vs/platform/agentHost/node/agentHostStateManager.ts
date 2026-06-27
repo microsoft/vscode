@@ -405,8 +405,8 @@ export class AgentHostStateManager extends Disposable {
 
 		const state: SessionState = {
 			...createSessionState(summary),
-			_meta: meta,
 			lifecycle: SessionLifecycle.Ready,
+			_meta: meta,
 		};
 		this._sessionStates.set(key, state);
 		this._ensureDefaultChat(key, summary, turns);
