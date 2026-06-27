@@ -717,8 +717,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
 			const resubscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			const finalSnapshot = resubscribeResult.snapshot!.state as SessionState;
-			assert.strictEqual(finalSnapshot.summary.resource, sessionUri, 'follow-up turn should keep the original session resource');
+			assert.strictEqual(resubscribeResult.snapshot!.resource, sessionUri, 'follow-up turn should keep the original session resource');
 		});
 
 		test('can abort a running turn', async function () {
@@ -759,7 +758,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const sessionState = subscribeResult.snapshot!.state as SessionState;
-			assert.strictEqual(sessionState.summary.workingDirectory, workingDirUri,
+			assert.strictEqual(sessionState.workingDirectory, workingDirUri,
 				`subscribe snapshot summary should carry the requested working directory`);
 		});
 

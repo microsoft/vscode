@@ -36,7 +36,6 @@ import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrows
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
-import product from '../../../../../platform/product/common/product.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
@@ -741,8 +740,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.browser.enableChatTools': {
 			type: 'boolean',
 			default: true,
-			experiment: { mode: 'startup' },
-			tags: ['experimental'],
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
 				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
@@ -751,7 +748,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: 'BrowserChatTools',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.110',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'browser.enableChatTools',
@@ -767,7 +763,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
 		},
 		'workbench.browser.experimentalUserTools.enabled': {
 			type: 'boolean',

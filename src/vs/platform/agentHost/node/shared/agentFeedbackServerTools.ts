@@ -593,12 +593,12 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 		return getFeedbackToolDisplay(toolName, args, result);
 	},
-	execute(stateManager, sessionUri, toolName, rawArgs): string {
+	execute(stateManager, chatUri, toolName, rawArgs): string {
 		// A session can contain multiple chats, each addressed by its own
 		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
 		// to the session as a whole, so always resolve a chat URI back to its
 		// owning session and operate on the main session's annotations channel.
-		const mainSessionUri = parseChatUri(sessionUri)?.session ?? sessionUri;
+		const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
 		const annotationsUri = buildAnnotationsUri(mainSessionUri);
 		const snapshot = stateManager.getSnapshot(annotationsUri);
 		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
