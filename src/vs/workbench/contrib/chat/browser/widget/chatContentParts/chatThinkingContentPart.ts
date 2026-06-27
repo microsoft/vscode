@@ -1432,7 +1432,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return false;
 		}
 
-		const precedingToolInvocationPart = isHTMLElement(originalNextSibling)
+		const precedingToolInvocationPart = isHTMLElement(originalNextSibling) && originalNextSibling.parentElement === originalParent
 			? originalNextSibling.previousElementSibling
 			: originalParent.lastElementChild;
 		if (toolInvocation) {
@@ -1451,6 +1451,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		thinkingWrapper.remove();
 
 		if (toolInvocation) {
+			this.toolWrappersByCallId.delete(toolInvocation.toolCallId);
+			this.toolIconsByCallId.delete(toolInvocation.toolCallId);
 			toolInvocation.isAttachedToThinking = false;
 		}
 

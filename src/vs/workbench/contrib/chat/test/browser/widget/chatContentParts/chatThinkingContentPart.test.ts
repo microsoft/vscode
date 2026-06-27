@@ -1527,6 +1527,48 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
+		test('finalizeTitleIfDefault should use the original parent when finding a preceding tool invocation part', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const originalToolInvocationPart = $('div.chat-tool-invocation-part');
+			originalParent.append(originalToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited AGENTS.md';
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: { value: '' } };
+			part.appendItem(() => ({ domNode: editPill }), 'edit-pill', markdown, originalParent);
+
+			const unrelatedParent = $('div.unrelated-parent');
+			const unrelatedToolInvocationPart = $('div.chat-tool-invocation-part');
+			unrelatedParent.append(unrelatedToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(unrelatedParent);
+			disposables.add(toDisposable(() => unrelatedParent.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParentIsOriginalTool: editPill.parentElement === originalToolInvocationPart,
+				unrelatedToolChildCount: unrelatedToolInvocationPart.childElementCount,
+			}, {
+				editPillParentIsOriginalTool: true,
+				unrelatedToolChildCount: 0,
+			});
+		});
+
 		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
