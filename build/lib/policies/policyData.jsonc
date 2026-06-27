@@ -144,6 +144,24 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.claudeAgent.enabled",
+            "name": "Claude3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.113",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.claudeAgent.enabled.policy",
+                    "value": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.claudeAgent.enabled"
+            ]
+        },
+        {
             "key": "chat.agentHost.codexAgent.enabled",
             "name": "Codex3PIntegration",
             "category": "InteractiveSession",
@@ -172,24 +190,6 @@
             "type": "string",
             "default": "",
             "included": true
-        },
-        {
-            "key": "chat.agentHost.claudeAgent.enabled",
-            "name": "Claude3PIntegration",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.113",
-            "localization": {
-                "description": {
-                    "key": "chat.agentHost.claudeAgent.enabled.policy",
-                    "value": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic Claude Agent SDK directly in the editor. Uses your existing Copilot subscription."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.claudeAgent.enabled"
-            ]
         },
         {
             "key": "chat.tools.global.autoApprove",
@@ -539,7 +539,7 @@
             "localization": {
                 "description": {
                     "key": "updateMode",
-                    "value": "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."
+                    "value": "Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service."
                 },
                 "enumDescriptions": [
                     {
