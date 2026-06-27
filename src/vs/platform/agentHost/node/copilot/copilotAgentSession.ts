@@ -567,7 +567,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingMcpSamplings = new Set<string>();
 
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
-	private _hasReportedActivity = false;
+	private _hasActivity = false;
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
@@ -2446,20 +2446,6 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
-				// The CLI uses the `report_intent` tool to signal what the
-				// agent is currently doing. Surface this as session activity
-				// so the UI can show a live "what is the agent doing now?"
-				// hint while the turn is in progress.
-				if (e.data.toolName === 'report_intent') {
-					const intent = (e.data.arguments as { intent?: unknown } | undefined)?.intent;
-					if (typeof intent === 'string' && intent.length > 0) {
-						this._hasReportedActivity = true;
-						this._emitAction({
-							type: ActionType.SessionActivityChanged,
-							activity: intent,
-						});
-					}
-				}
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
@@ -2696,11 +2682,8 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
-			// Clear any in-progress activity description set during the
-			// turn (e.g. via the `report_intent` tool) — the agent is no
-			// longer doing anything once the loop settles.
-			if (this._hasReportedActivity) {
-				this._hasReportedActivity = false;
+			if (this._hasActivity) {
+				this._hasActivity = false;
 				this._emitAction({
 					type: ActionType.SessionActivityChanged,
 					activity: undefined,
@@ -3253,6 +3236,15 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIntent(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
+			const activity = e.data.intent || undefined;
+			if (activity === undefined && !this._hasActivity) {
+				return;
+			}
+			this._hasActivity = activity !== undefined;
+			this._emitAction({
+				type: ActionType.SessionActivityChanged,
+				activity,
+			});
 		}));
 
 		this._register(wrapper.onReasoning(e => {
