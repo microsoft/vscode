@@ -187,9 +187,6 @@ export class ChatListWidget extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidChangeFocus = this._register(new Emitter<void>());
-	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
-
 	private readonly _onDidChangeItemHeight = this._register(
 		new Emitter<{ element: ChatTreeItem; height: number }>(),
 	);
@@ -425,6 +422,7 @@ export class ChatListWidget extends Disposable {
 				}
 
 				this._onDidChangeItemHeight.fire(e);
+				// A row's height changed, so marker geometry (derived from element heights) must be recomputed; refreshIfDimensionsChanged() is insufficient because scrollHeight may not have updated yet.
 				this._scrollbarPromptMarkerController.refresh();
 			}),
 		);
@@ -563,7 +561,6 @@ export class ChatListWidget extends Disposable {
 						this._mostRecentlyFocusedItemIndex = idx;
 					}
 				}
-				this._onDidChangeFocus.fire();
 				this._scrollbarPromptMarkerController.refresh();
 			}),
 		);
@@ -841,7 +838,7 @@ export class ChatListWidget extends Disposable {
 		return this._tree.getElementHeight(element);
 	}
 
-	getOverviewRulerLayoutInfo() {
+	getOverviewRulerLayoutInfo(): { parent: HTMLElement; insertBefore: HTMLElement } | undefined {
 		return this._tree.getOverviewRulerLayoutInfo();
 	}
 

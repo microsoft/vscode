@@ -23,6 +23,7 @@ import {
 } from '../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import {
+	applyScrollbarPromptMarkerClickBehavior,
 	getFocusedScrollbarPromptMarkerId,
 	getScrollbarPromptMarkerDescriptors,
 } from '../actions/chatPromptNavigationActions.js';
@@ -551,11 +552,14 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				ChatConfiguration.ScrollbarPromptMarkerClickBehavior,
 			);
 
-		// Reveal first — this may trigger dynamic height re-measurement in the
-		// virtualized tree, which fires scroll/content-height events that can
-		// steal focus. Retry the focus over several animation frames so it
-		// lands after the tree has fully settled from scroll-induced re-renders.
-		this.host.reveal(item);
+		// Delegate the reveal (and, for the Reveal behavior, the focus) to the
+		// shared helper so there is a single source of truth for click behavior.
+		// For RevealAndFocus we reveal here but defer focusItem below, because
+		// revealing a row in a long chat triggers dynamic height re-measurement
+		// in the virtualized tree, which can steal focus during the re-render
+		// cycle. The focus is retried across animation frames until the target
+		// element is available in the tree or a maximum attempt count is reached.
+		applyScrollbarPromptMarkerClickBehavior(this.host, item, behavior);
 
 		if (behavior === ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus) {
 			const targetWindow = dom.getWindow(this.container);
