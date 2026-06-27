@@ -32,6 +32,13 @@ function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
 }
 
+interface IMockSendMessageCall {
+	readonly session: URI;
+	readonly prompt: string;
+	readonly attachments?: readonly MessageAttachment[];
+	readonly chat?: URI;
+}
+
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
  * for assertion and exposes {@link fireProgress} to inject progress events.
@@ -39,6 +46,8 @@ function mockProject(provider: AgentProvider) {
 export class MockAgent implements IAgent {
 	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
+	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
@@ -48,7 +57,7 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[]; chat?: URI }[] = [];
+	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -126,7 +135,9 @@ export class MockAgent implements IAgent {
 	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
 		// Only record `chat` when defined so existing single-chat assertions
 		// that compare against `{ session, prompt, attachments }` still match.
-		this.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
+		const call = chat ? { session, prompt, attachments, chat } : { session, prompt, attachments };
+		this.sendMessageCalls.push(call);
+		this._onDidSendMessage.fire(call);
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
@@ -252,6 +263,7 @@ export class MockAgent implements IAgent {
 
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidSendMessage.dispose();
 		this._onDidCustomizationsChange.dispose();
 	}
 }

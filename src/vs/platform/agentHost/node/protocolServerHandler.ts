@@ -1135,8 +1135,6 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					model: params.model,
-					agent: params.agent,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.channel),
 					fork,
@@ -1174,7 +1172,6 @@ export class ProtocolServerHandler extends Disposable {
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				{
-					...(params.model ? { model: params.model } : {}),
 					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
 				},
 			);
@@ -1213,10 +1210,9 @@ export class ProtocolServerHandler extends Disposable {
 					title: s.summary ?? 'Session',
 					status,
 					activity: s.activity,
-					createdAt: s.startTime,
-					modifiedAt: s.modifiedTime,
+					createdAt: new Date(s.startTime).toISOString(),
+					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
 					changes: s.changes,
 				};

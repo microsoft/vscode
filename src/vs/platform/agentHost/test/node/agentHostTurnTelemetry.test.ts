@@ -94,17 +94,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
-	}
-
-	function setModel(id: string): void {
-		stateManager.dispatchServerAction(sessionKey, {
-			type: ActionType.SessionModelChanged,
-			model: { id },
-		});
 	}
 
 	function setAutoApprove(level: string): void {
@@ -124,11 +117,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	}
 
-	function startTurn(turnId: string, text = 'hello'): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
-			message: { text, origin: { kind: MessageKind.User } },
+			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		// Dispatch into the state manager so `getActiveTurnId` returns the
 		// active turn (the progress-listener path relies on this) and then
@@ -181,9 +174,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('emits turnCompleted with timing, model and permissionLevel on success', () => {
 		setupSession();
-		setModel('gpt-5.5');
 		setAutoApprove('autopilot');
-		startTurn('turn-1');
+		startTurn('turn-1', 'hello', 'gpt-5.5');
 
 		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });

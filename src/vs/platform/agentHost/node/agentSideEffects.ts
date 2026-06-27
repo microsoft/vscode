@@ -10,14 +10,15 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChatOriginKind, ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
@@ -28,29 +29,30 @@ import {
 	isAhpChatChannel,
 	isDefaultChatUri,
 	MessageKind,
+	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
 	ToolCallStatus,
 	ToolResultContentType,
-	type Turn,
-	type URI as ProtocolURI,
-	type ISessionWithDefaultChat,
 	type ErrorInfo,
+	type ISessionWithDefaultChat,
+	type Message,
+	type URI as ProtocolURI,
 	type SessionState,
-	type ToolResultContent
+	type ToolResultContent,
+	type Turn
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
 import { parseRenameCommand } from './agentHostRenameCommand.js';
-import { SessionPermissionManager } from './sessionPermissions.js';
-import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
-import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { SessionPermissionManager } from './sessionPermissions.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
+import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -160,6 +162,9 @@ export class AgentSideEffects extends Disposable {
 				const sessionChannel = isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.onClientToolCallComplete(URI.parse(sessionChannel), action.toolCallId, action.result);
+			}
+			if (envelope.action.type === ActionType.ChatDraftChanged) {
+				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 		}));
 	}
@@ -772,9 +777,9 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
-				agent.sendMessage(URI.parse(sessionChannel), action.message.text, attachments, action.turnId, isDefaultChatUri(channel) ? undefined : URI.parse(channel)).catch(err => {
+				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction(channel, {
@@ -831,20 +836,6 @@ export class AgentSideEffects extends Disposable {
 				// user to dequeue/run manually. (A message the user sends *after*
 				// the abort is still consumed via the ChatPendingMessageSet path
 				// once cancellation has cleared the active turn.)
-				break;
-			}
-			case ActionType.SessionModelChanged: {
-				const agent = this._options.getAgent(sessionChannel);
-				agent?.changeModel?.(URI.parse(sessionChannel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					this._logService.error('[AgentSideEffects] changeModel failed', err);
-				});
-				break;
-			}
-			case ActionType.SessionAgentChanged: {
-				const agent = this._options.getAgent(sessionChannel);
-				agent?.changeAgent?.(URI.parse(sessionChannel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
-					this._logService.error('[AgentSideEffects] changeAgent failed', err);
-				});
 				break;
 			}
 			case ActionType.SessionTitleChanged: {
@@ -906,17 +897,6 @@ export class AgentSideEffects extends Disposable {
 				// (e.g. permissions) and session customizations as a catchall.
 				this._publishAgentInfos(this._options.agents.get());
 				this._publishAllSessionCustomizations();
-				break;
-			}
-			case ActionType.SessionActiveClientToolsChanged: {
-				const agent = this._options.getAgent(channel);
-				if (agent) {
-					const sessionState = this._stateManager.getSessionState(channel);
-					const isActiveClient = sessionState?.activeClients.some(c => c.clientId === action.clientId);
-					if (isActiveClient) {
-						agent.getOrCreateActiveClient(URI.parse(channel), { clientId: action.clientId }).tools = action.tools;
-					}
-				}
 				break;
 			}
 			case ActionType.SessionCustomizationToggled: {
@@ -1048,6 +1028,25 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
+	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
+		if (!isAhpChatChannel(channel)) {
+			return;
+		}
+
+		const parsed = parseChatUri(channel);
+		if (!parsed) {
+			return;
+		}
+
+		const session = URI.parse(parsed.session);
+		const ref = this._options.sessionDataService.openDatabase(session);
+		ref.object.setChatDraft(URI.parse(channel), draft).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist chat draft for ${channel.toString()}`, err);
+		}).finally(() => {
+			ref.dispose();
+		});
+	}
+
 	/**
 	 * Pushes the current pending message state from the session to the agent.
 	 * The server controls queued message consumption; only steering messages
@@ -1129,25 +1128,76 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
-		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState);
+		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
-		agent.sendMessage(URI.parse(sessionChannel), msg.message.text, attachments, turnId, chatTarget ? URI.parse(chatTarget) : undefined).catch(err => {
-			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
-			this._stateManager.dispatchServerAction(session, {
-				type: ActionType.ChatError,
-				turnId,
-				error: buildSendFailedError(err),
-			});
-			this._turnTracker.turnCompleted(session, turnId, 'error');
+		// Selection travels on the queued message; it is applied before sending.
+		void this._sendTurnMessage({
+			agent,
+			sessionChannel,
+			turnChannel: session,
+			chat: chatTarget,
+			message: msg.message,
+			turnId,
 		});
 	}
 
 
-	private _getTurnTelemetryContext(state: SessionState | undefined): { model: string | undefined; permissionLevel: string | undefined } {
-		const model = state?.summary.model?.id;
+	private _getTurnTelemetryContext(state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
-		return { model, permissionLevel };
+		return { model: modelId, permissionLevel };
+	}
+
+	/**
+	 * Applies a turn message's model/agent selection (see
+	 * {@link _applyMessageSelection}) and forwards it to the agent's
+	 * `sendMessage`. A rejected send is wired to fail the turn: it logs,
+	 * dispatches {@link ActionType.ChatError} on the turn channel, and marks the
+	 * turn errored.
+	 */
+	private async _sendTurnMessage(options: {
+		agent: IAgent;
+		/** The agent/session URI the conversation lives on (the send target). */
+		sessionChannel: ProtocolURI;
+		/** The channel the turn runs on — where `ChatError` / turn completion are reported. */
+		turnChannel: ProtocolURI;
+		/** Peer-chat channel URI to route to, when the turn targets a non-default chat. */
+		chat: ProtocolURI | undefined;
+		message: Message;
+		turnId: string;
+	}): Promise<void> {
+		const { agent, sessionChannel, turnChannel, chat, message, turnId } = options;
+
+		const sessionUri = URI.parse(sessionChannel);
+		const chatUri = chat ? URI.parse(chat) : undefined;
+		const selectionUpdates: Promise<void>[] = [];
+		if (message.model) {
+			const changeModel = agent.changeModel?.(sessionUri, message.model, chatUri);
+			if (changeModel) {
+				selectionUpdates.push(changeModel.catch(err => {
+					this._logService.error('[AgentSideEffects] changeModel failed', err);
+				}));
+			}
+		}
+		const changeAgent = agent.changeAgent?.(sessionUri, message.agent, chatUri);
+		if (changeAgent) {
+			selectionUpdates.push(changeAgent.catch(err => {
+				this._logService.error('[AgentSideEffects] changeAgent failed', err);
+			}));
+		}
+
+		await Promise.all(selectionUpdates);
+
+		await agent.sendMessage(URI.parse(sessionChannel), message.text, message.attachments, turnId, chatUri).catch(err => {
+			const errCode = (err as { code?: number })?.code;
+			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				error: buildSendFailedError(err),
+			});
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+		});
 	}
 
 

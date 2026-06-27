@@ -741,8 +741,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.browser.enableChatTools': {
 			type: 'boolean',
 			default: true,
-			experiment: { mode: 'startup' },
-			tags: ['experimental'],
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
 				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
@@ -751,7 +749,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: 'BrowserChatTools',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.110',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'browser.enableChatTools',

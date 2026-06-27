@@ -27,9 +27,9 @@ import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootC
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ResponsePartKind, SESSION_META_GITHUB_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ResponsePartKind, SESSION_META_GITHUB_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -64,6 +64,10 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
+import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
+import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
+import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -72,7 +76,6 @@ import { IAgentHostChangesetOperationService } from '../common/agentHostChangese
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
-
 /**
  * Grace period before an idle resource watch is torn down after its last
  * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
@@ -260,7 +263,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 
-		this._gitStateService = instantiationService.createInstance(AgentHostGitStateService, this._stateManager);
+		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService, this._stateManager));
 		services.set(IAgentHostGitStateService, this._gitStateService);
 
 		// The checkpoint service is constructed in the outer agent-host
@@ -274,18 +277,24 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetSubscriptions = instantiationService.createInstance(AgentHostChangesetSubscriptionService);
 		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
-		// The changeset service is responsible for computing, publishing, and persisting changesets.
-		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
-		services.set(IAgentHostChangesetService, this._changesets);
-
 		// The operation contribution service manages the lifecycle of changeset operations.
 		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService, this._stateManager));
 		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
+
+		// The changeset service is responsible for computing, publishing, and persisting changesets.
+		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
+		services.set(IAgentHostChangesetService, this._changesets);
 
 		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
 		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
 		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator, this._stateManager));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
+
+		// Register the changeset operation contributions.
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
 		// Built-in generic provider: completes files in the session's workspace folder.
@@ -314,7 +323,7 @@ export class AgentService extends Disposable implements IAgentService {
 				});
 			},
 			onTurnComplete: session => {
-				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectory;
 				void this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
 			},
 		}));
@@ -441,7 +450,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m[META_GITHUB_STATE]) {
 						try {
 							const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
-							updated = { ...updated, _summaryMeta: withSessionGitHubState(updated._summaryMeta, gitHubState) };
+							updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
 						} catch (e) {
 							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
 						}
@@ -463,37 +472,29 @@ export class AgentService extends Disposable implements IAgentService {
 		// initial empty placeholder. The default changeset catalogue lives
 		// on `state.changesets` (seeded after `createSession` /
 		// `restoreSession` and refreshed after each compute pass) and the
-		// chip aggregate on `state.summary.changes`; both must be surfaced
-		// here so a fresh `listSessions` call returns the same values
+		// chip aggregate on the catalog summary's `changes`; both must be
+		// surfaced here so a fresh `listSessions` call returns the same values
 		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
-			const liveState = this._stateManager.getSessionState(s.session.toString());
-			if (liveState) {
-				// Overlay the live session `_meta` over the DB-derived value.
-				// The summary `_meta` is the freshest source (e.g. the GitHub
-				// state is published here via `setSessionSummaryMeta` as soon
-				// as a PR is created), so a freshly-created session that has
-				// not yet persisted its state to its session database still
-				// reports it here (the DB overlay above only sees persisted
-				// state). Keep the DB value as the base so any keys absent from
-				// the live summary are preserved.
-				const _meta = liveState._meta !== undefined || s._meta !== undefined
-					? { ...s._meta, ...liveState._meta }
-					: undefined;
-				const _summaryMeta = liveState.summary._meta !== undefined || s._summaryMeta !== undefined
-					? { ...s._summaryMeta, ...liveState.summary._meta }
+			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
+			if (liveSummary) {
+				// Overlay the live `_meta` over the DB-derived value. The live
+				// `_meta` is the freshest source (e.g. the GitHub state is
+				// published here as soon as a PR is created), so a freshly-created
+				// session that has not yet persisted its state to its session
+				// database still reports it here. Keep the DB value as the base so
+				// any keys absent from the live `_meta` are preserved.
+				const _meta = liveSummary._meta !== undefined || s._meta !== undefined
+					? { ...s._meta, ...liveSummary._meta }
 					: undefined;
 				return {
 					...s,
-					summary: liveState.summary.title || s.summary,
-					status: liveState.summary.status,
-					activity: liveState.summary.activity,
-					model: liveState.summary.model ?? s.model,
-					agent: liveState.summary.agent ?? s.agent,
-					changes: liveState.summary.changes ?? s.changes,
-					changesets: liveState.changesets ?? s.changesets,
-					...(_summaryMeta !== undefined ? { _summaryMeta } : {}),
+					summary: liveSummary.title || s.summary,
+					status: liveSummary.status,
+					activity: liveSummary.activity,
+					changes: liveSummary.changes ?? s.changes,
+					changesets: this._stateManager.getSessionState(s.session.toString())?.changesets ?? s.changesets,
 					...(_meta !== undefined ? { _meta } : {}),
 				};
 			}
@@ -522,25 +523,24 @@ export class AgentService extends Disposable implements IAgentService {
 			if (isSubagentSession(summary.resource)) {
 				continue;
 			}
+
 			additions.push({
 				session: URI.parse(summary.resource),
-				startTime: summary.createdAt,
-				modifiedTime: summary.modifiedAt,
+				startTime: Date.parse(summary.createdAt),
+				modifiedTime: Date.parse(summary.modifiedAt),
 				summary: summary.title,
 				status: summary.status,
 				activity: summary.activity,
-				model: summary.model,
-				agent: summary.agent,
 				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 				changes: summary.changes,
 				// This overlay path never opens the session database (unlike the
 				// provider-returned sessions handled above), so carry the
 				// in-memory `summary._meta` directly. It holds the live state
-				// (e.g. the GitHub state published via `setSessionSummaryMeta`
-				// when a PR is created), so a freshly-created session that the
-				// provider transiently omits still reports it here.
-				...(summary._meta !== undefined ? { _summaryMeta: summary._meta } : {}),
+				// (e.g. the GitHub state published when a PR is created), so a
+				// freshly-created session that the provider transiently omits
+				// still reports it here.
+				...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
@@ -637,7 +637,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// reinventing the convention. Avoid double-prefixing when a user
 			// forks an already-forked session.
 			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-			const sourceTitle = sourceState?.summary.title;
+			const sourceTitle = sourceState?.title;
 			const forkedTitle = sourceTitle
 				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
 				: localize('agentHost.forkedSessionFallback', "Forked Session");
@@ -750,7 +750,7 @@ export class AgentService extends Disposable implements IAgentService {
 				forkedTurns = slice.map(t => ({ ...t, id: turnIdMapping.get(t.id) ?? generateUuid() }));
 
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
-				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sessionKey)?.summary.title;
+				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sessionKey)?.title;
 				forkedTitle = forkedSourceTitle
 					? (forkedSourceTitle.startsWith(forkedTitlePrefix) ? forkedSourceTitle : `${forkedTitlePrefix}${forkedSourceTitle}`)
 					: localize('agentHost.forkedChatFallback', "Forked Chat");
@@ -785,7 +785,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
-		const now = Date.now();
+		const now = new Date().toISOString();
 		return {
 			resource: session.toString(),
 			provider: provider.id,
@@ -794,8 +794,6 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: now,
 			modifiedAt: now,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-			model: config?.model,
-			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
 		};
 	}
@@ -819,11 +817,16 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
 			return;
 		}
+		const currentSummary = this._stateManager.getSessionSummary(sessionKey);
+		if (!currentSummary) {
+			this._logService.warn(`[AgentService] onDidMaterializeSession missing summary for session: ${sessionKey}`);
+			return;
+		}
 		const summary: SessionSummary = {
-			...state.summary,
+			...currentSummary,
 			...(e.project ? { project: { uri: e.project.uri.toString(), displayName: e.project.displayName } } : {}),
-			workingDirectory: e.workingDirectory?.toString() ?? state.summary.workingDirectory,
-			modifiedAt: Date.now(),
+			workingDirectory: e.workingDirectory?.toString() ?? currentSummary.workingDirectory,
+			modifiedAt: new Date().toISOString(),
 		};
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
@@ -1064,7 +1067,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// the normal state-update stream.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
 			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
-				const wd = sessionState.summary?.workingDirectory;
+				const wd = sessionState.workingDirectory;
 				void this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
 			}
 
@@ -1634,24 +1637,16 @@ export class AgentService extends Disposable implements IAgentService {
 			provider: agent.id,
 			title,
 			status,
-			createdAt: meta.startTime,
-			modifiedAt: meta.modifiedTime,
-			...(meta.project ?
-				{
-					project: {
-						uri: meta.project.uri.toString(),
-						displayName: meta.project.displayName
-					}
-				}
-				: {}),
-			model: meta.model,
-			agent: meta.agent,
+			createdAt: new Date(meta.startTime).toISOString(),
+			modifiedAt: new Date(meta.modifiedTime).toISOString(),
+			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
 			_meta: summaryMetadata
 		};
 
-		this._stateManager.restoreSession(summary, [...turns]);
+		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
+		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
@@ -1762,8 +1757,11 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
-			const title = await this._readPersistedChatTitle(session, chatUri);
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns] });
+			const [title, draft] = await Promise.all([
+				this._readPersistedChatTitle(session, chatUri),
+				this._getChatDraft(session, chatUri),
+			]);
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns], draft });
 		}));
 	}
 
@@ -1777,6 +1775,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return (await ref.object.getMetadata(`customChatTitle:${chatUri.toString()}`)) ?? undefined;
 		} catch {
 			return undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async _getChatDraft(session: URI, chatUri: URI): Promise<Message | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return await ref.object.getChatDraft(chatUri);
 		} finally {
 			ref.dispose();
 		}
@@ -2239,7 +2249,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectory;
 		if (!workingDirectory) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
 		}
@@ -2344,15 +2354,16 @@ export class AgentService extends Disposable implements IAgentService {
 		// Use metadata from subagent content if available, otherwise synthesize
 		const title = subagentContent?.title ?? 'Subagent';
 
+		const subagentNow = new Date().toISOString();
 		this._stateManager.restoreSession(
 			{
 				resource: subagentUri,
 				provider: 'subagent',
 				title,
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
+				createdAt: subagentNow,
+				modifiedAt: subagentNow,
+				...(parentState?.project ? { project: parentState.project } : {}),
 			},
 			[...childTurns],
 		);
@@ -2370,14 +2381,15 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getSessionState(resourceStr)) {
 			return;
 		}
+		const registeredNow = new Date().toISOString();
 		this._stateManager.restoreSession(
 			{
 				resource: resourceStr,
 				provider: 'subagent',
 				title: child.title,
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: registeredNow,
+				modifiedAt: registeredNow,
 				...(parentSummary.project ? { project: parentSummary.project } : {}),
 			},
 			[...child.turns],
