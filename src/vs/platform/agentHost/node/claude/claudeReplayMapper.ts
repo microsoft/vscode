@@ -361,6 +361,10 @@ class ReplayBuilder {
 		const previousState = part.toolCall;
 		const isSubagent = readToolCallMeta(previousState).toolKind === 'subagent';
 		const content: ToolResultContent[] = extractToolResultContent(block.content) ?? [];
+		const resultText = content
+			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
+			.join('\n');
 		if (isSubagent) {
 			content.push({
 				type: ToolResultContentType.Subagent,
@@ -377,7 +381,7 @@ class ReplayBuilder {
 			toolInput: previousState.status === ToolCallStatus.Streaming ? undefined : previousState.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: !isError,
-			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError),
+			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
 			content: content.length > 0 ? content : undefined,
 			...(previousState._meta ? { _meta: previousState._meta } : {}),
 		};
