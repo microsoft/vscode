@@ -32,6 +32,14 @@ export class MdLinkOpener {
 			return;
 		}
 
+		if (resolved.kind === 'external') {
+			// Pass the original linkText as a string to preserve percent-encoding in the URL.
+			// Going through vscode.Uri would decode and re-encode the URL components,
+			// which can break text fragments (e.g. #:~:text=%2Dversion) and other
+			// percent-encoded characters in the query/fragment.
+			return vscode.commands.executeCommand('vscode.open', linkText);
+		}
+
 		let uri = vscode.Uri.from(resolved.uri);
 		let rangeSelection: vscode.Range | undefined;
 		if (resolved.kind === 'file' && !resolved.position) {
@@ -47,8 +55,6 @@ export class MdLinkOpener {
 		}
 
 		switch (resolved.kind) {
-			case 'external':
-				return vscode.commands.executeCommand('vscode.open', uri);
 
 			case 'folder':
 				return vscode.commands.executeCommand('revealInExplorer', uri);
