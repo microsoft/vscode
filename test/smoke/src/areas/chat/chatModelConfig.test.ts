@@ -129,7 +129,7 @@ function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
  * entitlement service more time to settle and, once it has, the send reaches the
  * copilot chat participant which activates the extension and replies.
  */
-async function sendWarmUpUntilReady(chat: Chat, logger: Logger): Promise<void> {
+async function sendWarmUpUntilReady(app: Application, chat: Chat, logger: Logger): Promise<void> {
 	const tag = '[scenario:smoke-model-config-warmup]';
 	const deadline = Date.now() + 180_000;
 	let attempt = 0;
@@ -144,6 +144,13 @@ async function sendWarmUpUntilReady(chat: Chat, logger: Logger): Promise<void> {
 		} catch (error) {
 			lastError = error;
 			logger.log(`[Chat Model Config] warm-up attempt ${attempt} not ready yet; retrying`);
+			// A stray popup left open (model picker / config dropdown / context-usage
+			// hover) can intercept the input click so the editor never focuses and
+			// `sendMessage` keeps timing out waiting for focus. Dismiss any such
+			// overlay before the next attempt so the input can be focused again.
+			try {
+				await app.code.driver.currentPage.keyboard.press('Escape');
+			} catch { /* nothing to dismiss */ }
 		}
 	}
 	throw new Error(`Chat did not become ready for warm-up within timeout. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
@@ -235,9 +242,18 @@ export function setup(logger: Logger) {
 				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 				await chat.waitForChatView();
 
+				// Each iteration reuses the same panel chat session. Reset it before
+				// warming up: dismiss any popup the previous iteration left open (a
+				// stray model picker / config dropdown / context-usage hover can
+				// intercept the input click so the editor never focuses) and start a
+				// fresh chat so conversation history doesn't accumulate across runs.
+				await app.code.driver.currentPage.keyboard.press('Escape');
+				await app.workbench.quickaccess.runCommand('workbench.action.chat.newChat');
+				await chat.waitForChatView();
+
 				// Retry the warm-up send until the model actually replies, which
 				// confirms copilot-chat is active and the panel is usable.
-				await sendWarmUpUntilReady(chat, logger);
+				await sendWarmUpUntilReady(app, chat, logger);
 
 				// Select the mock model that exposes both configuration pickers.
 				await chat.selectModel(MODEL_NAME);
