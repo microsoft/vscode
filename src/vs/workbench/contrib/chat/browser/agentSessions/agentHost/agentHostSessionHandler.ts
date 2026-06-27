@@ -3704,27 +3704,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Convert an unsaved (untitled or dirty) file/implicit attachment: Copilot CLI inlines the live buffer, other
-	 * backends use the on-disk path. Returns `'fallthrough'` to request the normal on-disk path conversion.
-	 */
-	private _convertUnsavedFileAttachment(v: IChatRequestVariableEntry, uri: URI): MessageAttachment | undefined | 'fallthrough' {
-		if (this._config.provider !== SessionType.CopilotCLI) {
-			return 'fallthrough';
-		}
-		const embedded = this._buildUnsavedEditorAttachment(uri, v.name, this._entrySelection(v));
-		if (embedded) {
-			return embedded;
-		}
-		// Couldn't inline: untitled has no on-disk fallback, so drop it; a dirty saved file falls through to its path.
-		return uri.scheme === Schemas.untitled ? undefined : 'fallthrough';
-	}
-
-	/**
 	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
-	 * gets current content, preserving any active selection. Returns `undefined` when no loaded text model is available
-	 * or the buffer exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
+	 * gets current content, preserving the entry's selection, range and `_meta`. Returns `undefined` when no loaded
+	 * text model is available or the buffer exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
 	 */
-	private _buildUnsavedEditorAttachment(uri: URI, label: string, selection?: MessageEmbeddedResourceAttachment['selection']): MessageAttachment | undefined {
+	private _buildUnsavedEditorAttachment(uri: URI, v: IChatRequestVariableEntry, range: MessageAttachment['range']): MessageAttachment | undefined {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return undefined;
@@ -3734,15 +3718,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: ${buffer.byteLength} bytes exceeds cap`);
 			return undefined;
 		}
+		const selection = this._entrySelection(v);
 		const attachment: MessageEmbeddedResourceAttachment = {
 			type: MessageAttachmentKind.EmbeddedResource,
-			label,
+			label: v.name,
 			displayKind: selection ? 'selection' : 'document',
 			data: encodeBase64(buffer),
 			contentType: 'text/plain',
 		};
 		if (selection) {
 			attachment.selection = selection;
+		}
+		if (range) {
+			attachment.range = range;
+		}
+		if (v._meta) {
+			attachment._meta = v._meta;
 		}
 		return attachment;
 	}
@@ -3765,13 +3756,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-		// Unsaved (untitled or dirty) files: content on disk is missing or stale, so route through special handling.
-		if (v.kind === 'file' || v.kind === 'implicit') {
+		// Copilot CLI can't read unsaved (untitled/dirty) content from disk, so inline the live buffer instead. When it
+		// can't be inlined, drop unreadable virtual schemes but let on-disk files fall through to their (stale) path.
+		if ((v.kind === 'file' || v.kind === 'implicit') && this._config.provider === SessionType.CopilotCLI) {
 			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
 			if (uri && this._isUnsavedResource(uri)) {
-				const unsaved = this._convertUnsavedFileAttachment(v, uri);
-				if (unsaved !== 'fallthrough') {
-					return unsaved;
+				const embedded = this._buildUnsavedEditorAttachment(uri, v, referenceRange);
+				if (embedded) {
+					return embedded;
+				}
+				if (uri.scheme !== Schemas.file) {
+					return undefined;
 				}
 			}
 		}
