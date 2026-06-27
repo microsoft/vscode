@@ -39,6 +39,7 @@ import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } fr
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -67,6 +68,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	repositoryRoot: URI | undefined = undefined;
+	headCommit: string | undefined = '0'.repeat(40);
 	addedWorktrees: { repositoryRoot: URI; worktree: URI; branchName: string; startPoint: string }[] = [];
 	addedExistingWorktrees: { repositoryRoot: URI; worktree: URI; branchName: string }[] = [];
 	removedWorktrees: { repositoryRoot: URI; worktree: URI }[] = [];
@@ -106,7 +108,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async commitTree(): Promise<undefined> { return undefined; }
 	async updateRef(): Promise<void> { }
 	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<undefined> { return undefined; }
+	async revParse(_repositoryRoot: URI, expression: string): Promise<string | undefined> {
+		return expression === 'HEAD' ? this.headCommit : undefined;
+	}
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
@@ -2803,6 +2807,39 @@ suite('CopilotAgent', () => {
 				const restored = await agent.getSessionMessages(session);
 				const md = restored[0]?.responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 				assert.strictEqual(md?.content, 'untouched reply', 'restored markdown content must not be modified');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('resolveSessionConfig does not offer or default to worktree isolation when the repository has no commits', async () => {
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'empty-repo-config');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// Repository with commits: worktree is offered and is the default.
+				gitService.headCommit = '0'.repeat(40);
+				const withCommits = await agent.resolveSessionConfig({ workingDirectory: repositoryRoot });
+				assert.strictEqual(withCommits.values[SessionConfigKey.Isolation], 'worktree', 'worktree should be the default isolation when the repo has commits');
+
+				// Empty repository (no commits): worktree must not be offered or
+				// defaulted — the session should run directly in the folder.
+				gitService.headCommit = undefined;
+				const noCommits = await agent.resolveSessionConfig({ workingDirectory: repositoryRoot });
+				assert.strictEqual(noCommits.values[SessionConfigKey.Isolation], 'folder', 'isolation must default to folder for a repo without commits');
+				const isolationSchema = noCommits.schema.properties?.[SessionConfigKey.Isolation] as { enum?: readonly string[] } | undefined;
+				assert.deepStrictEqual(isolationSchema?.enum, ['folder'], 'worktree must not be offered for a repo without commits');
 			} finally {
 				await disposeAgent(agent);
 			}
