@@ -856,7 +856,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, sessionOptions.sandboxConfig);
 			session.object.add(mcpGateway);
 
 			// Set origin
@@ -1086,7 +1086,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					return undefined;
 				}
 				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
-				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, sessionOptions.sandboxConfig);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -1366,9 +1366,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return firstUserMessage;
 	}
 
-	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxEnabled: boolean): RefCountedSession {
+	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxConfig: SessionOptions['sandboxConfig']): RefCountedSession {
 		sdkSession.permissions.setRequired({ required: true });
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxEnabled);
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxConfig);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1653,6 +1653,15 @@ export interface IAgentSandboxFileSystemSettings {
 }
 
 /**
+ * Whether the CLI sandbox is supported on Windows. Not enabled yet, so
+ * {@link buildSandboxConfigForCLI} bails out early on `win32`; the Windows
+ * handling is kept so support can be turned on by flipping this flag once the
+ * runtime is ready. Typed as `boolean` (not the `false` literal) so the Windows
+ * branch is not flagged as unreachable by control-flow narrowing.
+ */
+const WINDOWS_SANDBOX_SUPPORTED: boolean = false;
+
+/**
  * Maps the workbench `chat.agent.sandbox.*` settings onto the SDK's
  * {@link SessionOptions.sandboxConfig}.
  *
@@ -1660,6 +1669,11 @@ export interface IAgentSandboxFileSystemSettings {
  * setting wins: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`. Each
  * path is emitted in exactly one of `deniedPaths` / `readonlyPaths` /
  * `readwritePaths`, regardless of how many settings reference it.
+ *
+ * Windows is not supported yet, so this bails out early and returns `undefined`
+ * there. The Windows handling below is intentionally kept (and exercised when
+ * {@link WINDOWS_SANDBOX_SUPPORTED} is flipped) so support can be turned on once
+ * the runtime is ready.
  */
 export function buildSandboxConfigForCLI(
 	platform: NodeJS.Platform,
@@ -1669,6 +1683,12 @@ export function buildSandboxConfigForCLI(
 ): SessionOptions['sandboxConfig'] {
 	const sandboxEnabled = sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
 	if (!sandboxEnabled) {
+		return undefined;
+	}
+
+	// Typed as `boolean` (not the `false` literal) so the Windows branch below
+	// is not flagged as unreachable by control-flow narrowing.
+	if (platform === 'win32' && !WINDOWS_SANDBOX_SUPPORTED) {
 		return undefined;
 	}
 
@@ -1703,17 +1723,17 @@ export function buildSandboxConfigForCLI(
 	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
 	// deny-list-only configuration still permits non-denied domains.
 	//
-	// macOS Seatbelt has no per-host filter — the runtime strips both lists and would silently
-	// degrade `allowOutbound: true` to "allow all outbound". To avoid surprising the user with
-	// unrestricted access when they explicitly configured host rules, fail closed on darwin: keep
-	// outbound off and drop the unenforceable lists.
+	// Host lists are currently disabled on all platforms: the runtime does not yet enforce them
+	// reliably everywhere, so we fail closed — keep outbound off and drop the host lists — to avoid
+	// surprising the user with unrestricted access when they explicitly configured host rules.
 	const allowAllNetwork = sandboxSetting === 'allowNetwork';
-	const hostListsEnforceable = platform !== 'darwin';
+	const hostListsEnforceable = false;
 	const allowedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
 	const blockedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
 	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
+		allowBypass: true,
 		userPolicy: {
 			filesystem: {
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),

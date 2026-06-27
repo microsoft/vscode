@@ -60,7 +60,7 @@ import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ChatEditPillElement } from './chatEditPillElement.js';
+import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
@@ -885,7 +885,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 			// If the change is a pure addition into a file whose original version did not
 			// exist or was empty, there is nothing meaningful to diff against. Open the
 			// file in a normal editor instead of a diff editor.
-			if (this.currentDiff.removed === 0 && await this.isOriginalEmpty(this.currentDiff.originalURI) && this.uri) {
+			if (this.currentDiff.removed === 0 && await isResourceContentEmpty(this.textModelService, this.currentDiff.originalURI) && this.uri) {
 				this.editorService.openEditor({ resource: this.uri, options }, group);
 				return;
 			}
@@ -896,23 +896,6 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 			}, group);
 		} else if (this.uri) {
 			this.editorService.openEditor({ resource: this.uri, options }, group);
-		}
-	}
-
-	/**
-	 * Resolves the original (pre-edit) snapshot and reports whether it had no
-	 * content, which is the case when the file was newly created or was empty.
-	 */
-	private async isOriginalEmpty(originalURI: URI): Promise<boolean> {
-		try {
-			const ref = await this.textModelService.createModelReference(originalURI);
-			try {
-				return ref.object.textEditorModel.getValueLength() === 0;
-			} finally {
-				ref.dispose();
-			}
-		} catch {
-			return false;
 		}
 	}
 

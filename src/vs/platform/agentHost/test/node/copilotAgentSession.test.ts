@@ -34,6 +34,10 @@ import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
+import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
@@ -153,7 +157,16 @@ class MockCopilotSession {
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
+		options: {
+			update: async (params: { sandboxConfig?: unknown }) => {
+				if (params.sandboxConfig !== undefined) {
+					this.sandboxConfigUpdates.push(params.sandboxConfig);
+				}
+			},
+		},
 	};
+
+	readonly sandboxConfigUpdates: unknown[] = [];
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
@@ -263,12 +276,16 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
+	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
+	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
+	platform?: NodeJS.Platform;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -348,6 +365,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
+	const rootValues = options?.rootValues ?? {};
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: new Emitter<void>().event,
@@ -359,7 +377,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getEffectiveWorkingDirectory: () => undefined,
 		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
-		getRootValue: () => undefined,
+		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
@@ -389,6 +407,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
+			platform: options?.platform ?? 'linux',
 		},
 	));
 
@@ -1596,6 +1615,125 @@ suite('CopilotAgentSession', () => {
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'reject');
+		});
+
+		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxed',
+				fullCommandText: 'cat ~/something.txt',
+			});
+
+			assert.strictEqual(result.kind, 'approve-once');
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve a shell command that opted out of the sandbox', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxbypass',
+				fullCommandText: 'cat ~/something.txt',
+				requestSandboxBypass: true,
+			});
+
+			// Must fall through to the normal confirmation flow rather than
+			// auto-approving, since the command escapes the sandbox.
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+			assert.ok(session.respondToPermissionRequest('tc-sandboxbypass', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+				enabled: true,
+				allowBypass: true,
+				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+			});
+		});
+
+		test('per-request sandbox: disabled under session bypass approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under autopilot mode', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under global auto-approve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled on Windows', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				platform: 'win32',
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostConfigKey.EnableCustomTerminalTool]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			// The host's own terminal sandbox engine handles containment, so the
+			// SDK sandbox config is not managed in this mode.
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
 		});
 
 		test('pending permissions are denied on dispose', async () => {

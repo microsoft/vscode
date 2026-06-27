@@ -19,7 +19,7 @@ import { Memento } from '../../../common/memento.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
+import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 
 /** Persisted "shown" state for a single scenario. */
 interface IScenarioState {
@@ -163,7 +163,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	hasBeenShown(id: string): boolean {
 		const scenario = onboardingScenarioRegistry.getScenario(id);
-		return this._hasBeenShownKey(scenario ? this._seenKey(scenario) : id);
+		return this._hasBeenShownKey(scenario ? this._seenKey(scenario) : id, id);
 	}
 
 	reset(id: string): void {
@@ -185,8 +185,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) !== false;
 	}
 
-	private get _developerMode(): boolean {
-		return this.configurationService.getValue<boolean>(ONBOARDING_DEVELOPER_MODE_CONFIG) === true;
+	private _isDeveloperMode(scenarioId: string): boolean {
+		return isOnboardingDeveloperModeEnabled(this.configurationService, scenarioId);
 	}
 
 	/**
@@ -256,7 +256,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return false;
 		}
 
-		if (!scenario.repeatable && this._hasBeenShownKey(this._seenKey(scenario))) {
+		if (!scenario.repeatable && this._hasBeenShownKey(this._seenKey(scenario), scenario.id)) {
 			return false;
 		}
 
@@ -515,8 +515,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return scenario.seenKey ?? scenario.id;
 	}
 
-	private _hasBeenShownKey(key: string): boolean {
-		if (this._developerMode) {
+	private _hasBeenShownKey(key: string, scenarioId: string): boolean {
+		if (this._isDeveloperMode(scenarioId)) {
 			return this._shownSinceStart.has(key);
 		}
 		return !!this._state[key]?.shownAt;

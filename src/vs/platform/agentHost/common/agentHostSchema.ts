@@ -393,6 +393,13 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
 /**
+ * Root config key forwarded from the renderer carrying the experiment-aware
+ * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
+ * provider when this is `true`; disabling requires an agent host restart.
+ */
+export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
+
+/**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
  * agent-host shell permission checks may apply terminal auto-approve rules.
@@ -633,6 +640,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
+		default: false,
+	}),
+	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
+		description: localize('agentHost.config.codexAgentEnabled.description', "Whether the Codex provider is enabled."),
 		default: false,
 	}),
 	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
