@@ -57,8 +57,8 @@ suite('AgentHostSessionTitleController', () => {
 			provider: 'copilot',
 			title,
 			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
 		};
 	}
 
@@ -135,7 +135,7 @@ suite('AgentHostSessionTitleController', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			title: 'Manual title',
@@ -157,7 +157,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual({
 			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			aborted: true,
@@ -175,7 +175,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			titles: titleActions,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
@@ -237,7 +237,7 @@ suite('AgentHostSessionTitleController', () => {
 		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
 		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
 		assert.deepStrictEqual({
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 			mentionsConversation: userMessage.includes('conversation'),
 			includesUserRequest: userMessage.includes('Add dark mode toggle'),
@@ -264,7 +264,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 		}, {
 			calls: callsAfterSeed,
 			title: 'Manual title',
@@ -379,7 +379,7 @@ suite('AgentHostSessionTitleController', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			title: 'Manual title',

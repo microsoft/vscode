@@ -33,6 +33,16 @@ export interface IBuildOptionsInput {
 	readonly permissionMode: ClaudePermissionMode;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
+	/**
+	 * One-shot SDK assistant-message uuid to resume *up to and including*
+	 * (the SDK's `Options.resumeSessionAt`). Only meaningful with
+	 * {@link isResume}; truncates the loaded transcript to this anchor so
+	 * the next turn continues from the restored point on the same session
+	 * id. Omitted in the non-resume (`sessionId`) branch and on ordinary
+	 * resumes. Set by `truncateSession` for the rebuild that immediately
+	 * precedes the post-restore turn.
+	 */
+	readonly resumeSessionAt?: string;
 	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
 	/**
 	 * SDK-prefixed tool names to auto-approve without prompting (projected
@@ -122,7 +132,7 @@ export async function buildOptions(
 		effort: resolveClaudeEffort(input.model),
 		permissionMode: input.permissionMode,
 		...(input.isResume
-			? { resume: input.sessionId }
+			? { resume: input.sessionId, ...(input.resumeSessionAt ? { resumeSessionAt: input.resumeSessionAt } : {}) }
 			: { sessionId: input.sessionId }),
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
 		...(input.allowedTools && input.allowedTools.length > 0 ? { allowedTools: [...input.allowedTools] } : {}),

@@ -5,6 +5,7 @@
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
+import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
@@ -14,12 +15,22 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ThrottlerByKey, timeout } from '../../../base/common/async.js';
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
 
-export class AgentHostGitStateService implements IAgentHostGitStateService {
+export class AgentHostGitStateService extends Disposable implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeSessionGitState = this._register(new Emitter<string>());
+	readonly onDidChangeSessionGitState = this._onDidChangeSessionGitState.event;
+
+	private readonly _onDidRunSessionGitStateRefresh = this._register(new Emitter<string>());
+	readonly onDidRunSessionGitStateRefresh = this._onDidRunSessionGitStateRefresh.event;
+
+	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -28,7 +39,9 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		@IAgentService private readonly _agentService: IAgentService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-	) { }
+	) {
+		super();
+	}
 
 	async attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
 		const state = this._stateManager.getSessionState(sessionKey);
@@ -42,7 +55,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 
 		// GitHub state
-		const gitHubState = readSessionGitHubState(state.summary._meta);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo || gitHubState?.pullRequestUrl) {
 			return;
 		}
@@ -81,7 +94,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<ISessionGitState | undefined | null> {
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -119,25 +132,107 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		}
 	}
 
-	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+	async getSessionGitHubState(sessionKey: string): Promise<ISessionGitHubState | undefined> {
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentGitHubState = readSessionGitHubState(currentMeta);
+		if (currentGitHubState) {
+			return currentGitHubState;
+		}
 
-		const currentState = readSessionGitHubState(currentMeta);
-		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
+		// Load the GitHub state from the session database
+		let databaseRef;
+		try {
+			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][getSessionGitHubState] Failed to open session database for ${sessionKey}`, error);
+			return undefined;
+		}
+
+		try {
+			const githubStateStr = await databaseRef.object.getMetadata(META_GITHUB_STATE);
+			if (githubStateStr) {
+				const githubState = JSON.parse(githubStateStr) as ISessionGitHubState;
+				this._stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, githubState));
+
+				return githubState;
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][_getSessionGitHubState] Failed to load GitHub state for ${sessionKey}`, error);
+		} finally {
+			databaseRef.dispose();
+		}
+
+		return undefined;
+	}
+
+	async refreshSessionGitState2(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		if (!workingDirectory) {
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
+			if (workingDirectoryStr) {
+				workingDirectory = URI.parse(workingDirectoryStr);
+			}
+		}
+
+		if (!workingDirectory) {
+			return;
+		}
+
+		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
+			try {
+				const gitState = await this._gitService.getSessionGitState(workingDirectory);
+				if (!gitState) {
+					return;
+				}
+
+				const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+				if (objectEquals(readSessionGitState(currentMeta), gitState)) {
+					this._onDidRunSessionGitStateRefresh.fire(sessionKey);
+					return;
+				}
+
+				// Update the session's git state
+				await this._setSessionGitState(sessionKey, gitState);
+
+				// Update the session's GitHub state
+				if (gitState.githubOwner && gitState.githubRepo) {
+					await this.setSessionGitHubState(sessionKey, {
+						owner: gitState.githubOwner,
+						repo: gitState.githubRepo
+					} satisfies ISessionGitHubState);
+				}
+
+				this._onDidChangeSessionGitState.fire(sessionKey);
+				this._onDidRunSessionGitStateRefresh.fire(sessionKey);
+
+				// We want to ensure that we refresh the git state at
+				// most every 5 seconds in order to avoid excessive git
+				// operations and excessive traffic between the server
+				// and the client(s).
+				await timeout(5_000);
+			} catch (error) {
+				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState2] Failed to compute git state for ${sessionKey}:`, error);
+			}
+		});
+	}
+
+	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
+		const currentState = await this.getSessionGitHubState(sessionKey);
+		const nextState = { ...currentState, ...state } satisfies ISessionGitHubState;
 
 		if (objectEquals(currentState, nextState)) {
 			return;
 		}
 
 		// Update session state manager
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const nextMeta = withSessionGitHubState(currentMeta, nextState);
-		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
-		void this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
+		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 	}
 
-	private _setSessionGitState(sessionKey: string, gitState: ISessionGitState): void {
+	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {
 		this._updateBranchChangesetDescription(sessionKey, gitState);
 
 		// Update session state manager
@@ -146,7 +241,7 @@ export class AgentHostGitStateService implements IAgentHostGitStateService {
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
-		void this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
+		await this._saveSessionState(sessionKey, META_GIT_STATE, JSON.stringify(gitState));
 	}
 
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {

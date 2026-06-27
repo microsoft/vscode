@@ -225,7 +225,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// `changeKind: 'session'` changeset state (registered but not-yet-
 		// restored session) is authoritative, so the caller can skip loading
 		// the potentially-large persisted diff blobs.
-		const liveSummaryChanges = this._stateManager.getSessionState(sessionUri)?.summary.changes;
+		const liveSummaryChanges = this._stateManager.getSessionSummary(sessionUri)?.changes;
 		if (liveSummaryChanges) {
 			return undefined;
 		}
@@ -553,7 +553,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -967,7 +967,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (!workingDirectory) {
 			return undefined;
 		}

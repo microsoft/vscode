@@ -471,14 +471,28 @@ export function createRootState(): RootState {
 	};
 }
 
+/**
+ * Creates the initial flat {@link SessionState} for a session from its
+ * root-channel {@link SessionSummary} catalog entry. Session metadata
+ * ({@link SessionMetadata}) — and the shared `_meta` bag — are inlined directly
+ * onto the state.
+ */
 export function createSessionState(summary: SessionSummary): SessionState {
-	return {
-		summary,
+	const state: SessionState = {
+		provider: summary.provider,
+		title: summary.title,
+		status: summary.status,
 		lifecycle: SessionLifecycle.Creating,
 		activeClients: [],
 		chats: [],
 		defaultChat: undefined,
 	};
+	if (summary.activity !== undefined) { state.activity = summary.activity; }
+	if (summary.project !== undefined) { state.project = summary.project; }
+	if (summary.workingDirectory !== undefined) { state.workingDirectory = summary.workingDirectory; }
+	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
+	if (summary._meta !== undefined) { state._meta = summary._meta; }
+	return state;
 }
 
 /**
@@ -493,8 +507,6 @@ export function createChatState(summary: ChatSummary): ChatState {
 		status: summary.status,
 		activity: summary.activity,
 		modifiedAt: summary.modifiedAt,
-		model: summary.model,
-		agent: summary.agent,
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectory: summary.workingDirectory,
@@ -506,22 +518,19 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity, model, agent and working directory, and is marked as a
- * {@link ChatOriginKind.User | user-originated} chat. `modifiedAt` is
- * converted from the session's epoch-millis timestamp to the ISO-8601 string
- * the chat protocol uses.
+ * status, activity and working directory, and is marked as a
+ * {@link ChatOriginKind.User | user-originated} chat. Both the session and
+ * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
 export function createDefaultChatSummary(session: SessionSummary, chatUri: ProtocolURI): ChatSummary {
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
 		status: session.status,
-		modifiedAt: new Date(session.modifiedAt).toISOString(),
+		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	if (session.model !== undefined) { summary.model = session.model; }
-	if (session.agent !== undefined) { summary.agent = session.agent; }
 	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
 	return summary;
 }
@@ -539,8 +548,6 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
-	if (state.model !== undefined) { summary.model = state.model; }
-	if (state.agent !== undefined) { summary.agent = state.agent; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
@@ -681,6 +688,8 @@ export interface ISessionWithDefaultChat extends SessionState {
 	queuedMessages?: PendingMessage[];
 	/** Input requests outstanding on the default chat. */
 	inputRequests?: ChatInputRequest[];
+	/** Draft input of the default chat. */
+	draft?: Message;
 }
 
 /**
@@ -696,6 +705,7 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
 		inputRequests: chat?.inputRequests,
+		draft: chat?.draft,
 	};
 }
 

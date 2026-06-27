@@ -225,9 +225,7 @@ suite('TerminalSandboxService - network domains', () => {
 				},
 				network: {
 					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
-					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
-					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
-					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+					...(policy.network ? { enforcementMode: 'capabilities' } : {}),
 				},
 				ui: {
 					disable: !(policy.ui?.allowWindows ?? false),
@@ -1459,10 +1457,9 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.version, '0.6.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
-		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');

@@ -266,7 +266,7 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { } });
 		const actions = getActionItems(items);
 		// The explanation is a non-interactive header; only Trust is selectable.
-		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models Unavailable in Restricted Mode'));
+		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models unavailable while in Restricted mode'));
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].item?.id, 'restrictedModeTrust');
 		assert.strictEqual(actions[0].item?.enabled, true);
