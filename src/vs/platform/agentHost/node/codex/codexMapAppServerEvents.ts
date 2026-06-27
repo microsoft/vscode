@@ -713,7 +713,7 @@ export function mapItemCompleted(
 		const success = params.item.success === true || params.item.status === 'completed';
 		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
-		const serverPastTense = success ? getServerToolDisplay(entry.toolName, undefined, { text: output, success })?.pastTenseMessage : undefined;
+		const serverPastTense = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success })?.pastTenseMessage : undefined;
 		return [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,

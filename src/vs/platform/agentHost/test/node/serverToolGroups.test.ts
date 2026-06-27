@@ -40,16 +40,16 @@ suite('serverToolGroups display', () => {
 	});
 
 	test('listComments past tense reflects the comment count parsed from the result', () => {
-		const past = (count: number | undefined, resultText?: string) =>
+		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);
 		const withComments = (n: number) => JSON.stringify({ comments: Array.from({ length: n }, (_, i) => ({ id: `${i}` })) });
 		assert.deepStrictEqual({
-			zero: past(0, withComments(0)),
-			one: past(1, withComments(1)),
-			many: past(3, withComments(3)),
-			noResult: past(undefined),
-			malformed: past(undefined, 'not json'),
-			noComments: past(undefined, JSON.stringify({ other: 1 })),
+			zero: past(withComments(0)),
+			one: past(withComments(1)),
+			many: past(withComments(3)),
+			noResult: past(),
+			malformed: past('not json'),
+			noComments: past(JSON.stringify({ other: 1 })),
 		}, {
 			zero: 'Checked 0 comments',
 			one: 'Checked 1 comment',
