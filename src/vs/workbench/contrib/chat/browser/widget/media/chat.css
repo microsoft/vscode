@@ -4416,7 +4416,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	left: 0;
 	right: 0;
-	min-height: 4px;
+	min-height: var(--vscode-spacing-size40);
 	border-radius: 0;
 	background-color: var(--vscode-scrollbarSlider-background);
 	opacity: 0.85;
