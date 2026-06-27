@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { buildCopilotChatToken, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -46,12 +46,11 @@ const MODEL_ID = 'mock-config-model';
  *  - reasoning effort  → `body.reasoning.effort`
  *  - context size      → `body.context_management[0].compact_threshold`
  *
- * The mock model's prompt window is 200000 tokens with a default tier of
- * 128000. The compaction threshold is `floor(maxPromptTokens * 0.9)`. The
- * default tier resolves to a 128000 prompt window (→ 115200). Selecting the
- * full 200000 tier reserves the output tokens
- * (`floor(min(32000, 200000 * 0.15)) = 30000`), clamping the prompt window to
- * `200000 - 30000 = 170000` (rendered "170K" → 153000).
+ * Numbers mirror a GPT-5.5-class model. The compaction threshold is
+ * `floor(maxPromptTokens * 0.9)`. The default tier exposes a 272000 prompt
+ * window (→ 244800). The long tier is the full window minus the 128000 output
+ * reserve — `1050000 - 128000 = 922000` (→ 829800); note `formatTokenCount`
+ * renders 922000 as "1M" (its `>900K → 1M` branch).
  */
 interface ConfigCase {
 	readonly name: string;
@@ -66,9 +65,9 @@ interface ConfigCase {
 }
 
 const CONFIG_CASES: readonly ConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Low 128K', scenarioId: 'smoke-model-config-low-128', reply: 'MOCKED_MODEL_CONFIG_LOW_128' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '170K', expectedCompactThreshold: 153_000, expectedConfigLabel: 'High 170K', scenarioId: 'smoke-model-config-high-170', reply: 'MOCKED_MODEL_CONFIG_HIGH_170' },
-	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Medium 128K', scenarioId: 'smoke-model-config-medium-128', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_128' },
+	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Low 272K', scenarioId: 'smoke-model-config-low-default', reply: 'MOCKED_MODEL_CONFIG_LOW_DEFAULT' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
+	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
 ];
 
 /**
@@ -156,29 +155,6 @@ export function setup(logger: Logger) {
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
-					// Keep the built-in copilot-chat extension enabled on the fresh
-					// per-run profile. Without this, BuiltinChatExtensionEnablementMigration
-					// disables it (since chat setup is never "completed" in automation),
-					// so no model provider registers and the panel falls into the
-					// failing chat-setup install path. Listing the chat extension here
-					// only skips that disable-migration (mirrors what the perf:chat
-					// harness does by pre-seeding the storage DB).
-					VSCODE_SKIP_BUILTIN_EXTENSIONS: 'GitHub.copilot-chat',
-					// Issue a usage-based-billing (UBB) token so the model picker shows
-					// the combined "Effort · Context" configuration dropdown (e.g.
-					// "High 200K"). `token_based_billing` drives `isUsageBasedBilling`,
-					// and the quota snapshots make the extension push the UBB quota
-					// state to core (in PRU mode the picker instead appends the effort
-					// to the model name and offers no combined dropdown).
-					VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(mockServer.url, {
-						token_based_billing: true,
-						quota_reset_date: '2099-01-01T00:00:00Z',
-						quota_snapshots: {
-							chat: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
-							completions: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
-							premium_interactions: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
-						},
-					}),
 				},
 			};
 		});

@@ -121,12 +121,13 @@ interface MockServerWithRequests extends MockLlmServer {
  * - reasoning effort → `body.reasoning.effort`
  * - context size → `body.context_management[0].compact_threshold`
  *
- * The mock model's prompt window is 200000 tokens with a default tier of
- * 128000. The compaction threshold is `floor(maxPromptTokens * 0.9)`. The
- * default tier resolves to a 128000 prompt window (→ 115200). Selecting the
- * full 200000 tier reserves the output tokens
- * (`floor(min(32000, 200000 * 0.15)) = 30000`), clamping the prompt window to
- * `200000 - 30000 = 170000` (rendered "170K" → 153000).
+ * Numbers mirror a GPT-5.5-class model. The compaction threshold is
+ * `floor(maxPromptTokens * 0.9)`. The default tier exposes a 272000 prompt
+ * window (→ 244800). The long tier is the full window minus the 128000 output
+ * reserve — `1050000 - 128000 = 922000` (→ 829800); note `formatTokenCount`
+ * renders 922000 as "1M" (its `>900K → 1M` branch). The context-usage gauge
+ * total is `maxInputTokens(tier) + maxOutputTokens`, i.e. `272000 + 128000 =
+ * 400000` ("400K") and `922000 + 128000 = 1050000` ("1M").
  */
 interface ModelConfigCase {
 	readonly name: string;
@@ -134,13 +135,19 @@ interface ModelConfigCase {
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
+	/**
+	 * The context-window denominator the context-usage gauge details popup should
+	 * show after this case's selection (the gauge total is
+	 * `maxInputTokens(tier) + maxOutputTokens`, formatted via `formatTokenCount`).
+	 */
+	readonly expectedContextWindowLabel: string;
 	readonly scenarioId: string;
 	readonly reply: string;
 }
 
 const MODEL_CONFIG_CASES: readonly ModelConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, scenarioId: 'smoke-agents-model-config-low-128', reply: 'MOCKED_AGENTS_MODEL_CONFIG_LOW_128' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '170K', expectedCompactThreshold: 153_000, scenarioId: 'smoke-agents-model-config-high-170', reply: 'MOCKED_AGENTS_MODEL_CONFIG_HIGH_170' },
+	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedContextWindowLabel: '400K', scenarioId: 'smoke-agents-model-config-low-default', reply: 'MOCKED_AGENTS_MODEL_CONFIG_LOW_DEFAULT' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedContextWindowLabel: '1M', scenarioId: 'smoke-agents-model-config-high-long', reply: 'MOCKED_AGENTS_MODEL_CONFIG_HIGH_LONG' },
 ];
 
 /**
@@ -515,6 +522,9 @@ export function setup(logger: Logger) {
 				// is forwarded as a `compact_threshold`. This is an experiment-based
 				// setting (default off); set it explicitly for a deterministic run.
 				['github.copilot.chat.responsesApiContextManagement.enabled', 'true'],
+				// Show the context-usage gauge so the test can verify the denominator
+				// (context window) reflects the selected Context Size.
+				['chat.contextUsage.enabled', 'true'],
 			]);
 
 			const windowsBefore = app.code.driver.getAllWindows().length;
@@ -587,7 +597,20 @@ export function setup(logger: Logger) {
 						`Expected context_management compact_threshold=${testCase.expectedCompactThreshold} for '${testCase.name}', got ${compactThreshold}.`
 					);
 
-					logger.log(`[Agents Window/model-config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}`);
+					// Verify the context-usage gauge's context-window denominator reflects
+					// the selected Context Size (gauge total = maxInputTokens(tier) +
+					// maxOutputTokens). The gauge renders once the response's token usage
+					// lands, so this reads the click-through details popup.
+					const usageLabel = await app.workbench.agentsWindow.readContextUsageTokenLabel();
+					const contextWindowLabel = usageLabel.match(/\/\s*([\d.]+[KM]?)\s*tokens/)?.[1];
+					logger.log(`[Agents Window/model-config] case '${testCase.name}' context-usage label: '${usageLabel}' (denominator='${contextWindowLabel}')`);
+					assert.strictEqual(
+						contextWindowLabel,
+						testCase.expectedContextWindowLabel,
+						`Expected context-usage gauge denominator='${testCase.expectedContextWindowLabel}' for '${testCase.name}', got '${contextWindowLabel}' (full label '${usageLabel}').`
+					);
+
+					logger.log(`[Agents Window/model-config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}, contextWindow='${contextWindowLabel}'`);
 				}
 			} catch (error) {
 				logger.log(`[Agents Window/model-config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);

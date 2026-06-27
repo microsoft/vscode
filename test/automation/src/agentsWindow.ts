@@ -29,6 +29,15 @@ const ACTIVE_SESSION_MODEL_PICKER_CONFIG = `${ACTIVE_SESSION} .interactive-input
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 
+// Context-usage gauge in the active session's secondary toolbar. The inline
+// widget only renders a percentage; the absolute context-window denominator
+// lives in the click-through details popup (rendered in a body-level hover).
+const ACTIVE_SESSION_CONTEXT_USAGE = `${ACTIVE_SESSION} .chat-context-usage-widget`;
+const CONTEXT_USAGE_DETAILS = '.chat-context-usage-details';
+// The token-count label is the unclassed `<span>` in `.quota-label` (the
+// sibling `span.quota-value` holds the percentage).
+const CONTEXT_USAGE_TOKEN_LABEL = `${CONTEXT_USAGE_DETAILS} .quota-label span:not(.quota-value)`;
+
 export class AgentsWindow {
 
 	constructor(private code: Code, private quickaccess: QuickAccess) { }
@@ -619,5 +628,39 @@ export class AgentsWindow {
 			ACTIVE_SESSION_MODEL_PICKER_CONFIG,
 			{ timeout: 15_000 },
 		);
+	}
+
+	/**
+	 * Open the context-usage details popup for the active session and return the
+	 * full "{used} / {total} tokens" label text. The inline gauge only renders a
+	 * percentage; the absolute context-window denominator lives in the
+	 * click-through details hover (a body-level overlay). The gauge stays hidden
+	 * until a response carrying token usage has rendered, so this waits for the
+	 * gauge to appear before clicking. Dismisses the popup before returning.
+	 */
+	async readContextUsageTokenLabel(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator(`${ACTIVE_SESSION_CONTEXT_USAGE}:visible`).first();
+		await widget.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = page.locator(CONTEXT_USAGE_TOKEN_LABEL).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+		// The details popup is a sticky hover that can occasionally fail to open
+		// on the first click; retry the click + read until it appears.
+		while (Date.now() < deadline) {
+			try {
+				await widget.click({ force: true });
+				await label.waitFor({ state: 'visible', timeout: 5_000 });
+				const text = (await label.textContent()) ?? '';
+				// Dismiss the sticky details hover so it doesn't intercept later clicks.
+				await page.keyboard.press('Escape');
+				return text.trim();
+			} catch (error) {
+				lastError = error;
+				try { await page.keyboard.press('Escape'); } catch { /* hover already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 }

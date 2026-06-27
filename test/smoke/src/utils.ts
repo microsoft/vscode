@@ -129,7 +129,7 @@ export function getMockLlmServerPath(): string {
 	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.ts');
 }
 
-export function buildCopilotChatToken(mockUrl: string, extra?: Record<string, unknown>): string {
+export function buildCopilotChatToken(mockUrl: string): string {
 	return Buffer.from(JSON.stringify({
 		token: 'smoketest-fake-token',
 		expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -140,7 +140,6 @@ export function buildCopilotChatToken(mockUrl: string, extra?: Record<string, un
 		copilot_plan: 'free',
 		organization_login_list: [],
 		endpoints: { api: mockUrl, proxy: mockUrl },
-		...extra,
 	})).toString('base64');
 }
 
