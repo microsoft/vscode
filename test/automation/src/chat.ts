@@ -234,27 +234,54 @@ export class Chat {
 	 * Opens the model picker (in the panel chat input) and selects the model
 	 * whose displayed name contains `modelName`. Clicks the model-picker name
 	 * button to open the popup, waits for the matching row to appear (models may
-	 * still be registering), clicks it, then waits for the popup to dismiss.
+	 * still be registering), clicks it, then confirms the selection committed.
+	 *
+	 * The row click can occasionally fail to commit — e.g. absorbed by the
+	 * action-widget's animating `context-view-pointerBlock` overlay — silently
+	 * leaving the previous model (often "Auto") selected. That model advertises
+	 * no configurable options, so the config button never appears and a later
+	 * `openModelConfig` wedges. To absorb this, re-open the picker and retry until
+	 * the name button reflects the chosen model or `timeoutMs` elapses.
 	 */
-	async selectModel(modelName: string): Promise<void> {
+	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`).first().click();
-		await this.code.waitForElement(ACTION_WIDGET);
-		// The picker opens with a focused filter input. Type the model name to
-		// narrow the list — otherwise the model may be hidden in a collapsed
-		// "Other Models" section.
-		await page.keyboard.type(modelName);
+		const nameButton = page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`).first();
 		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
-		await row.waitFor({ state: 'visible', timeout: 30_000 });
-		// `force` bypasses the transient `context-view-pointerBlock` overlay that
-		// intercepts pointer events while the action widget is animating open.
-		await row.click({ force: true });
-		// The picker dismisses after a selection (aria-expanded flips back to false).
-		await page.waitForFunction(
-			(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
-			CHAT_MODEL_PICKER_NAME,
-			{ timeout: 15_000 },
-		);
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				await nameButton.click();
+				await this.code.waitForElement(ACTION_WIDGET);
+				// The picker opens with a focused filter input. Type the model name to
+				// narrow the list — otherwise the model may be hidden in a collapsed
+				// "Other Models" section.
+				await page.keyboard.type(modelName);
+				await row.waitFor({ state: 'visible', timeout: 10_000 });
+				// `force` bypasses the transient `context-view-pointerBlock` overlay
+				// that intercepts pointer events while the action widget animates open.
+				await row.click({ force: true });
+				// Confirm the selection actually committed: the picker name button must
+				// now display the chosen model. (A non-committing click leaves the old
+				// model selected and the picker dismissed, so waiting only for the
+				// popup to close would miss it.)
+				await page.waitForFunction(
+					({ sel, name }: { sel: string; name: string }) =>
+						Array.from(document.querySelectorAll(sel)).some(n => (n.textContent ?? '').includes(name)),
+					{ sel: CHAT_MODEL_PICKER_NAME, name: modelName },
+					{ timeout: 10_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				// Dismiss the (possibly empty / stale) picker so the next attempt
+				// re-opens a freshly-populated one.
+				try { await page.keyboard.press('Escape'); } catch { /* picker already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out selecting model "${modelName}". Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
 	/**
