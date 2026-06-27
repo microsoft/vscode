@@ -22,10 +22,10 @@ import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { getModelHoverContent } from '../widget/input/chatModelPicker.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -159,7 +159,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 
 	private _buildOptionHover(optionItem: IChatSessionProviderOptionItem): IActionListItemHover | undefined {
 		if (optionItem.modelMetadata) {
-			const isUBB = !!this.chatEntitlementService.quotas.usageBasedBilling;
 			const syntheticModel = {
 				identifier: optionItem.id,
 				metadata: {
@@ -190,6 +189,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					isDefaultForLocation: {},
 				},
 			};
+			const isUBB = !!this.chatEntitlementService.quotas.usageBasedBilling;
 			const hover = getModelHoverContent(syntheticModel, isUBB);
 			if (hover) {
 				return { content: hover.element, disposable: hover.disposable };

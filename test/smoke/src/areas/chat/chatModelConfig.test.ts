@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { buildCopilotChatToken, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -57,14 +57,16 @@ interface ConfigCase {
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
+	/** The combined label the model-config button should show after selection (e.g. "High 200K"). */
+	readonly expectedConfigLabel: string;
 	readonly scenarioId: string;
 	readonly reply: string;
 }
 
 const CONFIG_CASES: readonly ConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, scenarioId: 'smoke-model-config-low-128', reply: 'MOCKED_MODEL_CONFIG_LOW_128' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '200K', expectedCompactThreshold: 180_000, scenarioId: 'smoke-model-config-high-200', reply: 'MOCKED_MODEL_CONFIG_HIGH_200' },
-	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '128K', expectedCompactThreshold: 115_200, scenarioId: 'smoke-model-config-medium-128', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_128' },
+	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Low 128K', scenarioId: 'smoke-model-config-low-128', reply: 'MOCKED_MODEL_CONFIG_LOW_128' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '200K', expectedCompactThreshold: 180_000, expectedConfigLabel: 'High 200K', scenarioId: 'smoke-model-config-high-200', reply: 'MOCKED_MODEL_CONFIG_HIGH_200' },
+	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Medium 128K', scenarioId: 'smoke-model-config-medium-128', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_128' },
 ];
 
 /**
@@ -148,6 +150,7 @@ export function setup(logger: Logger) {
 			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
 			return {
 				...opts,
+				extraArgs: [...(opts.extraArgs ?? []), '--log=trace', '--disable-extensions'],
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
@@ -159,6 +162,21 @@ export function setup(logger: Logger) {
 					// only skips that disable-migration (mirrors what the perf:chat
 					// harness does by pre-seeding the storage DB).
 					VSCODE_SKIP_BUILTIN_EXTENSIONS: 'GitHub.copilot-chat',
+					// Issue a usage-based-billing (UBB) token so the model picker shows
+					// the combined "Effort · Context" configuration dropdown (e.g.
+					// "High 200K"). `token_based_billing` drives `isUsageBasedBilling`,
+					// and the quota snapshots make the extension push the UBB quota
+					// state to core (in PRU mode the picker instead appends the effort
+					// to the model name and offers no combined dropdown).
+					VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(mockServer.url, {
+						token_based_billing: true,
+						quota_reset_date: '2099-01-01T00:00:00Z',
+						quota_snapshots: {
+							chat: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
+							completions: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
+							premium_interactions: { unlimited: true, percent_remaining: 100, has_quota: true, overage_count: 0, overage_permitted: true },
+						},
+					}),
 				},
 			};
 		});
@@ -214,6 +232,15 @@ export function setup(logger: Logger) {
 					await chat.selectModelConfigOption(testCase.effortLabel);
 					await chat.selectModelConfigOption(testCase.contextLabel);
 					await chat.closeModelConfig();
+
+					// Consistency check #1: the model-config button reflects the
+					// selection (e.g. "High 200K").
+					const configLabel = await chat.getModelConfigLabel();
+					assert.strictEqual(
+						configLabel.replace(/\s+/g, ' ').trim(),
+						testCase.expectedConfigLabel,
+						`Expected model-config button label '${testCase.expectedConfigLabel}' for '${testCase.name}', got '${configLabel}'.`
+					);
 
 					const requestsBefore = mockServer.getRequests().length;
 					const scenarioTag = `[scenario:${testCase.scenarioId}]`;

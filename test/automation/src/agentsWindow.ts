@@ -18,6 +18,17 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
+// The Agents Window active session input reuses the workbench `ChatInputPart`,
+// so its model picker renders the same `.model-picker-name` / `.model-picker-config`
+// buttons as the panel chat (see `test/automation/src/chat.ts`). Scope to the
+// active session view so we never touch the new-session homepage's picker.
+const ACTIVE_SESSION_MODEL_PICKER_NAME = `${ACTIVE_SESSION} .interactive-input-part .model-picker-name`;
+const ACTIVE_SESSION_MODEL_PICKER_CONFIG = `${ACTIVE_SESSION} .interactive-input-part .model-picker-config`;
+// The action widget popup (model list / config dropdown) is rendered at the
+// document body, not inside the chat view, so these selectors are unscoped.
+const ACTION_WIDGET = '.action-widget';
+const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
+
 export class AgentsWindow {
 
 	constructor(private code: Code, private quickaccess: QuickAccess) { }
@@ -515,5 +526,72 @@ export class AgentsWindow {
 		if (elapsed < fallbackQuietMs) {
 			await new Promise(r => setTimeout(r, fallbackQuietMs - elapsed));
 		}
+	}
+
+	/**
+	 * Open the model picker in the active session input and select the model
+	 * whose displayed name contains `modelName`. Clicks the model-picker name
+	 * button to open the popup, types the name to narrow the list (a model may
+	 * otherwise be hidden in a collapsed "Other Models" section), clicks the
+	 * matching row, then waits for the popup to dismiss.
+	 *
+	 * Mirrors {@link Chat.selectModel} but scoped to the Agents Window's active
+	 * session view rather than the panel chat.
+	 */
+	async selectModel(modelName: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first().click();
+		await this.code.waitForElement(ACTION_WIDGET);
+		await page.keyboard.type(modelName);
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
+		await row.waitFor({ state: 'visible', timeout: 30_000 });
+		// `force` bypasses the transient `context-view-pointerBlock` overlay that
+		// intercepts pointer events while the action widget is animating open.
+		await row.click({ force: true });
+		await page.waitForFunction(
+			(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
+			ACTIVE_SESSION_MODEL_PICKER_NAME,
+			{ timeout: 15_000 },
+		);
+	}
+
+	/**
+	 * Open the combined model configuration dropdown (Thinking Effort / Context
+	 * Size) by clicking the active session model picker's configuration button.
+	 * The button is only visible when the selected model advertises configurable
+	 * options, so this waits for it to become visible before clicking.
+	 */
+	async openModelConfig(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const configButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		await configButton.waitFor({ state: 'visible', timeout: 15_000 });
+		await configButton.click({ force: true });
+		await this.code.waitForElement(ACTION_WIDGET);
+	}
+
+	/**
+	 * Click the option whose label contains `label` in the open model
+	 * configuration dropdown, then wait until that option reads back as checked
+	 * (the dropdown stays open and rebuilds in place after each selection, so the
+	 * checked state confirms the underlying async configuration write resolved).
+	 */
+	async selectModelConfigOption(label: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
+		await row.click({ force: true });
+		await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
+	}
+
+	/**
+	 * Dismiss the open model configuration dropdown.
+	 */
+	async closeModelConfig(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.keyboard.press('Escape');
+		await page.waitForFunction(
+			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
+			ACTIVE_SESSION_MODEL_PICKER_CONFIG,
+			{ timeout: 15_000 },
+		);
 	}
 }

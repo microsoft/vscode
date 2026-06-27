@@ -111,7 +111,6 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
-		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
 		showAutoModel?: boolean;
 		restrictedMode?: boolean;
@@ -142,9 +141,7 @@ function callBuild(
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 		opts.languageModelsService ?? stubLanguageModelsService,
-		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
-		opts.isUBB,
 		opts.showAutoModel ?? true,
 		undefined,
 		opts.restrictedMode ?? false,
@@ -783,7 +780,6 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
-			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -872,7 +868,6 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
-			stubLanguageModelsService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -960,7 +955,6 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
-			stubLanguageModelsService,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -1089,7 +1083,7 @@ suite('buildModelPickerItems', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
-		const items = callBuild([auto, modelA], { isUBB: true });
+		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		// Price category is no longer shown as circle indicators in the description

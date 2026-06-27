@@ -71,6 +71,98 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
+// --- Model configuration (Local session) ---
+
+/**
+ * Display name of the dedicated mock model that advertises both a Thinking
+ * Effort and a Context Size picker (see `mock-config-model` in the mock
+ * server). Selected in the Agents Window's active-session model picker by the
+ * `Agents Window (model configuration)` suite.
+ */
+const MODEL_CONFIG_MODEL_NAME = 'Mock Config Model';
+
+/**
+ * Model id the mock server advertises for {@link MODEL_CONFIG_MODEL_NAME}. Used
+ * to single out the main agent `/responses` request from ancillary requests
+ * (e.g. title generation) that may also carry the conversation history.
+ */
+const MODEL_CONFIG_MODEL_ID = 'mock-config-model';
+
+// Warm-up scenario for the model-configuration suite: the first Local message
+// activates copilot-chat in the Agents Window exthost and registers the
+// models, which populates the model picker, and creates the active session
+// whose input hosts the model + config pickers.
+const MODEL_CONFIG_WARMUP_SCENARIO_ID = 'smoke-agents-model-config-warmup';
+const MODEL_CONFIG_WARMUP_REPLY = 'MOCKED_AGENTS_MODEL_CONFIG_WARMUP';
+
+/**
+ * A chat request captured by the mock LLM server, exposed via
+ * {@link MockServerWithRequests.getRequests}.
+ */
+interface CapturedRequest {
+	readonly path: string;
+	readonly method: string;
+	readonly body: any;
+}
+
+/**
+ * The mock server handle plus the request-capture accessor the perf/smoke
+ * harness exposes (see `scripts/chat-simulation/common/mock-llm-server.ts`).
+ */
+interface MockServerWithRequests extends MockLlmServer {
+	getRequests(): CapturedRequest[];
+}
+
+/**
+ * Combinations of model-configuration picker selections to exercise. Each case
+ * selects a Thinking Effort and a Context Size in the model-picker UI, sends a
+ * tagged prompt, and verifies the values the mock server received in the
+ * `/responses` request body:
+ * - reasoning effort → `body.reasoning.effort`
+ * - context size → `body.context_management[0].compact_threshold`
+ *
+ * The mock model's prompt window is 200000 tokens with a default tier of
+ * 128000. The compaction threshold is `floor(maxPromptTokens * 0.9)`. The
+ * default tier resolves to a 128000 prompt window (→ 115200). Selecting the
+ * full 200000 tier reserves the output tokens
+ * (`floor(min(32000, 200000 * 0.15)) = 30000`), clamping the prompt window to
+ * `200000 - 30000 = 170000` (rendered "170K" → 153000).
+ */
+interface ModelConfigCase {
+	readonly name: string;
+	readonly effortLabel: string;
+	readonly expectedEffort: string;
+	readonly contextLabel: string;
+	readonly expectedCompactThreshold: number;
+	readonly scenarioId: string;
+	readonly reply: string;
+}
+
+const MODEL_CONFIG_CASES: readonly ModelConfigCase[] = [
+	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, scenarioId: 'smoke-agents-model-config-low-128', reply: 'MOCKED_AGENTS_MODEL_CONFIG_LOW_128' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '170K', expectedCompactThreshold: 153_000, scenarioId: 'smoke-agents-model-config-high-170', reply: 'MOCKED_AGENTS_MODEL_CONFIG_HIGH_170' },
+];
+
+/**
+ * Find the latest `/responses` request (at or after `fromIndex`) sent for the
+ * mock model whose body carries the given scenario tag. The Responses API
+ * request includes the user prompt (with its `[scenario:...]` tag) in the
+ * `input` array, so a substring match on the serialized body — combined with
+ * the `model` field — uniquely identifies the main agent request for a turn.
+ */
+function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, scenarioTag: string): any | undefined {
+	for (let i = requests.length - 1; i >= fromIndex; i--) {
+		const request = requests[i];
+		if (request.path !== '/responses' || request.body?.model !== MODEL_CONFIG_MODEL_ID) {
+			continue;
+		}
+		if (JSON.stringify(request.body).includes(scenarioTag)) {
+			return request.body;
+		}
+	}
+	return undefined;
+}
+
 export function setup(logger: Logger) {
 
 	describe('Agents Window', function () {
@@ -356,6 +448,152 @@ export function setup(logger: Logger) {
 				/\[CopilotCLISession\] tool\.execution_complete .* sandboxed=true/,
 				`expected tool.execution_complete with sandboxed=true in ${chatLogPath}`
 			);
+		});
+	});
+
+	describe('Agents Window (model configuration)', function () {
+		// Cold start of the Local session's copilot-chat exthost plus model
+		// registration can take a while on CI; match the 5-minute budget used
+		// by the other Agents Window describes.
+		this.timeout(5 * 60 * 1000);
+
+		let mockServer: MockServerWithRequests;
+
+		// Start the mock server BEFORE installAllHandlers' `before` runs so the
+		// mock URL is available when we configure the app's env vars.
+		before(async function () {
+			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
+
+			// Fallback for ancillary requests (title/branch) that don't carry a [scenario:...] tag.
+			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
+			registerScenario(MODEL_CONFIG_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(MODEL_CONFIG_WARMUP_REPLY).build());
+
+			// One scenario per case, each emitting a distinct reply so the
+			// response-text assertion unambiguously identifies the current turn.
+			for (const testCase of MODEL_CONFIG_CASES) {
+				registerScenario(testCase.scenarioId, new ScenarioBuilder().emit(testCase.reply).build());
+			}
+
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), verbose: true }) as MockServerWithRequests;
+			logger.log(`[Agents Window/model-config] mock LLM server started at ${mockServer.url}`);
+		});
+
+		installAllHandlers(logger, opts => {
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
+			return {
+				...opts,
+				extraEnv: {
+					...(opts.extraEnv ?? {}),
+					...copilotEnv,
+				},
+			};
+		});
+
+		before(async function () {
+			// One-time setup: write VS Code settings and open the Agents Window
+			// with the smoke-test workspace folder pre-selected.
+			const app = this.app as Application;
+
+			// Reset any uncommitted changes left by earlier smoke test suites so
+			// session/worktree creation isn't blocked by a dirty workspace.
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+
+			await app.workbench.settingsEditor.addUserSettings([
+				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
+				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
+				['chat.allowAnonymousAccess', 'true'],
+				['github.copilot.chat.githubMcpServer.enabled', 'false'],
+				['chat.mcp.discovery.enabled', 'false'],
+				['chat.mcp.enabled', 'false'],
+				// Expose the "Local" session type, whose copilot-chat-backed model
+				// picker surfaces the mock-config-model.
+				['sessions.chat.localAgent.enabled', 'true'],
+				// Enable Responses-API context management so the chosen Context Size
+				// is forwarded as a `compact_threshold`. This is an experiment-based
+				// setting (default off); set it explicitly for a deterministic run.
+				['github.copilot.chat.responsesApiContextManagement.enabled', 'true'],
+			]);
+
+			const windowsBefore = app.code.driver.getAllWindows().length;
+			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
+			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
+			logger.log(`[Agents Window/model-config] switched to Agents Window; requestCount=${mockServer.requestCount()}`);
+		});
+
+		after(async function () {
+			if (mockServer) {
+				await mockServer.close();
+			}
+		});
+
+		it('forwards the selected reasoning effort and context size from the Local session', async function () {
+			const app = this.app as Application;
+
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Local');
+
+				// Warm up: the first Local message activates copilot-chat in the
+				// Agents Window exthost (registering the models that populate the
+				// picker) and creates the active session whose input hosts the
+				// model + config pickers.
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`warm up [scenario:${MODEL_CONFIG_WARMUP_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.waitForAssistantText(MODEL_CONFIG_WARMUP_REPLY, 120_000);
+
+				// Select the mock model that exposes both configuration pickers in
+				// the active session input.
+				await app.workbench.agentsWindow.selectModel(MODEL_CONFIG_MODEL_NAME);
+
+				for (const testCase of MODEL_CONFIG_CASES) {
+					logger.log(`[Agents Window/model-config] case '${testCase.name}': selecting effort='${testCase.effortLabel}', context='${testCase.contextLabel}'`);
+
+					// Select the Thinking Effort and Context Size in the combined
+					// model-configuration dropdown.
+					await app.workbench.agentsWindow.openModelConfig();
+					await app.workbench.agentsWindow.selectModelConfigOption(testCase.effortLabel);
+					await app.workbench.agentsWindow.selectModelConfigOption(testCase.contextLabel);
+					await app.workbench.agentsWindow.closeModelConfig();
+
+					const requestsBefore = mockServer.getRequests().length;
+					const scenarioTag = `[scenario:${testCase.scenarioId}]`;
+
+					await app.workbench.agentsWindow.sendFollowUpMessage(`explain this ${scenarioTag}`);
+					const responseText = (await app.workbench.agentsWindow.waitForAssistantText(testCase.reply, 120_000)).trim();
+
+					assert.ok(
+						responseText.includes(testCase.reply),
+						`Expected response for '${testCase.name}' to include "${testCase.reply}".\n\nResponse:\n${responseText}`
+					);
+
+					const requestBody = findResponsesRequest(mockServer.getRequests(), requestsBefore, scenarioTag);
+					assert.ok(
+						requestBody,
+						`Expected a /responses request carrying ${scenarioTag} for '${testCase.name}'.`
+					);
+
+					assert.strictEqual(
+						requestBody.reasoning?.effort,
+						testCase.expectedEffort,
+						`Expected reasoning.effort='${testCase.expectedEffort}' for '${testCase.name}', got '${requestBody.reasoning?.effort}'.`
+					);
+
+					const compactThreshold = requestBody.context_management?.[0]?.compact_threshold;
+					assert.strictEqual(
+						compactThreshold,
+						testCase.expectedCompactThreshold,
+						`Expected context_management compact_threshold=${testCase.expectedCompactThreshold} for '${testCase.name}', got ${compactThreshold}.`
+					);
+
+					logger.log(`[Agents Window/model-config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}`);
+				}
+			} catch (error) {
+				logger.log(`[Agents Window/model-config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (model configuration)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
 		});
 	});
 

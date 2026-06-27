@@ -230,7 +230,7 @@ export class Chat {
 	 */
 	async selectModel(modelName: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(CHAT_MODEL_PICKER_NAME).first().click();
+		await page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`).first().click();
 		await this.code.waitForElement(ACTION_WIDGET);
 		// The picker opens with a focused filter input. Type the model name to
 		// narrow the list — otherwise the model may be hidden in a collapsed
@@ -257,9 +257,11 @@ export class Chat {
 	 */
 	async openModelConfig(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const configButton = page.locator(CHAT_MODEL_PICKER_CONFIG).first();
+		// There can be a hidden duplicate of the config button (e.g. an overflow
+		// copy); target the visible one.
+		const configButton = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
 		await configButton.waitFor({ state: 'visible', timeout: 15_000 });
-		await configButton.click();
+		await configButton.click({ force: true });
 		await this.code.waitForElement(ACTION_WIDGET);
 	}
 
@@ -287,5 +289,16 @@ export class Chat {
 			CHAT_MODEL_PICKER_CONFIG,
 			{ timeout: 15_000 },
 		);
+	}
+
+	/**
+	 * Returns the visible model-configuration button label (the combined
+	 * "Effort Context" summary, e.g. "High 200K", shown in UBB mode).
+	 */
+	async getModelConfigLabel(): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const button = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
+		await button.waitFor({ state: 'visible', timeout: 15_000 });
+		return ((await button.textContent()) ?? '').trim();
 	}
 }
