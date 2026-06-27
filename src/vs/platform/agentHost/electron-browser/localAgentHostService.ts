@@ -11,11 +11,12 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
+import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -148,6 +149,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private async _connect(): Promise<void> {
 		this._logService.info('[AgentHost:renderer] Acquiring MessagePort to agent host...');
+		// Forward the enterprise-resolved OTel policy to the main-process starter BEFORE
+		// requesting the connection. The main config service does not include the renderer-only
+		// managed-settings policy (`AccountPolicyService`), so without this the agent host would
+		// be spawned missing managed OTel settings (endpoint/protocol/enabled). Sent first so it
+		// is processed (FIFO per sender) before the starter spawns the host on the connection
+		// request. See `AgentHostOTelPolicyIpcChannel`.
+		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 		const port = await acquirePort('vscode:createAgentHostMessageChannel', 'vscode:createAgentHostMessageChannelResult');
 		this._logService.info('[AgentHost:renderer] MessagePort acquired, creating client...');
 
