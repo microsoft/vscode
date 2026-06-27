@@ -171,16 +171,15 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Mirror core "Previous Editor" and browser "Previous Tab". On macOS use
-				// Cmd+Alt+Left (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
-				// keeps the editor's "Move Line Up" intact while still navigating from
-				// the chat input.
+				// Mirror core "Previous Editor"; keep Alt+Up as a sessions-only alternate outside the editor area.
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
+				},
 			},
 			menu: [{
 				id: Menus.GoMenu,
@@ -206,16 +205,15 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Mirror core "Next Editor" and browser "Next Tab". On macOS use
-				// Cmd+Alt+Right (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
-				// keeps the editor's "Move Line Down" intact while still navigating from
-				// the chat input.
+				// Mirror core "Next Editor"; keep Alt+Down as a sessions-only alternate outside the editor area.
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
+				},
 			},
 			menu: [{
 				id: Menus.GoMenu,
