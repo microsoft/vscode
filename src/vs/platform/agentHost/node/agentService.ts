@@ -321,7 +321,7 @@ export class AgentService extends Disposable implements IAgentService {
 			onTurnComplete: async session => {
 				// Refresh the git state for the session.
 				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
-				void this._gitStateService.refreshSessionGitState2(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
+				void this._gitStateService.refreshSessionGitState(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 
 				// Check for a GitHub pull request associated with the session's branch.
 				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
@@ -715,7 +715,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 			// Refresh the git state for the session.
 			const workingDirectory = created.workingDirectory ?? config?.workingDirectory;
-			void this._gitStateService.refreshSessionGitState2(session.toString(), workingDirectory);
+			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 		}
 
 		return session;
@@ -845,7 +845,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 
 		// Attach git state for the working directory (if present)
-		void this._gitStateService.refreshSessionGitState2(e.session.toString(), e.workingDirectory);
+		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectory);
 
 		// Initialize the session's changesets from the catalogue
 		const changesets = buildDefaultChangesetCatalogue(sessionKey);
@@ -1022,7 +1022,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const workingDirectory = sessionState.summary?.workingDirectory
 					? URI.parse(sessionState.summary.workingDirectory)
 					: undefined;
-				void this._gitStateService.refreshSessionGitState2(resourceStr, workingDirectory);
+				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
 
 			return snapshot;
@@ -1702,7 +1702,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
 		// Refresh the git state for the session.
-		void this._gitStateService.refreshSessionGitState2(sessionStr, meta.workingDirectory);
+		void this._gitStateService.refreshSessionGitState(sessionStr, meta.workingDirectory);
 
 		// Check for a GitHub pull request associated with the session's branch.
 		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr);

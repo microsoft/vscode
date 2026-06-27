@@ -33,7 +33,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: sessionKey => this._gitStateService.refreshSessionGitState2(sessionKey),
+			refreshSessionGitState: sessionKey => this._gitStateService.refreshSessionGitState(sessionKey),
 			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
 		};
 	}

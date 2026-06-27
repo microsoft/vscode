@@ -13,7 +13,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
@@ -368,11 +368,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 
 	readonly refreshed: string[] = [];
 
-	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
-		this.refreshed.push(sessionKey);
-		return undefined;
-	}
-	async refreshSessionGitState2(sessionKey: string, _workingDirectory?: URI): Promise<void> {
+	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<void> {
 		// Mirror the production service: record the refresh and notify
 		// listeners so the coordinator recomputes the subscribed changesets.
 		this.refreshed.push(sessionKey);

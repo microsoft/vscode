@@ -246,7 +246,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			// Refresh the git state for each active session. If there are multiple
 			// sessions on the same root, trigger the git state refresh for each
 			// individual session as the git state refresh will be throttled downstream.
-			void this._gitStateService.refreshSessionGitState2(session, workingDirectory);
+			void this._gitStateService.refreshSessionGitState(session, workingDirectory);
 		}
 	}
 
