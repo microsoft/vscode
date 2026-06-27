@@ -18,6 +18,14 @@ const CHAT_MODEL_PICKER_NAME = `${CHAT_VIEW} .interactive-input-part .model-pick
 const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .interactive-input-part .model-picker-config`;
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
+// Context-usage gauge in the panel chat input. The inline widget only renders a
+// percentage; the absolute context-window denominator lives in the click-through
+// details popup (rendered in a body-level hover).
+const CHAT_CONTEXT_USAGE_WIDGET = `${CHAT_VIEW} .chat-context-usage-widget`;
+const CONTEXT_USAGE_DETAILS = '.chat-context-usage-details';
+// The token-count label is the unclassed `<span>` in `.quota-label` (the sibling
+// `span.quota-value` holds the percentage).
+const CONTEXT_USAGE_TOKEN_LABEL = `${CONTEXT_USAGE_DETAILS} .quota-label span:not(.quota-value)`;
 const CHAT_EDITOR_INPUT_EDITOR = `${CHAT_EDITOR} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_EDITOR_INPUT_EDITOR_FOCUSED = `${CHAT_EDITOR} .interactive-input-part .monaco-editor.focused[role="code"]`;
 const CHAT_EDITOR_SEND_BUTTON_ENABLED = `${CHAT_EDITOR} .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-newline`;
@@ -300,5 +308,39 @@ export class Chat {
 		const button = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
 		await button.waitFor({ state: 'visible', timeout: 15_000 });
 		return ((await button.textContent()) ?? '').trim();
+	}
+
+	/**
+	 * Open the panel chat's context-usage details popup and return the full
+	 * "{used} / {total} tokens" label text. The inline gauge only renders a
+	 * percentage; the absolute context-window denominator lives in the
+	 * click-through details hover (a body-level overlay). The gauge stays hidden
+	 * until a response carrying token usage has rendered, so this waits for the
+	 * gauge to appear before clicking. The details popup is a sticky hover that
+	 * can occasionally fail to open on the first click, so the click + read is
+	 * retried. Dismisses the popup before returning.
+	 */
+	async readContextUsageTokenLabel(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator(`${CHAT_CONTEXT_USAGE_WIDGET}:visible`).first();
+		await widget.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = page.locator(CONTEXT_USAGE_TOKEN_LABEL).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+		while (Date.now() < deadline) {
+			try {
+				await widget.click({ force: true });
+				await label.waitFor({ state: 'visible', timeout: 5_000 });
+				const text = (await label.textContent()) ?? '';
+				// Dismiss the sticky details hover so it doesn't intercept later clicks.
+				await page.keyboard.press('Escape');
+				return text.trim();
+			} catch (error) {
+				lastError = error;
+				try { await page.keyboard.press('Escape'); } catch { /* hover already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 }

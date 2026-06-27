@@ -58,16 +58,22 @@ interface ConfigCase {
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
-	/** The combined label the model-config button should show after selection (e.g. "High 200K"). */
+	/** The combined label the model-config button should show after selection (e.g. "High 1M"). */
 	readonly expectedConfigLabel: string;
+	/**
+	 * The context-window denominator the context-usage gauge details popup should
+	 * show after this case's selection (gauge total = `maxInputTokens(tier) +
+	 * maxOutputTokens`, formatted via `formatTokenCount`).
+	 */
+	readonly expectedContextWindowLabel: string;
 	readonly scenarioId: string;
 	readonly reply: string;
 }
 
 const CONFIG_CASES: readonly ConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Low 272K', scenarioId: 'smoke-model-config-low-default', reply: 'MOCKED_MODEL_CONFIG_LOW_DEFAULT' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
-	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
+	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Low 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-low-default', reply: 'MOCKED_MODEL_CONFIG_LOW_DEFAULT' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
+	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
 ];
 
 /**
@@ -176,6 +182,9 @@ export function setup(logger: Logger) {
 				// is forwarded as a `compact_threshold`. This is an experiment-based
 				// setting (default off); set it explicitly for a deterministic run.
 				['github.copilot.chat.responsesApiContextManagement.enabled', 'true'],
+				// Show the context-usage gauge so the test can verify the denominator
+				// (context window) reflects the selected Context Size.
+				['chat.contextUsage.enabled', 'true'],
 			]);
 			logger.log(`[Chat Model Config] user settings written`);
 		});
@@ -250,7 +259,19 @@ export function setup(logger: Logger) {
 						`Expected context_management compact_threshold=${testCase.expectedCompactThreshold} for '${testCase.name}', got ${compactThreshold}.`
 					);
 
-					logger.log(`[Chat Model Config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}`);
+					// Consistency check #2: the context-usage gauge's context-window
+					// denominator reflects the selected Context Size (gauge total =
+					// maxInputTokens(tier) + maxOutputTokens). The gauge renders once the
+					// response's token usage lands, so this reads the details popup.
+					const usageLabel = await chat.readContextUsageTokenLabel();
+					const contextWindowLabel = usageLabel.match(/\/\s*([\d.]+[KM]?)\s*tokens/)?.[1];
+					assert.strictEqual(
+						contextWindowLabel,
+						testCase.expectedContextWindowLabel,
+						`Expected context-usage gauge denominator='${testCase.expectedContextWindowLabel}' for '${testCase.name}', got '${contextWindowLabel}' (full label '${usageLabel}').`
+					);
+
+					logger.log(`[Chat Model Config] case '${testCase.name}' verified: reasoning.effort='${requestBody.reasoning?.effort}', compact_threshold=${compactThreshold}, contextWindow='${contextWindowLabel}'`);
 				}
 			} catch (error) {
 				logger.log(`[Chat Model Config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
