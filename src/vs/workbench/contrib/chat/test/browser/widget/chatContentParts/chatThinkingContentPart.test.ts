@@ -1184,203 +1184,6 @@ suite('ChatThinkingContentPart', () => {
 				ariaLabel: 'Analyzed authentication flow',
 			});
 		});
-
-		test('finalizeTitleIfDefault should promote a lone tool call to its original position even when its DOM has multiple children', () => {
-			// Regression: a single tool call that renders multiple child elements (e.g. a
-			// terminal/search tool with command + output) must still be promoted back to the
-			// top level instead of staying stuck inside the thinking part.
-			const content = createThinkingPart('');
-			const context = createMockRenderContext(true);
-
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			const originalParent = $('div.original-parent');
-			mainWindow.document.body.appendChild(originalParent);
-			disposables.add(toDisposable(() => originalParent.remove()));
-
-			const tool: IChatToolInvocationSerialized = {
-				kind: 'toolInvocationSerialized',
-				toolId: 'run_in_terminal',
-				toolCallId: 'terminal-call-1',
-				invocationMessage: 'Running npm test',
-				originMessage: undefined,
-				pastTenseMessage: undefined,
-				presentation: undefined,
-				isConfirmed: { type: 0 },
-				isComplete: true,
-				source: ToolDataSource.Internal,
-				isAttachedToThinking: false,
-				toolSpecificData: {
-					kind: 'terminal',
-					commandLine: { original: 'npm test' },
-					language: 'shellscript',
-				}
-			};
-
-			// Render a tool DOM node with multiple child elements.
-			const toolDomNode = $('div.test-multi-child-tool');
-			toolDomNode.appendChild($('div.command'));
-			toolDomNode.appendChild($('div.output'));
-
-			part.appendItem(() => ({ domNode: toolDomNode }), tool.toolId, tool, originalParent);
-			part.finalizeTitleIfDefault();
-
-			assert.strictEqual(toolDomNode.parentElement, originalParent,
-				'Lone tool call should be restored to its original parent regardless of child element count');
-			assert.strictEqual(tool.isAttachedToThinking, false,
-				'Promoted tool call should no longer be attached to the thinking part');
-		});
-
-		test('finalizeTitleIfDefault should promote a lone tool call once it completes, even if it is still executing at finalize time', () => {
-			// Regression: finalizeTitleIfDefault is one-shot, so when a lone tool call has not
-			// yet reported completion at finalize time it must not be abandoned. Instead it
-			// should be promoted to its original position once its state observable reports
-			// completion, regardless of tool type.
-			const content = createThinkingPart('');
-			const context = createMockRenderContext(true);
-
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			));
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			const originalParent = $('div.original-parent');
-			mainWindow.document.body.appendChild(originalParent);
-			disposables.add(toDisposable(() => originalParent.remove()));
-
-			const state = observableValue<IChatToolInvocation.State>('state', {
-				type: IChatToolInvocation.StateKind.Executing,
-				confirmed: { type: 0 },
-				progress: observableValue('progress', { progress: 0 }),
-				parameters: {},
-				confirmationMessages: undefined,
-			} as IChatToolInvocation.State);
-
-			const tool = {
-				kind: 'toolInvocation',
-				toolId: 'run_in_terminal',
-				toolCallId: 'terminal-call-1',
-				invocationMessage: 'Running npm test',
-				originMessage: undefined,
-				pastTenseMessage: undefined,
-				presentation: undefined,
-				source: ToolDataSource.Internal,
-				isAttachedToThinking: false,
-				generatedTitle: undefined,
-				state,
-				toolSpecificDataKind: observableValue('test', undefined),
-				toJSON: () => ({} as IChatToolInvocationSerialized),
-			} as IChatToolInvocation;
-
-			const toolDomNode = $('div.test-tool');
-			part.appendItem(() => ({ domNode: toolDomNode }), tool.toolId, tool, originalParent);
-			part.finalizeTitleIfDefault();
-
-			// Still executing at finalize time: the tool must not be promoted yet, but the
-			// promotion must not be abandoned either.
-			assert.notStrictEqual(toolDomNode.parentElement, originalParent,
-				'Tool should not be promoted while still executing');
-
-			// Tool completes after finalize: it should now be promoted to its original position.
-			state.set({
-				type: IChatToolInvocation.StateKind.Completed,
-				postConfirmed: undefined,
-				confirmed: { type: 0 },
-				contentForModel: [],
-				resultDetails: undefined,
-				parameters: {},
-			} as IChatToolInvocation.State, undefined);
-
-			assert.strictEqual(toolDomNode.parentElement, originalParent,
-				'Tool should be promoted to its original parent once it completes');
-			assert.strictEqual(tool.isAttachedToThinking, false,
-				'Promoted tool call should no longer be attached to the thinking part');
-		});
-
-		test('finalizeTitleIfDefault should promote a lone tool even when singleItemInfo was wiped by a transient sibling item', () => {
-			// Regression: a second tool briefly arrives (clearing singleItemInfo) and is then
-			// removed, leaving a single eagerly-rendered tool with no singleItemInfo and no
-			// lazy item to recover from. finalize must reconstruct the lone tool's original
-			// position and still promote it instead of getting `undefined` back and leaving it
-			// stuck inside the thinking part.
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.FixedScrolling);
-			const content = createThinkingPart('');
-			const context = createMockRenderContext(true);
-
-			// streamingCompleted=false so fixed-scrolling renders items eagerly (no lazy items).
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			const originalParent = $('div.original-parent');
-			mainWindow.document.body.appendChild(originalParent);
-			disposables.add(toDisposable(() => originalParent.remove()));
-
-			const makeSerializedTool = (toolCallId: string): IChatToolInvocationSerialized => ({
-				kind: 'toolInvocationSerialized',
-				toolId: 'run_in_terminal',
-				toolCallId,
-				invocationMessage: `Running ${toolCallId}`,
-				originMessage: undefined,
-				pastTenseMessage: undefined,
-				presentation: undefined,
-				isConfirmed: { type: 0 },
-				isComplete: true,
-				source: ToolDataSource.Internal,
-				isAttachedToThinking: false,
-				toolSpecificData: {
-					kind: 'terminal',
-					commandLine: { original: toolCallId },
-					language: 'shellscript',
-				}
-			});
-
-			const toolA = makeSerializedTool('tool-a');
-			const toolB = makeSerializedTool('tool-b');
-
-			const toolADomNode = $('div.test-tool-a');
-			toolADomNode.textContent = 'Tool A body';
-			const toolBDomNode = $('div.test-tool-b');
-			toolBDomNode.textContent = 'Tool B body';
-
-			// Both tools render eagerly with toolInvocationCount === 2 — leaving singleItemInfo
-			// undefined and no lazy items.
-			part.appendItem(() => ({ domNode: toolADomNode }), toolA.toolId, toolA, originalParent);
-			part.appendItem(() => ({ domNode: toolBDomNode }), toolB.toolId, toolB, originalParent);
-
-			// The second tool is removed, returning to a single tool but without re-establishing
-			// singleItemInfo.
-			part.removeMaterializedItem(toolB.toolCallId);
-
-			part.finalizeTitleIfDefault();
-
-			assert.strictEqual(toolADomNode.parentElement, originalParent,
-				'Lone remaining tool should be reconstructed and promoted to its original parent');
-			assert.strictEqual(toolA.isAttachedToThinking, false,
-				'Promoted tool call should no longer be attached to the thinking part');
-		});
 	});
 
 	suite('hasSameContent', () => {
@@ -1593,6 +1396,178 @@ suite('ChatThinkingContentPart', () => {
 				isAttachedToThinking: false,
 			};
 		}
+
+		test('finalizeTitleIfDefault should promote a single tool out of thinking even when it is not complete', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const originalParent = $('div.original-parent');
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			const executingTool = createMockExecutingToolInvocation('copilot_readFile', 'Reading file', 'call-1');
+			assert.strictEqual(IChatToolInvocation.isComplete(executingTool), false, 'precondition: tool is not complete');
+
+			const toolDom = $('div.chat-tool-invocation-part');
+			const toolHeader = $('div.tool-header');
+			toolHeader.textContent = 'Reading file';
+			const toolBody = $('div.tool-body');
+			toolBody.textContent = 'AGENTS.md';
+			toolDom.append(toolHeader, toolBody);
+			part.appendItem(() => ({ domNode: toolDom }), executingTool.toolId, executingTool, originalParent);
+
+			const usedContextList = part.domNode.querySelector('.chat-used-context-list');
+			const thinkingWrapper = toolDom.parentElement;
+			const thinkingItemCountBeforeFinalize = usedContextList?.childElementCount;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				thinkingItemCountBeforeFinalize,
+				thinkingItemCountAfterFinalize: usedContextList?.childElementCount,
+				toolChildCount: toolDom.childElementCount,
+				toolParent: toolDom.parentElement === originalParent,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+				isAttachedToThinking: executingTool.isAttachedToThinking,
+			}, {
+				thinkingItemCountBeforeFinalize: 2,
+				thinkingItemCountAfterFinalize: 0,
+				toolChildCount: 2,
+				toolParent: true,
+				thinkingWrapperRemoved: true,
+				isAttachedToThinking: false,
+			});
+		});
+
+		test('finalizeTitleIfDefault should promote a lazy single tool without its thinking icon', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const originalParent = $('div.original-parent');
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			const executingTool = createMockExecutingToolInvocation('copilot_readFile', 'Reading file', 'call-1');
+			const toolDom = $('div.chat-tool-invocation-part');
+			toolDom.textContent = 'Reading file';
+			part.appendItem(() => ({ domNode: toolDom }), executingTool.toolId, executingTool, originalParent);
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				toolParent: toolDom.parentElement === originalParent,
+				topLevelChildCount: originalParent.childElementCount,
+				topLevelChild: originalParent.firstElementChild === toolDom,
+				isAttachedToThinking: executingTool.isAttachedToThinking,
+			}, {
+				toolParent: true,
+				topLevelChildCount: 1,
+				topLevelChild: true,
+				isAttachedToThinking: false,
+			});
+		});
+
+		test('finalizeTitleIfDefault should keep a related item inside the preceding tool invocation part', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const toolInvocationPart = $('div.chat-tool-invocation-part');
+			originalParent.append(toolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited AGENTS.md';
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: { value: '' } };
+			part.appendItem(() => ({ domNode: editPill }), 'edit-pill', markdown, originalParent);
+
+			const thinkingWrapper = editPill.parentElement;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParent: editPill.parentElement === toolInvocationPart,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+			}, {
+				editPillParent: true,
+				thinkingWrapperRemoved: true,
+			});
+		});
+
+		test('finalizeTitleIfDefault should use the original parent when finding a preceding tool invocation part', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const originalToolInvocationPart = $('div.chat-tool-invocation-part');
+			originalParent.append(originalToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited AGENTS.md';
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: { value: '' } };
+			part.appendItem(() => ({ domNode: editPill }), 'edit-pill', markdown, originalParent);
+
+			const unrelatedParent = $('div.unrelated-parent');
+			const unrelatedToolInvocationPart = $('div.chat-tool-invocation-part');
+			unrelatedParent.append(unrelatedToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(unrelatedParent);
+			disposables.add(toDisposable(() => unrelatedParent.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParentIsOriginalTool: editPill.parentElement === originalToolInvocationPart,
+				unrelatedToolChildCount: unrelatedToolInvocationPart.childElementCount,
+			}, {
+				editPillParentIsOriginalTool: true,
+				unrelatedToolChildCount: 0,
+			});
+		});
 
 		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
 			const content = createThinkingPart('**Working**');

@@ -5,7 +5,7 @@
 
 import * as pathLib from 'path';
 import * as vscode from 'vscode';
-import type { AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -147,6 +147,36 @@ export function parseSessionLogChunksSafely(rawText: string, logService: ILogSer
 	} catch (error) {
 		logService.error(error instanceof Error ? error : new Error(String(error)), `[streamNewLogContent] Failed to parse streamed log content (${rawText.length} chars).`);
 		return [];
+	}
+}
+
+/**
+ * Map a Task API lifecycle state (v2) directly to a {@link vscode.ChatSessionStatus}. Unlike v1's
+ * PR-derived status (which routes through the lossy `SessionInfo['state']`), this keeps the
+ * non-terminal "agent handed the turn back" states distinct from active work: `idle` (agent
+ * finished its turn, nothing pending) renders as Completed and `waiting_for_user` (agent paused for
+ * input) renders as NeedsInput. Only `queued`/`in_progress` are genuinely InProgress — collapsing
+ * `idle`/`waiting_for_user` into InProgress made settled tasks look like they were still running.
+ */
+export function taskStateToChatSessionStatus(state: AgentTaskState): vscode.ChatSessionStatus {
+	switch (state) {
+		case 'queued':
+		case 'in_progress':
+			return vscode.ChatSessionStatus.InProgress;
+		case 'waiting_for_user':
+			return vscode.ChatSessionStatus.NeedsInput;
+		case 'idle':
+		case 'completed':
+			return vscode.ChatSessionStatus.Completed;
+		case 'failed':
+		case 'timed_out':
+		case 'cancelled':
+			return vscode.ChatSessionStatus.Failed;
+		default:
+			// Forward-compat fallback: a state outside the known union (e.g. a state added
+			// server-side after this build) must not yield an invalid `undefined` status. Treat
+			// unknowns as InProgress — the conservative "agent may still own the turn" assumption.
+			return vscode.ChatSessionStatus.InProgress;
 	}
 }
 
@@ -1272,6 +1302,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
 
+				// Task-backed entries (v2) carry their raw lifecycle state; map it directly so the
+				// agent's post-turn states (`idle`/`waiting_for_user`) don't render as InProgress.
+				// Jobs API (v1) entries fall back to the PR-derived session state.
+				const status = entry.taskState !== undefined
+					? taskStateToChatSessionStatus(entry.taskState)
+					: this.getSessionStatusFromSession(sessionItem);
+
 				// Task-shaped card path (v2 with no resolvable PR yet, or PR-less by design).
 				if (!pr) {
 					if (!entry.pullArtifact && entry.latestSession.resource_type !== 'task') {
@@ -1288,7 +1325,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					return {
 						resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) }),
 						label: entry.latestSession.name || taskId,
-						status: this.getSessionStatusFromSession(sessionItem),
+						status,
 						...(changes?.length ? { changes } : {}),
 						...(createdAt ? {
 							timing: {
@@ -1327,7 +1364,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const session = {
 					resource,
 					label: pr.title,
-					status: this.getSessionStatusFromSession(sessionItem),
+					status,
 					badge: this.getPullRequestBadge(repoIds, pr),
 					tooltip: this.createPullRequestTooltip(pr),
 					...(createdAt ? {
