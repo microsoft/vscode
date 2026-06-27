@@ -3626,7 +3626,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
 		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+		const explicitCount = attachments.length;
 		this._appendActiveEditorAttachments(attachments, request);
+		if (attachments.length !== explicitCount) {
+			this._logService.trace(`[AgentHost] Forwarded ${attachments.length - explicitCount} active editor attachment(s); ${attachments.length} total`);
+		}
 		return attachments;
 	}
 
@@ -3749,7 +3753,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 		if (attachments.length > 0) {
-			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} variables`);
+			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} explicit variables`);
 		}
 		return attachments;
 	}
