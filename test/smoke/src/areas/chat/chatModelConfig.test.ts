@@ -40,9 +40,9 @@ const MODEL_ID = 'mock-config-model';
 
 /**
  * Combinations of model-configuration picker selections to exercise. Each case
- * selects a Thinking Effort and a Context Size in the model-picker UI, sends a
- * tagged prompt, and verifies the values the mock server received in the
- * `/responses` request body:
+ * selects a Context Size (and, unless it is verifying the untouched default, a
+ * Thinking Effort) in the model-picker UI, sends a tagged prompt, and verifies
+ * the values the mock server received in the `/responses` request body:
  *  - reasoning effort  → `body.reasoning.effort`
  *  - context size      → `body.context_management[0].compact_threshold`
  *
@@ -56,7 +56,13 @@ const MODEL_ID = 'mock-config-model';
  */
 interface ConfigCase {
 	readonly name: string;
-	readonly effortLabel: string;
+	/**
+	 * Thinking Effort label to select, or `undefined` to leave the picker
+	 * untouched and verify its schema default (`medium`) is forwarded. A case
+	 * that relies on the default must run before any case selects an effort (the
+	 * per-editor config is sticky), so it is listed first.
+	 */
+	readonly effortLabel?: string;
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
@@ -69,7 +75,10 @@ interface ConfigCase {
 }
 
 const CONFIG_CASES: readonly ConfigCase[] = [
-	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Low 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-low-default', reply: 'MOCKED_MODEL_CONFIG_LOW_DEFAULT' },
+	// Listed first so the Thinking Effort picker is still at its schema default
+	// (`medium`): this case leaves the effort untouched and only selects the
+	// context size, verifying that an unmodified picker forwards its default.
+	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
 	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
 	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
 ];
@@ -243,12 +252,16 @@ export function setup(logger: Logger) {
 				await chat.selectModel(MODEL_NAME);
 
 				for (const testCase of CONFIG_CASES) {
-					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel}', context='${testCase.contextLabel}'`);
+					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel ?? '(default)'}', context='${testCase.contextLabel}'`);
 
-					// Select the Thinking Effort and Context Size in the combined
-					// model-configuration dropdown.
+					// Select the Thinking Effort (when the case specifies one) and the
+					// Context Size in the combined model-configuration dropdown. Cases
+					// without an `effortLabel` leave the effort picker untouched to verify
+					// its default is forwarded.
 					await chat.openModelConfig();
-					await chat.selectModelConfigOption(testCase.effortLabel);
+					if (testCase.effortLabel) {
+						await chat.selectModelConfigOption(testCase.effortLabel);
+					}
 					await chat.selectModelConfigOption(testCase.contextLabel);
 					await chat.closeModelConfig();
 
