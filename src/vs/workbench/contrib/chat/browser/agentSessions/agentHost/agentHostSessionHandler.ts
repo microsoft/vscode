@@ -2949,10 +2949,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return mergeSessionWithDefaultChat(session, childChatState$.read(reader));
 			});
 
-			// All turn ids observed in the child session: completed turns
-			// plus any active turn that is not also already in `turns`. Each
-			// id is keyed so `autorunPerKeyedItem` discovers new turns
-			// incrementally and creates a fresh observer for each.
 			const childTurnIds$ = derived(reader => {
 				const state = childState$.read(reader);
 				if (!state) {

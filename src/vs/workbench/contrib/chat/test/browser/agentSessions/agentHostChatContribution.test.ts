@@ -154,7 +154,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				workingDirectory: (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state: SessionState = {
-				...createSessionState(summary),
+				...this._withDefaultChatCatalog(createSessionState(summary)),
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [config.activeClient],
 			};
@@ -182,7 +182,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
 		if (existingState) {
-			return { resource: resourceStr, state: existingState, fromSeq: 0 };
+			return { resource: resourceStr, state: this._withDefaultChatCatalog(existingState), fromSeq: 0 };
 		}
 		// Root state subscription
 		if (isAhpRootChannel(resourceStr)) {
@@ -205,7 +205,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 		return {
 			resource: resourceStr,
-			state: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready },
+			state: { ...this._withDefaultChatCatalog(createSessionState(summary)), lifecycle: SessionLifecycle.Ready },
 			fromSeq: 0,
 		};
 	}
@@ -278,7 +278,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		} else {
 			const existingState = this.sessionStates.get(resourceStr);
 			if (existingState) {
-				initialState = existingState;
+				initialState = this._withDefaultChatCatalog(existingState);
 			} else {
 				const summary: SessionSummary = {
 					resource: resourceStr,
@@ -288,7 +288,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					createdAt: Date.now(),
 					modifiedAt: Date.now(),
 				};
-				initialState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+				initialState = { ...this._withDefaultChatCatalog(createSessionState(summary)), lifecycle: SessionLifecycle.Ready };
 			}
 		}
 
@@ -393,7 +393,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * conversation fields a test attached to the session's {@link SeededSessionState}.
 	 */
 	private _buildDefaultChatState(sessionUriStr: string, chatUriStr: string): ChatState {
-		const seeded = this.sessionStates.get(sessionUriStr);
+		const seeded = this.sessionStates.get(chatUriStr) ?? this.sessionStates.get(sessionUriStr);
 		const sessionSummary: SessionSummary = seeded?.summary ?? {
 			resource: sessionUriStr,
 			provider: 'copilot',
@@ -410,6 +410,21 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			steeringMessage: seeded?.steeringMessage,
 			queuedMessages: seeded?.queuedMessages,
 			inputRequests: seeded?.inputRequests,
+		};
+	}
+
+	private _withDefaultChatCatalog<T extends SessionState>(state: T): T {
+		if (state.defaultChat && state.chats.length > 0) {
+			return state;
+		}
+		const chatUri = buildDefaultChatUri(state.summary.resource);
+		const additionalChats = [...this.sessionStates.keys()]
+			.filter(uri => uri !== chatUri && parseDefaultChatUri(uri) === state.summary.resource)
+			.map(uri => createDefaultChatSummary(state.summary, uri));
+		return {
+			...state,
+			defaultChat: chatUri,
+			chats: [createDefaultChatSummary(state.summary, chatUri), ...additionalChats],
 		};
 	}
 
@@ -2280,6 +2295,11 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallReady', session, turnId,
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
 			} as ChatAction);
 
 			await timeout(50);
@@ -6218,6 +6238,11 @@ suite('AgentHostChatContribution', () => {
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
 			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
 
 			// Allow the throttler/observation flow to flush.
 			await timeout(50);
@@ -6247,6 +6272,7 @@ suite('AgentHostChatContribution', () => {
 
 			const parentToolCallId = 'tc-parent-task';
 			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
 
 			// Fire the parent task tool — this should cause the handler to subscribe
 			// to the (still-empty) child subagent session.

@@ -256,7 +256,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(sessionUri.toString(), activeClientAction, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(sessionUri.toString(), activeClientAction);
 			const fileUri = URI.file('/workspace/direct.ts');
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello world', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'direct.ts', displayKind: 'document' }] },
@@ -565,7 +565,7 @@ suite('AgentSideEffects', () => {
 
 		test('calls abortSession on the agent', async () => {
 			setupSession();
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnCancelled,
 				turnId: 'turn-1',
 			});
@@ -594,11 +594,11 @@ suite('AgentSideEffects', () => {
 
 		test('forwards the chat channel for an additional (peer) chat', async () => {
 			setupSession();
-			const chatChannel = `${sessionUri.toString()}#peer-1`;
-			sideEffects.handleAction(sessionUri.toString(), {
+			const chatChannel = buildChatUri(sessionUri.toString(), 'peer-1');
+			sideEffects.handleAction(chatChannel, {
 				type: ActionType.SessionModelChanged,
 				model: { id: 'gpt-5' },
-			}, chatChannel);
+			});
 
 			await new Promise(r => setTimeout(r, 10));
 
@@ -624,11 +624,11 @@ suite('AgentSideEffects', () => {
 
 		test('forwards the chat channel for an additional (peer) chat', async () => {
 			setupSession();
-			const chatChannel = `${sessionUri.toString()}#peer-1`;
-			sideEffects.handleAction(sessionUri.toString(), {
+			const chatChannel = buildChatUri(sessionUri.toString(), 'peer-1');
+			sideEffects.handleAction(chatChannel, {
 				type: ActionType.SessionAgentChanged,
 				agent: { uri: 'file:///agents/reviewer.md' },
-			}, chatChannel);
+			});
 
 			await new Promise(r => setTimeout(r, 10));
 
@@ -779,8 +779,8 @@ suite('AgentSideEffects', () => {
 				id: 'steer-1',
 				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), action);
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action);
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
@@ -796,8 +796,8 @@ suite('AgentSideEffects', () => {
 				id: 'q-1',
 				message: { text: 'queued message', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), action);
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action);
 
 			// Queued messages are not forwarded to the agent; the server controls consumption
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
@@ -819,8 +819,8 @@ suite('AgentSideEffects', () => {
 				message: { text: 'queued message', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }] },
 			};
 
-			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), action);
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
@@ -838,8 +838,8 @@ suite('AgentSideEffects', () => {
 				id: 'q-telemetry',
 				message: { text: 'queued message', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), action);
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action);
 
 			assert.deepStrictEqual(telemetryService.events, [{
 				eventName: 'agentHost.userMessageSent',
@@ -864,8 +864,8 @@ suite('AgentSideEffects', () => {
 				id: 'q-rm',
 				message: { text: 'will be removed', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), setAction);
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
 
 			agent.setPendingMessagesCalls.length = 0;
 
@@ -875,8 +875,8 @@ suite('AgentSideEffects', () => {
 				kind: PendingMessageKind.Queued,
 				id: 'q-rm',
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), removeAction, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(sessionUri.toString(), removeAction);
+			stateManager.dispatchClientAction(defaultChatUri, removeAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, removeAction);
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
@@ -887,19 +887,19 @@ suite('AgentSideEffects', () => {
 
 			// Add two queued messages
 			const setA = { type: ActionType.ChatPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-a', message: { text: 'A', origin: { kind: MessageKind.User } } };
-			stateManager.dispatchClientAction(sessionUri.toString(), setA, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), setA);
+			stateManager.dispatchClientAction(defaultChatUri, setA, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setA);
 
 			const setB = { type: ActionType.ChatPendingMessageSet as const, kind: PendingMessageKind.Queued, id: 'q-b', message: { text: 'B', origin: { kind: MessageKind.User } } };
-			stateManager.dispatchClientAction(sessionUri.toString(), setB, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(sessionUri.toString(), setB);
+			stateManager.dispatchClientAction(defaultChatUri, setB, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, setB);
 
 			agent.setPendingMessagesCalls.length = 0;
 
 			// Reorder
 			const reorderAction = { type: ActionType.ChatQueuedMessagesReordered as const, order: ['q-b', 'q-a'] };
-			stateManager.dispatchClientAction(sessionUri.toString(), reorderAction, { clientId: 'test', clientSeq: 3 });
-			sideEffects.handleAction(sessionUri.toString(), reorderAction);
+			stateManager.dispatchClientAction(defaultChatUri, reorderAction, { clientId: 'test', clientSeq: 3 });
+			sideEffects.handleAction(defaultChatUri, reorderAction);
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
@@ -922,8 +922,8 @@ suite('AgentSideEffects', () => {
 				id: 'q-auto',
 				message: { text: 'auto queued', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), setAction);
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
 
 			// Message should NOT be consumed yet (turn is active)
 			assert.strictEqual(agent.sendMessageCalls.length, 0);
@@ -968,16 +968,16 @@ suite('AgentSideEffects', () => {
 				id: 'q-after-abort',
 				message: { text: 'queued behind abort', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), setAction);
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
 
 			// Not consumed yet — the turn is still active.
 			assert.strictEqual(agent.sendMessageCalls.length, 0);
 
 			// Cancel the active turn (client abort).
 			const cancelAction = { type: ActionType.ChatTurnCancelled as const, turnId: 'turn-1' };
-			stateManager.dispatchClientAction(sessionUri.toString(), cancelAction, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(sessionUri.toString(), cancelAction);
+			stateManager.dispatchClientAction(defaultChatUri, cancelAction, { clientId: 'test', clientSeq: 2 });
+			sideEffects.handleAction(defaultChatUri, cancelAction);
 
 			// The queued message must NOT auto-start, and must remain queued.
 			assert.strictEqual(agent.sendMessageCalls.length, 0, 'cancelling must not drain queued messages');
@@ -1011,14 +1011,14 @@ suite('AgentSideEffects', () => {
 					id: msg.id,
 					message: { text: msg.text, origin: { kind: MessageKind.User } },
 				};
-				stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
-				renameSideEffects.handleAction(sessionUri.toString(), setAction);
+				stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+				renameSideEffects.handleAction(defaultChatUri, setAction);
 			}
 
 			// Fire idle → turn completes → `/rename` is consumed and intercepted,
 			// then the message queued behind it must be drained to the agent.
 			agent.fireProgress({
-				kind: 'action', resource: sessionUri,
+				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 			});
 
@@ -1082,8 +1082,8 @@ suite('AgentSideEffects', () => {
 				id: 'q-wait',
 				message: { text: 'should wait', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), setAction);
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
 
 			// No turn started for the queued message
 			const turnStarted = envelopes.find(e => e.action.type === ActionType.ChatTurnStarted);
@@ -1109,8 +1109,8 @@ suite('AgentSideEffects', () => {
 				id: 'steer-rm',
 				message: { text: 'steer me', origin: { kind: MessageKind.User } },
 			};
-			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(sessionUri.toString(), action);
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action);
 
 			// Removal is not dispatched synchronously; it waits for the agent
 			let removal = envelopes.find(e =>
@@ -1122,7 +1122,7 @@ suite('AgentSideEffects', () => {
 			// Simulate the agent consuming the steering message
 			agent.fireProgress({
 				kind: 'steering_consumed',
-				chat: sessionUri,
+				chat: URI.parse(defaultChatUri),
 				id: 'steer-rm',
 			});
 
@@ -1330,7 +1330,7 @@ suite('AgentSideEffects', () => {
 			};
 
 			sideEffects.handleAction(sessionUri.toString(), action);
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello world', origin: { kind: MessageKind.User } },
@@ -2710,11 +2710,10 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-2', invocationMessage: 'Delegating 2...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-2', agentName: 'sub2', agentDisplayName: 'Sub 2', agentDescription: 'Second' });
 
-			// AgentService calls side effects with the session URI plus the originating chat channel.
-			sideEffects.handleAction(sessionUri.toString(), {
+			sideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTurnCancelled,
 				turnId: 'turn-1',
-			}, defaultChatUri);
+			});
 
 			// Both subagent chats should have their turns completed (cancelled)
 			const sub1 = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-1'));
@@ -3278,7 +3277,7 @@ suite('AgentSideEffects', () => {
 				onTurnComplete: () => { },
 			}, undefined, NullTelemetryService, changesets);
 
-			localSideEffects.handleAction(sessionUri.toString(), {
+			localSideEffects.handleAction(defaultChatUri, {
 				type: ActionType.ChatTruncated,
 				turnId: 'turn-1',
 			});

@@ -735,11 +735,14 @@ export class AgentSideEffects extends Disposable {
 		);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, chatChannel?: ProtocolURI): void {
-		// Most side effects are keyed by the session URI. Tool confirmations are
-		// keyed by the chat channel containing the tool call.
+	handleAction(channel: ProtocolURI, action: StateAction): void {
+		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
+		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		switch (action.type) {
 			case ActionType.ChatTurnStarted: {
+				if (!chatChannel) {
+					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
+				}
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
@@ -748,7 +751,7 @@ export class AgentSideEffects extends Disposable {
 				// than forwarded to the agent SDK. Mirrors the per-agent text-side
 				// dispatch (`parseLeadingSlashCommand` in CopilotAgentSession), but
 				// applies to every session type.
-				if (this._tryHandleRenameCommand(channel, action.turnId, action.message.text, chatChannel)) {
+				if (this._tryHandleRenameCommand(channel, action.turnId, action.message.text)) {
 					break;
 				}
 
@@ -756,9 +759,9 @@ export class AgentSideEffects extends Disposable {
 				if (!state) {
 					this._logService.info(`[AgentSideEffects] Turn started for session not in state manager: ${channel}, turnId=${action.turnId} - status/summary updates may be dropped unless the session is restored`);
 				}
-				this._titleController.seedTitleFromFirstMessage(channel, action.message.text, chatChannel);
+				this._titleController.seedTitleFromFirstMessage(sessionChannel, action.message.text, chatChannel);
 
-				const agent = this._options.getAgent(channel);
+				const agent = this._options.getAgent(sessionChannel);
 				if (!agent) {
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.ChatError,
@@ -771,7 +774,7 @@ export class AgentSideEffects extends Disposable {
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
 				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
-				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
+				agent.sendMessage(URI.parse(sessionChannel), action.message.text, attachments, action.turnId, isDefaultChatUri(channel) ? undefined : URI.parse(channel)).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction(channel, {
@@ -784,6 +787,9 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatToolCallConfirmed: {
+				if (!chatChannel) {
+					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
+				}
 				const toolCallKey = `${channel}:${action.toolCallId}`;
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
@@ -802,16 +808,22 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatInputCompleted: {
-				const agent = this._options.getAgent(channel);
+				if (!chatChannel) {
+					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
+				}
+				const agent = this._options.getAgent(sessionChannel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
 				break;
 			}
 			case ActionType.ChatTurnCancelled: {
+				if (!chatChannel) {
+					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
+				}
 				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
-				this.cancelSubagentSessions(chatChannel ?? channel);
-				const agent = this._options.getAgent(channel);
-				agent?.abortSession(URI.parse(channel), chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
+				this.cancelSubagentSessions(channel);
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.abortSession(URI.parse(sessionChannel), isDefaultChatUri(channel) ? undefined : URI.parse(channel)).catch(err => {
 					this._logService.error('[AgentSideEffects] abortSession failed', err);
 				});
 				// Intentionally do NOT drain queued messages here: cancelling means
@@ -822,15 +834,15 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionModelChanged: {
-				const agent = this._options.getAgent(channel);
-				agent?.changeModel?.(URI.parse(channel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.changeModel?.(URI.parse(sessionChannel), action.model, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				});
 				break;
 			}
 			case ActionType.SessionAgentChanged: {
-				const agent = this._options.getAgent(channel);
-				agent?.changeAgent?.(URI.parse(channel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.changeAgent?.(URI.parse(sessionChannel), action.agent, chatChannel ? URI.parse(chatChannel) : undefined).catch(err => {
 					this._logService.error('[AgentSideEffects] changeAgent failed', err);
 				});
 				break;
@@ -840,8 +852,8 @@ export class AgentSideEffects extends Disposable {
 					// The rename targeted a specific chat (default or additional),
 					// not the whole session. Route it to a per-chat title update so
 					// the session title stays independent.
-					this._stateManager.updateChatTitle(channel, chatChannel, action.title);
-					this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, action.title);
+					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
+					this._persistSessionFlag(sessionChannel, `customChatTitle:${chatChannel}`, action.title);
 					break;
 				}
 				this._persistSessionFlag(channel, 'customTitle', action.title);
@@ -850,15 +862,21 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.ChatPendingMessageSet:
 			case ActionType.ChatPendingMessageRemoved:
 			case ActionType.ChatQueuedMessagesReordered: {
+				if (!chatChannel) {
+					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
+				}
 				this._syncPendingMessages(channel);
 				break;
 			}
 			case ActionType.ChatTruncated: {
-				const agent = this._options.getAgent(channel);
-				agent?.truncateSession?.(URI.parse(channel), action.turnId).catch(err => {
+				if (!chatChannel) {
+					throw new Error(`ChatTruncated must be handled on an AHP chat channel: ${channel}`);
+				}
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.truncateSession?.(URI.parse(sessionChannel), action.turnId).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
-				this._changesets.onSessionTruncated(channel);
+				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
 			case ActionType.SessionActiveClientSet: {
@@ -958,17 +976,14 @@ export class AgentSideEffects extends Disposable {
 	 * @returns `true` when the message was a rename command and was handled here
 	 * (the caller MUST NOT forward it to the agent), `false` otherwise.
 	 */
-	private _tryHandleRenameCommand(channel: ProtocolURI, turnId: string, text: string, chatChannel?: ProtocolURI): boolean {
+	private _tryHandleRenameCommand(channel: ProtocolURI, turnId: string, text: string): boolean {
 		const title = parseRenameCommand(text);
 		if (title === undefined) {
 			return false;
 		}
-		// The additional chat the turn belongs to (if any): an explicit
-		// `chatChannel`, or `channel` itself when it is an additional chat
-		// channel (the queued-message consumer passes the chat channel directly).
 		const isAdditional = (uri: ProtocolURI | undefined): uri is ProtocolURI =>
 			!!uri && isAhpChatChannel(uri) && !isDefaultChatUri(uri);
-		const chatTarget = isAdditional(chatChannel) ? chatChannel : (isAdditional(channel) ? channel : undefined);
+		const chatTarget = isAdditional(channel) ? channel : undefined;
 		const sessionChannel = chatTarget ? parseRequiredSessionUriFromChatUri(chatTarget) : (isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel);
 		// The just-opened turn lives wherever the message was dispatched.
 		const turnTarget = chatTarget ?? channel;
@@ -1038,14 +1053,15 @@ export class AgentSideEffects extends Disposable {
 	 * The server controls queued message consumption; only steering messages
 	 * are forwarded to the agent for mid-turn injection.
 	 */
-	private _syncPendingMessages(session: ProtocolURI): void {
-		const state = this._stateManager.getSessionState(session);
+	private _syncPendingMessages(chatChannel: ProtocolURI): void {
+		const sessionChannel = parseRequiredSessionUriFromChatUri(chatChannel);
+		const state = this._stateManager.getSessionState(chatChannel);
 		if (!state) {
 			return;
 		}
-		const agent = this._options.getAgent(session);
+		const agent = this._options.getAgent(sessionChannel);
 		agent?.setPendingMessages?.(
-			URI.parse(session),
+			URI.parse(sessionChannel),
 			state.steeringMessage,
 			[],
 		);
@@ -1055,7 +1071,7 @@ export class AgentSideEffects extends Disposable {
 		// has actually been sent to the model.
 
 		// If the session is idle, try to consume the next queued message
-		this._tryConsumeNextQueuedMessage(session);
+		this._tryConsumeNextQueuedMessage(chatChannel);
 	}
 
 	/**
@@ -1066,6 +1082,7 @@ export class AgentSideEffects extends Disposable {
 	 * consumed when the next `idle` event fires.
 	 */
 	private _tryConsumeNextQueuedMessage(session: ProtocolURI): void {
+		const sessionChannel = parseRequiredSessionUriFromChatUri(session);
 		// Bail if there's already an active turn
 		if (this._stateManager.getActiveTurnId(session)) {
 			return;
@@ -1099,8 +1116,7 @@ export class AgentSideEffects extends Disposable {
 		// additional chat channel, the SDK conversation is owned by the
 		// parent session: look up the provider by the parent session URI and
 		// pass the chat channel so the harness routes to the right peer chat.
-		const chatTarget = isAhpChatChannel(session) && !isDefaultChatUri(session) ? session : undefined;
-		const sessionChannel = chatTarget ? parseRequiredSessionUriFromChatUri(chatTarget) : session;
+		const chatTarget = isDefaultChatUri(session) ? undefined : session;
 		const agent = this._options.getAgent(sessionChannel);
 		if (!agent) {
 			this._stateManager.dispatchServerAction(session, {

@@ -1324,13 +1324,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
-		if (action.type === ActionType.ChatToolCallConfirmed) {
-			this._sideEffects.handleAction(channel, action);
-			return;
-		}
-		// Side effects key session-scoped work by the session URI, but route
-		// per-chat operations (message send, turn cancel) to the chat channel.
-		this._sideEffects.handleAction(sessionChannel, action, channel !== sessionChannel ? channel : undefined);
+		this._sideEffects.handleAction(channel, action);
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {

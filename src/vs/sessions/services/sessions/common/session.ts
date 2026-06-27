@@ -276,7 +276,7 @@ export const enum ChatOriginKind {
 }
 
 export interface IChatOrigin {
-	readonly kind: string;
+	readonly kind: ChatOriginKind;
 }
 
 /**

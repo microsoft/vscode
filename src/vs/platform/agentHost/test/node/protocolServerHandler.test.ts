@@ -1332,7 +1332,8 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-			stateManager.dispatchServerAction(sessionUri, {
+			const chatUri = buildDefaultChatUri(sessionUri);
+			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
@@ -1340,7 +1341,7 @@ suite('ProtocolServerHandler', () => {
 			// Tool call stamped for a clientId that never connected (e.g. a
 			// stale stamp from a long-dead window). No disconnect event ever
 			// fires for it; the issuance-time orphan check must arm the timeout.
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
