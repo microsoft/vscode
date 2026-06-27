@@ -1893,6 +1893,60 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('sendRequest keeps a peer chat model loaded while dispatching', async () => {
+			const loadedResources = new Set<string>();
+			const disposedResources: string[] = [];
+			const sendSawLoaded: boolean[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async resource => {
+					const resourceKey = resource.toString();
+					loadedResources.add(resourceKey);
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(_state: Partial<IChatModelInputState>): void { }
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return {
+						object: chatModel,
+						dispose() {
+							loadedResources.delete(resourceKey);
+							disposedResources.push(resourceKey);
+						},
+					} satisfies IChatModelReference;
+				},
+				sendRequest: async (resource): Promise<ChatSendResult> => {
+					sendSawLoaded.push(loadedResources.has(resource.toString()));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-send-peer');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-send-peer').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('multi-send-peer', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			assert.ok(peer);
+
+			await provider.sendRequest(session.sessionId, peer.resource, { query: 'hello' });
+
+			assert.deepStrictEqual({
+				sendSawLoaded,
+				loadedResources: [...loadedResources],
+				disposedResources,
+			}, {
+				sendSawLoaded: [true],
+				loadedResources: [],
+				disposedResources: [peer.resource.toString()],
+			});
+		});
+
 		test('setModel updates the active peer chat model without changing the default chat model', () => {
 			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
