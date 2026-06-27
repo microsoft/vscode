@@ -186,8 +186,7 @@ function installServerProcessExitDiagnostics(): void {
 	// so the exit-time lines we care about most were being dropped. A synchronous
 	// `fs.appendFileSync` survives teardown. We target the server's `--logsPath`
 	// directory because it is captured as a smoke test artifact.
-	const rawLogsPath: unknown = parsedArgs['logsPath'];
-	const logsPath = typeof rawLogsPath === 'string' ? rawLogsPath : os.tmpdir();
+	const logsPath = sanitizeStringArg(parsedArgs['logsPath']) || os.tmpdir();
 	const diagnosticsFile = path.join(logsPath, 'server-exit-diagnostics.log');
 	try {
 		fs.mkdirSync(logsPath, { recursive: true });
