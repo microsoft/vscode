@@ -51,7 +51,8 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		this.requestService.request({ url, callSite: 'updateService.linux.checkForUpdates' }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
-				// Ignore the result if updates were disabled mid-check, so we don't flip out of Disabled.
+				// If updates were disabled while this check was in flight, ignore the result so we don't
+				// transition back to Idle/AvailableForDownload from the Disabled state.
 				if (this.state.type !== StateType.CheckingForUpdates) {
 					return;
 				}

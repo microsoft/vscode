@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationChangeEvent, IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../../lifecycle/electron-main/lifecycleMainService.js';
@@ -62,6 +62,14 @@ suite('AbstractUpdateService', () => {
 
 	class PolicyTestConfigurationService extends TestConfigurationService {
 		policyValue: string | undefined;
+
+		override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
+			// Mirror the real configuration service: a policy value overrides the user setting.
+			if (arg1 === 'update.mode' && this.policyValue !== undefined) {
+				return this.policyValue as T;
+			}
+			return super.getValue<T>(arg1 as string, arg2);
+		}
 
 		override inspect<T>(key: string): IConfigurationValue<T> {
 			const result = super.inspect<T>(key);
@@ -133,6 +141,13 @@ suite('AbstractUpdateService', () => {
 		return next;
 	}
 
+	function setPolicy(service: TestUpdateService, policyValue: string | undefined): Promise<unknown> {
+		configurationService.policyValue = policyValue;
+		const next = Event.toPromise(service.onStateChange);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+		return next;
+	}
+
 	teardown(() => {
 		sinon.restore();
 	});
@@ -151,12 +166,13 @@ suite('AbstractUpdateService', () => {
 		assert.strictEqual(service.state.type, StateType.Idle);
 	});
 
-	test('policy disabling updates reports Policy reason', async () => {
+	test('policy forces updates off even when the user setting keeps them enabled', async () => {
 		const service = createService('default');
 		await service.whenInitialized;
+		assert.strictEqual(service.state.type, StateType.Idle);
 
-		configurationService.policyValue = 'none';
-		await changeMode(service, 'none');
+		// User setting stays 'default' (enabled); policy alone forces 'none'.
+		await setPolicy(service, 'none');
 
 		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.Policy });
 	});

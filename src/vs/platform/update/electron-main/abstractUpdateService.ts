@@ -89,7 +89,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	private readonly overwriteUpdatesCheckInterval = this._register(new IntervalTimer());
 	private _internalOrg: string | undefined = undefined;
 
-	/** Disabled for a non-revertable reason (e.g. not built, missing config); ignores `update.mode` changes. */
+	/** Disabled for a non-reversible reason (e.g. not built, missing config); ignores `update.mode` changes. */
 	private _disabledPermanently: boolean = false;
 	/** Whether one-time platform init (e.g. background update GC, pending update resume) has run. */
 	private _postInitialized: boolean = false;
@@ -230,7 +230,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	}
 
 	/**
-	 * Disables updates for a revertable reason (user preference or policy), cancelling the scheduled check loop
+	 * Disables updates for a reversible reason (user preference or policy), cancelling the scheduled check loop
 	 * and any in-flight or pending update before moving to Disabled.
 	 */
 	private async disable(reason: DisablementReason): Promise<void> {
@@ -253,7 +253,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		this.setState(State.Disabled(reason));
 	}
 
-	/** Disables updates for a non-revertable reason; subsequent `update.mode` changes are ignored. */
+	/** Disables updates for a non-reversible reason; subsequent `update.mode` changes are ignored. */
 	private setDisabledPermanently(reason: DisablementReason): void {
 		this._disabledPermanently = true;
 		this.scheduler.clear();
