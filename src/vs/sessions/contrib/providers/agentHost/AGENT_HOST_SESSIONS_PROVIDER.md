@@ -116,7 +116,7 @@ sidebar list.
 `createNewSession(workspaceUri, sessionTypeId)`:
 
 1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
-2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`.
+2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`. New-session model/mode selection is seeded by the existing model/agent pickers and sent on the first message.
 3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
 
 `createNewChat(chatId)` creates the chat session model (`IChatSessionsService.getOrCreateChatSession`) so the management service can open the widget, and returns the draft's main chat.
@@ -131,6 +131,10 @@ sidebar list.
 4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
 5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
 6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
+
+Running-chat `setModel` / `setAgent` calls update the active chat's cached selection and the loaded chat model's input state. `AgentHostSessionHandler` debounces `IChatModel.inputModel.state` changes back into `chat/draftChanged`, so text/attachment/model/mode drafts survive reloads and restore from `ChatState.draft` when the chat is re-opened. The agent host persists drafts in the per-session database's `chat_drafts` table, keyed by chat URI.
+
+When restoring Copilot SDK history, `mapSessionEvents` best-effort reconstructs each user message's model, launch/resume custom-agent fallback, and SDK-persisted attachments. Model selection is inferred from `session/model_change` events plus the launch fallback; SDK `subagent.selected` agent names are not treated as AHP agent URIs. Attachments come from the SDK `user.message` attachment payload.
 
 ## CRUD & Stubbed Operations
 

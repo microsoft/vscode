@@ -1016,8 +1016,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				modifiedTime: s.modifiedTime.getTime(),
 				project,
 				summary: s.summary,
-				model: metadata.model,
-				agent: metadata.agent,
 				workingDirectory,
 				customizationDirectory: metadata.customizationDirectory,
 			};
@@ -1055,8 +1053,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
-			model: storedMetadata?.model,
-			agent: storedMetadata?.agent,
 			workingDirectory,
 			customizationDirectory: storedMetadata?.customizationDirectory,
 		};

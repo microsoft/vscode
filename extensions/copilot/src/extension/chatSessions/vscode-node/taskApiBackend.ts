@@ -64,6 +64,36 @@ function mapTaskStateToSessionState(state: AgentTaskState): SessionInfo['state']
 	}
 }
 
+/**
+ * Agent integration slugs that identify the Copilot cloud coding agent. CMC/CAPI returns
+ * `copilot-developer`; the monolith uses `copilot-swe-agent` for the same agent. Tasks owned by
+ * any other surface — `copilot-developer-cli` (Copilot CLI), `vscode-chat` (VS Code) or
+ * `jetbrains-chat` (JetBrains) — are local clients mirrored into Mission Control and must not
+ * appear in the cloud sessions list. See github-ui `agent-helpers.ts` (`isCopilotCodingAgent`) and
+ * `agent-profile.ts`.
+ */
+const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
+
+/**
+ * The owning agent integration of a task. Mirrors CMC's internal `TaskCollaborator`
+ * (`agent_collaborators`), which first-party CAPI tokens receive but `@vscode/copilot-api`'s
+ * `AgentTask` does not yet model. Only `slug` is needed to identify the client surface.
+ */
+interface TaskAgentCollaborator {
+	readonly slug?: string;
+}
+
+/**
+ * Whether a task is owned by the Copilot cloud coding agent rather than a local client surface
+ * (Copilot CLI / VS Code / JetBrains). The owning surface is identified by the agent integration
+ * slug on the task's `agent_collaborators`; tasks without a recognized cloud slug are treated as
+ * non-cloud and excluded from the cloud sessions list.
+ */
+export function isCloudCodingAgentTask(task: AgentTask): boolean {
+	const collaborators = (task as AgentTask & { readonly agent_collaborators?: readonly TaskAgentCollaborator[] }).agent_collaborators;
+	return collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
+}
+
 function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTaskGitHubResourceData }) | undefined {
 	return task.artifacts?.find(
 		(a): a is AgentTaskArtifact & { data: AgentTaskGitHubResourceData } =>
@@ -300,11 +330,12 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		}
 
 		return tasksWithRepo
-			.filter(({ task }) => !task.archived_at)
+			.filter(({ task }) => !task.archived_at && isCloudCodingAgentTask(task))
 			.map(({ task, repo }): CloudSessionData => ({
 				latestSession: taskToSessionInfo(task),
 				pullArtifact: taskToPullArtifactRef(task, repo),
 				diffRefs: taskToDiffRefs(task, repo),
+				taskState: task.state,
 			}));
 	}
 
