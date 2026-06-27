@@ -195,18 +195,39 @@ function installServerProcessExitDiagnostics(): void {
 		// best effort: the directory is normally created by the server already
 	}
 
-	// Write only to the file, never to stdout/stderr. The whole point of these
-	// diagnostics is to capture *why* the server's stdio pipe dies, so writing
-	// to that same (potentially broken) pipe is exactly what we must avoid: a
-	// failed `console.error` write throws `EPIPE`, which Node promotes to an
-	// uncaught exception, which re-enters the `uncaughtExceptionMonitor` handler
-	// below — an infinite loop that produced a 386MB log in one CI run.
+	// The file write is authoritative: it is synchronous (so it survives process
+	// teardown) and goes to a captured smoke artifact. We additionally mirror to
+	// stderr for live visibility in the test resolver's output channel, but that
+	// mirror is dangerous precisely because these diagnostics fire when the
+	// server's stdio pipe is dying: a write to a broken pipe throws `EPIPE`
+	// synchronously and/or emits an async `error` event, either of which Node
+	// promotes to an uncaught exception — which re-enters the
+	// `uncaughtExceptionMonitor` handler below and loops (one CI run produced a
+	// 386MB log this way). We therefore make the mirror best-effort and latch it
+	// off after the first failure, and attach an `error` handler so async pipe
+	// errors are swallowed rather than crashing the process.
+	let mirrorToStderr = true;
+	try {
+		process.stderr.on('error', () => { mirrorToStderr = false; });
+	} catch {
+		mirrorToStderr = false;
+	}
+
 	const log = (message: string) => {
 		const line = `[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`;
 		try {
 			fs.appendFileSync(diagnosticsFile, `${line}\n`);
 		} catch {
 			// ignore logging failures while the process is tearing down
+		}
+		if (mirrorToStderr) {
+			try {
+				process.stderr.write(`${line}\n`);
+			} catch {
+				// Broken pipe during teardown: stop mirroring so we can never
+				// throw (and thus loop) on subsequent diagnostics.
+				mirrorToStderr = false;
+			}
 		}
 	};
 
