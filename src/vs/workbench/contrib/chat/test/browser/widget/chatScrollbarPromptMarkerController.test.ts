@@ -1295,5 +1295,35 @@ suite('ChatScrollbarPromptMarkerController', () => {
 			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 0);
 			assert.strictEqual(controller['markerById'].size, 0);
 		});
+
+		test('setEnabled(false) detaches the overlay container and disposes parent listeners', () => {
+			const req = makeRequest('r1');
+			const layoutInfo = makeLayoutInfo(14);
+			const heights = new Map([['r1', 100]]);
+			const tops = new Map([['r1', 0]]);
+			const host = new FakeHost({
+				renderHeight: 200, scrollHeight: 200,
+				items: [req], heights, tops, layoutInfo,
+			});
+			const controller = createController(host);
+
+			controller.layout();
+			// Container is attached and parent listeners are installed
+			assert.strictEqual(controller['container'].parentElement, layoutInfo.parent);
+			assert.ok(controller['pointerDownListenerParent'] === layoutInfo.parent);
+			assert.ok(controller['parentPointerDownListener'].value);
+			assert.ok(controller['parentClickListener'].value);
+
+			controller.setEnabled(false);
+
+			// Container must be fully detached from the DOM
+			assert.strictEqual(controller['container'].parentElement, null);
+			// Parent listeners must be disposed so the feature is a true no-op
+			assert.ok(!controller['parentPointerDownListener'].value);
+			assert.ok(!controller['parentClickListener'].value);
+			assert.ok(!controller['parentPointerUpListener'].value);
+			assert.ok(!controller['parentPointerCancelListener'].value);
+			assert.strictEqual(controller['pointerDownListenerParent'], undefined);
+		});
 	});
 });

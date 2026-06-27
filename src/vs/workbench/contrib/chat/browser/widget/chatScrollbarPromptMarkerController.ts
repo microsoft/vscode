@@ -137,6 +137,10 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			this.resetGestureState();
 			this.cancelPendingFocusRetries();
 			this.clearMarkers();
+			// Fully detach the overlay and dispose the capture listeners on the
+			// overview-ruler parent so the feature is a true no-op when disabled.
+			// Re-enabling via layout() re-attaches the container and listeners.
+			this.detachOverlay();
 		}
 		this.updateContainerVisibility();
 		if (enabled) {
@@ -219,6 +223,21 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 	private updateContainerVisibility(): void {
 		const shouldShow = this.visible && this.enabled && this.host.renderHeight > 0;
 		this.container.style.display = shouldShow ? '' : 'none';
+	}
+
+	/**
+	 * Detaches the overlay container from the DOM and disposes the capture
+	 * listeners installed on the overview-ruler parent. Used when the marker
+	 * feature is disabled so it becomes a true no-op (no DOM presence, no
+	 * pointer-event interception). {@link layout} re-attaches both on re-enable.
+	 */
+	private detachOverlay(): void {
+		this.container.remove();
+		this.parentPointerDownListener.clear();
+		this.parentClickListener.clear();
+		this.parentPointerUpListener.clear();
+		this.parentPointerCancelListener.clear();
+		this.pointerDownListenerParent = undefined;
 	}
 
 	private cancelPendingFocusRetries(): void {
@@ -552,30 +571,32 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 				ChatConfiguration.ScrollbarPromptMarkerClickBehavior,
 			);
 
-		// Delegate the reveal (and, for the Reveal behavior, the focus) to the
-		// shared helper so there is a single source of truth for click behavior.
-		// For RevealAndFocus we reveal here but defer focusItem below, because
+		// For the Reveal behavior, delegate entirely to the shared helper so
+		// there is a single source of truth for click behavior. For
+		// RevealAndFocus, reveal here but defer focusItem below, because
 		// revealing a row in a long chat triggers dynamic height re-measurement
 		// in the virtualized tree, which can steal focus during the re-render
 		// cycle. The focus is retried across animation frames until the target
 		// element is available in the tree or a maximum attempt count is reached.
-		applyScrollbarPromptMarkerClickBehavior(this.host, item, behavior);
-
-		if (behavior === ChatScrollbarPromptMarkerClickBehavior.RevealAndFocus) {
-			const targetWindow = dom.getWindow(this.container);
-			let attempts = 0;
-			const maxAttempts = 10;
-			const tryFocus = () => {
-				if (this.host.hasElement(item)) {
-					this.host.focusItem(item);
-					return;
-				}
-				attempts++;
-				if (attempts < maxAttempts) {
-					this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
-				}
-			};
-			this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
+		if (behavior === ChatScrollbarPromptMarkerClickBehavior.Reveal) {
+			applyScrollbarPromptMarkerClickBehavior(this.host, item, behavior);
+			return;
 		}
+
+		this.host.reveal(item);
+		const targetWindow = dom.getWindow(this.container);
+		let attempts = 0;
+		const maxAttempts = 10;
+		const tryFocus = () => {
+			if (this.host.hasElement(item)) {
+				this.host.focusItem(item);
+				return;
+			}
+			attempts++;
+			if (attempts < maxAttempts) {
+				this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
+			}
+		};
+		this._focusRetryDisposable.value = this.scheduleFocusRetry(targetWindow, tryFocus);
 	}
 }
