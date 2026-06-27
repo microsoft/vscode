@@ -1817,12 +1817,16 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
 		});
 
-		test('a live, picker-offered model wins over any unavailable state (e.g. BYOK)', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
 		});
 
-		test('stale cached models that are not live do not mask the unavailable state', () => {
-			assert.strictEqual(reason({ trusted: false, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.Restricted);
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
 		});
 
 		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
@@ -1834,7 +1838,7 @@ suite('ChatModelSelectionLogic', () => {
 		});
 
 		test('accepts a Set of live ids', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });

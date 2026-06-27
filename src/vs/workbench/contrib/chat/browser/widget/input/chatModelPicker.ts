@@ -80,7 +80,7 @@ const ModelPickerSection = {
 } as const;
 
 /**
- * Id of the synthetic "Trust Workspace..." entry shown in Restricted Mode. It is
+ * Id of the synthetic "Trust Workspace to enable models..." entry shown in Restricted Mode. It is
  * a command (not a selectable model), so the accessibility provider gives it a
  * plain `menuitem` role instead of `menuitemradio`.
  */
@@ -175,11 +175,13 @@ type ChatModelChangeClassification = {
 	comment: 'Reporting when the model picker is switched';
 	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
 	toModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat model' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current chat session, used to correlate the model switch with the session.' };
 };
 
 type ChatModelChangeEvent = {
 	fromModel: string | TelemetryTrustedValue<string> | undefined;
 	toModel: string | TelemetryTrustedValue<string>;
+	chatSessionId?: string;
 };
 
 type ChatModelPickerInteraction = 'disabledModelContactAdminClicked' | 'premiumModelUpgradePlanClicked' | 'otherModelsExpanded' | 'otherModelsCollapsed';
@@ -438,8 +440,9 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  * 4. Optional "Manage Models..." action shown in Other Models after a separator
  *
  * When `restrictedMode` is set (untrusted workspace), an explanatory "Models
- * Unavailable in Restricted Mode" header and a "Trust Workspace..." action
- * (invoking `onRequestTrust`) replace all of the above. Likewise, when
+ * unavailable while in Restricted mode" header and a "Trust Workspace to enable
+ * models..." action (invoking `onRequestTrust`) replace all of the above.
+ * Likewise, when
  * `setupRequired` is set (trusted, but Chat still needs sign-in / setup), a
  * "Sign in to use Copilot" header and a Sign In action (invoking
  * `onRequestSetup`) replace all of the above. `restrictedMode` takes precedence.
@@ -479,7 +482,7 @@ export function buildModelPickerItems(
 		// non-empty.
 		items.push({
 			kind: ActionListItemKind.Header,
-			label: localize('chat.modelPicker.restrictedMode', "Models Unavailable in Restricted Mode"),
+			label: localize('chat.modelPicker.restrictedMode', "Models unavailable while in Restricted mode"),
 		});
 		items.push({
 			item: {
@@ -487,12 +490,12 @@ export function buildModelPickerItems(
 				enabled: !!onRequestTrust,
 				checked: false,
 				class: undefined,
-				tooltip: localize('chat.modelPicker.restrictedMode.trustTooltip', "Trust the workspace to enable AI models."),
-				label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace..."),
+				tooltip: localize('chat.modelPicker.restrictedMode.trustTooltip', "Trust the workspace to enable models."),
+				label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace to enable models..."),
 				run: () => onRequestTrust?.()
 			},
 			kind: ActionListItemKind.Action,
-			label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace..."),
+			label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace to enable models..."),
 			group: { title: '', icon: ThemeIcon.fromId(Codicon.workspaceTrusted.id) },
 			disabled: !onRequestTrust,
 			hideIcon: false,
@@ -1274,7 +1277,8 @@ export class ModelPickerWidget extends Disposable {
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			this._telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
 				fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
-				toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
+				toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown',
+				chatSessionId: this._delegate.getChatSessionId?.()
 			});
 			this._selectedModel = model;
 			this._renderLabel();
@@ -1349,9 +1353,14 @@ export class ModelPickerWidget extends Disposable {
 			}
 		}
 
+		// Hide the filter in the unavailable states (Restricted Mode / setup
+		// required): the only entries are the explanatory header and the Trust /
+		// Sign In action, so a search field would just let users filter through
+		// stale, unusable models. Shown otherwise (it also hosts the secondary
+		// heading).
+		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
 		const listOptions = {
-			// Always show the filter to allow for the secondary heading to show
-			showFilter: true,
+			showFilter: !unavailable,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
@@ -1427,13 +1436,13 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
-		// Untrusted workspace: present a normal "Pick Model" placeholder (no badge)
+		// Untrusted workspace: present a normal "Models" placeholder (no badge)
 		// rather than a dead-end label; the hover and dropdown carry the Restricted
 		// Mode explanation and the Trust Workspace action.
 		const restrictedMode = this.isRestrictedMode();
 
 		// Trusted, but Chat still needs sign-in / setup before any model is
-		// usable: present the same "Pick Model" placeholder, with the dropdown
+		// usable: present the same "Models" placeholder, with the dropdown
 		// carrying a Sign In action instead of a misleading "Auto".
 		const setupRequired = this.isSetupRequired();
 		const unavailable = restrictedMode || setupRequired;
@@ -1456,7 +1465,7 @@ export class ModelPickerWidget extends Disposable {
 			nameChildren.push(renderIcon(statusIcon));
 		}
 		const modelLabel = unavailable
-			? localize('chat.modelPicker.label', "Pick Model")
+			? localize('chat.modelPicker.modelsLabel', "Models")
 			: activating
 				? localize('chat.modelPicker.activating', "Activating...")
 				: genericNoModels
@@ -1499,12 +1508,13 @@ export class ModelPickerWidget extends Disposable {
 			}
 		}
 
-		// Aria
+		// Aria — name the control "Models" to match the visible label; the comma
+		// separates the control name from its current value / state.
 		this._domNode.ariaLabel = restrictedMode
-			? localize('chat.modelPicker.ariaLabelRestricted', "Pick Model, models are unavailable in Restricted Mode")
+			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
-				? localize('chat.modelPicker.ariaLabelSetupRequired', "Pick Model, sign in to use Copilot")
-				: localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelLabel);
+				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
+				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 	}
 
 	/**

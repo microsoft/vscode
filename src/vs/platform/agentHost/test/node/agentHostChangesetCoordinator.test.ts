@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -38,8 +39,8 @@ suite('ChangesetSessionCoordinator', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
 		}, { emitNotification });
@@ -67,6 +68,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const operationContributionService: IAgentHostChangesetOperationService = {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
+			getOperations: () => undefined,
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
@@ -146,7 +148,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, rootLookups: environment.gitService.rootLookupCalls }, { acquisitions: [], rootLookups: [] });
 
-		const summary = environment.stateManager.getSessionState(session)!.summary;
+		const summary = environment.stateManager.getSessionSummary(session)!;
 		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
 		environment.coordinator.onSessionMaterialized(session);
 		await environment.monitor.waitForAcquisitions(1);
@@ -168,7 +170,7 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onFirstSubscriber(URI.parse(buildSessionChangesetUri(session)));
 		await tick();
 
-		const summary = environment.stateManager.getSessionState(session)!.summary;
+		const summary = environment.stateManager.getSessionSummary(session)!;
 		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
@@ -371,12 +373,16 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidChangeSessionGitState = Event.None;
+	readonly onDidRunSessionGitStateRefresh = Event.None;
+
 	readonly refreshed: string[] = [];
 
 	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
 		this.refreshed.push(sessionKey);
 		return undefined;
 	}
+	async refreshSessionGitState2(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 }

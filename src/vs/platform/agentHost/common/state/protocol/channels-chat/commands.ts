@@ -8,8 +8,6 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { ModelSelection } from '../channels-root/state.js';
-import type { AgentSelection } from '../channels-session/state.js';
 import type { Message } from './state.js';
 
 // ─── createChat ──────────────────────────────────────────────────────────────
@@ -40,10 +38,6 @@ export interface CreateChatParams extends BaseParams {
 	chat: URI;
 	/** Optional initial message for the new chat. */
 	initialMessage?: Message;
-	/** Optional per-chat model override. */
-	model?: ModelSelection;
-	/** Optional per-chat agent override. */
-	agent?: AgentSelection;
 	/** Optional source chat and turn to fork from. */
 	source?: ChatForkSource;
 }

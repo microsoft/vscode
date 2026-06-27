@@ -8,6 +8,8 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
+import type { URI } from '../../../base/common/uri.js';
+import type { Message } from '../common/state/sessionState.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -84,6 +86,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	{
 		version: 5,
 		sql: `ALTER TABLE turns ADD COLUMN checkpoint_ref TEXT`,
+	},
+	{
+		version: 6,
+		sql: `CREATE TABLE IF NOT EXISTS chat_drafts (
+			chat_uri TEXT PRIMARY KEY NOT NULL,
+			draft    TEXT NOT NULL
+		)`,
 	},
 ];
 
@@ -547,6 +556,31 @@ export class SessionDatabase implements ISessionDatabase {
 			const db = await this._ensureDb();
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 		}));
+	}
+
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
+		const chatUri = chat.toString();
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			if (!draft) {
+				await dbRun(db, 'DELETE FROM chat_drafts WHERE chat_uri = ?', [chatUri]);
+				return;
+			}
+			await dbRun(db, 'INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chatUri, JSON.stringify(draft)]);
+		});
+	}
+
+	async getChatDraft(chat: URI): Promise<Message | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT draft FROM chat_drafts WHERE chat_uri = ?', [chat.toString()]);
+		if (typeof row?.draft !== 'string') {
+			return undefined;
+		}
+		try {
+			return JSON.parse(row.draft) as Message;
+		} catch {
+			return undefined;
+		}
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
