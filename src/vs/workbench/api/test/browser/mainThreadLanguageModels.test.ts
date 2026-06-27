@@ -170,9 +170,13 @@ suite('MainThreadLanguageModels', function () {
 		const store = disposables.add(new DisposableStore());
 		let provider: ILanguageModelChatProvider | undefined;
 		let requestId: number | undefined;
+		let cancelCount = 0;
 		const proxy: Partial<ExtHostLanguageModelsShape> = {
 			$startChatRequest: async (_modelId, id) => {
 				requestId = id;
+			},
+			$cancelLanguageModelChatRequest: () => {
+				cancelCount++;
 			},
 		};
 		const languageModelsService = new class extends mock<ILanguageModelsService>() {
@@ -195,8 +199,12 @@ suite('MainThreadLanguageModels', function () {
 		));
 		mainThread.$registerLanguageModelProvider('test');
 
-		const response = await provider!.sendChatRequest('model-1', [], undefined, {}, CancellationToken.None);
+		const cts = store.add(new CancellationTokenSource());
+		const response = await provider!.sendChatRequest('model-1', [], undefined, {}, cts.token);
 		await mainThread.$reportResponseDone(requestId!, undefined);
 		await response.result;
+		cts.cancel();
+
+		assert.strictEqual(cancelCount, 0);
 	});
 });
