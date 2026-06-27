@@ -62,6 +62,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	private updateCancellationTokenSource: CancellationTokenSource | undefined;
 	/** Cancels an in-flight check/download chain (e.g. when updates are disabled at runtime). */
 	private checkCancellationTokenSource: CancellationTokenSource | undefined;
+	/** Settles when the in-flight check/download chain has fully unwound; used by the cancel path. */
+	private checkPromise: Promise<unknown> | undefined;
 
 	private readonly readyMutexName: string;
 	private readonly updatingMutexName: string;
@@ -222,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const token = cts.token;
 
 		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, token)
+		const promise = this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, token)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -337,13 +339,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				} else {
 					this.setState(State.Idle(getUpdateType(), message));
 				}
-			})
-			.finally(() => {
-				if (this.checkCancellationTokenSource === cts) {
-					this.checkCancellationTokenSource = undefined;
-				}
-				cts.dispose();
 			});
+
+		this.checkPromise = promise;
+
+		promise.finally(() => {
+			if (this.checkCancellationTokenSource === cts) {
+				this.checkCancellationTokenSource = undefined;
+			}
+			if (this.checkPromise === promise) {
+				this.checkPromise = undefined;
+			}
+			cts.dispose();
+		});
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
@@ -494,8 +502,27 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.checkCancellationTokenSource?.dispose(true);
 		this.checkCancellationTokenSource = undefined;
 
+		// Wait for the aborted chain to unwind (releasing the partial file handle), then remove
+		// any partially-downloaded `*.tmp` installer it left behind in the cache.
+		try {
+			await this.checkPromise;
+		} catch {
+			// the chain swallows its own errors; ignore
+		}
+		await this.cleanupTempFiles();
+
 		// Tear down any pending (downloaded/applying) update.
 		await this.cancelPendingUpdate();
+	}
+
+	private async cleanupTempFiles(): Promise<void> {
+		try {
+			const cachePath = await this.cachePath;
+			const files = await pfs.Promises.readdir(cachePath);
+			await Promise.all(files.filter(file => file.endsWith('.tmp')).map(file => this.unlink(path.join(cachePath, file))));
+		} catch (err) {
+			this.logService.warn('update#cleanupTempFiles: failed to remove temporary download files', err);
+		}
 	}
 
 	protected override async cancelPendingUpdate(): Promise<void> {

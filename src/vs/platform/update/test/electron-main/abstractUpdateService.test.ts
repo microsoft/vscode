@@ -68,11 +68,11 @@ suite('AbstractUpdateService', () => {
 			if (arg1 === 'update.mode' && this.policyValue !== undefined) {
 				return this.policyValue as T;
 			}
-			return super.getValue<T>(arg1 as string, arg2);
+			return super.getValue<T>(arg1, arg2);
 		}
 
-		override inspect<T>(key: string): IConfigurationValue<T> {
-			const result = super.inspect<T>(key);
+		override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+			const result = super.inspect<T>(key, overrides);
 			if (key === 'update.mode') {
 				return { ...result, policyValue: this.policyValue as T };
 			}
