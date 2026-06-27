@@ -164,6 +164,11 @@ export function setup(logger: Logger) {
 
 		let mockServer: MockServerWithRequests;
 
+		// Tracks how many times the repeated test body has run so the first run can
+		// reuse the freshly-opened panel chat while later runs reset the session
+		// that the previous run left behind.
+		let runIndex = 0;
+
 		before(async function () {
 			const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
 
@@ -235,6 +240,7 @@ export function setup(logger: Logger) {
 		itRepeat(10, 'forwards the selected reasoning effort and context size to the server', async function () {
 			const app = this.app as Application;
 			const chat = app.workbench.chat;
+			const isFirstRun = runIndex++ === 0;
 
 			try {
 				// Open the panel chat (Agent mode is the default; the context-size
@@ -242,14 +248,22 @@ export function setup(logger: Logger) {
 				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 				await chat.waitForChatView();
 
-				// Each iteration reuses the same panel chat session. Reset it before
-				// warming up: dismiss any popup the previous iteration left open (a
-				// stray model picker / config dropdown / context-usage hover can
-				// intercept the input click so the editor never focuses) and start a
-				// fresh chat so conversation history doesn't accumulate across runs.
-				await app.code.driver.currentPage.keyboard.press('Escape');
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.newChat');
-				await chat.waitForChatView();
+				// The first run uses the freshly-opened panel chat as-is. Later runs
+				// reuse the same panel session, so reset it before warming up: dismiss
+				// any popup the previous run left open (a stray model picker / config
+				// dropdown / context-usage hover can intercept the input click so the
+				// editor never focuses) and start a fresh chat so conversation history
+				// doesn't accumulate. Best-effort: if the reset can't run, fall back to
+				// reusing the existing session.
+				if (!isFirstRun) {
+					try {
+						await app.code.driver.currentPage.keyboard.press('Escape');
+						await app.workbench.quickaccess.runCommand('workbench.action.chat.newChat');
+						await chat.waitForChatView();
+					} catch (error) {
+						logger.log(`[Chat Model Config] session reset skipped: ${error instanceof Error ? error.message : String(error)}`);
+					}
+				}
 
 				// Retry the warm-up send until the model actually replies, which
 				// confirms copilot-chat is active and the panel is usable.

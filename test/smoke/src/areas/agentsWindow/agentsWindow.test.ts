@@ -493,6 +493,11 @@ export function setup(logger: Logger) {
 
 		let mockServer: MockServerWithRequests;
 
+		// Tracks how many times the repeated test body has run so the first run can
+		// take the pristine-window path (the window opens fresh on the new-session
+		// homepage) while later runs reset the leftover active session.
+		let runIndex = 0;
+
 		// Start the mock server BEFORE installAllHandlers' `before` runs so the
 		// mock URL is available when we configure the app's env vars.
 		before(async function () {
@@ -568,13 +573,19 @@ export function setup(logger: Logger) {
 
 		itRepeat(10, 'forwards the selected reasoning effort and context size from the Local session', async function () {
 			const app = this.app as Application;
+			const isFirstRun = runIndex++ === 0;
 
 			try {
-				// Reset to a fresh new-session homepage at the start of each run.
-				// After a completed run the window is left on the active session, so
-				// a plain `waitForNewSessionView` would hang waiting for a view that
-				// only shows for a fresh session; `startNewSession` navigates back.
-				await app.workbench.agentsWindow.startNewSession();
+				// The window opens fresh on the new-session homepage, so the first run
+				// just waits for it. Later runs are left on the previous run's active
+				// session, so navigate back via `startNewSession` (a plain
+				// `waitForNewSessionView` would hang for a view that only shows for a
+				// fresh session).
+				if (isFirstRun) {
+					await app.workbench.agentsWindow.waitForNewSessionView();
+				} else {
+					await app.workbench.agentsWindow.startNewSession();
+				}
 				await app.workbench.agentsWindow.selectSessionType('Local');
 
 				// Warm up: the first Local message activates copilot-chat in the
