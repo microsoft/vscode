@@ -51,10 +51,7 @@
             },
             "type": "string",
             "default": "",
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.protocol"
-            ]
+            "included": false
         },
         {
             "key": "chat.agentHost.otel.serviceName",
@@ -69,10 +66,7 @@
             },
             "type": "string",
             "default": "",
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.serviceName"
-            ]
+            "included": false
         },
         {
             "key": "chat.agentHost.otel.resourceAttributes",
@@ -87,10 +81,7 @@
             },
             "type": "object",
             "default": {},
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.resourceAttributes"
-            ]
+            "included": false
         },
         {
             "key": "chat.agentHost.otel.headers",
@@ -105,10 +96,7 @@
             },
             "type": "object",
             "default": {},
-            "included": false,
-            "referencedSettings": [
-                "github.copilot.chat.otel.headers"
-            ]
+            "included": false
         },
         {
             "key": "mcp.enterpriseManagedAuth.idp",
@@ -261,10 +249,7 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.enabled"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.exporterType",
@@ -303,10 +288,7 @@
                 "console",
                 "file"
             ],
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.exporterType"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.otlpEndpoint",
@@ -321,10 +303,7 @@
             },
             "type": "string",
             "default": "",
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.otlpEndpoint"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.captureContent",
@@ -339,10 +318,7 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.captureContent"
-            ]
+            "included": true
         },
         {
             "key": "chat.agentHost.otel.outfile",
@@ -357,10 +333,7 @@
             },
             "type": "string",
             "default": "",
-            "included": true,
-            "referencedSettings": [
-                "github.copilot.chat.otel.outfile"
-            ]
+            "included": true
         },
         {
             "key": "chat.defaultModel",
