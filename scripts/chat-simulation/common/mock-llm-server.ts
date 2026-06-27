@@ -399,7 +399,7 @@ const EXTRA_MODELS: MockModel[] = [
 			family: 'mock-config',
 			tokenizer: 'o200k_base',
 			object: 'model_capabilities',
-			limits: { max_prompt_tokens: 272000, max_output_tokens: 128000, max_context_window_tokens: 1050000 },
+			limits: { max_prompt_tokens: 922000, max_output_tokens: 128000, max_context_window_tokens: 1050000 },
 			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false, structured_outputs: true, reasoning_effort: ['low', 'medium', 'high'] },
 		},
 		supported_endpoints: ['/responses'],

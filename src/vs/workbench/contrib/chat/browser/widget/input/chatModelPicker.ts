@@ -625,7 +625,7 @@ export function buildModelPickerItems(
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect);
-				items.push(createModelItem(autoAction, autoModel, openerService, undefined, autoAriaDesc, undefined, undefined, isUBB));
+				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
 			// Precompute group labels needed for inline badges
@@ -661,7 +661,7 @@ export function buildModelPickerItems(
 						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
 						: undefined;
 					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, undefined, showGroupLabel);
-					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, pinnedAriaDesc, makePinAction(model), onConfigure, isUBB));
+					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model), onConfigure));
 				}
 			}
 
@@ -762,7 +762,7 @@ export function buildModelPickerItems(
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
 						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, undefined, showGroupLabel);
-						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, promotedAriaDesc, makePinAction(item.model), onConfigure, isUBB));
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model), onConfigure));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -854,7 +854,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other, showGroupHeaders);
-							items.push(createModelItem(bucketAction, model, openerService, undefined, bucketAriaDesc, makePinAction(model), onConfigure, isUBB));
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model), onConfigure));
 						}
 					}
 				}
@@ -878,7 +878,7 @@ export function buildModelPickerItems(
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
 			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect);
-			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, flatAutoAriaDesc, undefined, undefined, isUBB));
+			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -888,7 +888,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect);
-			items.push(createModelItem(flatAction, model, openerService, undefined, flatAriaDesc, undefined, onConfigure, isUBB));
+			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc, undefined, onConfigure));
 		}
 	}
 

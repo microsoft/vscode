@@ -50,7 +50,9 @@ const MODEL_ID = 'mock-config-model';
  * `floor(maxPromptTokens * 0.9)`. The default tier exposes a 272000 prompt
  * window (→ 244800). The long tier is the full window minus the 128000 output
  * reserve — `1050000 - 128000 = 922000` (→ 829800); note `formatTokenCount`
- * renders 922000 as "1M" (its `>900K → 1M` branch).
+ * renders 922000 as "1M" (its `>900K → 1M` branch). The context-usage gauge
+ * total is `maxInputTokens(tier) + maxOutputTokens`, i.e. `272000 + 128000 =
+ * 400000` ("400K") and `922000 + 128000 = 1050000` ("1M").
  */
 interface ConfigCase {
 	readonly name: string;
@@ -60,11 +62,7 @@ interface ConfigCase {
 	readonly expectedCompactThreshold: number;
 	/** The combined label the model-config button should show after selection (e.g. "High 1M"). */
 	readonly expectedConfigLabel: string;
-	/**
-	 * The context-window denominator the context-usage gauge details popup should
-	 * show after this case's selection (gauge total = `maxInputTokens(tier) +
-	 * maxOutputTokens`, formatted via `formatTokenCount`).
-	 */
+	/** The context-window denominator the context-usage gauge details popup should show. */
 	readonly expectedContextWindowLabel: string;
 	readonly scenarioId: string;
 	readonly reply: string;
@@ -157,10 +155,18 @@ export function setup(logger: Logger) {
 			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
 			return {
 				...opts,
-				extraArgs: [...(opts.extraArgs ?? []), '--log=trace', '--disable-extensions'],
+				extraArgs: [...(opts.extraArgs ?? []), '--log=trace'],
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
+					// Keep the built-in copilot-chat extension enabled on the fresh
+					// per-run profile. Without this, BuiltinChatExtensionEnablementMigration
+					// disables it (since chat setup is never "completed" in automation),
+					// so no model provider registers and the panel falls into the
+					// failing chat-setup install path. Listing the chat extension here
+					// only skips that disable-migration (mirrors what the perf:chat
+					// harness does by pre-seeding the storage DB).
+					VSCODE_SKIP_BUILTIN_EXTENSIONS: 'GitHub.copilot-chat',
 				},
 			};
 		});
@@ -178,13 +184,13 @@ export function setup(logger: Logger) {
 				['chat.mcp.discovery.enabled', 'false'],
 				['chat.mcp.enabled', 'false'],
 				['chat.disableAIFeatures', 'false'],
+				// Show the context-usage gauge so the test can verify the denominator
+				// (context window) reflects the selected Context Size.
+				['chat.contextUsage.enabled', 'true'],
 				// Enable Responses-API context management so the chosen Context Size
 				// is forwarded as a `compact_threshold`. This is an experiment-based
 				// setting (default off); set it explicitly for a deterministic run.
 				['github.copilot.chat.responsesApiContextManagement.enabled', 'true'],
-				// Show the context-usage gauge so the test can verify the denominator
-				// (context window) reflects the selected Context Size.
-				['chat.contextUsage.enabled', 'true'],
 			]);
 			logger.log(`[Chat Model Config] user settings written`);
 		});
