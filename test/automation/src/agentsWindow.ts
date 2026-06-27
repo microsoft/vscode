@@ -535,24 +535,50 @@ export class AgentsWindow {
 	 * otherwise be hidden in a collapsed "Other Models" section), clicks the
 	 * matching row, then waits for the popup to dismiss.
 	 *
+	 * The model list is populated asynchronously after the session activates, so
+	 * the row can be absent the first time the picker opens. A stale open picker
+	 * never gains new rows, so we re-open it on each attempt (dismissing with
+	 * Escape in between) and poll until the row appears or `timeoutMs` elapses —
+	 * mirroring {@link selectSessionType}.
+	 *
 	 * Mirrors {@link Chat.selectModel} but scoped to the Agents Window's active
 	 * session view rather than the panel chat.
 	 */
-	async selectModel(modelName: string): Promise<void> {
+	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first().click();
-		await this.code.waitForElement(ACTION_WIDGET);
-		await page.keyboard.type(modelName);
 		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
-		await row.waitFor({ state: 'visible', timeout: 30_000 });
-		// `force` bypasses the transient `context-view-pointerBlock` overlay that
-		// intercepts pointer events while the action widget is animating open.
-		await row.click({ force: true });
-		await page.waitForFunction(
-			(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
-			ACTIVE_SESSION_MODEL_PICKER_NAME,
-			{ timeout: 15_000 },
-		);
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first().click();
+				await this.code.waitForElement(ACTION_WIDGET);
+				// The picker opens with a focused filter input. Type the model name
+				// to narrow the list.
+				await page.keyboard.type(modelName);
+				await row.waitFor({ state: 'visible', timeout: 5_000 });
+				// `force` bypasses the transient `context-view-pointerBlock` overlay
+				// that intercepts pointer events while the action widget animates open.
+				await row.click({ force: true });
+				// The picker dismisses after a selection (aria-expanded flips to false).
+				await page.waitForFunction(
+					(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
+					ACTIVE_SESSION_MODEL_PICKER_NAME,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				// Dismiss the (possibly empty) dropdown so the next attempt re-opens a
+				// freshly-populated one.
+				try {
+					await page.keyboard.press('Escape');
+				} catch { /* dropdown already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out selecting model "${modelName}" in the active session model picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
 	/**

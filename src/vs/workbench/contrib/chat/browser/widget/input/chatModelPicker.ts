@@ -235,10 +235,10 @@ function createModelItem(
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	openerService?: IOpenerService,
 	vendorLabel?: string,
+	isUBB?: boolean,
 	ariaDescription?: string,
 	pinAction?: IAction,
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
-	isUBB?: boolean,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
 		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)

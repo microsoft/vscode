@@ -408,8 +408,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				...buildConfigurationSchema(endpoint),
 			};
 
-			this._logService.warn(`[config-diag] model=${endpoint.model} family=${endpoint.family} isAuto=${endpoint instanceof AutoChatEndpoint} effort=${JSON.stringify((endpoint as { supportsReasoningEffort?: unknown }).supportsReasoningEffort)} maxPrompt=${endpoint.modelMaxPromptTokens} ctxMax=${endpoint.tokenPricing?.default?.contextMax} longCtx=${!!endpoint.tokenPricing?.longContext} schema=${JSON.stringify((model as { configurationSchema?: unknown }).configurationSchema)}`);
-
 			models.push(model);
 		}
 

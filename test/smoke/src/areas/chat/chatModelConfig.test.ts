@@ -47,9 +47,11 @@ const MODEL_ID = 'mock-config-model';
  *  - context size      → `body.context_management[0].compact_threshold`
  *
  * The mock model's prompt window is 200000 tokens with a default tier of
- * 128000. The compaction threshold is `floor(window * 0.9)`, where selecting
- * the 128K tier clamps the window to 128000 (→ 115200) and selecting the full
- * 200K tier leaves it at 200000 (→ 180000).
+ * 128000. The compaction threshold is `floor(maxPromptTokens * 0.9)`. The
+ * default tier resolves to a 128000 prompt window (→ 115200). Selecting the
+ * full 200000 tier reserves the output tokens
+ * (`floor(min(32000, 200000 * 0.15)) = 30000`), clamping the prompt window to
+ * `200000 - 30000 = 170000` (rendered "170K" → 153000).
  */
 interface ConfigCase {
 	readonly name: string;
@@ -65,7 +67,7 @@ interface ConfigCase {
 
 const CONFIG_CASES: readonly ConfigCase[] = [
 	{ name: 'Low effort, default context', effortLabel: 'Low', expectedEffort: 'low', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Low 128K', scenarioId: 'smoke-model-config-low-128', reply: 'MOCKED_MODEL_CONFIG_LOW_128' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '200K', expectedCompactThreshold: 180_000, expectedConfigLabel: 'High 200K', scenarioId: 'smoke-model-config-high-200', reply: 'MOCKED_MODEL_CONFIG_HIGH_200' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '170K', expectedCompactThreshold: 153_000, expectedConfigLabel: 'High 170K', scenarioId: 'smoke-model-config-high-170', reply: 'MOCKED_MODEL_CONFIG_HIGH_170' },
 	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '128K', expectedCompactThreshold: 115_200, expectedConfigLabel: 'Medium 128K', scenarioId: 'smoke-model-config-medium-128', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_128' },
 ];
 
