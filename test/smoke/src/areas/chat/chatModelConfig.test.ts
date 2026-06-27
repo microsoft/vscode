@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -159,16 +159,15 @@ export function setup(logger: Logger) {
 				extraEnv: {
 					...(opts.extraEnv ?? {}),
 					...copilotEnv,
-					// Keep the built-in copilot-chat extension enabled on the fresh
-					// per-run profile. Without this, BuiltinChatExtensionEnablementMigration
-					// disables it (since chat setup is never "completed" in automation),
-					// so no model provider registers and the panel falls into the
-					// failing chat-setup install path. Listing the chat extension here
-					// only skips that disable-migration (mirrors what the perf:chat
-					// harness does by pre-seeding the storage DB).
-					VSCODE_SKIP_BUILTIN_EXTENSIONS: 'GitHub.copilot-chat',
 				},
 			};
+		}, app => {
+			// Seed the migration storage key so the from-source built-in
+			// copilot-chat stays enabled on the fresh per-run profile. Without
+			// this, BuiltinChatExtensionEnablementMigration disables it (chat
+			// setup is never "completed" in automation) and the first send fails
+			// through chat-setup's install path before the warm-up retry recovers.
+			preseedChatExtensionEnablement(app.userDataPath);
 		});
 
 		before(async function () {
