@@ -149,7 +149,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -158,7 +158,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({
-				kind: 'action', session,
+				kind: 'action', resource: URI.parse(buildDefaultChatUri(session.toString())),
 				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
@@ -301,7 +301,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 
 			svc.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -328,7 +328,7 @@ suite('AgentService (node dispatcher)', () => {
 			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
 
 			svc.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -352,7 +352,7 @@ suite('AgentService (node dispatcher)', () => {
 			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
 
 			svc.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -382,7 +382,7 @@ suite('AgentService (node dispatcher)', () => {
 			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
 
 			svc.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -409,13 +409,13 @@ suite('AgentService (node dispatcher)', () => {
 			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
 
 			svc.dispatchAction(
-				sourceSession.toString(),
+				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
-				sourceSession.toString(),
+				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
 				'test-client', 2,
 			);
@@ -486,7 +486,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
 			svc.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
@@ -882,7 +882,7 @@ suite('AgentService (node dispatcher)', () => {
 			// materialization completes), the session must stay visible so
 			// renderer-side caches don't evict the in-flight session.
 			service.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
@@ -898,7 +898,7 @@ suite('AgentService (node dispatcher)', () => {
 			// listSessions refresh in this window would evict the just-finished
 			// session, reintroducing #321269's sibling eviction bug).
 			service.dispatchAction(
-				session.toString(),
+				buildDefaultChatUri(session.toString()),
 				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 				'test-client', 2,
 			);
@@ -2588,7 +2588,7 @@ suite('AgentService (node dispatcher)', () => {
 			// when the refcount reaches zero, otherwise we'd drop live state
 			// mid-response.
 			service.dispatchAction(
-				sessionResource.toString(),
+				buildDefaultChatUri(sessionResource.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
@@ -2896,12 +2896,12 @@ suite('AgentService (node dispatcher)', () => {
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
-					sessionResource.toString(),
+					buildDefaultChatUri(sessionResource.toString()),
 					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
-					sessionResource.toString(),
+					buildDefaultChatUri(sessionResource.toString()),
 					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 					'client-1', 2,
 				);

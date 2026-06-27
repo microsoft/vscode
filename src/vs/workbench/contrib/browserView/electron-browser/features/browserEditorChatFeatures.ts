@@ -36,7 +36,6 @@ import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrows
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
-import product from '../../../../../platform/product/common/product.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
@@ -764,7 +763,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
 		},
 		'workbench.browser.experimentalUserTools.enabled': {
 			type: 'boolean',

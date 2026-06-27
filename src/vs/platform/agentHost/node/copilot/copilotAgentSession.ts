@@ -37,7 +37,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
@@ -305,6 +305,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
  */
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
+	readonly chatChannelUri: URI;
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
@@ -426,6 +427,7 @@ class CopilotTurn {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
+	private readonly _chatChannelUri: URI;
 
 	/** Working directory this session operates in, if any. */
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
@@ -583,6 +585,7 @@ export class CopilotAgentSession extends Disposable {
 		super();
 		this.sessionId = options.rawSessionId;
 		this.sessionUri = options.sessionUri;
+		this._chatChannelUri = options.chatChannelUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
@@ -651,10 +654,11 @@ export class CopilotAgentSession extends Disposable {
 	// ---- AgentSignal helpers ------------------------------------------------
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
+	/** todo@connor4312: AHP is missing a chat activity update action which is needed to drop `SessionAction` here */
 	private _emitAction(action: SessionAction | ChatAction, parentToolCallId?: string): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session: this.sessionUri,
+			resource: isChatAction(action) ? this._chatChannelUri : this.sessionUri,
 			action,
 			parentToolCallId,
 		});
@@ -719,7 +723,7 @@ export class CopilotAgentSession extends Disposable {
 		for (const id of ids) {
 			this._onDidSessionProgress.fire({
 				kind: 'steering_consumed',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				id,
 			});
 		}
@@ -944,14 +948,13 @@ export class CopilotAgentSession extends Disposable {
 		if (!host) {
 			return [];
 		}
-		const sessionUri = this.sessionUri.toString();
 		return host.definitions.map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
 				try {
-					const text = host.executeTool(sessionUri, def.name, args);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
 					return { textResultForLlm: text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -1743,7 +1746,7 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = this._activeToolCalls.get(toolCallId)?.parentToolCallId;
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				state: {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId,
@@ -1986,9 +1989,10 @@ export class CopilotAgentSession extends Disposable {
 				? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
+		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
-			session: this.sessionUri,
+			chat: this._chatChannelUri,
 			state: {
 				status: ToolCallStatus.PendingConfirmation,
 				toolCallId: request.toolCallId,
@@ -2004,7 +2008,7 @@ export class CopilotAgentSession extends Disposable {
 			// Mirrors the workbench's sandbox-aware analyzer, which forces
 			// `isAutoApproveAllowed: false` whenever `requiresUnsandboxConfirmation`
 			// is set.
-			parentToolCallId: this._activeToolCalls.get(request.toolCallId)?.parentToolCallId,
+			parentToolCallId,
 		});
 
 		return deferred.p;
@@ -2774,7 +2778,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				toolCallId: e.data.toolCallId,
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
@@ -3127,7 +3131,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session: this.sessionUri,
+			resource: this._chatChannelUri,
 			action: {
 				type: ActionType.ChatInputRequested,
 				request: inputRequest,
@@ -3290,7 +3294,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_completed',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				toolCallId: e.data.toolCallId,
 			});
 		}));
@@ -3302,7 +3306,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_completed',
-				session: this.sessionUri,
+				chat: this._chatChannelUri,
 				toolCallId: e.data.toolCallId,
 			});
 		}));
