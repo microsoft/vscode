@@ -604,6 +604,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
@@ -614,7 +615,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
 		markFeedbackSubmitted: () => { },
-		submitFeedback: async () => { },
+		submitFeedback: async () => false,
 		addFeedbackAndSubmit: async () => { },
 		setFeedbackResolved: async () => { },
 	});

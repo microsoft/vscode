@@ -119,3 +119,7 @@
 	padding-right: var(--vscode-spacing-size60);
 	padding-bottom: var(--vscode-spacing-size60);
 }
+
+.monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
+	margin-top: var(--vscode-spacing-size20);
+}

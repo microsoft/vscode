@@ -40,7 +40,8 @@ export async function generateCustomizationDebugReport(
 	agentPluginService: IAgentPluginService,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
-	const filter = workspaceService.getStorageSourceFilter(promptType);
+	const activeDescriptor = harnessService.getActiveDescriptor();
+	const filter = activeDescriptor.getStorageSourceFilter(promptType);
 	const lines: string[] = [];
 
 	lines.push(`== Customization Debug: ${section} (${promptType}) ==`);
@@ -48,8 +49,6 @@ export async function generateCustomizationDebugReport(
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
-
-	const activeDescriptor = harnessService.getActiveDescriptor();
 
 	// Active harness descriptor
 	if (activeDescriptor) {
@@ -60,19 +59,8 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  hasItemProvider: ${!!activeDescriptor.itemProvider}`);
 		lines.push(`  hasDisableProvider: ${!!activeDescriptor.syncProvider}`);
 		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
-		lines.push(`  workspaceSubpaths: ${activeDescriptor.workspaceSubpaths ? `[${activeDescriptor.workspaceSubpaths.join(', ')}]` : '(none)'}`);
 		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
 		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
-		lines.push(`  instructionFileFilter: ${activeDescriptor.instructionFileFilter ? `[${activeDescriptor.instructionFileFilter.join(', ')}]` : '(none)'}`);
-	}
-	lines.push('');
-	if (filter.includedUserFileRoots) {
-		lines.push(`Filter includedUserFileRoots:`);
-		for (const r of filter.includedUserFileRoots) {
-			lines.push(`  ${r.fsPath}`);
-		}
-	} else {
-		lines.push(`Filter includedUserFileRoots: (all)`);
 	}
 	lines.push('');
 

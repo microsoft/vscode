@@ -20,7 +20,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, SessionSummaryMeta } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -460,13 +460,6 @@ export interface IAgentSessionMetadata {
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
-	readonly model?: ModelSelection;
-	/**
-	 * Selected custom agent for this session. Absent (`undefined`) means no
-	 * custom agent is selected — the session uses the provider's default
-	 * behavior.
-	 */
-	readonly agent?: AgentSelection;
 	readonly workingDirectory?: URI;
 	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
@@ -488,19 +481,13 @@ export interface IAgentSessionMetadata {
 	 */
 	readonly changesets?: readonly Changeset[];
 	/**
-	 * Side-channel metadata for the session summary, propagated
-	 * to clients via per-session state subscriptions.
-	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
-	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
-	 * `readSessionGitHubState`) for well-known slots.
-	 */
-	readonly _summaryMeta?: SessionSummaryMeta;
-	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
-	 * to clients via per-session state subscriptions.
-	 * Producers SHOULD use namespaced keys; consumers MUST ignore unknown
-	 * keys. Use the typed accessors in `sessionState.ts` (e.g.
-	 * `readSessionGitState`) for well-known slots.
+	 * to clients via per-session state subscriptions and the root-channel
+	 * session summary (the host treats the session-state and session-summary
+	 * `_meta` as the same bag). Producers SHOULD use namespaced keys; consumers
+	 * MUST ignore unknown keys. Use the typed accessors in `sessionState.ts`
+	 * (e.g. `readSessionGitState`, `readSessionGitHubState`) for well-known
+	 * slots.
 	 */
 	readonly _meta?: SessionMeta;
 }
@@ -769,6 +756,12 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/**
+	 * Host-only flag (not part of the dispatched action): the model requested
+	 * this shell command run OUTSIDE the sandbox (and the host opted in via
+	 * `sandbox.allowBypass`).
+	 */
+	readonly requestSandboxBypass?: boolean;
 	/**
 	 * If set, the tool call belongs to the subagent rooted at this
 	 * parent tool call. Used by the host to route the resulting

@@ -71,9 +71,9 @@ export class SessionInputBannerWidget extends Disposable {
 			const button = this._register(new Button(actions, {
 				...defaultButtonStyles,
 				...(action.primary && banner.accent ? {
-					// Match the orange accent (border + icon) of the CI banner.
 					buttonBackground: asCssVariable(chartsOrange),
 					buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+					buttonBorder: asCssVariable(chartsOrange),
 				} : {}),
 				...(action.primary ? {} : {
 					buttonBackground: undefined,
