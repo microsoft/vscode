@@ -3918,7 +3918,7 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const session = URI.parse('claude:/sess-1');
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(session, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(session, undefined, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 
@@ -4146,7 +4146,7 @@ suite('ClaudeAgent', () => {
 		// No session is registered for `root`; the walk should reach root and
 		// then silently no-op (entry not found). Just assert no throw.
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(depth2, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(depth2, undefined, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 

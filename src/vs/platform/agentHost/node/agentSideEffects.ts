@@ -158,14 +158,12 @@ export class AgentSideEffects extends Disposable {
 				const action = envelope.action;
 				// Chat-action envelopes are emitted on the chat channel URI;
 				// agents are keyed by session URI, so resolve back to the
-				// owning session before notifying the agent.
-				const sessionChannel = isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
+				// owning session before notifying the agent. Pass the chat URI
+				// alongside so agents that track peer chats can route correctly.
+				const isChat = isAhpChatChannel(envelope.channel);
+				const sessionChannel = isChat ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
 				const agent = this._options.getAgent(sessionChannel);
-				// Default-chat completions must route by session URI: agents
-				// key by session id, but the chat URI's path is a base64 blob.
-				// Peer (non-default) chats resolve via their own chat URI.
-				const completionChannel = isDefaultChatUri(envelope.channel) ? sessionChannel : envelope.channel;
-				agent?.onClientToolCallComplete(URI.parse(completionChannel), action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), isChat ? URI.parse(envelope.channel) : undefined, action.toolCallId, action.result);
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -930,9 +928,9 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.ChatToolCallComplete: {
 				const agent = this._options.getAgent(sessionChannel);
-				// Default chats route by session URI; peer chats by chat URI.
-				const completionChannel = isDefaultChatUri(channel) ? sessionChannel : channel;
-				agent?.onClientToolCallComplete(URI.parse(completionChannel), action.toolCallId, action.result);
+				// Pass the resolved session URI plus the chat URI it arrived on;
+				// the agent routes default vs peer chats internally.
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), chatChannel ? URI.parse(chatChannel) : undefined, action.toolCallId, action.result);
 				break;
 			}
 		}
