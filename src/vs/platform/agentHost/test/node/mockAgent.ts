@@ -772,21 +772,19 @@ export class ScriptedMockAgent implements IAgent {
 
 	private didCompleteToolCalls = new Set<string>();
 
-	onClientToolCallComplete(session: URI, chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
 		// The mock's event model is chat-channel oriented (sendMessage fires
 		// every turn signal on the chat URI). Emit the completion on the chat
 		// channel the tool was started on so the parked turn callback — which
-		// captured that same chat URI — resolves on the right channel. Falls
-		// back to the session URI when no chat is provided.
-		const channel = chat ?? session;
-		const key = `${channel.toString()}:${toolCallId}`;
+		// captured that same chat URI — resolves on the right channel.
+		const key = `${chat.toString()}:${toolCallId}`;
 		if (this.didCompleteToolCalls.has(key)) {
 			return;
 		}
 		this.didCompleteToolCalls.add(key);
 		// Fire tool_complete action signal and resolve any pending callback.
-		const { sessionStr, turnId } = this._ctx(channel);
-		this._onDidSessionProgress.fire(_toolComplete(channel, sessionStr, turnId, toolCallId, result));
+		const { sessionStr, turnId } = this._ctx(chat);
+		this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, turnId, toolCallId, result));
 		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {
 			this._pendingPermissions.delete(toolCallId);
