@@ -183,6 +183,8 @@ export function buildHostLocalEventsPath(
 		return result.resource.fsPath;
 	}
 	// A remote agent-host URI wraps the host-local file URI; its `path` is the
-	// real path on the remote host where the agent (and the skill) execute.
-	return fromAgentHostUri(result.resource).path;
+	// real path on the remote host where the agent (and the skill) execute. Strip
+	// the leading slash from a Windows drive-letter path (`/c:/…` → `c:/…`) so the
+	// injected path is usable by host-side tooling; POSIX paths are left as-is.
+	return fromAgentHostUri(result.resource).path.replace(/^\/([a-zA-Z]:)/, '$1');
 }

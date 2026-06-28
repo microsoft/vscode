@@ -360,20 +360,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	/**
-	 * For a `/troubleshoot` request, append the resolved host-local
-	 * `events.jsonl` path(s) so the troubleshoot skill can read the relevant
-	 * session log(s) directly instead of discovering them heuristically.
-	 *
-	 * When the request carries `#session` reference attachments, those
-	 * referenced sessions are the target(s) (multiple are comma-joined, like the
-	 * extension's `#session` flow); otherwise the current session is used. Any
-	 * session-reference attachments are stripped before the request is forwarded
-	 * to the provider, since they are not real context for the model.
-	 *
-	 * Reuses the same resolution as the chat debug panel and the "Open Copilot
-	 * CLI State File" command. Returns `options` unchanged when there is nothing
-	 * to do, so the skill's own discovery remains the fallback (notably for the
-	 * main active-session input, which does not funnel through this service).
+	 * For a `/troubleshoot` request, strip any `#session` marker attachments and
+	 * append a `Session log:` line with the resolved host-local `events.jsonl`
+	 * path(s) — the referenced sessions if present, otherwise the current one.
+	 * Returns `options` unchanged when there is nothing to do.
 	 */
 	private _augmentOptionsForTroubleshoot(session: ISession, options: ISendRequestOptions): ISendRequestOptions {
 		// Separate any `#session` reference attachments from the real context.

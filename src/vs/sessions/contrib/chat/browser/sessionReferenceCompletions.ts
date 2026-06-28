@@ -118,19 +118,10 @@ export class SessionReferenceCompletionHandler extends Disposable {
 	private _collectSessionItems(range: { insert: Range; replace: Range }): CompletionItem[] {
 		const activeResource = this.sessionsService.activeSession.get()?.resource;
 		const activeResourceStr = activeResource?.toString();
-		console.warn('[sessionReferenceCompletions] Active Session Resource:', activeResource?.toString(), 'Scheme:', activeResource?.scheme);
 
 		// Only Copilot CLI sessions have a readable event log; include active,
 		// past, and archived. Resolve the id once, then newest first.
-		const rawSessions = this.sessionsManagementService.getSessions();
-		console.warn('[sessionReferenceCompletions] All available sessions:', rawSessions.map(s => ({
-			title: s.title.get(),
-			resource: s.resource.toString(),
-			scheme: s.resource.scheme,
-			rawId: getCopilotCliSessionRawId(s.resource)
-		})));
-
-		const sessions = rawSessions
+		const sessions = this.sessionsManagementService.getSessions()
 			.map(session => ({ session, rawId: getCopilotCliSessionRawId(session.resource) }))
 			.filter((entry): entry is { session: ISession; rawId: string } => entry.rawId !== undefined)
 			.filter(entry => {
@@ -155,10 +146,10 @@ export class SessionReferenceCompletionHandler extends Disposable {
 			const referenceText = `${VARIABLE_LEADER}${SESSION_TOKEN}:${referenceTitle}`;
 			const entry = createSessionReferenceVariableEntry(rawId, referenceTitle, session.resource);
 			return {
-				label: { label: title, description },
+				label: { label: referenceTitle, description },
 				// Include the leading `#` so the typed `#session` word matches
 				// (Monaco filters against the word including the trigger char).
-				filterText: `${VARIABLE_LEADER}${SESSION_TOKEN} ${title}`,
+				filterText: `${VARIABLE_LEADER}${SESSION_TOKEN} ${referenceTitle}`,
 				// Insert the inline reference, replacing the typed `#session…` token.
 				insertText: `${referenceText} `,
 				range,
