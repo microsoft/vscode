@@ -36,7 +36,8 @@ The session header's **Changes** button opens the multi-file diff editor in the 
 
 #### D8 — Opening the Changes editor shows the side pane
 When a Changes editor is opened for an existing session, the side pane opens to the **Changes** view —
-the **first** time (no remembered choice yet) and again after the whole side pane was closed (D9). If
+the **first** time (no remembered choice yet) and again after the whole side pane was closed (D9),
+including after a reload (the pane is restored closed, but opening Changes re-reveals it). If
 you explicitly closed just the side pane (while keeping the editor open), it stays closed on later
 opens (and across reloads). An already-open side pane is left on whatever view you chose. Skipped while
 the editor is maximized (D5) or multiple sessions are visible, where the side pane is managed by other
@@ -45,8 +46,10 @@ rules.
 #### D9 — Closing the whole side pane is not an aux-bar choice
 The "side pane" is the editor area together with the auxiliary bar. Closing it (e.g. from the side
 panel toggle) hides both at once. For an **existing (created)** session that is **not** remembered as a
-choice to hide the side pane, so reopening the Changes editor shows it again (D8). Only hiding the
-auxiliary bar on its own, while the editor stays open, is remembered as an explicit "closed" choice.
+choice to hide the side pane, so reopening the Changes editor shows it again (D8) — even across a reload,
+where the pane is restored closed but is marked as collapsed (not explicitly hidden) so opening Changes
+re-reveals it. Only hiding the auxiliary bar on its own, while the editor stays open, is remembered as an
+explicit "closed" choice.
 
 #### D9b — Closing the whole side pane on a new session is remembered
 For a **new (uncreated)** session, closing (or opening) the whole side pane **is** recorded as the
@@ -146,17 +149,26 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   the editor part without firing an active-editor change. The reveal is skipped while `_togglingSidePane`
   is set so re-opening the side pane via the toggle restores exactly `_lastVisibleSidePaneParts` instead.
   It recognizes a Changes editor via `ISessionChangesService.getSessionResource` (the multi-diff source
-  URI's session), and opens `CHANGES_VIEW_ID` when that session is the active titled session and neither
-  maximize (D5) nor multi-session mode is active, unless the session's `_viewStateBySession` entry
-  explicitly has `auxiliaryBarVisible: false`, or the aux bar is already visible. The reveal flows through
-  the [D2] listener, which records `{ auxiliaryBarVisible: true }`.
+  URI's session), and opens `CHANGES_VIEW_ID` when that session is the active titled session, the editor
+  part is **visible** (a Changes editor restored on reload becomes active while the editor part is still
+  hidden — that must not auto-reveal the side pane), and neither maximize (D5) nor multi-session mode is
+  active, unless the session's `_viewStateBySession` entry records an **explicit** aux-bar hide
+  (`auxiliaryBarVisible: false` *without* `auxiliaryBarHiddenByCollapse`), or the aux bar is already
+  visible. A hide that came from collapsing the whole side pane (D9) sets `auxiliaryBarHiddenByCollapse:
+  true`, so opening a Changes editor re-reveals the aux bar even across a reload (the pane is still
+  restored closed). The reveal flows through the [D2] listener, which records `{ auxiliaryBarVisible: true }`.
 - **Side-pane close [D9]** — the side-pane toggle lives on the controller (`toggleSidePane`). Its UI
   entry point (the `Toggle Side Panel` action: menu item, keybinding, command-palette entry, toggled
   icon) is registered by the base controller in its constructor and calls `toggleSidePane` directly.
   The toggle hides/shows the editor area and auxiliary bar together (remembering which parts to restore
-  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set. The [D2] listener skips capture
-  while that flag is set, so closing or opening the whole side pane is never recorded as a per-session
-  (created) aux-bar choice.
+  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set, and sets `_sidePaneToggledClosed`
+  while the pane is collapsed. The [D2] listener skips capture while `_togglingSidePane` is set, so
+  closing or opening the whole side pane is never recorded as a per-session (created) aux-bar choice.
+  However, the **save-time** capture (`_captureViewState`, used on switch-away and shutdown) records the
+  aux bar as hidden *and* sets `auxiliaryBarHiddenByCollapse: true` while `_sidePaneToggledClosed` holds,
+  so a reload restores the side pane closed yet opening Changes (D8) still re-reveals it. The flag is
+  cleared when the pane is re-opened, on a session switch, and when the [D2] listener records a genuine
+  aux-bar change.
 - **New-session side-pane close [D9b]** — the base `toggleSidePane` calls the `_onSidePaneToggled` hook
   at the end (still inside the `_togglingSidePane` window). The desktop controller overrides it: when
   the active session is **uncreated** (and not multi-session / not maximized), it records the resulting

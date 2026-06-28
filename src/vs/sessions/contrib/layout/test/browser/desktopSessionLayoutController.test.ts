@@ -791,6 +791,67 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
+	function reloadWithSidePaneToggledClosed(): void {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
+		const session = makeSession(URI.parse('session:1'));
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session, undefined);
+
+		// Open the Changes editor so the editor + aux bar are both visible and the
+		// session's aux-bar visible choice is captured.
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+		assert.deepStrictEqual(controller.getViewState(session.resource)?.auxiliaryBarVisible, true);
+
+		// User closes the whole side pane (editor + aux bar) via the toggle, then reloads.
+		controller.toggleSidePane();
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
+		assert.ok(stored, 'state should be persisted');
+
+		store.clear();
+		createController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!), revealAuxiliaryBarOnOpen: true });
+		const reloadedSession = makeSession(URI.parse('session:1'));
+
+		// Reload restores the side pane closed (both parts hidden).
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.activeSessionObs.set(reloadedSession, undefined);
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(reloadedSession.resource);
+	}
+
+	test('[D9] does not auto-reveal the side pane when the Changes editor is restored on reload', () => {
+		reloadWithSidePaneToggledClosed();
+
+		// The working set restore can make the Changes editor active again while
+		// the editor part is still hidden — this must NOT auto-reveal the side pane.
+		harness.openedViews = [];
+		harness.onDidActiveEditorChange.fire();
+
+		assert.ok(
+			!harness.openedViews.includes(CHANGES_VIEW_ID),
+			'restoring the Changes editor on reload must not auto-reveal the side pane'
+		);
+	});
+
+	test('[D9] reveals the Changes view when opening Changes after reloading a session whose side pane was toggled closed', () => {
+		reloadWithSidePaneToggledClosed();
+
+		// Clicking Open Changes opens the Changes editor (revealing the editor
+		// part); the aux bar must be revealed too because the whole-pane collapse
+		// was not an explicit aux-bar-hidden choice.
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+
+		assert.ok(
+			harness.openedViews.includes(CHANGES_VIEW_ID),
+			'opening Changes after reload should reveal the Changes view'
+		);
+	});
+
 	// --- [D7] Responsive sessions sidebar ---
 
 	function setPartVisible(part: Parts, visible: boolean): void {
