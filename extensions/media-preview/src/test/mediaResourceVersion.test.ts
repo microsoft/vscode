@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getMediaResourceVersion, getMediaResourceVersionFromStat } from '../mediaResourceVersion';
+import { getMediaResourceFallbackVersion, getMediaResourceVersion, getMediaResourceVersionFromStat } from '../mediaResourceVersion';
 
 suite('mediaResourceVersion', () => {
 	test('uses a stable version while the resource stat is unchanged', () => {
@@ -27,6 +27,15 @@ suite('mediaResourceVersion', () => {
 	test('uses the provided fallback version when the resource stat is unavailable', () => {
 		assert.strictEqual(getMediaResourceVersion(undefined, 'fallback-1'), 'fallback-1');
 		assert.strictEqual(getMediaResourceVersion(undefined, 'fallback-2'), 'fallback-2');
+	});
+
+	test('creates a stable URL-safe fallback version from the resource identity', () => {
+		const resource = 'file:///folder/image name.png?query=value#fragment';
+		const fallbackVersion = getMediaResourceFallbackVersion(resource);
+
+		assert.strictEqual(fallbackVersion, getMediaResourceFallbackVersion(resource));
+		assert.notStrictEqual(fallbackVersion, getMediaResourceFallbackVersion('file:///folder/other image.png'));
+		assert.match(fallbackVersion, /^resource-[a-z0-9]+$/);
 	});
 
 	test('resolves the version from a resource stat provider', async () => {

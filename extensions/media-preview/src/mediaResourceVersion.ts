@@ -15,6 +15,15 @@ export function getMediaResourceVersion(stat: MediaResourceStat | undefined, fal
 	return `${stat.mtime}-${stat.size}`;
 }
 
+export function getMediaResourceFallbackVersion(resourceIdentity: string): string {
+	let hash = 0;
+	for (let i = 0; i < resourceIdentity.length; i++) {
+		hash = Math.imul(31, hash) + resourceIdentity.charCodeAt(i);
+		hash >>>= 0;
+	}
+	return `resource-${hash.toString(36)}`;
+}
+
 export async function getMediaResourceVersionFromStat(
 	readStat: () => PromiseLike<MediaResourceStat>,
 	getFallbackVersion: () => string,
