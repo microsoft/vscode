@@ -34,8 +34,12 @@ export class SimpleBrowserManager {
 	public restore(panel: vscode.WebviewPanel, state: any): void {
 		const url = state?.url ?? '';
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
+		if (this._activeView) {
+			view.dispose();
+			return;
+		}
 		this.registerWebviewListeners(view);
-		this._activeView ??= view;
+		this._activeView = view;
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {
