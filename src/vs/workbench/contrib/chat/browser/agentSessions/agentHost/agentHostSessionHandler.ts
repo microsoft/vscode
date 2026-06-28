@@ -3535,7 +3535,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
 		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
 		const lookupModel = (rawModelId: string | undefined): { model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
-			const normalizedRaw = rawModelId?.replace(/-(\d)/g, '.$1');
+			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
 			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) { continue; }
