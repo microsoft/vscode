@@ -8,11 +8,24 @@ export interface MediaResourceStat {
 	readonly size: number;
 }
 
-let fallbackVersion = 0;
-
-export function getMediaResourceVersion(stat: MediaResourceStat | undefined): string {
+export function getMediaResourceVersion(stat: MediaResourceStat | undefined, fallbackVersion: string): string {
 	if (!stat) {
-		return `fallback-${fallbackVersion++}`;
+		return fallbackVersion;
 	}
 	return `${stat.mtime}-${stat.size}`;
+}
+
+export async function getMediaResourceVersionFromStat(
+	readStat: () => PromiseLike<MediaResourceStat>,
+	getFallbackVersion: () => string,
+	isExpectedStatError: (error: unknown) => boolean,
+): Promise<string> {
+	try {
+		return getMediaResourceVersion(await readStat(), '');
+	} catch (error) {
+		if (!isExpectedStatError(error)) {
+			throw error;
+		}
+		return getMediaResourceVersion(undefined, getFallbackVersion());
+	}
 }
