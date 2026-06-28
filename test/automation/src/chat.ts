@@ -265,13 +265,11 @@ export class Chat {
 				// Confirm the selection actually committed: the picker name button must
 				// now display the chosen model. (A non-committing click leaves the old
 				// model selected and the picker dismissed, so waiting only for the
-				// popup to close would miss it.)
-				await page.waitForFunction(
-					({ sel, name }: { sel: string; name: string }) =>
-						Array.from(document.querySelectorAll(sel)).some(n => (n.textContent ?? '').includes(name)),
-					{ sel: CHAT_MODEL_PICKER_NAME, name: modelName },
-					{ timeout: 10_000 },
-				);
+				// popup to close would miss it.) Scope to `:visible` so a hidden overflow
+				// duplicate of the name button can't produce a false positive.
+				await page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+					.first()
+					.waitFor({ state: 'visible', timeout: 10_000 });
 				return;
 			} catch (error) {
 				lastError = error;

@@ -574,13 +574,11 @@ export class AgentsWindow {
 				// must now display the chosen model. A non-committing click (e.g.
 				// absorbed by the animating pointer-block overlay) silently leaves the
 				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it.
-				await page.waitForFunction(
-					({ sel, name }: { sel: string; name: string }) =>
-						Array.from(document.querySelectorAll(sel)).some(n => (n.textContent ?? '').includes(name)),
-					{ sel: ACTIVE_SESSION_MODEL_PICKER_NAME, name: modelName },
-					{ timeout: 15_000 },
-				);
+				// for the popup to close would miss it. Scope to `:visible` so a hidden
+				// overflow duplicate of the name button can't produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+					.first()
+					.waitFor({ state: 'visible', timeout: 15_000 });
 				return;
 			} catch (error) {
 				lastError = error;
