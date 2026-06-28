@@ -138,8 +138,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		provider: 'copilot',
 		title: 'Session',
 		status: SessionStatus.Idle,
-		createdAt: 1,
-		modifiedAt: 1,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
 		workingDirectory: URI.file('/repo').toString(),
 	});
 	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
@@ -153,7 +153,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
+		}, createAgentService('gh-repo-token'), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};

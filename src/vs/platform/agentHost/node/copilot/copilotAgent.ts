@@ -43,7 +43,7 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -1016,8 +1016,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				modifiedTime: s.modifiedTime.getTime(),
 				project,
 				summary: s.summary,
-				model: metadata.model,
-				agent: metadata.agent,
 				workingDirectory,
 				customizationDirectory: metadata.customizationDirectory,
 			};
@@ -1055,8 +1053,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
-			model: storedMetadata?.model,
-			agent: storedMetadata?.agent,
 			workingDirectory,
 			customizationDirectory: storedMetadata?.customizationDirectory,
 		};
@@ -1444,19 +1440,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk up the subagent chain to reach the root SDK session entry;
-		// _sessions is keyed by root session IDs only.
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// Peer (non-default) chats own their SDK conversation in `_chatSessions`,
+		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
+		if (!isDefaultChatUri(chat)) {
+			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
+			return;
+		}
+		// Default chat (and subagents): walk up the subagent chain to reach the
+		// root SDK session entry, since `_sessions` is keyed by root session ids.
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {
 			target = parsed.parentSession;
 		}
-		// The completion may belong to a peer chat (tracked in `_chatSessions`
-		// keyed by chat URI) rather than the default/parent session.
-		const entry = this._sessions.get(AgentSession.id(target))
-			?? this._chatSessions.get(target.toString());
-		entry?.handleClientToolCallComplete(toolCallId, result);
+		this._sessions.get(AgentSession.id(target))?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
@@ -1468,10 +1466,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`, keyed by the chat URI.
-		if (chat && !isDefaultChatUri(chat)) {
+		if (!isDefaultChatUri(chat)) {
 			const entry = await this._ensureChatSession(session, chat);
 			if (!entry) {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
@@ -2227,11 +2225,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, channelUri?: URI): CopilotAgentSession {
 		const sessionUri = channelUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
+		const chatChannelUri = channelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
 			{
 				sessionUri,
+				chatChannelUri,
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidSessionProgress,
 				sessionLauncher: this._sessionLauncher,
@@ -3579,7 +3579,7 @@ class ActiveClient extends Disposable {
 		// Forward per-session publish events into the agent's progress
 		// stream. This replaces the previous clientId-based routing.
 		this._register(this.pluginController.onDidPublish(action => {
-			onDidSessionProgress.fire({ kind: 'action', session: this._sessionUri, action });
+			onDidSessionProgress.fire({ kind: 'action', resource: this._sessionUri, action });
 		}));
 	}
 

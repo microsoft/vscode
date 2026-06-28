@@ -453,7 +453,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
 			buttonSecondaryHoverBackground: 'var(--vscode-button-secondaryHoverBackground)',
 			buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
-			buttonSecondaryBorder: 'var(--vscode-button-border, var(--vscode-editorWidget-border, var(--vscode-widget-border)))',
+			buttonSecondaryBorder: 'var(--vscode-button-secondaryBorder)',
 		}));
 		removeButton.label = nls.localize('removeFeedbackButton', "Remove");
 		buttonStore.add(removeButton.onDidClick(() => {

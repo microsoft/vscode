@@ -13,7 +13,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -64,14 +64,9 @@ class TestContribution implements IChangesetOperationContribution {
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
-	readonly onDidChangeSessionGitState = Event.None;
-	readonly onDidRunSessionGitStateRefresh = Event.None;
+	readonly onDidRefreshSessionGitState = Event.None;
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
-		return undefined;
-	}
-
-	async refreshSessionGitState2(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
@@ -173,8 +168,8 @@ suite('AgentHostChangesetOperationService', () => {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		};
 		stateManager.createSession(summary);
 		stateManager.registerChangeset(changesetUri);

@@ -11,7 +11,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { IAgentService } from '../../common/agentService.js';
 import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentHostGitStateService, META_GIT_STATE } from '../../node/agentHostGitStateService.js';
+import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
+import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -43,7 +44,7 @@ suite('AgentHostGitStateService', () => {
 		};
 
 		// The octokit and agent services are only used by the GitHub
-		// pull-request flow, which `refreshSessionGitState2` does not touch.
+		// pull-request flow, which `refreshSessionGitState` does not touch.
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
@@ -53,17 +54,14 @@ suite('AgentHostGitStateService', () => {
 			sessionDataService,
 		));
 
-		const changeEvents: string[] = [];
 		const runEvents: string[] = [];
-		disposables.add(service.onDidChangeSessionGitState(key => changeEvents.push(key)));
-		disposables.add(service.onDidRunSessionGitStateRefresh(key => runEvents.push(key)));
+		disposables.add(service.onDidRefreshSessionGitState(key => runEvents.push(key)));
 
 		return {
 			stateManager,
 			db,
 			service,
 			gitCalls,
-			changeEvents,
 			runEvents,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
@@ -76,8 +74,8 @@ suite('AgentHostGitStateService', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: 0,
-			modifiedAt: 0,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
 			workingDirectory: options?.workingDirectory,
 		};
 		// `restoreSession` materializes the session in `ready` lifecycle so the
@@ -92,15 +90,13 @@ suite('AgentHostGitStateService', () => {
 		const h = createHarness();
 		seedSession(h.stateManager);
 
-		await h.service.refreshSessionGitState2(SESSION, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
 
 		assert.deepStrictEqual({
 			gitCalls: h.gitCalls,
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents
 		}, {
 			gitCalls: [],
-			changeEvents: [],
 			runEvents: []
 		});
 	});
@@ -111,7 +107,7 @@ suite('AgentHostGitStateService', () => {
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 			h.setGitResult({ branchName: 'feature' });
 
-			await h.service.refreshSessionGitState2(SESSION, undefined);
+			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual(h.gitCalls, [WORKING_DIRECTORY]);
 		});
@@ -123,45 +119,39 @@ suite('AgentHostGitStateService', () => {
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 			h.setGitResult({ branchName: 'feature' });
 
-			await h.service.refreshSessionGitState2(SESSION, URI.parse('file:///explicit'));
+			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
 
 			assert.deepStrictEqual(h.gitCalls, ['file:///explicit']);
 		});
 	});
 
-	test('unchanged git state only fires the run-refresh event', async () => {
-		const gitState: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
-		h.setGitResult(gitState);
+	test('unchanged git state still fires the run-refresh event', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
+			const h = createHarness();
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
+			h.setGitResult(gitState);
 
-		await h.service.refreshSessionGitState2(SESSION, undefined);
+			await h.service.refreshSessionGitState(SESSION, undefined);
 
-		assert.deepStrictEqual({
-			changeEvents: h.changeEvents,
-			runEvents: h.runEvents
-		}, {
-			changeEvents: [],
-			runEvents: [SESSION]
+			assert.deepStrictEqual(h.runEvents, [SESSION]);
 		});
 	});
 
-	test('changed git state updates the session meta and fires both events', async () => {
+	test('changed git state updates the session meta and fires the run-refresh event', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
 			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 			const next: ISessionGitState = { branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 2 };
 			h.setGitResult(next);
 
-			await h.service.refreshSessionGitState2(SESSION, undefined);
+			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual({
 				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-				changeEvents: h.changeEvents,
 				runEvents: h.runEvents,
 			}, {
 				gitState: next,
-				changeEvents: [SESSION],
 				runEvents: [SESSION],
 			});
 		});
@@ -174,10 +164,10 @@ suite('AgentHostGitStateService', () => {
 			const next: ISessionGitState = { branchName: 'feature', githubOwner: 'microsoft', githubRepo: 'vscode' };
 			h.setGitResult(next);
 
-			await h.service.refreshSessionGitState2(SESSION, undefined);
+			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual({
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?.summary._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 				persistedGit: await h.db.getMetadata(META_GIT_STATE),
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },
@@ -191,15 +181,13 @@ suite('AgentHostGitStateService', () => {
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 		h.setGitResult(undefined);
 
-		await h.service.refreshSessionGitState2(SESSION, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
 
 		assert.deepStrictEqual({
 			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents,
 		}, {
 			gitState: undefined,
-			changeEvents: [],
 			runEvents: [],
 		});
 	});
@@ -209,13 +197,11 @@ suite('AgentHostGitStateService', () => {
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 		h.setGitError(new Error('git command failed'));
 
-		await h.service.refreshSessionGitState2(SESSION, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
 
 		assert.deepStrictEqual({
-			changeEvents: h.changeEvents,
 			runEvents: h.runEvents
 		}, {
-			changeEvents: [],
 			runEvents: []
 		});
 	});
@@ -230,9 +216,9 @@ suite('AgentHostGitStateService', () => {
 			// runs immediately and the last queued one runs after it settles;
 			// the middle request is dropped.
 			await Promise.all([
-				h.service.refreshSessionGitState2(SESSION, undefined),
-				h.service.refreshSessionGitState2(SESSION, undefined),
-				h.service.refreshSessionGitState2(SESSION, undefined),
+				h.service.refreshSessionGitState(SESSION, undefined),
+				h.service.refreshSessionGitState(SESSION, undefined),
+				h.service.refreshSessionGitState(SESSION, undefined),
 			]);
 
 			assert.strictEqual(h.gitCalls.length, 2);

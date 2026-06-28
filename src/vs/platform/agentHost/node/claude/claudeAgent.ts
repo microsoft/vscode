@@ -1129,7 +1129,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(sessionUri: URI, _chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		// Plan section 3.8. The sequencer scope holds across BOTH materialize
 		// and `session.send` so two concurrent first-message calls on the
 		// same session collapse into one materialize plus two ordered
@@ -1315,10 +1315,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk subagent URIs to the root — nested subagents require iterated
-		// parsing. `_sessions` is keyed by root session ids only. Mirrors
-		// copilotAgent.ts:947.
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {
@@ -1363,7 +1360,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _fireCustomizationUpdated(session: URI, item: ISyncedCustomization): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.SessionCustomizationUpdated,
 				customization: item.customization,

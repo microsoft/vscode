@@ -11,13 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
-import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs } from '../../common/agentHostChangesetService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -56,38 +54,8 @@ class TestGitService implements IAgentHostGitService {
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 }
 
-class TestChangesetService implements IAgentHostChangesetService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly calls: string[] = [];
-	registerStaticChangesets(): void { }
-	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
-	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
-	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
-	isStaticChangesetComputeActive(): boolean { return false; }
-	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
-	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
-	refreshBranchChangeset(): void { }
-	refreshSessionChangeset(): void { }
-	onWorkingDirectoryAvailable(): void { }
-	recomputeSubscribedChangesets(): void { }
-	onSessionDisposed(): void { }
-	async computeUncommittedChangeset(session: string): Promise<string> {
-		this.calls.push(`computeUncommitted:${session}`);
-		return `${session}/changeset/uncommitted`;
-	}
-	async computeTurnChangeset(): Promise<string> { return ''; }
-	async computeCompareTurnsChangeset(): Promise<string> { return ''; }
-	onToolCallEditsApplied(): void { }
-	onTurnComplete(): void { }
-	onSessionTruncated(): void { }
-}
-
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; changesets: TestChangesetService; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; session: URI } {
 	const gitService = new TestGitService();
-	const changesets = new TestChangesetService();
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	if (opts?.registerSession !== false) {
@@ -96,18 +64,17 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
 			workingDirectory: opts?.withWorkingDirectory === false ? undefined : URI.file('/repo').toString(),
 		});
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
-		changesets,
 		gitService,
 		new NullLogService(),
 	);
-	return { handler, gitService, changesets, session };
+	return { handler, gitService, session };
 }
 
 function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['target'] {
@@ -119,8 +86,8 @@ function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['targ
 suite('AgentHostDiscardChangesOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('restores the targeted file and recomputes the uncommitted changeset on success', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables);
+	test('restores the targeted file on success', async () => {
+		const { handler, gitService, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 
 		const result = await handler.invoke({
@@ -131,17 +98,15 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			restoreCalls: gitService.restoreCalls,
-			changesetCalls: changesets.calls,
 			message: result.message,
 		}, {
 			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [target.fsPath], options: undefined }],
-			changesetCalls: [`computeUncommitted:${session.toString()}`],
 			message: { markdown: 'Discarded changes to `file.ts`.' },
 		});
 	});
 
 	test('rejects channels that are not uncommitted-changeset URIs', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables);
+		const { handler, gitService, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 
 		let err: ProtocolError | undefined;
@@ -158,16 +123,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			code: err?.code,
 			restoreCalls: gitService.restoreCalls.length,
-			changesetCalls: changesets.calls.length,
 		}, {
 			code: JsonRpcErrorCodes.InvalidParams,
 			restoreCalls: 0,
-			changesetCalls: 0,
 		});
 	});
 
 	test('throws AHP_SESSION_NOT_FOUND when the session is unknown', async () => {
-		const { handler, gitService, changesets } = setup(disposables, { registerSession: false });
+		const { handler, gitService } = setup(disposables, { registerSession: false });
 		const session = URI.parse('agent:/missing');
 		const target = URI.file('/repo/src/file.ts');
 
@@ -185,16 +148,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			code: err?.code,
 			restoreCalls: gitService.restoreCalls.length,
-			changesetCalls: changesets.calls.length,
 		}, {
 			code: AHP_SESSION_NOT_FOUND,
 			restoreCalls: 0,
-			changesetCalls: 0,
 		});
 	});
 
 	test('rejects invocations without a Resource target', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables);
+		const { handler, gitService, session } = setup(disposables);
 
 		let err: ProtocolError | undefined;
 		try {
@@ -209,16 +170,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			code: err?.code,
 			restoreCalls: gitService.restoreCalls.length,
-			changesetCalls: changesets.calls.length,
 		}, {
 			code: JsonRpcErrorCodes.InvalidParams,
 			restoreCalls: 0,
-			changesetCalls: 0,
 		});
 	});
 
 	test('throws InternalError when the session has no working directory', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables, { withWorkingDirectory: false });
+		const { handler, gitService, session } = setup(disposables, { withWorkingDirectory: false });
 		const target = URI.file('/repo/src/file.ts');
 
 		let err: ProtocolError | undefined;
@@ -235,16 +194,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		assert.deepStrictEqual({
 			code: err?.code,
 			restoreCalls: gitService.restoreCalls.length,
-			changesetCalls: changesets.calls.length,
 		}, {
 			code: JsonRpcErrorCodes.InternalError,
 			restoreCalls: 0,
-			changesetCalls: 0,
 		});
 	});
 
 	test('wraps git restore failures in a ProtocolError without recomputing the changeset', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables);
+		const { handler, gitService, session } = setup(disposables);
 		gitService.restoreError = new Error('git restore failed');
 		const target = URI.file('/repo/src/file.ts');
 
@@ -263,17 +220,15 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 			code: err?.code,
 			messageContainsCause: err?.message.includes('git restore failed'),
 			restoreCalls: gitService.restoreCalls.length,
-			changesetCalls: changesets.calls.length,
 		}, {
 			code: JsonRpcErrorCodes.InternalError,
 			messageContainsCause: true,
 			restoreCalls: 1,
-			changesetCalls: 0,
 		});
 	});
 
 	test('honors cancellation before mutating the repository', async () => {
-		const { handler, gitService, changesets, session } = setup(disposables);
+		const { handler, gitService, session } = setup(disposables);
 		const cts = disposables.add(new CancellationTokenSource());
 		cts.cancel();
 		const target = URI.file('/repo/src/file.ts');
@@ -287,6 +242,6 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 			/cancelled/i,
 		);
 
-		assert.deepStrictEqual({ restoreCalls: gitService.restoreCalls.length, changesetCalls: changesets.calls.length }, { restoreCalls: 0, changesetCalls: 0 });
+		assert.deepStrictEqual({ restoreCalls: gitService.restoreCalls.length }, { restoreCalls: 0 });
 	});
 });
