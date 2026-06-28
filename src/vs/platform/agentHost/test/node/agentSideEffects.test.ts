@@ -1862,6 +1862,47 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- ChatToolCallComplete routing -----------------------------------
+
+	suite('handleAction — chat/toolCallComplete routing', () => {
+
+		test('forwards session + default chat URI for a default-chat completion', () => {
+			// Regression: agents key their sessions by session id, but the
+			// chat URI's path is a base64 blob. The session URI must be passed
+			// so the lookup resolves instead of silently dropping the call.
+			setupSession();
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'tc-default',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: defaultChatUri, toolCallId: 'tc-default' }],
+			);
+		});
+
+		test('forwards owning session + chat URI for an additional-chat completion', () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
+
+			sideEffects.handleAction(peerChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'tc-peer',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-peer' }],
+			);
+		});
+	});
+
 	// ---- Session-level auto-approve (config) ----------------------------
 
 	suite('session config auto-approve', () => {
