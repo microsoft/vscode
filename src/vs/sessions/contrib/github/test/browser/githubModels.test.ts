@@ -502,6 +502,7 @@ suite('GitHubPullRequestCIModel', () => {
 	const store = new DisposableStore();
 	let mockFetcher: MockCIFetcher;
 	let collection: TestCIReferenceCollection;
+	let storageService: TestStorageService;
 	const logService = new NullLogService();
 
 	function acquireModel(owner: string = 'owner', repo: string = 'repo', prNumber: number = 1, headSha: string = 'abc'): GitHubPullRequestCIModel {
@@ -512,7 +513,8 @@ suite('GitHubPullRequestCIModel', () => {
 
 	setup(() => {
 		mockFetcher = new MockCIFetcher();
-		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, store.add(new TestStorageService()));
+		storageService = store.add(new TestStorageService());
+		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService);
 	});
 
 	teardown(() => store.clear());
@@ -538,12 +540,14 @@ suite('GitHubPullRequestCIModel', () => {
 		model.markFixRequested();
 		assert.strictEqual(model.fixRequested.get(), true);
 
-		// Same PR head commit: a freshly created model sees the remembered fix.
-		const sameCommit = acquireModel('owner', 'repo', 1, 'sha-1');
-		assert.strictEqual(sameCommit.fixRequested.get(), true);
+		// A brand-new model instance for the same PR head commit reloads the
+		// remembered fix from storage (construct directly to bypass the
+		// reference collection's instance cache).
+		const reloadedSameCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-1', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
+		assert.strictEqual(reloadedSameCommit.fixRequested.get(), true);
 
-		// New commit on the same PR: the fix should no longer be remembered.
-		const newCommit = acquireModel('owner', 'repo', 1, 'sha-2');
+		// A new commit on the same PR: the fix should no longer be remembered.
+		const newCommit = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'sha-2', mockFetcher as unknown as GitHubPRCIFetcher, logService, storageService));
 		assert.strictEqual(newCommit.fixRequested.get(), false);
 	});
 

@@ -202,8 +202,10 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt);
-		ciModel.markFixRequested();
+		const response = await chatWidget.acceptInput(prompt);
+		if (response) {
+			ciModel.markFixRequested();
+		}
 	}
 }
 
