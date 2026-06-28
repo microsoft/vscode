@@ -18,6 +18,9 @@ import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultSt
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { Menus } from '../menus.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
@@ -60,6 +63,7 @@ export class ChatCompositeBar extends Disposable {
 	private _editingTab: IChatTab | undefined;
 	private _session: IActiveSession | undefined;
 	private readonly _newChatAction: Action;
+	private readonly _actionMenuToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -89,6 +93,7 @@ export class ChatCompositeBar extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -130,6 +135,17 @@ export class ChatCompositeBar extends Disposable {
 		newChatActionBar.push(newChatAction, { icon: true, label: false });
 		newChatActionBar.getContainer().classList.add('chat-composite-bar-new-chat');
 
+		// Chat tab bar action menu (e.g. the Conversations dropdown) right-aligned
+		// at the end of the strip; items are contributed into Menus.SessionChatTabBar.
+		const actionMenuContainer = $('.chat-composite-bar-action-menu');
+		this._tabsRow.appendChild(actionMenuContainer);
+		this._actionMenuToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionMenuContainer, Menus.SessionChatTabBar, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
+		}));
+
 		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
 		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
 			this._tabsScrollbar.setScrollPosition({ scrollLeft: this._tabsContainer.scrollLeft });
@@ -169,6 +185,8 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 		this._session = session;
+
+		this._actionMenuToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
