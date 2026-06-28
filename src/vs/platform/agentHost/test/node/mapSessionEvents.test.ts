@@ -53,6 +53,27 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('fallback task_complete marks the turn complete', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'finish the task' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'All done.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete', arguments: { summary: 'Finished.' } }] } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'All done.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Finished.' },
+			],
+		}]);
+	});
+
 	test('a regular tool still renders as a tool call', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -112,14 +133,91 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('ignores empty assistant messages between model rounds', async () => {
+	test('uses top-level user messages as turn boundaries', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Investigate this issue' } },
-			{ type: 'assistant.message', id: 'tool-round', data: { interactionId: 'interaction-1', content: 'I will investigate.', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Investigate this issue' } },
+			{ type: 'assistant.message', id: 'initial-round', data: { interactionId: 'interaction-1', content: 'I found a likely cause.', toolRequests: [] } },
+			{ type: 'assistant.message', id: 'tool-round', data: { interactionId: 'interaction-2', content: 'I will verify it.', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo investigating' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'investigating\n' } } },
-			{ type: 'assistant.message', id: 'empty-round', data: { interactionId: 'interaction-1', content: '', toolRequests: [], reasoningOpaque: 'opaque-reasoning' } },
-			{ type: 'assistant.message', id: 'final-round', data: { interactionId: 'interaction-1', content: 'Investigation complete.', toolRequests: [] } },
+			{ type: 'assistant.message', id: 'empty-round', data: { interactionId: 'interaction-2', content: '', toolRequests: [], reasoningOpaque: 'opaque-reasoning' } },
+			{ type: 'assistant.message', id: 'final-round', data: { interactionId: 'interaction-2', content: 'Investigation complete.', toolRequests: [] } },
+			{ type: 'user.message', id: 'user-event-2', data: { interactionId: 'interaction-3', content: 'Thanks' } },
+			{ type: 'assistant.message', id: 'acknowledgement', data: { interactionId: 'interaction-3', content: 'You are welcome.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [
+			{
+				id: 'user-event-1',
+				message: 'Investigate this issue',
+				state: TurnState.Complete,
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'I found a likely cause.' },
+					{ kind: ResponsePartKind.Markdown, content: 'I will verify it.' },
+					{ kind: ResponsePartKind.ToolCall },
+					{ kind: ResponsePartKind.Markdown, content: 'Investigation complete.' },
+				],
+			},
+			{
+				id: 'user-event-2',
+				message: 'Thanks',
+				state: TurnState.Complete,
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'You are welcome.' },
+				],
+			},
+		]);
+	});
+
+	test('synthetic user messages do not start a new turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'I will use it.', toolRequests: [] } },
+			{ type: 'user.message', id: 'synthetic-event', data: { interactionId: 'interaction-2', content: 'Injected skill content', source: 'skill' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'The skill is complete.', toolRequests: [] } },
+			{ type: 'user.message', id: 'user-event-2', data: { interactionId: 'interaction-3', content: 'Thanks' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'You are welcome.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			parts: partKinds(turn.responseParts),
+		})), [
+			{
+				id: 'user-event-1',
+				message: 'Use the skill',
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'I will use it.' },
+					{ kind: ResponsePartKind.Markdown, content: 'The skill is complete.' },
+				],
+			},
+			{
+				id: 'user-event-2',
+				message: 'Thanks',
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'You are welcome.' },
+				],
+			},
+		]);
+	});
+
+	test('terminal empty assistant message completes a tool-only turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Close out the todos' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'todo' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'todo', arguments: { status: 'done' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: '', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
@@ -131,12 +229,53 @@ suite('mapSessionEvents — history replay', () => {
 			parts: partKinds(turn.responseParts),
 		})), [{
 			id: 'user-event',
-			message: 'Investigate this issue',
+			message: 'Close out the todos',
 			state: TurnState.Complete,
 			parts: [
-				{ kind: ResponsePartKind.Markdown, content: 'I will investigate.' },
 				{ kind: ResponsePartKind.ToolCall },
-				{ kind: ResponsePartKind.Markdown, content: 'Investigation complete.' },
+			],
+		}]);
+	});
+
+	test('tool-only turn without a terminal assistant message remains cancelled', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Run the command' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'echo done' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'done\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			state: TurnState.Cancelled,
+			parts: [
+				{ kind: ResponsePartKind.ToolCall },
+			],
+		}]);
+	});
+
+	test('abort remains terminal for the turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'interaction-1', content: 'Wait for the task' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'The task is complete.', toolRequests: [] } },
+			{ type: 'abort', data: { reason: 'user initiated' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'Late completion.', toolRequests: [] } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			state: TurnState.Cancelled,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'The task is complete.' },
+				{ kind: ResponsePartKind.Markdown, content: 'Late completion.' },
 			],
 		}]);
 	});
@@ -192,5 +331,88 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
+	});
+
+	test('routes subagent skill events into the subagent transcript', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'skill.invoked', agentId: 'agent-1', data: { name: 'research', path: '/skills/research' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'The subagent finished.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			parentParts: partKinds(turns[0].responseParts),
+			subagentParts: partKinds(subagentTurnsByToolCallId.get('tc-task')?.[0].responseParts ?? []),
+		}, {
+			parentState: TurnState.Complete,
+			parentParts: [
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'The subagent finished.' },
+			],
+			subagentParts: [
+				{ kind: ResponsePartKind.ToolCall },
+			],
+		});
+	});
+
+	test('subagent abort marks the subagent turn cancelled', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Partial result.' } },
+			{ type: 'abort', agentId: 'agent-1', data: { reason: 'user initiated' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: false } },
+			{ type: 'assistant.message', data: { messageId: 'm4', content: 'The subagent was cancelled.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const subagentTurn = subagentTurnsByToolCallId.get('tc-task')?.[0];
+
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			subagentState: subagentTurn?.state,
+			subagentParts: partKinds(subagentTurn?.responseParts ?? []),
+		}, {
+			parentState: TurnState.Complete,
+			subagentState: TurnState.Cancelled,
+			subagentParts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Partial result.' },
+			],
+		});
+	});
+
+	test('subagent abort before its first response remains cancelled', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'spawn a subagent' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'abort', agentId: 'agent-1', data: { reason: 'user initiated' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Late partial result.' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: false } },
+			{ type: 'assistant.message', data: { messageId: 'm4', content: 'The subagent was cancelled.' } },
+		];
+
+		const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const subagentTurn = subagentTurnsByToolCallId.get('tc-task')?.[0];
+
+		assert.deepStrictEqual({
+			state: subagentTurn?.state,
+			parts: partKinds(subagentTurn?.responseParts ?? []),
+		}, {
+			state: TurnState.Cancelled,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Late partial result.' },
+			],
+		});
 	});
 });
