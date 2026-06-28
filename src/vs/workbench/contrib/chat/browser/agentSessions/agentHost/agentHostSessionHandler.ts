@@ -3531,27 +3531,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
-		// Resolve the registered language model for a turn, trying the
-		// turn's own reported model id first and then the session's
-		// fallback model id. The turn-reported id can differ from the
-		// registered id (e.g. the Claude SDK reports the raw provider
-		// slug `claude-sonnet-4-6` while models are registered under the
-		// CAPI id `claude-sonnet-4.6`); without this fallback the lookup
-		// fails and the entire response-detail footer — including
-		// per-turn credits — is dropped.
+		// Try the raw billed id, its dots-normalised form (slug mismatch: `claude-sonnet-4-6` → `.6`),
+		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
+		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
 		const lookupModel = (rawModelId: string | undefined): { model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
-			let resolvedFromRaw = true;
-			for (const candidate of [rawModelId, fallbackRawModelId]) {
+			const normalizedRaw = rawModelId?.replace(/-(\d)/g, '.$1');
+			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
-				if (!modelId) {
-					resolvedFromRaw = false;
-					continue;
-				}
+				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
-				if (model) {
-					return { model, resolvedFromRaw };
-				}
-				resolvedFromRaw = false;
+				if (model) { return { model, resolvedFromRaw: true }; }
+			}
+			const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
+			if (fallbackModelId) {
+				const model = this._languageModelsService.lookupLanguageModel(fallbackModelId);
+				if (model) { return { model, resolvedFromRaw: false }; }
 			}
 			return undefined;
 		};
@@ -3559,8 +3553,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toResponseDetails: (rawModelId, usage) => {
 				const resolved = lookupModel(rawModelId);
-				// When the billed model id didn't resolve directly we fell back to the picked model; surface the
-				// billed id so e.g. an "Auto" pick reads "Auto (raptor-mini)".
+				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
+				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? rawModelId : undefined;
 				return formatTurnResponseDetails(resolved?.model, billedModelId, usage);
 			},
