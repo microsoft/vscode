@@ -2073,7 +2073,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.count, 2);
 		assert.strictEqual(part.groups[0].contains(input), true);
 		assert.strictEqual(part.groups[1].contains(input2), true);
-		assert.ok(addedGroups >= 2, `expected at least 2 onDidAddGroup events, got ${addedGroups}`);
+		assert.strictEqual(addedGroups, 2, `expected exactly 2 onDidAddGroup events, got ${addedGroups}`);
 	});
 
 	test('context key provider', async function () {
