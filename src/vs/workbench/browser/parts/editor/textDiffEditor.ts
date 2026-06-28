@@ -32,7 +32,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { multibyteAwareBtoa } from '../../../../base/common/strings.js';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import type { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -165,7 +165,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			if (modifiedUri && this.fileService.hasProvider(modifiedUri)) {
 				try {
 					const stat = await this.fileService.stat(modifiedUri);
-					modifiedIsReadonly = stat.readonly;
+					if (stat.readonly) {
+						modifiedIsReadonly = stat.readonly;
+					}
 				} catch { /* use model's isReadonly() as fallback */ }
 			}
 			this._cachedOriginalEditable = !resolvedDiffEditorModel.originalModel?.isReadonly();

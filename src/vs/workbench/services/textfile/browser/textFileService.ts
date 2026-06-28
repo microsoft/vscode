@@ -385,7 +385,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (this.fileService.hasProvider(resource)) {
 				const textModel = this.modelService.getModel(resource);
 				if (textModel) {
-					await this.fileService.writeFile(resource, VSBuffer.fromString(textModel.getValue()));
+					await this.fileService.writeFile(resource, VSBuffer.fromString(textModel.getValue()), { unlock: options?.writeUnlock });
 					return resource;
 				}
 			}
