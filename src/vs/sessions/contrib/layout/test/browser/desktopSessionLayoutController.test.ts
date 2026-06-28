@@ -852,6 +852,70 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
+	test('[D9] does not turn an explicit aux-bar hide into a collapse when another session is collapsed', () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
+		const sessionExplicit = makeSession(URI.parse('session:explicit'));
+		const sessionCollapse = makeSession(URI.parse('session:collapse'));
+		harness.visibleEditorsList = [{}];
+
+		// Session A: open Changes (editor + aux visible), then explicitly hide just
+		// the aux bar while the editor stays open — an explicit aux-bar choice.
+		harness.activeSessionObs.set(sessionExplicit, undefined);
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(sessionExplicit.resource);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		assert.strictEqual(controller.getViewState(sessionExplicit.resource)?.auxiliaryBarHiddenByCollapse, undefined);
+
+		// Session B: collapse the whole side pane (marks B as collapse-hidden).
+		harness.activeSessionObs.set(sessionCollapse, undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		controller.toggleSidePane();
+		assert.strictEqual(controller.getViewState(sessionCollapse.resource)?.auxiliaryBarHiddenByCollapse, true);
+
+		// Switching back to A captures it again — its explicit hide must remain
+		// explicit (no collapse marker leaking from session B's collapse).
+		harness.activeSessionObs.set(sessionExplicit, undefined);
+		harness.activeSessionObs.set(sessionCollapse, undefined);
+		assert.strictEqual(controller.getViewState(sessionExplicit.resource)?.auxiliaryBarHiddenByCollapse, undefined);
+	});
+
+	test('[D9] re-opening the side pane to editor-only does not mark an explicit aux-bar hide as a collapse', () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
+		const session = makeSession(URI.parse('session:1'));
+		harness.visibleEditorsList = [{}];
+
+		// Open Changes (editor + aux visible), then explicitly hide just the aux bar.
+		harness.activeSessionObs.set(session, undefined);
+		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		assert.strictEqual(controller.getViewState(session.resource)?.auxiliaryBarHiddenByCollapse, undefined);
+
+		// Collapse the whole side pane, then re-open it: it restores the editor-only
+		// state (aux bar stays hidden because it was explicitly hidden before).
+		controller.toggleSidePane();
+		controller.toggleSidePane();
+
+		// The explicit aux-bar hide must not have become a collapse-driven hide.
+		assert.strictEqual(controller.getViewState(session.resource)?.auxiliaryBarHiddenByCollapse, undefined);
+
+		// Opening Changes must therefore not re-reveal the aux bar.
+		harness.openedViews = [];
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidActiveEditorChange.fire();
+		assert.ok(
+			!harness.openedViews.includes(CHANGES_VIEW_ID),
+			'an explicit aux-bar hide must not re-reveal after a collapse + editor-only re-open'
+		);
+	});
+
 	// --- [D7] Responsive sessions sidebar ---
 
 	function setPartVisible(part: Parts, visible: boolean): void {
