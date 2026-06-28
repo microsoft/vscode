@@ -68,7 +68,7 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
-	readonly clientToolCallCompleteCalls: { session: URI; chat: URI | undefined; toolCallId: string; result: ToolCallResult }[] = [];
+	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -235,7 +235,7 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ clientId });
 	}
 
-	onClientToolCallComplete(session: URI, chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
 		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result });
 	}
 
@@ -772,7 +772,7 @@ export class ScriptedMockAgent implements IAgent {
 
 	private didCompleteToolCalls = new Set<string>();
 
-	onClientToolCallComplete(session: URI, _chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		const key = `${session.toString()}:${toolCallId}`;
 		if (this.didCompleteToolCalls.has(key)) {
 			return;

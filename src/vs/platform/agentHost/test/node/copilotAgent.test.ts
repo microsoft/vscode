@@ -2072,10 +2072,11 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-top');
+				const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'did it' };
-				agent.onClientToolCallComplete(sessionUri, undefined, 'tc-top', result);
+				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-top', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-top', result }]);
 			} finally {
@@ -2092,11 +2093,12 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const parentUri = AgentSession.uri('copilotcli', 'session-parent');
+				const defaultChat = URI.parse(buildDefaultChatUri(parentUri));
 				const { calls } = installStubSession(agent, AgentSession.id(parentUri));
 
 				const subagentUri = URI.parse(buildSubagentSessionUri(parentUri.toString(), 'tc-parent'));
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent tool done' };
-				agent.onClientToolCallComplete(subagentUri, undefined, 'tc-inner', result);
+				agent.onClientToolCallComplete(subagentUri, defaultChat, 'tc-inner', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
 			} finally {
@@ -2112,12 +2114,13 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const rootUri = AgentSession.uri('copilotcli', 'session-root');
+				const defaultChat = URI.parse(buildDefaultChatUri(rootUri));
 				const { calls } = installStubSession(agent, AgentSession.id(rootUri));
 
 				const subagentUri = URI.parse(buildSubagentSessionUri(rootUri.toString(), 'tc-parent'));
 				const nestedUri = URI.parse(buildSubagentSessionUri(subagentUri.toString(), 'tc-nested'));
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'nested done' };
-				agent.onClientToolCallComplete(nestedUri, undefined, 'tc-inner', result);
+				agent.onClientToolCallComplete(nestedUri, defaultChat, 'tc-inner', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
 			} finally {
@@ -2129,8 +2132,9 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
+				const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
 				// No stub installed — the call should be silently ignored.
-				agent.onClientToolCallComplete(sessionUri, undefined, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-x', { success: true, pastTenseMessage: 'noop' });
 			} finally {
 				await disposeAgent(agent);
 			}

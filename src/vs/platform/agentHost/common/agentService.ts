@@ -1266,7 +1266,7 @@ export interface IAgent {
 	 * @param toolCallId The id of the tool call being completed.
 	 * @param result The result of the tool call.
 	 */
-	onClientToolCallComplete(session: URI, chat: URI | undefined, toolCallId: string, result: ToolCallResult): void;
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
 
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.

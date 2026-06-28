@@ -1440,10 +1440,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
 		// Peer (non-default) chats own their SDK conversation in `_chatSessions`,
 		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
-		if (chat && !isDefaultChatUri(chat)) {
+		if (!isDefaultChatUri(chat)) {
 			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
 			return;
 		}

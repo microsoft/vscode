@@ -2302,12 +2302,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessions.get(sessionId)?.clientToolSet.delete(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, _chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		const sessionId = AgentSession.id(session);
 		const sess = this._sessions.get(sessionId);
 		// `AgentSideEffects` forwards every `ChatToolCallComplete` envelope
 		// (including codex-owned tools like shell); a miss is the expected path.
-		// Codex has no peer chats, so `chat` is ignored.
 		sess?.pendingClientToolCalls.respondOrBuffer(toolCallId, result);
 	}
 

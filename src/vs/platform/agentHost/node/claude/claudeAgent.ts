@@ -1315,10 +1315,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onClientToolCallComplete(session: URI, _chat: URI | undefined, toolCallId: string, result: ToolCallResult): void {
-		// Walk subagent URIs to the root — nested subagents require iterated
-		// parsing. `_sessions` is keyed by root session ids only. Mirrors
-		// copilotAgent.ts:947. Claude has no peer chats, so `chat` is ignored.
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {

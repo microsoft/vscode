@@ -160,10 +160,12 @@ export class AgentSideEffects extends Disposable {
 				// agents are keyed by session URI, so resolve back to the
 				// owning session before notifying the agent. Pass the chat URI
 				// alongside so agents that track peer chats can route correctly.
-				const isChat = isAhpChatChannel(envelope.channel);
-				const sessionChannel = isChat ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel;
+				if (!isAhpChatChannel(envelope.channel)) {
+					return; // Not a chat channel; ignore (already logged elsewhere).
+				}
+				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), isChat ? URI.parse(envelope.channel) : undefined, action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(envelope.channel), action.toolCallId, action.result);
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -927,10 +929,11 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
+				if (!chatChannel) {
+					break; // Not a chat channel; ignore.
+				}
 				const agent = this._options.getAgent(sessionChannel);
-				// Pass the resolved session URI plus the chat URI it arrived on;
-				// the agent routes default vs peer chats internally.
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), chatChannel ? URI.parse(chatChannel) : undefined, action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(chatChannel), action.toolCallId, action.result);
 				break;
 			}
 		}

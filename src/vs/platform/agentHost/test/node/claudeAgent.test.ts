@@ -3917,8 +3917,9 @@ suite('ClaudeAgent', () => {
 		// Unknown ids (SDK-owned tools, stale workbench races) must NOT throw.
 		const { agent } = createTestContext(disposables);
 		const session = URI.parse('claude:/sess-1');
+		const chat = URI.parse(buildDefaultChatUri(session));
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(session, undefined, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(session, chat, 'toolu_unknown', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 
@@ -4140,13 +4141,14 @@ suite('ClaudeAgent', () => {
 	test('onClientToolCallComplete walks subagent URIs to the root session', () => {
 		const { agent } = createTestContext(disposables);
 		const root = URI.parse('claude:/root-1');
+		const chat = URI.parse(buildDefaultChatUri(root));
 		// Build a depth-2 subagent URI (subagent of a subagent).
 		const depth1 = URI.parse(buildSubagentSessionUri(root, 'tu_outer'));
 		const depth2 = URI.parse(buildSubagentSessionUri(depth1, 'tu_inner'));
 		// No session is registered for `root`; the walk should reach root and
 		// then silently no-op (entry not found). Just assert no throw.
 		assert.doesNotThrow(() => {
-			agent.onClientToolCallComplete(depth2, undefined, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
+			agent.onClientToolCallComplete(depth2, chat, 'tu_anything', { success: true, pastTenseMessage: 'ran' });
 		});
 	});
 
