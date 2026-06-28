@@ -2381,6 +2381,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
+		// Skip worktree isolation for a repo with no commits yet (unborn HEAD); `git worktree add` would fail.
+		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
+		if (!headCommit) {
+			return undefined;
+		}
+
 		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
 		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
 		return { currentBranch, defaultBranch };
