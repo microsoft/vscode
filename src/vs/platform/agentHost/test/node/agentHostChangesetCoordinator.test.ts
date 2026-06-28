@@ -39,8 +39,8 @@ suite('ChangesetSessionCoordinator', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
 		}, { emitNotification });
@@ -148,7 +148,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, rootLookups: environment.gitService.rootLookupCalls }, { acquisitions: [], rootLookups: [] });
 
-		const summary = environment.stateManager.getSessionState(session)!.summary;
+		const summary = environment.stateManager.getSessionSummary(session)!;
 		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
 		environment.coordinator.onSessionMaterialized(session);
 		await environment.monitor.waitForAcquisitions(1);
@@ -170,7 +170,7 @@ suite('ChangesetSessionCoordinator', () => {
 		environment.coordinator.onFirstSubscriber(URI.parse(buildSessionChangesetUri(session)));
 		await tick();
 
-		const summary = environment.stateManager.getSessionState(session)!.summary;
+		const summary = environment.stateManager.getSessionSummary(session)!;
 		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();

@@ -74,8 +74,8 @@ suite('AgentHostGitStateService', () => {
 			provider: 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: 0,
-			modifiedAt: 0,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
 			workingDirectory: options?.workingDirectory,
 		};
 		// `restoreSession` materializes the session in `ready` lifecycle so the
@@ -167,7 +167,7 @@ suite('AgentHostGitStateService', () => {
 			await h.service.refreshSessionGitState(SESSION, undefined);
 
 			assert.deepStrictEqual({
-				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?.summary._meta),
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 				persistedGit: await h.db.getMetadata(META_GIT_STATE),
 			}, {
 				github: { owner: 'microsoft', repo: 'vscode' },

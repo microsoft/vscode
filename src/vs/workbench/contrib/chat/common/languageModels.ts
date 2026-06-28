@@ -35,6 +35,7 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
@@ -46,6 +47,53 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  * vendor across the chat stack (see `ILanguageModelProviderDescriptor.isDefault`).
  */
 export const COPILOT_VENDOR_ID = 'copilot';
+
+/**
+ * Vendor ids of the BYOK language-model providers that ship in-built with the GitHub Copilot Chat
+ * extension. Each provider's vendor id is `providerName.toLowerCase()` (see
+ * `extensions/copilot/src/extension/byok/vscode-node/*Provider.ts`). This list is intentionally
+ * hardcoded: the in-built provider set is stable and known ahead of time, which lets us report these
+ * providers by name while bucketing every other (third-party) provider as `3p-extension`.
+ */
+const BUILT_IN_BYOK_VENDOR_IDS = new Set<string>([
+	'openai',
+	'anthropic',
+	'gemini',
+	'ollama',
+	'openrouter',
+	'azure',
+	'xai',
+	'customoai',
+	'customendpoint',
+]);
+
+/**
+ * Bucket reported for any non-Copilot provider that is not an in-built BYOK provider, i.e. a model
+ * contributed by a third-party extension. We never report the third-party vendor id directly to avoid
+ * logging potentially identifying values.
+ */
+export const THIRD_PARTY_PROVIDER_TELEMETRY_NAME = '3p-extension';
+
+const BUILT_IN_BYOK_EXTENSION_IDS = [
+	'github.copilot-chat',
+	'github.copilot',
+];
+
+/**
+ * Normalizes a non-Copilot model vendor into a non-identifying provider name suitable for telemetry:
+ * the in-built BYOK vendor id (e.g. `openai`, `ollama`) when contributed by the built-in Copilot
+ * extensions, or {@link THIRD_PARTY_PROVIDER_TELEMETRY_NAME} otherwise. Returns `undefined` for the
+ * first-party Copilot vendor (or no vendor) so callers skip logging first-party usage.
+ */
+export function getByokProviderTelemetryName(vendor: string | undefined, extension: ExtensionIdentifier | undefined): string | undefined {
+	if (!vendor || vendor === COPILOT_VENDOR_ID) {
+		return undefined;
+	}
+	if (BUILT_IN_BYOK_VENDOR_IDS.has(vendor) && extension && BUILT_IN_BYOK_EXTENSION_IDS.some(id => ExtensionIdentifier.equals(extension, id))) {
+		return vendor;
+	}
+	return THIRD_PARTY_PROVIDER_TELEMETRY_NAME;
+}
 
 export const enum ChatMessageRole {
 	System,
@@ -798,6 +846,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IRequestService private readonly _requestService: IRequestService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
@@ -1190,6 +1239,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
 		if (metadata) {
+			this._logProviderUsageTelemetry(metadata);
 			this._maybeShowProviderDeprecationNotice(metadata);
 		}
 		const configuration = this.getModelConfiguration(modelId);
@@ -1226,6 +1276,31 @@ export class LanguageModelsService implements ILanguageModelsService {
 				neverShowAgain: { id: `chat.providerDeprecation.${metadata.vendor}`, scope: NeverShowAgainScope.APPLICATION }
 			}
 		);
+	}
+
+	/**
+	 * Reports which in-built BYOK provider (or third-party extension) backs a model request. First-party
+	 * Copilot models are intentionally not reported here (see {@link getByokProviderTelemetryName}).
+	 */
+	private _logProviderUsageTelemetry(metadata: ILanguageModelChatMetadata | undefined): void {
+		const provider = getByokProviderTelemetryName(metadata?.vendor, metadata?.extension);
+		if (!provider) {
+			return;
+		}
+		type LanguageModelRequestEvent = {
+			provider: string;
+			isBYOK: boolean;
+		};
+		type LanguageModelRequestClassification = {
+			provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Normalized non-Copilot model provider: an in-built BYOK vendor id (for models contributed by the built-in Copilot extensions) or "3p-extension" for any third-party extension provider.' };
+			isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model is a BYOK model.' };
+			owner: 'vritant24';
+			comment: 'Tracks which non-Copilot language-model provider is used per request to understand adoption of in-built Copilot BYOK providers vs third-party extension providers.';
+		};
+		this._telemetryService.publicLog2<LanguageModelRequestEvent, LanguageModelRequestClassification>('chat.languageModelRequest', {
+			provider,
+			isBYOK: !!metadata?.isBYOK,
+		});
 	}
 
 	private _resolveModelConfigurationWithDefaults(modelId: string, metadata: ILanguageModelChatMetadata | undefined): IStringDictionary<unknown> | undefined {

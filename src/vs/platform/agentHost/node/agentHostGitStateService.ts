@@ -53,7 +53,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		// GitHub state
-		const gitHubState = readSessionGitHubState(state.summary._meta);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo || gitHubState?.pullRequestUrl) {
 			return;
 		}
@@ -92,7 +92,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.summary.workingDirectory;
+			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -143,7 +143,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
-		const currentMeta = this._stateManager.getSessionState(sessionKey)?.summary._meta;
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 
 		const currentState = readSessionGitHubState(currentMeta);
 		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
@@ -154,7 +154,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		// Update session state manager
 		const nextMeta = withSessionGitHubState(currentMeta, nextState);
-		this._stateManager.setSessionSummaryMeta(sessionKey, nextMeta);
+		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
 		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));

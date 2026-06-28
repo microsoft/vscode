@@ -26,6 +26,27 @@ import { SerializableObjectWithBuffers } from '../../services/extensions/common/
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError } from '../common/extHostTypes.js';
 
+class RequestCancellationTokenSource extends Disposable {
+
+	private readonly _source: CancellationTokenSource;
+
+	constructor(parent: CancellationToken, onCancellationRequested?: () => void) {
+		super();
+		this._source = this._register(new CancellationTokenSource(parent));
+		if (onCancellationRequested) {
+			this._register(this._source.token.onCancellationRequested(onCancellationRequested));
+		}
+	}
+
+	get token(): CancellationToken {
+		return this._source.token;
+	}
+
+	cancel(): void {
+		this._source.cancel();
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
@@ -34,7 +55,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
-	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
+	private readonly _pendingCancelCTS = new DisposableMap<number, RequestCancellationTokenSource>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -100,11 +121,10 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 					try {
 						this._pendingProgress.set(requestId, { defer, stream });
 
-						const cts = new CancellationTokenSource(token);
-						this._pendingCancelCTS.set(requestId, cts);
-						cts.token.onCancellationRequested(() => {
+						const cts = new RequestCancellationTokenSource(token, () => {
 							this._proxy.$cancelLanguageModelChatRequest(requestId);
 						});
+						this._pendingCancelCTS.set(requestId, cts);
 
 						await Promise.all(
 							messages.flatMap(msg => msg.content)
@@ -194,7 +214,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		// Create a local CTS so cancellation can be signalled via
 		// $cancelLanguageModelChatRequest even after the RPC cancel
 		// handler for the original token has been removed.
-		const cts = new CancellationTokenSource(token);
+		const cts = new RequestCancellationTokenSource(token);
 		this._pendingCancelCTS.set(requestId, cts);
 
 		let response: ILanguageModelChatResponse;

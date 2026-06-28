@@ -397,7 +397,7 @@ export function resolveConfiguredModel(
 
 /**
  * Why a model picker has no model to offer, when that is the case. Drives a
- * "Pick Model" placeholder plus a contextual action instead of a misleading
+ * "Models" placeholder plus a contextual action instead of a misleading
  * lone "Auto".
  */
 export const enum ModelPickerUnavailableReason {

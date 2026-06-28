@@ -155,21 +155,22 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		provider: 'copilot',
 		title: 'Session',
 		status: SessionStatus.Idle,
-		createdAt: 1,
-		modifiedAt: 1,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
 		workingDirectory: URI.file('/repo').toString(),
 	});
-	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
+	// Git state and GitHub state now share the single `_meta` bag.
+	const sessionMeta = withSessionGitHubState(withSessionGitState(undefined, {
 		hasGitHubRemote: true,
 		githubOwner: 'microsoft',
 		githubRepo: 'vscode',
 		branchName: 'feature/test',
 		baseBranchName: 'main',
-	}));
-	stateManager.setSessionSummaryMeta(session.toString(), withSessionGitHubState(undefined, {
+	}), {
 		owner: 'microsoft',
 		repo: 'vscode',
-	}));
+	});
+	stateManager.setSessionMeta(session.toString(), sessionMeta);
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
