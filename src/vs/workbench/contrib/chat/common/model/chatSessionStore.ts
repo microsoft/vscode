@@ -10,6 +10,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -628,7 +629,16 @@ export class ChatSessionStore extends Disposable {
 	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
 			const storageLocation = this.getStorageLocation(sessionId);
-			return this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
+			const result = await this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
+			if (result && hasKey(result.value, { customTitle: true })) {
+				// Rename updates the index but not the file — index title may be newer
+				const indexTitle = this.internalGetIndex().entries[sessionId]?.title;
+				const fileTitle = result.value.customTitle;
+				if (indexTitle && fileTitle && indexTitle !== fileTitle) {
+					result.value.customTitle = indexTitle;
+				}
+			}
+			return result;
 		});
 	}
 
