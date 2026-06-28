@@ -57,7 +57,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -886,7 +886,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						if (sessionState.activeTurn) {
 							activeTurnId = sessionState.activeTurn.id;
 							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-							const activePickedModelId = sessionState.activeTurn.message.model?.id ?? fallbackRawModelId;
 							history.push({
 								type: 'request',
 								prompt: sessionState.activeTurn.message.text,
@@ -899,7 +898,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								type: 'response',
 								parts: [],
 								participant: this._config.agentId,
-								details: lookup.toResponseDetails(activePickedModelId, sessionState.activeTurn.usage),
+								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
 							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
 							// Enrich usage entries with the actual model so the
@@ -3517,8 +3516,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
-		const pickedModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
-		return this._createTurnModelLookup(sessionResource, pickedModelId).toResponseDetails(pickedModelId, turn?.usage);
+		const fallbackRawModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
+		return this._createTurnModelLookup(sessionResource, fallbackRawModelId).toResponseDetails(turn?.usage?.model, turn?.usage);
 	}
 
 	/**
@@ -3540,23 +3539,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// CAPI id `claude-sonnet-4.6`); without this fallback the lookup
 		// fails and the entire response-detail footer — including
 		// per-turn credits — is dropped.
-		const lookupModel = (rawModelId: string | undefined) => {
+		const lookupModel = (rawModelId: string | undefined): { model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			let resolvedFromRaw = true;
 			for (const candidate of [rawModelId, fallbackRawModelId]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) {
+					resolvedFromRaw = false;
 					continue;
 				}
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
 				if (model) {
-					return model;
+					return { model, resolvedFromRaw };
 				}
+				resolvedFromRaw = false;
 			}
 			return undefined;
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
-			toResponseDetails: (pickedModelId, usage) =>
-				formatTurnResponseDetails(lookupModel(pickedModelId), pickedModelId, usage?.model, usage),
+			toResponseDetails: (rawModelId, usage) => {
+				const resolved = lookupModel(rawModelId);
+				// When the billed model id didn't resolve directly we fell back to the picked model; surface the
+				// billed id so e.g. an "Auto" pick reads "Auto (raptor-mini)".
+				const billedModelId = resolved && !resolved.resolvedFromRaw ? rawModelId : undefined;
+				return formatTurnResponseDetails(resolved?.model, billedModelId, usage);
+			},
 		};
 	}
 

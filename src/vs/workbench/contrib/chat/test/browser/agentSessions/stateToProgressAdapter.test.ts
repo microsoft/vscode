@@ -260,15 +260,15 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(details.output[1].mimeType, 'text/plain');
 		});
 
-		test('per-turn model id and display name flow from picked/usage model', () => {
+		test('per-turn model id and display name flow from usage.model', () => {
 			const turn1 = createTurn({
 				id: 'turn-1',
-				message: { ...message('first'), model: { id: 'gpt-5' } },
+				message: message('first'),
 				usage: { model: 'gpt-5' },
 			});
 			const turn2 = createTurn({
 				id: 'turn-2',
-				message: { ...message('second'), model: { id: 'opus-4.7' } },
+				message: message('second'),
 				usage: { model: 'opus-4.7' },
 			});
 
@@ -1697,17 +1697,16 @@ suite('stateToProgressAdapter', () => {
 
 	suite('formatTurnResponseDetails', () => {
 
-		const auto = { name: 'Auto', id: 'auto' };
+		const auto = { name: 'Auto' };
 
-		test('appends the billed model id when it differs from the picked model', () => {
-			// An "Auto" pick resolves to a concrete billed model (e.g. "raptor-mini"), shown as "Auto (raptor-mini)".
+		test('appends the billed model id when one is supplied', () => {
+			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
 			const result = {
-				resolvedModel: formatTurnResponseDetails(auto, 'auto', 'raptor-mini', undefined),
-				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'auto', 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'auto', 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'auto', 'raptor-mini', { _meta: { cost: 1 } }),
-				samePick: formatTurnResponseDetails(auto, 'auto', 'auto', undefined),
-				noBilledModel: formatTurnResponseDetails(auto, 'auto', undefined, undefined),
+				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
+				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
 			assert.deepStrictEqual(result, {
@@ -1715,17 +1714,16 @@ suite('stateToProgressAdapter', () => {
 				withPricing: 'Auto (raptor-mini) · 0x',
 				withCredits: 'Auto (raptor-mini) • 2 credits',
 				oneCredit: 'Auto (raptor-mini) • 1 credit',
-				samePick: 'Auto',
 				noBilledModel: 'Auto',
 			});
 		});
 
-		test('uses the registered model name as-is when pick and billed match, undefined when unknown', () => {
-			const sonnet = { name: 'Claude Sonnet 4.5', id: 'claude-sonnet-4.5', pricing: '1x' };
+		test('uses the registered model name as-is without a billed id, undefined when unknown', () => {
+			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
-				concrete: formatTurnResponseDetails(sonnet, 'claude-sonnet-4.5', 'claude-sonnet-4.5', undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, 'claude-sonnet-4.5', 'claude-sonnet-4.5', { _meta: { cost: 2 } }),
-				unknown: formatTurnResponseDetails(undefined, 'auto', 'raptor-mini', { _meta: { cost: 2 } }),
+				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
 			};
 
 			assert.deepStrictEqual(result, {

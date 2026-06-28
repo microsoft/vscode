@@ -164,32 +164,30 @@ export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
-	toResponseDetails(pickedModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 }
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
 export interface ITurnResponseModel {
 	readonly name: string;
-	readonly id: string;
 	readonly pricing?: string;
 }
 
 /**
  * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
- * `model` is the resolved user-picked model, `pickedModelId` its raw id and `billedModelId` the turn's
- * `usage.model`. When the billed model differs from the pick (e.g. an "Auto" pick resolved to
- * `raptor-mini`), it is shown inline as `Auto (raptor-mini)`. Returns `undefined` when the model is unknown.
+ * `model` is the resolved model; `billedModelId` is the turn's `usage.model` when it didn't resolve to a
+ * registered model (e.g. an "Auto" pick billed as `raptor-mini`), shown inline as `Auto (raptor-mini)`.
+ * Returns `undefined` when the model is unknown.
  */
 export function formatTurnResponseDetails(
 	model: ITurnResponseModel | undefined,
-	pickedModelId: string | undefined,
 	billedModelId: string | undefined,
 	usage: UsageInfo | undefined,
 ): string | undefined {
 	if (!model) {
 		return undefined;
 	}
-	const displayName = formatTurnModelName(model, pickedModelId, billedModelId);
+	const displayName = formatTurnModelName(model, billedModelId);
 	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
 	if (credits !== undefined) {
 		const formatted = formatCopilotCredits(credits);
@@ -201,9 +199,9 @@ export function formatTurnResponseDetails(
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
 }
 
-/** Appends the billed model id (e.g. `Auto (raptor-mini)`) when it differs from the picked model. */
-function formatTurnModelName(model: ITurnResponseModel, pickedModelId: string | undefined, billedModelId: string | undefined): string {
-	if (billedModelId && pickedModelId && billedModelId !== pickedModelId) {
+/** Appends the billed model id (e.g. `Auto (raptor-mini)`) when one is supplied. */
+function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | undefined): string {
+	if (billedModelId) {
 		return localize('agentHost.responseDetails.resolvedModel', "{0} ({1})", model.name, billedModelId);
 	}
 	return model.name;
@@ -336,7 +334,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(rawModelId);
-		const details = lookup?.toResponseDetails(turn.message?.model?.id, turn.usage);
+		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
