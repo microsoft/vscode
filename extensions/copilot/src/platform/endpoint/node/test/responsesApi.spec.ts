@@ -984,13 +984,16 @@ describe('createResponsesRequestBody', () => {
 	});
 });
 
-describe('createResponsesRequestBody cache_control markers', () => {
+describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
+	const expectedPromptCacheBreakpoint = { mode: 'explicit' };
+	const cacheBreakpointEndpoint: IChatEndpoint = { ...testEndpoint, family: 'ember-alpha' };
+
 	const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({
 		type: Raw.ChatCompletionContentPartKind.CacheBreakpoint,
 		cacheType: CacheType,
 	});
 
-	const buildBody = (messages: Raw.ChatMessage[], endpoint = testEndpoint) => {
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint) => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -1000,7 +1003,7 @@ describe('createResponsesRequestBody cache_control markers', () => {
 		return body;
 	};
 
-	it('attaches cache_control to the last content block of a user message', () => {
+	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [
@@ -1016,13 +1019,13 @@ describe('createResponsesRequestBody cache_control markers', () => {
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'first' },
-				{ type: 'input_text', text: 'second', cache_control: { type: CacheType } },
+				{ type: 'input_text', text: 'second', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
 			],
 		});
-		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches cache_control to the last content block of a system message', () => {
+	it('attaches prompt_cache_breakpoint to the last content block of a system message', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.System,
 			content: [
@@ -1035,11 +1038,11 @@ describe('createResponsesRequestBody cache_control markers', () => {
 
 		expect(body.input?.[0]).toMatchObject({
 			role: 'system',
-			content: [{ type: 'input_text', text: 'be concise', cache_control: { type: CacheType } }],
+			content: [{ type: 'input_text', text: 'be concise', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
 		});
 	});
 
-	it('attaches cache_control to the last output_text of a terminal assistant message', () => {
+	it('attaches prompt_cache_breakpoint to the last output_text of a terminal assistant message', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1053,11 +1056,11 @@ describe('createResponsesRequestBody cache_control markers', () => {
 		expect(body.input?.[0]).toMatchObject({
 			role: 'assistant',
 			type: 'message',
-			content: [{ type: 'output_text', text: 'final answer', cache_control: { type: CacheType } }],
+			content: [{ type: 'output_text', text: 'final answer', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
 		});
 	});
 
-	it('attaches cache_control at item level to a tool result (function_call_output)', () => {
+	it('attaches prompt_cache_breakpoint at item level to a tool result (function_call_output)', () => {
 		const messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.Assistant,
@@ -1080,11 +1083,11 @@ describe('createResponsesRequestBody cache_control markers', () => {
 			type: 'function_call_output',
 			call_id: 'call_1',
 			output: 'result',
-			cache_control: { type: CacheType },
+			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
 		});
 	});
 
-	it('attaches cache_control at item level to the last function_call when the assistant has tool calls', () => {
+	it('attaches prompt_cache_breakpoint at item level to the last function_call when the assistant has tool calls', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.Assistant,
 			content: [
@@ -1101,16 +1104,16 @@ describe('createResponsesRequestBody cache_control markers', () => {
 		const input = body.input as OpenAI.Responses.ResponseInputItem[];
 
 		const lastCall = input.find(item => isFunctionCallInputItem(item, 'tool_b'));
-		expect(lastCall).toMatchObject({ cache_control: { type: CacheType } });
+		expect(lastCall).toMatchObject({ prompt_cache_breakpoint: expectedPromptCacheBreakpoint });
 
 		const firstCall = input.find(item => isFunctionCallInputItem(item, 'tool_a'));
-		expect(firstCall).not.toHaveProperty('cache_control');
+		expect(firstCall).not.toHaveProperty('prompt_cache_breakpoint');
 
 		const messageItem = input.find(item => (item as { type?: string }).type === 'message');
-		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
+		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
-	it('attaches cache_control to the trailing image item of a tool result with images', () => {
+	it('attaches prompt_cache_breakpoint to the trailing image item of a tool result with images', () => {
 		const messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.Assistant,
@@ -1134,10 +1137,10 @@ describe('createResponsesRequestBody cache_control markers', () => {
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'Image associated with the above tool call:' },
-				{ type: 'input_image', cache_control: { type: CacheType } },
+				{ type: 'input_image', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
 			],
 		});
-		expect(body.input?.[1]).not.toHaveProperty('cache_control');
+		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 
 	it('does not synthesize a whitespace text block when the marked message has no other content', () => {
@@ -1154,7 +1157,7 @@ describe('createResponsesRequestBody cache_control markers', () => {
 		});
 	});
 
-	it('does not attach cache_control when the message has no breakpoint', () => {
+	it('does not attach prompt_cache_breakpoint when the message has no breakpoint', () => {
 		const messages: Raw.ChatMessage[] = [{
 			role: Raw.ChatRole.User,
 			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
@@ -1162,7 +1165,21 @@ describe('createResponsesRequestBody cache_control markers', () => {
 
 		const body = buildBody(messages);
 
-		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('cache_control');
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not attach prompt_cache_breakpoint when the model does not support cache breakpoints', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, testEndpoint);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 });
 

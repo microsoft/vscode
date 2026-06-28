@@ -27,9 +27,8 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isHiddenModelM, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
-import { CacheType } from '../common/endpointTypes';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
@@ -131,6 +130,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
+			supportsCacheBreakpoints: modelSupportCacheBreakPoints(endpoint),
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -305,10 +305,11 @@ interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
+	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -475,11 +476,11 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 				break;
 		}
 
-		if (input.length > inputStartIndex && hasCacheBreakpoint(message)) {
+		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
 			// Attach the prompt-cache marker to the last item this message produced, scanning back past
 			// reasoning/compaction items that cannot carry it.
 			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
-				if (tryApplyCacheControl(input[inputIndex])) {
+				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
 					break;
 				}
 			}
@@ -582,37 +583,39 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
-interface ResponsesCacheControl {
-	readonly type: typeof CacheType;
+interface ResponsesPromptCacheBreakpoint {
+	readonly mode: 'explicit';
 }
+
+const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
 
 /**
  * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
  * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
- * `cache_control` to the appropriate Responses input item/content block.
+ * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
  */
 function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
 	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
 }
 
 /**
- * Attaches a prompt-cache marker (`cache_control: { type: 'ephemeral' }`) to a single Responses API
- * input item, mirroring the Anthropic Messages API converter.
+ * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
+ * Responses API input item.
  *
  * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
  * on their last content block. Items without a content array (`function_call`,
  * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
  * marker was applied.
  */
-function tryApplyCacheControl(item: OpenAI.Responses.ResponseInputItem): boolean {
+function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
 	const content = (item as { content?: unknown }).content;
 	if (Array.isArray(content)) {
-		const lastContentBlock = content.at(-1) as { cache_control?: ResponsesCacheControl } | undefined;
+		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
 		if (!lastContentBlock) {
 			return false;
 		}
 
-		lastContentBlock.cache_control = { type: CacheType };
+		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
 		return true;
 	}
 
@@ -623,7 +626,7 @@ function tryApplyCacheControl(item: OpenAI.Responses.ResponseInputItem): boolean
 		|| itemType === 'tool_search_call'
 		|| itemType === 'tool_search_output'
 	) {
-		(item as { cache_control?: ResponsesCacheControl }).cache_control = { type: CacheType };
+		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
 		return true;
 	}
 
