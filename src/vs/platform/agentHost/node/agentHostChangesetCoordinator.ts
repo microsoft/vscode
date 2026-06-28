@@ -347,11 +347,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return;
 		}
 
-		const branchUri = buildSessionChangesetUri(sessionStr);
+		const branchUri = buildBranchChangesetUri(sessionStr);
+		const sessionUri = buildSessionChangesetUri(sessionStr);
 		const uncommittedUri = buildUncommittedChangesetUri(sessionStr);
 
 		const nextChangesets = currentChangesets
-			.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
+			.filter(c => c.uriTemplate !== branchUri &&
+				c.uriTemplate !== sessionUri &&
+				c.uriTemplate !== uncommittedUri);
 		if (nextChangesets.length === currentChangesets.length) {
 			return;
 		}
