@@ -123,9 +123,6 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	private _lastVisibleSidePaneParts: { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined;
 
-	/** [D9] `true` while the whole side pane is collapsed via {@link toggleSidePane}. */
-	protected _sidePaneToggledClosed = false;
-
 	private readonly _useModalConfigObs;
 	constructor(
 
@@ -353,7 +350,6 @@ export abstract class BaseLayoutController extends Disposable {
 				this._lastVisibleSidePaneParts = { editor: editorVisible, auxiliaryBar: auxiliaryBarVisible };
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
-				this._sidePaneToggledClosed = true;
 			} else {
 				// Restore only the parts that were visible before hiding (default to
 				// both when there is no remembered state, e.g. after a reload).
@@ -370,7 +366,6 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 				}
-				this._sidePaneToggledClosed = false;
 			}
 
 			// Let subclasses record the resulting side-pane state ([D2] capture is suppressed while toggling).

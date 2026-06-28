@@ -161,21 +161,21 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   entry point (the `Toggle Side Panel` action: menu item, keybinding, command-palette entry, toggled
   icon) is registered by the base controller in its constructor and calls `toggleSidePane` directly.
   The toggle hides/shows the editor area and auxiliary bar together (remembering which parts to restore
-  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set, and sets `_sidePaneToggledClosed`
-  while the pane is collapsed. The [D2] listener skips capture while `_togglingSidePane` is set, so
-  closing or opening the whole side pane is never recorded as a per-session (created) aux-bar choice.
-  However, the **save-time** capture (`_captureViewState`, used on switch-away and shutdown) records the
-  aux bar as hidden *and* sets `auxiliaryBarHiddenByCollapse: true` while `_sidePaneToggledClosed` holds,
-  so a reload restores the side pane closed yet opening Changes (D8) still re-reveals it. The flag is
-  cleared when the pane is re-opened, on a session switch, and when the [D2] listener records a genuine
-  aux-bar change.
-- **New-session side-pane close [D9b]** — the base `toggleSidePane` calls the `_onSidePaneToggled` hook
-  at the end (still inside the `_togglingSidePane` window). The desktop controller overrides it: when
-  the active session is **uncreated** (and not multi-session / not maximized), it records the resulting
-  aux-bar visibility via `_setNewSessionViewState`, so a whole-side-pane close on a new session is
-  remembered just like hiding the aux bar alone. This is what makes a closed side pane survive both a
-  re-sync of the same new session and the creation of the next new session (D3b reads the recorded
-  state). For created sessions the hook is a no-op, preserving D9.
+  in `_lastVisibleSidePaneParts`) while `_togglingSidePane` is set. The [D2] listener skips capture
+  while `_togglingSidePane` is set, so closing or opening the whole side pane is never recorded by it.
+  Instead the `_onSidePaneToggled` hook (D9b) records the result for the **active** session: a collapse
+  writes that session's view state with `auxiliaryBarHiddenByCollapse: true`. The marker is therefore
+  scoped to the session that was actually collapsed — `_captureViewState` (save-time, on switch-away and
+  shutdown) only **preserves** an existing marker while the aux bar stays hidden and never fabricates one,
+  so an explicit aux-bar hide on another session is never mistaken for a collapse. On reload the side pane
+  is restored closed, yet opening Changes (D8) re-reveals it because the marker is present.
+- **New-session / side-pane close [D9b]** — the base `toggleSidePane` calls the `_onSidePaneToggled` hook
+  at the end (still inside the `_togglingSidePane` window). The desktop controller overrides it (skipped
+  while multi-session / maximized): for an **uncreated** session it records the resulting aux-bar
+  visibility via `_setNewSessionViewState` (so a closed side pane survives a re-sync of the same new
+  session and the creation of the next one, D3b); for a **created** session it captures the active
+  session's view state, marking `auxiliaryBarHiddenByCollapse: true` when the collapse left the aux bar
+  hidden.
 - **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
   && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
   `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==
