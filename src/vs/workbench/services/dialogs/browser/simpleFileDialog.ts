@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as resources from '../../../../base/common/resources.js';
 import * as objects from '../../../../base/common/objects.js';
-import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata } from '../../../../platform/files/common/files.js';
+import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata, FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { IQuickInputService, IQuickPickItem, IQuickPick, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
@@ -941,7 +941,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			if (!stat) {
 				// For a folder-only picker, offer to create the folder if a writable ancestor exists.
 				if (this.allowFolderSelection && !this.allowFileSelection
-					&& await this.canCreateFolder(uri)) {
+					&& await this.canCreateFolder(uri, statDirname)) {
 					const message = nls.localize('remoteFileDialog.validateCreateDirectoryOpen', 'The folder {0} does not exist. Would you like to create it?', resources.basename(uri));
 					const shouldCreate = await this.yesNoPrompt(uri, message);
 					if (!shouldCreate) {
@@ -974,7 +974,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return true;
 	}
 
-	private async canCreateFolder(uri: URI): Promise<boolean> {
+	private async canCreateFolder(uri: URI, parentStat?: IFileStatWithPartialMetadata): Promise<boolean> {
+		const immediateParent = resources.dirname(uri);
 		while (true) {
 			const name = resources.basename(uri);
 			if (!name || !isValidBasename(name, this.isWindows)) {
@@ -982,14 +983,17 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 
 			const parent = resources.dirname(uri);
-			if (parent.toString() === uri.toString()) {
+			if (resources.isEqual(parent, uri)) {
 				return false;
 			}
 
 			try {
-				const stat = await this.fileService.stat(parent);
+				const stat = parentStat && resources.isEqual(parent, immediateParent) ? parentStat : await this.fileService.stat(parent);
 				return stat.isDirectory && !stat.readonly;
 			} catch (e) {
+				if (toFileSystemProviderErrorCode(e instanceof Error ? e : undefined) !== FileSystemProviderErrorCode.FileNotFound) {
+					return false;
+				}
 				uri = parent;
 			}
 		}
