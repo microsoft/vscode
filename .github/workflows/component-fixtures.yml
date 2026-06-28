@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           # Need enough history for the merge-base lookup below to succeed even
           # when the target branch has advanced since the PR was opened. Full
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 50
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version-file: .nvmrc
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-component-fixtures-${{ hashFiles('.build/packagelockhash') }}"
@@ -101,7 +101,7 @@ jobs:
 
       - name: Upload Playwright test results
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-test-results
           path: test/componentFixtures/playwright/test-results/
@@ -176,7 +176,7 @@ jobs:
             }
 
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: screenshots
@@ -315,7 +315,7 @@ jobs:
 
       - name: Post PR comment (non-fork PR only)
         if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');
@@ -399,7 +399,7 @@ jobs:
       #     fi
 
       # - name: Upload explorer artifact
-      #   uses: actions/upload-artifact@v7
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       #   with:
       #     name: component-explorer
       #     path: /tmp/explorer-artifact/

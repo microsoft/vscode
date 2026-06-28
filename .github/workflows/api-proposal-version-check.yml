@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Get PR info
         id: pr_info
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             let prNumber, headSha, baseSha;
@@ -62,7 +62,7 @@ jobs:
 
       - name: Check for override comment
         id: check_override
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};
@@ -130,7 +130,7 @@ jobs:
           (github.event.comment.author_association == 'OWNER' ||
            github.event.comment.author_association == 'MEMBER' ||
            github.event.comment.author_association == 'COLLABORATOR')
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const headSha = '${{ steps.pr_info.outputs.head_sha }}';
@@ -174,7 +174,7 @@ jobs:
       # Only continue checking if no override found
       - name: Checkout repository
         if: steps.check_override.outputs.override_found != 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -241,7 +241,7 @@ jobs:
 
       - name: Post warning comment
         if: steps.check_override.outputs.override_found != 'true' && steps.version_check.outputs.version_changed == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};
