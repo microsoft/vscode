@@ -2850,7 +2850,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: stretch;
 	width: 100%;
 	border: none;
-	border-radius: var(--vscode-spacing-sizeNone);
+	border-radius: 0;
 
 	.checkpoint-file-changes-disclosure {
 		width: 100%;
