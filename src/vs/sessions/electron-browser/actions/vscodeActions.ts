@@ -55,6 +55,7 @@ export class OpenSessionInVSCodeAction extends Action2 {
 
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
+		const nativeHostService = accessor.get(INativeHostService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
@@ -68,9 +69,14 @@ export class OpenSessionInVSCodeAction extends Action2 {
 
 		const workspace = activeSession.workspace.get();
 		const folder = workspace?.folders[0];
-		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
+		const rawFolderUri = folder?.workingDirectory;
 		if (!rawFolderUri) {
 			await openerService.open(getOpenInVSCodeUri(scheme, undefined, undefined, undefined), { openExternal: true });
+			return;
+		}
+
+		if (workspace?.isVirtualWorkspace) {
+			await nativeHostService.openWindow([{ folderUri: rawFolderUri }], { forceNewWindow: true });
 			return;
 		}
 
