@@ -116,6 +116,8 @@ export class LayoutController extends BaseLayoutController {
 			const isSessionSwitch = previousSessionResource !== undefined && !isEqual(previousSessionResource, activeSessionResource);
 			if (isSessionSwitch) {
 				this._captureViewState(previousSessionResource!);
+				// [D9] The collapsed state belongs to the session we just left.
+				this._sidePaneToggledClosed = false;
 			}
 
 			// [D4] Submit: the same session transitions from new (uncreated) to real.
@@ -166,6 +168,8 @@ export class LayoutController extends BaseLayoutController {
 			if (this._layoutService.isEditorMaximized()) {
 				return;
 			}
+			// [D9] A genuine aux-bar change ends any collapsed-side-pane state.
+			this._sidePaneToggledClosed = false;
 			const activeSession = this._sessionsService.activeSession.get();
 			if (!activeSession) {
 				return;
@@ -235,13 +239,19 @@ export class LayoutController extends BaseLayoutController {
 		if (!activeSession.isCreated.get()) {
 			return;
 		}
+		// A restored Changes editor can become active while the editor part is
+		// still hidden (e.g. its working set is restored on reload). Only reveal
+		// the side pane when the user actually opened the editor (part visible).
+		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
 		const savedState = this._viewStateBySession.get(changesSessionResource);
 		if (savedState) {
-			// The user explicitly hid the aux bar for this session, or the side
-			// pane is already open (leave it on whatever view they chose). Only an
-			// "open but currently closed" state (e.g. after the side pane was
-			// closed whole, D9) falls through to re-reveal the Changes view.
-			if (!savedState.auxiliaryBarVisible || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			// [D8] Already open, or an explicit aux-bar hide (not a D9 collapse).
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				return;
+			}
+			if (!savedState.auxiliaryBarVisible && !savedState.auxiliaryBarHiddenByCollapse) {
 				return;
 			}
 		}
@@ -373,9 +383,12 @@ export class LayoutController extends BaseLayoutController {
 	private _captureViewState(sessionResource: URI): void {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		const activeViewContainerId = this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId();
+		// [D9] An aux-bar hide caused only by collapsing the whole side pane.
+		const auxiliaryBarHiddenByCollapse = !auxiliaryBarVisible && this._sidePaneToggledClosed;
 		this._viewStateBySession.set(sessionResource, {
 			auxiliaryBarVisible,
 			auxiliaryBarActiveViewContainerId: activeViewContainerId,
+			...(auxiliaryBarHiddenByCollapse ? { auxiliaryBarHiddenByCollapse: true } : {}),
 		});
 	}
 
