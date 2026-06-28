@@ -2591,7 +2591,8 @@ suite('AgentHostChatContribution', () => {
 			]);
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables,
+				{ userSelectedModelId: 'agent-host-copilot:auto' });
 
 			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
