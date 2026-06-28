@@ -260,7 +260,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			));
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
 
+			// Comments that can be accepted — either convertible PR review
+			// comments or `created` agent feedback — render their Accept /
+			// Remove affordances in the always-visible bottom button bar, so
+			// those actions are omitted from the hover toolbar to avoid a
+			// duplicate affordance.
+			const showActionButtonsBar = comment.canConvertToAgentFeedback
+				|| (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
+
 			if (comment.canConvertToAgentFeedback) {
+				// The convert ("Accept") action always lives in the bottom
+				// button bar, never in the hover toolbar.
 				itemActions.convertAction = this._eventStore.add(new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Accept"),
@@ -268,7 +278,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 					true,
 					() => this._convertToAgentFeedback(comment),
 				));
-				actionBar.push(itemActions.convertAction, { icon: true, label: false });
 			}
 			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
@@ -277,11 +286,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				true,
 				() => this._removeComment(comment),
 			));
-			// For created agent feedback the Remove action lives in the bottom
-			// button bar instead, so it's omitted from the hover toolbar to
-			// avoid a duplicate affordance.
-			const showRemoveInToolbar = !(comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
-			if (showRemoveInToolbar) {
+			if (!showActionButtonsBar) {
 				actionBar.push(itemActions.removeAction, { icon: true, label: false });
 			}
 
@@ -302,7 +307,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				item.appendChild(this._renderReplies(comment.replies));
 			}
 
-			if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created) {
+			if (showActionButtonsBar) {
 				this._renderActionButtons(comment, item);
 			}
 
@@ -411,8 +416,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	/**
 	 * Renders the Accept / Remove button bar shown at the bottom of a
-	 * `created` agent feedback comment. Clicking either button performs the
-	 * action and removes the bar.
+	 * `created` agent feedback comment or a PR review comment. Clicking either
+	 * button performs the action and removes the bar. For PR review comments
+	 * "Accept" converts the comment into agent feedback; for agent feedback it
+	 * marks the comment as accepted.
 	 */
 	private _renderActionButtons(comment: ISessionEditorComment, item: HTMLElement): void {
 		const buttonBar = $('div.agent-feedback-widget-actions-bar');
@@ -443,7 +450,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}));
 		acceptButton.label = nls.localize('acceptFeedbackButton', "Accept");
 		buttonStore.add(acceptButton.onDidClick(() => {
-			this._acceptFeedback(comment);
+			if (comment.canConvertToAgentFeedback) {
+				this._convertToAgentFeedback(comment);
+			} else {
+				this._acceptFeedback(comment);
+			}
 			dismiss();
 		}));
 
