@@ -4016,7 +4016,7 @@
           },
           "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "experimental",
               "onExp"
@@ -4107,7 +4107,7 @@
           },
           "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
             "tags": [
               "experimental",
