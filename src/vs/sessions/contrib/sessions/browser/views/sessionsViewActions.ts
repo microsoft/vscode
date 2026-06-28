@@ -541,6 +541,62 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 
 //  Group Header Actions
 
+function getArchiveGroupConfirmationMessage(context: ISessionGroupItem): string {
+	if (context.sessions.length === 1) {
+		return localize('archiveGroupSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.group.name);
+	}
+
+	return localize('archiveGroupSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.group.name);
+}
+
+registerAction2(class MarkAllSessionsInGroupAsDoneAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.markAllInGroupAsDone',
+			title: localize2('markAllInGroupAsDone', "Mark All as Done"),
+			icon: Codicon.checkAll,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISessionGroupItem): Promise<void> {
+		if (!context || !context.sessions || context.sessions.length === 0) {
+			return;
+		}
+
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
+
+		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			const confirmed = await dialogService.confirm({
+				message: getArchiveGroupConfirmationMessage(context),
+				detail: localize('archiveGroupSessions.detail', "You can restore sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveGroupSessions.archive', "Mark All as Done"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
+
+			if (!confirmed.confirmed) {
+				return;
+			}
+
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
+		}
+
+		for (const session of context.sessions) {
+			await sessionsManagementService.archiveSession(session);
+		}
+	}
+});
+
 registerAction2(class NewSessionInGroupAction extends Action2 {
 	constructor() {
 		super({
@@ -550,7 +606,7 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 			}]
 		});
 	}
@@ -573,50 +629,6 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 		}
 
 		sessionsPartService.focusSession(sessionsService.activeSession.get());
-	}
-});
-
-registerAction2(class RenameGroupAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.renameGroup',
-			title: localize2('renameGroup', "Rename"),
-			icon: Codicon.edit,
-			menu: [{
-				id: SessionGroupToolbarMenuId,
-				group: 'navigation',
-				order: 1,
-			}]
-		});
-	}
-	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
-		if (!context) {
-			return;
-		}
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.beginRenameGroup(context.group.id);
-	}
-});
-
-registerAction2(class DeleteGroupAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessionsView.deleteGroup',
-			title: localize2('deleteGroup', "Delete Group"),
-			icon: Codicon.trash,
-			menu: [{
-				id: SessionGroupToolbarMenuId,
-				group: 'navigation',
-				order: 2,
-			}]
-		});
-	}
-	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
-		if (!context) {
-			return;
-		}
-		accessor.get(ISessionGroupsService).deleteGroup(context.group.id);
 	}
 });
 
