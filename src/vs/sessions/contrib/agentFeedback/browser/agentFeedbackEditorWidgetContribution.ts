@@ -41,7 +41,6 @@ import { ISessionFileChange } from '../../../services/sessions/common/session.js
 
 interface ICommentItemActions {
 	editAction: Action;
-	convertAction: Action | undefined;
 	removeAction: Action;
 	addReplyAction: Action;
 }
@@ -240,7 +239,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined!, addReplyAction: undefined! };
+			const itemActions: ICommentItemActions = { editAction: undefined!, removeAction: undefined!, addReplyAction: undefined! };
 
 			itemActions.addReplyAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.addReply',
@@ -264,21 +263,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			// comments or `created` agent feedback — render their Accept /
 			// Remove affordances in the always-visible bottom button bar, so
 			// those actions are omitted from the hover toolbar to avoid a
-			// duplicate affordance.
+			// duplicate affordance. The convert ("Accept") action is never
+			// shown in the hover toolbar.
 			const showActionButtonsBar = comment.canConvertToAgentFeedback
 				|| (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
 
-			if (comment.canConvertToAgentFeedback) {
-				// The convert ("Accept") action always lives in the bottom
-				// button bar, never in the hover toolbar.
-				itemActions.convertAction = this._eventStore.add(new Action(
-					'agentFeedback.widget.convert',
-					nls.localize('convertComment', "Accept"),
-					ThemeIcon.asClassName(Codicon.check),
-					true,
-					() => this._convertToAgentFeedback(comment),
-				));
-			}
 			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
@@ -488,9 +477,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -549,9 +535,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Disable item actions while replying so the action bar doesn't conflict.
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -605,9 +588,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const cleanup = () => {
 			replyStore.dispose();
 			actions.editAction.enabled = true;
-			if (actions.convertAction) {
-				actions.convertAction.enabled = true;
-			}
 			actions.removeAction.enabled = true;
 			actions.addReplyAction.enabled = true;
 			this._activeReplyInputs.delete(comment.id);
@@ -707,9 +687,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Re-enable actions
 		actions.editAction.enabled = true;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = true;
-		}
 		actions.removeAction.enabled = true;
 		actions.addReplyAction.enabled = true;
 
