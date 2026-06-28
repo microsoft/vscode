@@ -2843,6 +2843,141 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .checkpoint-file-changes-summary.checkpoint-file-changes-compact {
+	display: flex;
+	flex-direction: column;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	width: 100%;
+	border: none;
+	border-radius: var(--vscode-spacing-sizeNone);
+
+	.checkpoint-file-changes-disclosure {
+		width: 100%;
+	}
+
+	.chat-view-changes-icon {
+		flex: none;
+		width: 20px;
+		height: 20px;
+		padding: var(--vscode-spacing-size20);
+		border: none;
+		border-radius: var(--vscode-cornerRadius-small);
+		color: inherit;
+		background: transparent;
+		font-size: var(--vscode-codiconFontSize-compact);
+		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-view-changes-icon:focus-visible,
+	.checkpoint-file-changes-summary-header:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	.insertions-and-deletions {
+		display: flex;
+		gap: var(--vscode-spacing-size80);
+		margin-right: var(--vscode-spacing-size40);
+		font-size: var(--vscode-bodyFontSize-small);
+	}
+
+	.checkpoint-file-changes-summary-header {
+		min-height: 20px;
+		max-width: 100%;
+		width: fit-content;
+		padding: var(--vscode-spacing-size20);
+		display: flex;
+		gap: var(--vscode-spacing-size40);
+		align-items: center;
+		box-sizing: border-box;
+		justify-content: initial;
+		border-radius: var(--vscode-cornerRadius-small);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-s);
+		font-weight: normal;
+		line-height: 1.5em;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.checkpoint-file-changes-summary-header::-webkit-details-marker {
+		display: none;
+	}
+
+	.checkpoint-file-changes-summary-header:hover,
+	.checkpoint-file-changes-summary-header:focus-visible {
+		color: var(--vscode-foreground);
+	}
+
+	.chat-file-changes-chevron {
+		flex: none;
+		font-size: var(--vscode-codiconFontSize-compact);
+		opacity: 0;
+	}
+
+	.checkpoint-file-changes-summary-header:hover .chat-file-changes-chevron,
+	.checkpoint-file-changes-summary-header:focus-visible .chat-file-changes-chevron {
+		opacity: 1;
+	}
+
+	.chat-file-changes-label {
+		width: auto;
+		float: none;
+		margin-right: var(--vscode-spacing-size40);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.chat-file-changes-counts {
+		display: flex;
+		flex: none;
+		gap: var(--vscode-spacing-sizeNone);
+
+		.insertions,
+		.deletions {
+			font-weight: normal;
+			padding: var(--vscode-spacing-sizeNone);
+		}
+
+		.deletions {
+			padding-left: var(--vscode-spacing-size40);
+		}
+	}
+
+	.chat-summary-list {
+		width: 100%;
+		max-width: 100%;
+		padding: var(--vscode-spacing-size40);
+		margin-top: var(--vscode-spacing-size40);
+		margin-bottom: var(--vscode-spacing-size80);
+		border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+		box-sizing: border-box;
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.chat-summary-list .monaco-icon-label {
+		display: flex;
+	}
+
+	.chat-summary-list .monaco-scrollable-element {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.insertions {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	.deletions {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+}
+
 .interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
 	display: none;
