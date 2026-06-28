@@ -462,11 +462,10 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 }
 
 // The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// opens with a "New Chat" entry (registered by SessionConversationsMenuContribution
-// below), then lists every chat in the session with a checkbox. Checked chats are
-// shown as tabs; unchecked chats are closed (hidden from the tab strip). Toggling
-// an entry closes or reopens the corresponding chat. The main chat is always shown
-// and cannot be closed, so its entry is checked and disabled.
+// lists every chat in the session with a checkbox. Checked chats are shown as
+// tabs; unchecked chats are closed (hidden from the tab strip). Toggling an entry
+// closes or reopens the corresponding chat. The main chat is always shown and
+// cannot be closed, so its entry is checked and disabled.
 //
 // It surfaces in one of two places depending on whether the chat tab strip is
 // shown: when the strip is hidden it lives in the session header toolbar; once the
