@@ -9,6 +9,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
@@ -510,7 +512,7 @@ suite('GitHubPullRequestCIModel', () => {
 
 	setup(() => {
 		mockFetcher = new MockCIFetcher();
-		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService);
+		collection = new TestCIReferenceCollection(mockFetcher as unknown as GitHubPRCIFetcher, logService, store.add(new TestStorageService()));
 	});
 
 	teardown(() => store.clear());
@@ -527,6 +529,22 @@ suite('GitHubPullRequestCIModel', () => {
 		const first = acquireModel();
 		const second = acquireModel();
 		assert.strictEqual(first, second);
+	});
+
+	test('fixRequested is remembered per PR head commit', () => {
+		const model = acquireModel('owner', 'repo', 1, 'sha-1');
+		assert.strictEqual(model.fixRequested.get(), false);
+
+		model.markFixRequested();
+		assert.strictEqual(model.fixRequested.get(), true);
+
+		// Same PR head commit: a freshly created model sees the remembered fix.
+		const sameCommit = acquireModel('owner', 'repo', 1, 'sha-1');
+		assert.strictEqual(sameCommit.fixRequested.get(), true);
+
+		// New commit on the same PR: the fix should no longer be remembered.
+		const newCommit = acquireModel('owner', 'repo', 1, 'sha-2');
+		assert.strictEqual(newCommit.fixRequested.get(), false);
 	});
 
 	test('refresh populates checks and computes overall status', async () => {
@@ -665,15 +683,16 @@ class TestCIReferenceCollection extends GitHubPullRequestCIModelReferenceCollect
 	constructor(
 		private readonly _testFetcher: GitHubPRCIFetcher,
 		logService: ILogService,
+		private readonly _testStorageService: IStorageService,
 	) {
 		// The base constructor instantiates a fetcher from the apiClient; pass a
 		// dummy because we override createReferencedObject below to inject the
 		// test fetcher instead.
-		super(undefined as never, logService);
+		super(undefined as never, logService, _testStorageService);
 	}
 
 	protected override createReferencedObject(_key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService());
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._testFetcher, new NullLogService(), this._testStorageService);
 	}
 }
 
