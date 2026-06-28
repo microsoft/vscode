@@ -1510,7 +1510,6 @@ export class AgentService extends Disposable implements IAgentService {
 		let gitMetadata: Record<string, string | undefined> | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
-		let summaryMetadata: Record<string, unknown> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -1561,7 +1560,10 @@ export class AgentService extends Disposable implements IAgentService {
 						if (gitMetadata[META_GITHUB_STATE]) {
 							try {
 								const githubState = JSON.parse(gitMetadata[META_GITHUB_STATE]);
-								summaryMetadata = { [SESSION_META_GITHUB_KEY]: githubState };
+								sessionMetadata = {
+									...(sessionMetadata ? sessionMetadata : {}),
+									[SESSION_META_GITHUB_KEY]: githubState
+								};
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
@@ -1602,11 +1604,11 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
-			_meta: summaryMetadata
+			_meta: sessionMetadata
 		};
 
 		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
-		this._stateManager.restoreSession(summary, [...turns], sessionMetadata, { draft: defaultDraft });
+		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log

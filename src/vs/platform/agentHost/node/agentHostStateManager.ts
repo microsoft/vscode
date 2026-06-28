@@ -598,7 +598,7 @@ export class AgentHostStateManager extends Disposable {
 	 * notification because the session is already known to clients via
 	 * `listSessions`.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], meta?: Record<string, unknown>, options?: { readonly draft?: Message }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -609,7 +609,6 @@ export class AgentHostStateManager extends Disposable {
 		const state: SessionState = {
 			...createSessionState(summary),
 			lifecycle: SessionLifecycle.Ready,
-			_meta: meta,
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary));
 		this._ensureDefaultChat(key, summary, turns, options?.draft);
