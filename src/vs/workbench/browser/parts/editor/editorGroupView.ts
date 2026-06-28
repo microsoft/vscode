@@ -827,9 +827,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Pin preview editor once user disables preview
 		if (event.oldPartOptions.enablePreview && !event.newPartOptions.enablePreview) {
-			if (this.model.previewEditor) {
-				this.pinEditor(this.model.previewEditor);
+			for (const editor of this.model.getEditors(EditorsOrder.SEQUENTIAL)) {
+				if (!this.model.isPinned(editor)) {
+					this.pinEditor(editor);
+				}
 			}
+			this.titleControl.openEditors(this.model.getEditors(EditorsOrder.SEQUENTIAL));
 		}
 	}
 
