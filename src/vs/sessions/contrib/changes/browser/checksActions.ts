@@ -21,6 +21,13 @@ import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
+/**
+ * True when the user has already requested a CI fix for the active session's
+ * current PR head commit. Used to hide the "Fix Checks" action until a new
+ * commit lands on the PR.
+ */
+export const activeSessionCIFixRequested = new RawContextKey<boolean>('sessions.activeSessionCIFixRequested', false);
+
 /** Command that sends the `fix-ci` prompt for the active session's failed checks. */
 export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';
 
@@ -129,6 +136,14 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 			const checks = ciModel.checks.read(reader);
 			return getFailedChecks(checks).length > 0;
 		}));
+
+		this._register(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
+			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
+			if (!ciModel) {
+				return false;
+			}
+			return ciModel.fixRequested.read(reader);
+		}));
 	}
 }
 
@@ -142,12 +157,12 @@ class FixCIChecksAction extends Action2 {
 			title: localize2('fixChecks', 'Fix Checks'),
 			icon: Codicon.lightbulbAutofix,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate()),
 			menu: [{
 				id: MenuId.AgentsChangesPrimaryActionSubMenu,
 				group: '5_checks',
 				order: 4,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate()),
 			}],
 		});
 	}
@@ -187,7 +202,10 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt);
+		const response = await chatWidget.acceptInput(prompt);
+		if (response) {
+			ciModel.markFixRequested();
+		}
 	}
 }
 

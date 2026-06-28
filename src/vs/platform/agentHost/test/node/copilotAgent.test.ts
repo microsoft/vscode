@@ -2076,10 +2076,11 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-top');
+				const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'did it' };
-				agent.onClientToolCallComplete(sessionUri, 'tc-top', result);
+				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-top', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-top', result }]);
 			} finally {
@@ -2096,11 +2097,12 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const parentUri = AgentSession.uri('copilotcli', 'session-parent');
+				const defaultChat = URI.parse(buildDefaultChatUri(parentUri));
 				const { calls } = installStubSession(agent, AgentSession.id(parentUri));
 
 				const subagentUri = URI.parse(buildSubagentSessionUri(parentUri.toString(), 'tc-parent'));
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent tool done' };
-				agent.onClientToolCallComplete(subagentUri, 'tc-inner', result);
+				agent.onClientToolCallComplete(subagentUri, defaultChat, 'tc-inner', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
 			} finally {
@@ -2116,12 +2118,13 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const rootUri = AgentSession.uri('copilotcli', 'session-root');
+				const defaultChat = URI.parse(buildDefaultChatUri(rootUri));
 				const { calls } = installStubSession(agent, AgentSession.id(rootUri));
 
 				const subagentUri = URI.parse(buildSubagentSessionUri(rootUri.toString(), 'tc-parent'));
 				const nestedUri = URI.parse(buildSubagentSessionUri(subagentUri.toString(), 'tc-nested'));
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'nested done' };
-				agent.onClientToolCallComplete(nestedUri, 'tc-inner', result);
+				agent.onClientToolCallComplete(nestedUri, defaultChat, 'tc-inner', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
 			} finally {
@@ -2133,8 +2136,9 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
+				const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
 				// No stub installed — the call should be silently ignored.
-				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-x', { success: true, pastTenseMessage: 'noop' });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -2142,9 +2146,10 @@ suite('CopilotAgent', () => {
 
 		test('routes a peer chat URI to its chat-session entry', async () => {
 			// Client-tool completions for tools running inside an additional
-			// (non-default) chat are dispatched against the chat channel URI.
-			// The agent must resolve that to the `_chatSessions` entry, which
-			// is keyed by the chat URI string rather than a session id.
+			// (non-default) chat carry both the owning session URI and the
+			// chat channel URI. The agent must route by the chat URI to the
+			// `_chatSessions` entry, which is keyed by the chat URI string
+			// rather than a session id.
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-with-peer');
@@ -2157,9 +2162,27 @@ suite('CopilotAgent', () => {
 				(agent as unknown as { _chatSessions: Map<string, unknown> })._chatSessions.set(chatUri.toString(), stub);
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'peer done' };
-				agent.onClientToolCallComplete(chatUri, 'tc-peer', result);
+				agent.onClientToolCallComplete(sessionUri, chatUri, 'tc-peer', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-peer', result }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+		test('routes the default chat URI to the session entry, not a chat-session', async () => {
+			// The default chat is not tracked in `_chatSessions`; passing its
+			// chat URI must still resolve via `_sessions` by the owning session
+			// id. This is the regression that previously hung the agent.
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-default');
+				const defaultChatUri = URI.parse(buildDefaultChatUri(sessionUri));
+				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
+
+				const result: ToolCallResult = { success: true, pastTenseMessage: 'default done' };
+				agent.onClientToolCallComplete(sessionUri, defaultChatUri, 'tc-default', result);
+
+				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-default', result }]);
 			} finally {
 				await disposeAgent(agent);
 			}

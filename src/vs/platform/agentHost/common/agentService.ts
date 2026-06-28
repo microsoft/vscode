@@ -1259,10 +1259,14 @@ export interface IAgent {
 	 * Resolves the tool handler's deferred promise so the SDK can continue.
 	 *
 	 * @param session The session the tool call belongs to.
+	 * @param chat The chat channel the tool call was issued on, when known.
+	 * Agents that track peer chats separately from the default chat (e.g.
+	 * copilot) use this to route the completion to the right conversation;
+	 * agents without peer chats ignore it and resolve by `session`.
 	 * @param toolCallId The id of the tool call being completed.
 	 * @param result The result of the tool call.
 	 */
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
 
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.

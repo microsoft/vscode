@@ -1440,19 +1440,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk up the subagent chain to reach the root SDK session entry;
-		// _sessions is keyed by root session IDs only.
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// Peer (non-default) chats own their SDK conversation in `_chatSessions`,
+		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
+		if (!isDefaultChatUri(chat)) {
+			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
+			return;
+		}
+		// Default chat (and subagents): walk up the subagent chain to reach the
+		// root SDK session entry, since `_sessions` is keyed by root session ids.
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {
 			target = parsed.parentSession;
 		}
-		// The completion may belong to a peer chat (tracked in `_chatSessions`
-		// keyed by chat URI) rather than the default/parent session.
-		const entry = this._sessions.get(AgentSession.id(target))
-			?? this._chatSessions.get(target.toString());
-		entry?.handleClientToolCallComplete(toolCallId, result);
+		this._sessions.get(AgentSession.id(target))?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
