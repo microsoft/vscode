@@ -631,11 +631,17 @@ export class ChatSessionStore extends Disposable {
 			const storageLocation = this.getStorageLocation(sessionId);
 			const result = await this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
 			if (result && hasKey(result.value, { customTitle: true })) {
-				// Rename updates the index but not the file — index title may be newer
+				// The index is the source of truth for metadata like the title.
+				// setSessionTitle writes only to the index; the file's customTitle
+				// is updated lazily by storeSessions, so it can be stale.
 				const indexTitle = this.internalGetIndex().entries[sessionId]?.title;
-				const fileTitle = result.value.customTitle;
-				if (indexTitle && fileTitle && indexTitle !== fileTitle) {
-					result.value.customTitle = indexTitle;
+				if (indexTitle) {
+					const computedTitle = ChatModel.getDefaultTitle(result.value.requests) || localize('newChat', "New Chat");
+					if (indexTitle !== computedTitle) {
+						result.value.customTitle = indexTitle;
+					} else {
+						result.value.customTitle = undefined;
+					}
 				}
 			}
 			return result;
