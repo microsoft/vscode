@@ -1314,6 +1314,14 @@ export class Repository implements Disposable {
 		});
 	}
 
+	async stageRaw(resource: Uri, data: Uint8Array): Promise<void> {
+		await this.run(Operation.Stage, async () => {
+			await this.repository.stage(resource.fsPath, data);
+			this._onDidChangeOriginalResource.fire(resource);
+			this.closeDiffEditors([], [...resource.fsPath]);
+		});
+	}
+
 	async revert(resources: Uri[]): Promise<void> {
 		await this.run(
 			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
