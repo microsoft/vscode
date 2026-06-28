@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFileStat } from '../../../../../platform/files/common/files.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
+import { ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
 
 suite('SimpleFileDialog', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('does not let a canceled slow folder update overwrite a newer folder', async () => {
 		const slowFolder = URI.file('/slow');
@@ -36,28 +40,32 @@ suite('SimpleFileDialog', () => {
 			};
 		}
 
-		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
-			fileService: {
-				resolve: (resource: URI) => resources.isEqual(resource, slowFolder) ? slowResolve : Promise.resolve(folderStat(resource))
-			},
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IFileService, 'resolve', (resource: URI) => resources.isEqual(resource, slowFolder) ? slowResolve : Promise.resolve(folderStat(resource)));
+
+		const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog)) as unknown as {
+			updateItems(newFolder: URI, force?: boolean, trailing?: string): Promise<boolean>;
+			currentFolder: URI;
 			filePickBox: {
-				value: '',
-				valueSelection: undefined,
-				items: [],
-				itemActivation: undefined,
-				busy: false,
-				inputHasFocus: () => false
-			},
-			onBusyChangeEmitter: { fire() { } },
-			separator: '/',
-			currentFolder: URI.file('/'),
-			isWindows: false,
-			autoCompletePathSegment: '',
-			userEnteredPathSegment: '',
-			updatingPromise: undefined,
-			scopedAuthority: undefined,
-			createItems: async () => []
-		});
+				value: string;
+				valueSelection: undefined;
+				items: readonly unknown[];
+				itemActivation: ItemActivation | undefined;
+				busy: boolean;
+				inputHasFocus(): boolean;
+			};
+			createItems(): Promise<readonly unknown[]>;
+		};
+		dialog.filePickBox = {
+			value: '',
+			valueSelection: undefined,
+			items: [],
+			itemActivation: undefined,
+			busy: false,
+			inputHasFocus: () => false
+		};
+		dialog.currentFolder = URI.file('/');
+		dialog.createItems = async () => [];
 
 		const slowUpdate = dialog.updateItems(slowFolder, true).catch(() => undefined);
 		await dialog.updateItems(fastFolder, true);
@@ -66,7 +74,6 @@ suite('SimpleFileDialog', () => {
 		assert.strictEqual(dialog.filePickBox.value, '/fast/');
 
 		resolveSlow(folderStat(slowFolder));
-		await timeout(0);
 		await slowUpdate;
 
 		assert.strictEqual(dialog.currentFolder.toString(), resources.addTrailingPathSeparator(fastFolder).toString());
