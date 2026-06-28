@@ -12,8 +12,10 @@ import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/c
 
 // Scheme conventions for `copilotcli` chat sessions:
 // - Local AH:  `agent-host-copilotcli:/<id>`         (LOCAL_RESOURCE_SCHEME_PREFIX + provider)
-// - Remote AH: `remote-<auth>-copilotcli:/<id>`      (remoteAgentHostSessionTypeId)
+// - Remote AH: `remote-<auth>-copilotcli:/<id>`      (remoteAgentHostSessionTypeId, agent.provider = 'copilotcli')
 // - EH CLI ext: `copilotcli:/<id>`                   (extension's own session type)
+// The copilot agent reports its provider id as `copilotcli` on every host, so
+// the local, remote and EH schemes all carry the `copilotcli` token.
 const COPILOT_CLI_PROVIDER = 'copilotcli';
 export const COPILOT_CLI_LOCAL_AH_SCHEME = `agent-host-${COPILOT_CLI_PROVIDER}`;
 export const COPILOT_CLI_EH_SCHEME = COPILOT_CLI_PROVIDER;

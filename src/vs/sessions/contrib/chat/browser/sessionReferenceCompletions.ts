@@ -88,20 +88,22 @@ export class SessionReferenceCompletionHandler extends Disposable {
 					return null;
 				}
 
-				// Surface only while typing towards (or past) `#session`, and only
-				// when there is at least one referenceable session.
+				// Participate while the typed token could still become `#session`
+				// (empty, a prefix of `session`, or already past it). Bail only when
+				// it definitely can't, so we don't fight unrelated `#` providers.
 				const typed = varWord.word.slice(VARIABLE_LEADER.length).toLowerCase();
-				if (!SESSION_TOKEN.startsWith(typed) && !typed.startsWith(SESSION_TOKEN)) {
+				if (typed.length > 0 && !SESSION_TOKEN.startsWith(typed) && !typed.startsWith(SESSION_TOKEN)) {
 					return null;
 				}
 				const replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				const insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
 
-				const suggestions = this._collectSessionItems({ insert, replace });
-				if (suggestions.length === 0) {
-					return null;
-				}
-				return { suggestions };
+				// Keep `incomplete` so the editor re-queries as the user types towards
+				// `#session`; a sibling provider returning a complete list (e.g. the
+				// host's `#` file completions) would otherwise suppress re-querying. A
+				// bare `#` yields no items yet (e.g. in `/troubleshoot #`).
+				const suggestions = typed.length === 0 ? [] : this._collectSessionItems({ insert, replace });
+				return { suggestions, incomplete: true };
 			}
 		}));
 	}
@@ -114,13 +116,32 @@ export class SessionReferenceCompletionHandler extends Disposable {
 	}
 
 	private _collectSessionItems(range: { insert: Range; replace: Range }): CompletionItem[] {
-		const activeResource = this.sessionsService.activeSession.get()?.resource.toString();
+		const activeResource = this.sessionsService.activeSession.get()?.resource;
+		const activeResourceStr = activeResource?.toString();
+		console.warn('[sessionReferenceCompletions] Active Session Resource:', activeResource?.toString(), 'Scheme:', activeResource?.scheme);
 
 		// Only Copilot CLI sessions have a readable event log; include active,
 		// past, and archived. Resolve the id once, then newest first.
-		const sessions = this.sessionsManagementService.getSessions()
+		const rawSessions = this.sessionsManagementService.getSessions();
+		console.warn('[sessionReferenceCompletions] All available sessions:', rawSessions.map(s => ({
+			title: s.title.get(),
+			resource: s.resource.toString(),
+			scheme: s.resource.scheme,
+			rawId: getCopilotCliSessionRawId(s.resource)
+		})));
+
+		const sessions = rawSessions
 			.map(session => ({ session, rawId: getCopilotCliSessionRawId(session.resource) }))
 			.filter((entry): entry is { session: ISession; rawId: string } => entry.rawId !== undefined)
+			.filter(entry => {
+				// Scope to the active session's host: each host has a distinct
+				// resource scheme (local `agent-host-copilotcli` vs remote
+				// `remote-<authority>-copilotcli`), so a session whose events.jsonl
+				// lives on another machine — and thus can't be read by the skill
+				// running on the active host — is excluded. When there is no active
+				// session we can't determine the host, so don't filter.
+				return !activeResource || entry.session.resource.scheme === activeResource.scheme;
+			})
 			.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime());
 
 		return sessions.map(({ session, rawId }, index) => {
@@ -128,7 +149,7 @@ export class SessionReferenceCompletionHandler extends Disposable {
 			// Collapse whitespace so the inline `#session:<title>` reference (and its
 			// decoration) stays on one line even if the title contains newlines.
 			const referenceTitle = title.replace(/\s+/g, ' ').trim() || localize('untitledSession', "Untitled session");
-			const isActive = activeResource === session.resource.toString();
+			const isActive = activeResourceStr === session.resource.toString();
 			const date = session.updatedAt.get().toLocaleString();
 			const description = isActive ? localize('currentSessionLabel', "{0} (current)", date) : date;
 			const referenceText = `${VARIABLE_LEADER}${SESSION_TOKEN}:${referenceTitle}`;
