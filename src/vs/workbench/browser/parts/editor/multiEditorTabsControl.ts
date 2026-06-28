@@ -61,7 +61,7 @@ import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
-	readonly pinned: boolean;
+	pinned: boolean;
 
 	readonly name?: string;
 	description?: string;
@@ -662,7 +662,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	pinEditor(editor: EditorInput): void {
-		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel) => this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
+			this.tabLabels[tabIndex].pinned = this.tabsModel.isPinned(editor);
+		});
 	}
 
 	stickEditor(editor: EditorInput): void {
