@@ -976,14 +976,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private async canCreateFolder(uri: URI, parentStat?: IFileStatWithPartialMetadata): Promise<boolean> {
 		const immediateParent = resources.dirname(uri);
+		let candidate = uri;
 		while (true) {
-			const name = resources.basename(uri);
+			const name = resources.basename(candidate);
 			if (!name || !isValidBasename(name, this.isWindows)) {
 				return false;
 			}
 
-			const parent = resources.dirname(uri);
-			if (resources.isEqual(parent, uri)) {
+			const parent = resources.dirname(candidate);
+			if (resources.isEqual(parent, candidate)) {
 				return false;
 			}
 
@@ -994,7 +995,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				if (toFileSystemProviderErrorCode(e instanceof Error ? e : undefined) !== FileSystemProviderErrorCode.FileNotFound) {
 					return false;
 				}
-				uri = parent;
+				candidate = parent;
 			}
 		}
 	}
