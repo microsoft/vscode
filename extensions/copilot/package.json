@@ -2139,6 +2139,30 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "modelOptions": {
+                    "type": "object",
+                    "markdownDescription": "Sampling parameters to send with requests to this model. These override Copilot's defaults but are overridden by explicit per-request values. Set a property to `null` to omit it and use the model server's default.",
+                    "properties": {
+                      "temperature": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "markdownDescription": "Sampling temperature. Set to `null` to omit the parameter."
+                      },
+                      "top_p": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "markdownDescription": "Nucleus sampling probability. Set to `null` to omit the parameter."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -7131,7 +7155,7 @@
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.3.0",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7208,7 +7232,7 @@
     "isbinaryfile": "^5.0.4",
     "jsonc-parser": "^3.3.1",
     "lru-cache": "^11.1.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",

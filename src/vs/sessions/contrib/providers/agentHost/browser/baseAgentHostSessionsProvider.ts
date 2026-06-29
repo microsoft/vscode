@@ -12,7 +12,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, throttledObservable, transaction, waitForState } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -320,6 +320,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectory: URI | undefined;
+	// The directory that the current `mode` custom-agent URI is rooted at. Used to
+	// compute the agent's repo-relative path so the selection can be rebased onto
+	// its worktree twin when the session relocates into an isolated worktree (see
+	// `reconcileSelectedAgent`).
+	private _agentBaseDir: URI | undefined;
 	private _meta: SessionMeta | undefined;
 	/**
 	 * Observable mirror of {@link _meta}, kept in sync with every write to
@@ -649,7 +654,103 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._getAdditionalChat(chatResource)?.setAgent(agent);
 		} else {
 			this.mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
+			// Remember which working directory the agent URI is rooted at so the
+			// selection can be rebased if the session later relocates into a worktree.
+			this._agentBaseDir = agent ? this._workingDirectory : undefined;
 		}
+	}
+
+	/**
+	 * Reconcile the selected custom-agent URI against the host's current agent
+	 * list — e.g. the session graduated with an agent picked in the original repo
+	 * but now runs in an isolated worktree, where the host reports the same agent
+	 * file under the worktree path.
+	 *
+	 * The selection is rebased by matching the agent's repo-relative path against
+	 * the available agents (which already carry the worktree root) rather than the
+	 * session's reported working directory. The working directory is unreliable
+	 * here: the worktree-pathed customizations arrive well before either the
+	 * `SessionSummary` or `SessionState` working-directory flips to the worktree,
+	 * so a working-directory-keyed rebase would miss the window and let the picker
+	 * destructively reset the selection. Deriving the worktree root from the agent
+	 * list closes that race.
+	 *
+	 * Mirrors the agent-host backend's code to rebase by relative path.
+	 * The re-point is only applied to a URI that actually exists in
+	 * the supplied agent list, so it never runs ahead of the host reporting the
+	 * worktree agents (which would otherwise re-introduce the mismatch it fixes).
+	 */
+	reconcileSelectedAgent(agents: readonly AgentCustomization[]): void {
+		const current = this.mode.get();
+		if (!current || agents.some(a => a.uri === current.id)) {
+			return; // no agent selected, or the selection is already valid
+		}
+		const base = this._agentBaseDir;
+		if (!base) {
+			return; // unknown root for the current selection — nothing to rebase against
+		}
+		const agentUri = URI.parse(current.id);
+		if (!isEqualOrParent(agentUri, base)) {
+			return; // agent lives outside the repo (e.g. a user-global agent)
+		}
+		const rel = relativePath(base, agentUri);
+		if (!rel) {
+			return;
+		}
+		const relocated = this._findRelocatedAgent(agents, agentUri, base, rel);
+		if (relocated) {
+			this.mode.set({ id: relocated.uri, kind: current.kind }, undefined);
+			this._agentBaseDir = relocated.root;
+		}
+	}
+
+	/**
+	 * Finds an available agent that is the same repo-relative file as the current
+	 * selection but rooted under a different directory (its worktree twin).
+	 *
+	 * A candidate matches when its path ends with `/<rel>` on a path-segment
+	 * boundary and the implied root (the candidate path minus that suffix) differs
+	 * from `base`. The root is re-validated with `relativePath` so only a genuine
+	 * relocation of the same file is accepted. Returns the matched agent's URI and
+	 * its derived root, or `undefined` when there is no twin.
+	 */
+	private _findRelocatedAgent(
+		agents: readonly AgentCustomization[],
+		agentUri: URI,
+		base: URI,
+		rel: string,
+	): { readonly uri: string; readonly root: URI } | undefined {
+		const suffix = `/${rel}`;
+		for (const agent of agents) {
+			const candidate = URI.parse(agent.uri);
+			if (candidate.scheme !== agentUri.scheme || candidate.authority !== agentUri.authority) {
+				continue;
+			}
+			if (!candidate.path.endsWith(suffix) || candidate.path.length === suffix.length) {
+				continue; // not the same relative file, or it sits at the filesystem root
+			}
+			const root = candidate.with({ path: candidate.path.slice(0, candidate.path.length - suffix.length) });
+			if (isEqual(root, base) || relativePath(root, candidate) !== rel) {
+				continue; // same root (would have matched exactly), or not a clean relocation
+			}
+			return { uri: agent.uri, root };
+		}
+		return undefined;
+	}
+
+	/**
+	 * Seed the selected custom agent when a session is resumed (e.g. after a
+	 * window reload). A freshly loaded adapter starts with `mode === undefined`;
+	 * the host persists the selection on the default chat's `ChatState.draft.agent`,
+	 * which the provider reads and mirrors onto `session.mode` here. Guarded to
+	 * never override a live selection (a Part 1 graduation seed or a user pick),
+	 * keeping this a resume-only hydration.
+	 */
+	hydrateSelectedAgent(agentUri: string): void {
+		if (this.mode.get() !== undefined) {
+			return;
+		}
+		this.setChatAgent(this.resource, { uri: agentUri, name: '' });
 	}
 
 	getChatModelId(chatResource: URI): string | undefined {
@@ -2820,6 +2921,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				// Carry the picked custom agent onto the committed session before
+				// the replace event so the agent picker doesn't reset to the
+				// default once the active session is swapped (the picker mirrors
+				// `session.mode`, which is otherwise `undefined` on the freshly
+				// committed adapter). The host already received the agent with the
+				// first turn (see `sendOptions.modeInfo`), so update only the local
+				// mode observable here rather than re-notifying it via `setAgent`.
+				if (selectedAgent) {
+					const committedRawId = this._rawIdFromChatId(committedSession.sessionId);
+					const committedAdapter = committedRawId ? this._sessionCache.get(committedRawId) : undefined;
+					committedAdapter?.setChatAgent(committedAdapter.resource, selectedAgent);
+				}
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
 				// acquired its own subscription (chat widget was opened
@@ -2966,6 +3079,49 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (value && !(value instanceof Error)) {
 			this._applySessionStateUpdate(sessionId, value);
 		}
+
+		this._hydrateAgentFromDraft(connection, cached, sessionId, sessionUri, store);
+	}
+
+	/**
+	 * Resume hydration: when a session is (re)loaded and its adapter has no agent
+	 * selected, restore the persisted selection from the default chat's
+	 * `ChatState.draft.agent` and mirror it onto `session.mode` (the picker's
+	 * source of truth).
+	 *
+	 * The agent is persisted on the chat channel — the session channel
+	 * ({@link SessionState}) carries no draft — so we briefly observe the default
+	 * chat's state until its draft agent arrives. The subscription is shared and
+	 * ref-counted with the chat session handler (no extra wire cost) and lives for
+	 * the session-state store's lifetime. Hydration is one-shot: the observer
+	 * stops as soon as `mode` is set — by us here, or by a concurrent graduation
+	 * seed or user pick (guarded inside
+	 * {@link AgentHostSessionAdapter.hydrateSelectedAgent}) — so it neither leaks,
+	 * overrides a later selection, nor keeps re-running on every chat update.
+	 */
+	private _hydrateAgentFromDraft(connection: IAgentConnection, cached: AgentHostSessionAdapter, sessionId: string, sessionUri: URI, store: DisposableStore): void {
+		if (cached.mode.get() !== undefined) {
+			return;
+		}
+		const lastDefaultChat = this._lastSessionStates.get(sessionId)?.defaultChat;
+		const defaultChatUri = lastDefaultChat ? URI.parse(lastDefaultChat.toString()) : URI.parse(buildDefaultChatUri(sessionUri));
+		const chatRef = connection.getSubscription(StateComponents.Chat, defaultChatUri, 'BaseAgentHostSessionsProvider.draftAgent');
+		store.add(chatRef);
+		const listener = store.add(new MutableDisposable());
+		const tryHydrate = () => {
+			if (cached.mode.get() === undefined) {
+				const chatState = chatRef.object.value;
+				const agentUri = chatState && !(chatState instanceof Error) ? chatState.draft?.agent?.uri : undefined;
+				if (agentUri) {
+					cached.hydrateSelectedAgent(agentUri);
+				}
+			}
+			if (cached.mode.get() !== undefined) {
+				listener.clear(); // hydration is one-shot; stop observing
+			}
+		};
+		listener.value = chatRef.object.onDidChange(() => tryHydrate());
+		tryHydrate();
 	}
 
 	/**
@@ -2981,12 +3137,65 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// change too — firing on all of them caused excessive picker
 		// recomputes (and a feedback loop with `setAgent`).
 		if (!previous || customizationsChanged(previous, state)) {
+			this._reconcileAgentFromState(sessionId, state);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
+
+		if (!previous) {
+			// This is the first time we've seen this session and the initial
+			// list of changesets are included in the state, so we use that to
+			// initialize the changeset catalogue.v Subsequent updates will be
+			// handled by handling the ActionType.SessionChangesetsChanged
+			// action.
+			this._applyChangesetsFromState(sessionId, state);
+		}
+	}
+
+	/**
+	 * Seed the cached adapter's changeset catalogue from an AHP
+	 * {@link SessionState}. The catalogue otherwise only flows in via the live
+	 * `SessionChangesetsChanged` action, which the host emits only when entries
+	 * are added or removed. On restore (e.g. after a reload) nothing mutates, so
+	 * that action never fires and the catalogue would stay empty. The restored
+	 * `SessionState` snapshot carries the persisted `changesets`, so apply it
+	 * here to surface the catalogue immediately.
+	 */
+	private _applyChangesetsFromState(sessionId: string, state: SessionState): void {
+		if (state.changesets === undefined) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.updateChangesets(state.changesets);
+	}
+
+	/**
+	 * Rebase the cached running adapter's selected agent against the host's agent
+	 * list from an AHP {@link SessionState}, before the picker is notified. A
+	 * session that has moved into an isolated worktree keeps its selection instead
+	 * of resetting to the default once the host starts reporting worktree-pathed
+	 * agents. See {@link AgentHostSessionAdapter.reconcileSelectedAgent}.
+	 */
+	private _reconcileAgentFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
 	}
 
 	/**
