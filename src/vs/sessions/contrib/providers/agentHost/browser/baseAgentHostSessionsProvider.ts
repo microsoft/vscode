@@ -2986,8 +2986,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
-		this._applyChangesetsFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
+
+		if (!previous) {
+			// This is the first time we've seen this session and the initial
+			// list of changesets are included in the state, so we use that to
+			// initialize the changeset catalogue.v Subsequent updates will be
+			// handled by handling the ActionType.SessionChangesetsChanged
+			// action.
+			this._applyChangesetsFromState(sessionId, state);
+		}
 	}
 
 	/**
