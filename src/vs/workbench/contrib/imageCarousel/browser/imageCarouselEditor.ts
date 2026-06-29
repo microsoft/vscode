@@ -19,7 +19,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
@@ -82,9 +82,13 @@ export class ImageCarouselEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
+
+		this._register(this._editorGroupsService.onDidChangeActiveGroup(() => this._updateStatusbarEntries()));
+		this._register(this.group.onDidActiveEditorChange(() => this._updateStatusbarEntries()));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -740,8 +744,12 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		this._imageSizeStatusbarEntry.clear();
 	}
 
+	private _isActiveImageCarouselEditor(): boolean {
+		return this.group === this._editorGroupsService.activeGroup && this.group.activeEditorPane === this;
+	}
+
 	private _updateStatusbarEntries(): void {
-		if (!this.isVisible() || !this.input || !this._elements || this._isCurrentVideo()) {
+		if (!this.isVisible() || !this.input || !this._elements || !this._isActiveImageCarouselEditor() || this._isCurrentVideo()) {
 			this._clearStatusbarEntries();
 			return;
 		}
@@ -758,7 +766,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._showOrUpdateStatusbarEntry(this._imageSizeStatusbarEntry, 'status.imageCarousel.size', {
 				name: localize('imageCarousel.sizeStatus', "Image Size"),
 				text: this._currentImageSize,
-				ariaLabel: this._currentImageSize,
+				ariaLabel: localize('imageCarousel.sizeStatus.ariaLabel', "Image Size: {0}", this._currentImageSize),
 				tooltip: localize('imageCarousel.sizeStatus.tooltip', "Image Size"),
 			}, 101);
 		} else {
@@ -769,6 +777,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	override focus(): void {
 		super.focus();
 		this._elements?.root.focus();
+		this._updateStatusbarEntries();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
