@@ -1377,10 +1377,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * `true` when VS Code's `chat.autoReply` setting is enabled (forwarded by
-	 * the connected client as the {@link AgentHostAutoReplyEnabledConfigKey}
-	 * root config). Like `autopilot` mode, this treats the user as unavailable
-	 * to answer `ask_user` questions and auto-replies instead of blocking.
+	 * Whether VS Code's auto-reply setting is enabled in the root config.
 	 */
 	private _isAutoReplyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;
@@ -2023,9 +2020,7 @@ export class CopilotAgentSession extends Disposable {
 	// ---- user input handling ------------------------------------------------
 
 	/**
-	 * Handles a user input request from the SDK (ask_user tool) by firing a
-	 * `user_input_request` progress event and waiting for the renderer to
-	 * respond via {@link respondToUserInputRequest}.
+	 * Handles a user input request from the SDK (ask_user tool). Auto-answers when the user is unavailable; otherwise waits for the renderer to respond via {@link respondToUserInputRequest}.
 	 */
 	private async _handleUserInputRequest(
 		request: UserInputRequest,

@@ -28,7 +28,7 @@ import type { IClientTransport, IProtocolTransport } from '../../common/state/se
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../common/agentService.js';
-import { AgentHostCodexEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -622,6 +622,23 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const codexEnabled = findRootConfigNotification(transport.sentMessages, AgentHostCodexEnabledConfigKey);
 		assert.deepStrictEqual(getRootConfig(codexEnabled), { [AgentHostCodexEnabledConfigKey]: true });
+	});
+
+	test('forwards auto-reply on connect and when the setting changes', async () => {
+		const configurationService = new TestConfigurationService({ [AUTO_REPLY_SETTING_ID]: true });
+		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
+
+		await connectClient(client, transport);
+
+		const autoReplyEnabled = findRootConfigNotification(transport.sentMessages, AgentHostAutoReplyEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(autoReplyEnabled), { [AgentHostAutoReplyEnabledConfigKey]: true });
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AUTO_REPLY_SETTING_ID, false);
+		fireConfigurationChange(configurationService, AUTO_REPLY_SETTING_ID);
+
+		const updatedAutoReplyEnabled = findLastRootConfigNotification(transport.sentMessages, AgentHostAutoReplyEnabledConfigKey);
+		assert.deepStrictEqual(getRootConfig(updatedAutoReplyEnabled), { [AgentHostAutoReplyEnabledConfigKey]: false });
 	});
 
 	test('forwards terminal auto-approve rules on connect', async () => {
