@@ -426,8 +426,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, options.fromRef, options.toRef);
-		} catch {
-			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs between refs: ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}`);
+		} catch (err) {
+			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}: ${err}`);
 			return undefined;
 		}
 	}
