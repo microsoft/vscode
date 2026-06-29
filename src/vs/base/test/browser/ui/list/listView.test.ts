@@ -76,4 +76,31 @@ suite('ListView', function () {
 			element.remove();
 		}
 	});
+
+	test('publishes positive delegate-provided dynamic heights', function () {
+		type TestElement = { height: number };
+		const publishedHeights = new Map<TestElement, number>();
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 100; },
+			getTemplateId() { return 'template'; },
+			getDynamicHeight(element) { return element.height; },
+			setDynamicHeight(element, height) { publishedHeights.set(element, height); }
+		};
+		const renderer: IListRenderer<TestElement, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = [{ height: 0 }, { height: 40 }, { height: 100 }, { height: 160 }];
+		const listView = new ListView<TestElement>(document.createElement('div'), delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(400, 200);
+			listView.splice(0, 0, elements);
+			assert.deepStrictEqual(elements.map(element => publishedHeights.get(element)), [undefined, 40, 100, 160]);
+		} finally {
+			listView.dispose();
+		}
+	});
 });

@@ -1630,6 +1630,7 @@ export class ListView<T> implements IListView<T> {
 				const size = item.size;
 				item.size = newSize;
 				item.lastDynamicHeightWidth = this.renderWidth;
+				this.publishDynamicHeight(item);
 				return newSize - size;
 			}
 		}
@@ -1655,7 +1656,7 @@ export class ListView<T> implements IListView<T> {
 				}
 			}
 			item.lastDynamicHeightWidth = this.renderWidth;
-			this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+			this.publishDynamicHeight(item);
 			return item.size - size;
 		}
 
@@ -1674,11 +1675,17 @@ export class ListView<T> implements IListView<T> {
 		renderer.disposeElement?.(item.element, index, row.templateData);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
-		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		this.publishDynamicHeight(item);
 		row.domNode.remove();
 		this.cache.release(row);
 
 		return item.size - size;
+	}
+
+	private publishDynamicHeight(item: IItem<T>): void {
+		if (item.size > 0) {
+			this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		}
 	}
 
 	getElementDomId(index: number): string {
