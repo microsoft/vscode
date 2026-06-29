@@ -55,7 +55,7 @@ export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.mark
  */
 export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
 	return {
-		'*.md': options?.markdownDefaultEditor === false ? 'vscode.markdown.preview.editor' : 'vscode.markdown.editor'
+		'*.md': options?.markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor'
 	};
 }
 
