@@ -23,12 +23,12 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, buildChatUri, parseChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -46,8 +46,20 @@ import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
+
+/**
+ * Persisted catalog entry for an additional (non-default) peer chat. Maps the
+ * client-chosen chatId to the SDK conversation that backs it (and an optional
+ * model override) so the chat can be re-resumed after a process restart even
+ * though {@link ClaudeAgent._chatSessions} is empty in a fresh process.
+ */
+interface IPersistedChat {
+	readonly sdkSessionId: string;
+	readonly model?: ModelSelection;
+}
 
 /**
  * Returns true if `m` is a Claude-family model that should be advertised
@@ -223,6 +235,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private readonly _sessions = this._register(new DisposableMap<string, ClaudeSessionEntry>());
 
+	/**
+	 * Live in-memory additional (non-default) peer chats, keyed by chat URI
+	 * string (`ahp-chat://<chatId>/<base64(sessionUri)>`). Each entry owns a
+	 * full {@link ClaudeAgentSession} whose `sessionUri` IS the chat URI and
+	 * whose `sessionId` is the chat's own SDK conversation id — distinct from
+	 * the parent session's. Parallel to {@link _sessions} (which holds default
+	 * chats keyed by raw session id); see {@link CopilotAgent} for the mirror.
+	 */
+	private readonly _chatSessions = this._register(new DisposableMap<string, ClaudeSessionEntry>());
+
+	/** Persisted peer-chat catalog metadata key, keyed per parent session. */
+	private static readonly _META_CHATS = 'claude.chats';
+
 	/** Stable active-client handles, keyed by `${sessionId}\0${clientId}`. */
 	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
@@ -272,6 +297,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._sessions.get(sessionId)?.session;
 	}
 
+	/**
+	 * Resolve a live {@link ClaudeAgentSession} by its SDK conversation id,
+	 * searching both default chats ({@link _sessions}, keyed directly by SDK
+	 * id) and additional peer chats ({@link _chatSessions}, keyed by chat URI
+	 * but whose `session.sessionId` is the SDK id). Used by SDK-id-addressed
+	 * callbacks — proxy credit reports and the `canUseTool` permission bridge —
+	 * which carry the SDK session id, not the chat URI.
+	 */
+	private _findSessionBySdkId(sdkSessionId: string): ClaudeAgentSession | undefined {
+		const direct = this._sessions.get(sdkSessionId)?.session;
+		if (direct) {
+			return direct;
+		}
+		for (const entry of this._chatSessions.values()) {
+			if (entry.session.sessionId === sdkSessionId) {
+				return entry.session;
+			}
+		}
+		return undefined;
+	}
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -282,6 +328,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore, this.id);
@@ -290,7 +337,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the originating session by the session id the proxy decoded from
 		// the Bearer token, so the session can surface real per-turn credits.
 		this._register(this._claudeProxyService.onDidReportCredits(e => {
-			this._findAnySession(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
+			this._findSessionBySdkId(e.sessionId)?.recordTurnCredits(e.totalNanoAiu);
 		}));
 	}
 
@@ -521,6 +568,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Builds the SDK `canUseTool` permission bridge for a session/chat. The
+	 * resolver searches both default chats and peer chats by SDK id so a peer
+	 * chat's tool-permission requests reach its own pending-permission registry.
+	 */
+	private _makeCanUseTool(sdkSessionId: string): NonNullable<Options['canUseTool']> {
+		return (toolName, input, options) =>
+			handleCanUseTool(
+				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService },
+				sdkSessionId, toolName, input, options,
+			);
+	}
+
+	/**
 	 * Promote a provisional {@link ClaudeAgentSession} into a live one.
 	 * Called from {@link sendMessage} inside the {@link _sessionSequencer.queue}
 	 * block, so concurrent first sends serialize naturally — exactly
@@ -545,11 +605,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const proxyHandle = this._ensureAuthenticated();
 
-		const canUseTool: NonNullable<Options['canUseTool']> = (toolName, input, options) =>
-			handleCanUseTool(
-				{ getSession: id => this._findAnySession(id), configurationService: this._configurationService },
-				sessionId, toolName, input, options,
-			);
+		const canUseTool = this._makeCanUseTool(sessionId);
 
 		try {
 			await session.materialize({ proxyHandle, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
@@ -626,11 +682,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry.addDisposable(session.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
 		this._sessions.set(sessionId, entry);
 
-		const canUseTool: NonNullable<Options['canUseTool']> = (toolName, input, options) =>
-			handleCanUseTool(
-				{ getSession: id => this._findAnySession(id), configurationService: this._configurationService },
-				sessionId, toolName, input, options,
-			);
+		const canUseTool = this._makeCanUseTool(sessionId);
 
 		try {
 			await session.materialize({ proxyHandle, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
@@ -674,9 +726,362 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				sess.abortController.abort();
 			}
 			this._sessions.deleteAndDispose(sessionId);
+			this._disposeChildChats(sessionId);
 			this._pruneActiveClientHandles(sessionId);
 		});
 	}
+
+	// #region Multi-chat — additional (non-default) peer chats
+
+	/**
+	 * Create an additional peer chat within an existing session. The new chat
+	 * is backed by its own SDK conversation (a fresh one, or a fork of the
+	 * source chat at a turn) that shares the parent session's working directory
+	 * and inherited model / agent / permission-mode scope. The conversation is
+	 * recorded in the persisted catalog and the chat's metadata overlay; the
+	 * live {@link ClaudeAgentSession} is built lazily on the chat's first send
+	 * (mirroring how default sessions materialize lazily).
+	 */
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		this._ensureAuthenticated();
+		if (isDefaultChatUri(chat)) {
+			return;
+		}
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`[Claude] createChat: malformed chat URI ${chat.toString()}`);
+		}
+		const parentSessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(parentSessionId, async () => {
+			const persisted = await this._readPersistedChats(session);
+			if (persisted.has(parsed.chatId)) {
+				return;
+			}
+			const scope = await this._resolveParentScope(session, parentSessionId);
+			const model = options?.model ?? scope.model;
+
+			let sdkSessionId: string | undefined;
+			if (options?.fork) {
+				// If the fork point can't be resolved, fall through to a fresh
+				// conversation rather than inheriting the whole source backend.
+				sdkSessionId = await this._forkChatConversation(session, options.fork);
+			}
+			sdkSessionId ??= generateUuid();
+
+			persisted.set(parsed.chatId, { sdkSessionId, ...(model ? { model } : {}) });
+			await this._writePersistedChats(session, persisted);
+
+			// Seed the chat's own metadata overlay so a later lazy resume (this
+			// process or a restart) inherits the parent's scope.
+			await this._metadataStore.write(chat, {
+				...(model ? { model } : {}),
+				...(scope.agent ? { agent: scope.agent } : {}),
+				...(scope.permissionMode ? { permissionMode: scope.permissionMode } : {}),
+			});
+			this._logService.info(`[Claude] Created additional chat ${chat.toString()} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
+		});
+	}
+
+	/**
+	 * Dispose an additional peer chat, tearing down its live conversation (if
+	 * any) and removing it from the persisted catalog. The default chat cannot
+	 * be disposed in isolation — it lives and dies with the session.
+	 */
+	async disposeChat(session: URI, chat: URI): Promise<void> {
+		if (isDefaultChatUri(chat)) {
+			return;
+		}
+		this._chatSessions.deleteAndDispose(chat.toString());
+		const parsed = parseChatUri(chat);
+		if (parsed) {
+			const persisted = await this._readPersistedChats(session);
+			if (persisted.delete(parsed.chatId)) {
+				await this._writePersistedChats(session, persisted);
+			}
+		}
+		// The Claude SDK exposes no delete-conversation RPC, so the forked /
+		// fresh transcript is left on disk; without a catalog entry it is never
+		// resumed again.
+	}
+
+	/**
+	 * Returns the persisted catalog of additional peer chats for a session as
+	 * `ahp-chat` channel URIs, so the agent service can re-register them (and
+	 * seed their history) when a session is restored after a process restart.
+	 */
+	async getChats(session: URI): Promise<readonly URI[]> {
+		const persisted = await this._readPersistedChats(session);
+		const result: URI[] = [];
+		for (const chatId of persisted.keys()) {
+			result.push(URI.parse(buildChatUri(session.toString(), chatId)));
+		}
+		return result;
+	}
+
+	/**
+	 * Resolve the inherited scope (working directory, project, model, agent,
+	 * permission mode) a new or resumed peer chat copies from its parent
+	 * session. Prefers the live in-memory parent; falls back to the SDK's
+	 * on-disk session record + metadata overlay for an unloaded parent.
+	 */
+	private async _resolveParentScope(session: URI, parentSessionId: string): Promise<{ workingDirectory: URI; project: IAgentSessionProjectInfo | undefined; model: ModelSelection | undefined; agent: AgentSelection | undefined; permissionMode: ClaudePermissionMode }> {
+		const parent = this._findAnySession(parentSessionId);
+		let workingDirectory = parent?.workingDirectory;
+		let project = parent?.project;
+		if (!workingDirectory) {
+			const sdkInfo = await this._sdkService.getSessionInfo(parentSessionId);
+			workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : undefined;
+		}
+		if (!workingDirectory) {
+			throw new Error(`[Claude] createChat: cannot resolve working directory for parent session ${session.toString()}`);
+		}
+		if (!project) {
+			try {
+				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			} catch (err) {
+				this._logService.warn(`[Claude] createChat: project resolution failed for ${session.toString()}; continuing without project`, err);
+			}
+		}
+		let overlay: IClaudeSessionOverlay = {};
+		try {
+			overlay = await this._metadataStore.read(session);
+		} catch (err) {
+			this._logService.warn(`[Claude] createChat: parent overlay read failed for ${session.toString()}; continuing with defaults`, err);
+		}
+		const permissionMode = readClaudePermissionMode(this._configurationService, session) ?? overlay.permissionMode ?? 'default';
+		return { workingDirectory, project, model: overlay.model, agent: overlay.agent, permissionMode };
+	}
+
+	/**
+	 * Fork the source chat's SDK conversation at the requested turn into a new
+	 * conversation and return its SDK session id. Returns `undefined` (so the
+	 * caller creates a fresh chat instead) when the source conversation or the
+	 * fork anchor cannot be resolved.
+	 */
+	private async _forkChatConversation(session: URI, fork: IAgentCreateChatOptions['fork'] & {}): Promise<string | undefined> {
+		const sourceSdkId = await this._resolveChatSdkId(session, fork.source);
+		if (!sourceSdkId) {
+			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK conversation; creating fresh chat`);
+			return undefined;
+		}
+		const messages = await this._sdkService.getSessionMessages(sourceSdkId, { includeSystemMessages: true });
+		const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId);
+		if (upToMessageId === undefined) {
+			this._logService.warn(`[Claude] createChat fork: turn ${fork.turnId} not found in source ${sourceSdkId}; creating fresh chat`);
+			return undefined;
+		}
+		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
+		return sessionId;
+	}
+
+	/**
+	 * Resolve the SDK conversation id backing a chat URI — the session's
+	 * default chat (the parent session's own id) or an additional peer chat
+	 * (from the in-memory entry, else the persisted catalog).
+	 */
+	private async _resolveChatSdkId(session: URI, chatUri: URI): Promise<string | undefined> {
+		if (isDefaultChatUri(chatUri) || chatUri.toString() === session.toString()) {
+			return AgentSession.id(session);
+		}
+		const inMemory = this._chatSessions.get(chatUri.toString())?.session.sessionId;
+		if (inMemory) {
+			return inMemory;
+		}
+		const parsed = parseChatUri(chatUri);
+		if (!parsed) {
+			return undefined;
+		}
+		const persisted = await this._readPersistedChats(session);
+		return persisted.get(parsed.chatId)?.sdkSessionId;
+	}
+
+	/**
+	 * Ensure the peer chat's live {@link ClaudeAgentSession} exists and is
+	 * materialized, resuming its persisted SDK conversation when one already
+	 * exists on disk (forked or restored chats) or starting fresh otherwise.
+	 * Serialized per-chat so concurrent first sends collapse into one
+	 * materialize.
+	 */
+	private async _ensureChatMaterialized(session: URI, chat: URI): Promise<ClaudeAgentSession> {
+		const chatKey = chat.toString();
+		return this._sessionSequencer.queue(chatKey, async () => {
+			const existing = this._chatSessions.get(chatKey)?.session;
+			if (existing?.isPipelineReady) {
+				return existing;
+			}
+			const chatSession = existing ?? await this._buildProvisionalChat(session, chat);
+			// Resume when the SDK already has a transcript for this conversation
+			// (forked or restored); otherwise materialize a fresh one.
+			const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);
+			const proxyHandle = this._ensureAuthenticated();
+			const canUseTool = this._makeCanUseTool(chatSession.sessionId);
+			try {
+				await chatSession.materialize({ proxyHandle, canUseTool, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
+			} catch (err) {
+				this._chatSessions.deleteAndDispose(chatKey);
+				throw err;
+			}
+			return chatSession;
+		});
+	}
+
+	/**
+	 * Build a provisional {@link ClaudeAgentSession} for a peer chat from its
+	 * persisted catalog entry + overlay, bound to the chat URI as its identity
+	 * and the persisted SDK conversation id. Registers it in
+	 * {@link _chatSessions}; the caller materializes it.
+	 */
+	private async _buildProvisionalChat(session: URI, chat: URI): Promise<ClaudeAgentSession> {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`[Claude] malformed chat URI ${chat.toString()}`);
+		}
+		const persisted = await this._readPersistedChats(session);
+		const info = persisted.get(parsed.chatId);
+		if (!info) {
+			throw new Error(`[Claude] no persisted conversation for chat ${chat.toString()}`);
+		}
+		const scope = await this._resolveParentScope(session, AgentSession.id(session));
+		let overlay: IClaudeSessionOverlay = {};
+		try {
+			overlay = await this._metadataStore.read(chat);
+		} catch (err) {
+			this._logService.warn(`[Claude] chat overlay read failed for ${chat.toString()}; continuing with defaults`, err);
+		}
+		const permissionMode = readClaudePermissionMode(this._configurationService, chat) ?? overlay.permissionMode ?? scope.permissionMode;
+		const chatSession = ClaudeAgentSession.createProvisional(
+			info.sdkSessionId,
+			chat,
+			scope.workingDirectory,
+			scope.project,
+			info.model ?? overlay.model,
+			overlay.agent ?? scope.agent,
+			undefined,
+			new PendingRequestRegistry<CallToolResult>(),
+			permissionMode,
+			this._metadataStore,
+			this._instantiationService,
+		);
+		this._registerChatEntry(chat, chatSession);
+		return chatSession;
+	}
+
+	/** Registers a peer chat's {@link ClaudeAgentSession} and forwards its events. */
+	private _registerChatEntry(chat: URI, chatSession: ClaudeAgentSession): void {
+		const entry = new ClaudeSessionEntry(chatSession);
+		entry.addDisposable(chatSession.onDidSessionProgress(signal => this._onDidSessionProgress.fire(signal)));
+		entry.addDisposable(chatSession.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
+		this._chatSessions.set(chat.toString(), entry);
+	}
+
+	/** Reconstruct a peer chat's turn history from its SDK transcript. */
+	private async _getChatMessages(chat: URI, chatInfo: { session: string; chatId: string }): Promise<readonly Turn[]> {
+		const sessionUri = URI.parse(chatInfo.session);
+		let sdkId = this._chatSessions.get(chat.toString())?.session.sessionId;
+		if (!sdkId) {
+			const persisted = await this._readPersistedChats(sessionUri);
+			sdkId = persisted.get(chatInfo.chatId)?.sdkSessionId;
+		}
+		if (!sdkId) {
+			return [];
+		}
+		let messages;
+		try {
+			messages = await this._sdkService.getSessionMessages(sdkId, { includeSystemMessages: true });
+		} catch (err) {
+			this._logService.warn(`[Claude] getSessionMessages SDK fetch failed for chat ${chat.toString()}`, err);
+			return [];
+		}
+		try {
+			return mapSessionMessagesToTurns(messages, chat, this._logService);
+		} catch (err) {
+			this._logService.warn(`[Claude] replay mapper threw for chat ${chat.toString()}`, err);
+			return [];
+		}
+	}
+
+	/** Update a peer chat's persisted model so a later resume picks it up. */
+	private async _updateChatCatalogModel(session: URI, chat: URI, model: ModelSelection): Promise<void> {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			return;
+		}
+		const persisted = await this._readPersistedChats(session);
+		const info = persisted.get(parsed.chatId);
+		if (!info) {
+			return;
+		}
+		persisted.set(parsed.chatId, { ...info, model });
+		await this._writePersistedChats(session, persisted);
+	}
+
+	/**
+	 * Dispose every in-memory peer chat whose owning session matches
+	 * `parentSessionId`. The chat URI encodes its parent session, so we recover
+	 * it via {@link parseChatUri}.
+	 */
+	private _disposeChildChats(parentSessionId: string): void {
+		for (const chatKey of [...this._chatSessions.keys()]) {
+			const parsed = parseChatUri(URI.parse(chatKey));
+			if (parsed && AgentSession.id(parsed.session) === parentSessionId) {
+				const entry = this._chatSessions.get(chatKey);
+				if (entry && !entry.session.isPipelineReady) {
+					entry.session.abortController.abort();
+				}
+				this._chatSessions.deleteAndDispose(chatKey);
+			}
+		}
+	}
+
+	/** Reads the persisted peer-chat catalog for a session, keyed by chatId. */
+	private async _readPersistedChats(session: URI): Promise<Map<string, IPersistedChat>> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return new Map();
+		}
+		try {
+			const raw = await ref.object.getMetadata(ClaudeAgent._META_CHATS);
+			if (!raw) {
+				return new Map();
+			}
+			const parsed = JSON.parse(raw) as Record<string, unknown>;
+			const result = new Map<string, IPersistedChat>();
+			for (const [chatId, value] of Object.entries(parsed)) {
+				if (!value || typeof value !== 'object') {
+					continue;
+				}
+				const { sdkSessionId, model } = value as { sdkSessionId?: unknown; model?: unknown };
+				if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
+					continue;
+				}
+				result.set(chatId, { sdkSessionId, ...(model ? { model: model as ModelSelection } : {}) });
+			}
+			return result;
+		} catch (err) {
+			this._logService.warn(`[Claude] Failed to read persisted chats for ${session.toString()}`, err);
+			return new Map();
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/** Writes the persisted peer-chat catalog for a session. */
+	private async _writePersistedChats(session: URI, chats: Map<string, IPersistedChat>): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(session);
+		try {
+			// Null-prototype object: chatIds derive from a client-chosen chat URI
+			// authority, so a value like `__proto__` must not pollute the prototype.
+			const obj: Record<string, IPersistedChat> = Object.create(null);
+			for (const [chatId, info] of chats) {
+				obj[chatId] = info;
+			}
+			await dbRef.object.setMetadata(ClaudeAgent._META_CHATS, JSON.stringify(obj));
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
+	// #endregion
 
 	/**
 	 * Test-only accessor for the materialized {@link ClaudeAgentSession}.
@@ -700,6 +1105,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// On restore, the agent service calls this with a peer-chat URI to seed
+		// the additional chat's history from its own SDK conversation.
+		const chatInfo = parseChatUri(session);
+		if (chatInfo && !isDefaultChatUri(session)) {
+			return this._getChatMessages(session, chatInfo);
+		}
 		const sessionId = AgentSession.id(session);
 		const sess = this._findAnySession(sessionId);
 		if (sess && !sess.isPipelineReady) {
@@ -905,13 +1316,28 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			await Promise.all(sessionIds.map(sessionId =>
 				this._disposeSequencer.queue(sessionId, async () => {
 					this._sessions.deleteAndDispose(sessionId);
+					this._disposeChildChats(sessionId);
 					this._pruneActiveClientHandles(sessionId);
 				})
 			));
 		})();
 	}
 
-	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
+		// `IAgent.sendMessage` declares `turnId?` but every production caller in
+		// `AgentSideEffects` supplies one. Generate a fallback so the
+		// session-side `QueuedRequest.turnId: string` invariant holds even if a
+		// hypothetical caller forgets it.
+		const effectiveTurnId = turnId ?? generateUuid();
+
+		// Additional peer chat: route to its own conversation. Its SDK
+		// `session_id` is the chat's conversation id, NOT the parent session's.
+		if (chat && !isDefaultChatUri(chat)) {
+			const chatSession = await this._ensureChatMaterialized(sessionUri, chat);
+			await chatSession.send(this._buildSdkPrompt(chatSession.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);
+			return;
+		}
+
 		// Plan section 3.8. The sequencer scope holds across BOTH materialize
 		// and `session.send` so two concurrent first-message calls on the
 		// same session collapse into one materialize plus two ordered
@@ -919,11 +1345,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// dispose-sequencer eventually but the in-flight materialize
 		// completes first.
 		const sessionId = AgentSession.id(sessionUri);
-		// `IAgent.sendMessage` declares `turnId?` (agentService.ts:424) but
-		// every production caller in `AgentSideEffects` supplies one. Generate
-		// a fallback so the session-side `QueuedRequest.turnId: string`
-		// invariant holds even if a hypothetical caller forgets it.
-		const effectiveTurnId = turnId ?? generateUuid();
 		return this._sessionSequencer.queue(sessionId, async () => {
 			const existing = this._findAnySession(sessionId);
 			let session: ClaudeAgentSession;
@@ -935,23 +1356,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				session = await this._resumeSession(sessionId, sessionUri);
 			}
 
-			const contentBlocks = resolvePromptToContentBlocks(prompt, attachments);
-			const sdkPrompt: SDKUserMessage = {
-				type: 'user',
-				message: { role: 'user', content: contentBlocks },
-				session_id: sessionId,
-				parent_tool_use_id: null,
-				// M1 / Glossary: `Turn.id ↔ SDKUserMessage.uuid`. The SDK
-				// types this as a branded `${string}-…` template-literal
-				// alias of Node's `crypto.UUID`; cast at the boundary
-				// rather than threading the brand up to every caller.
-				// Mirrors the reference extension at
-				// `extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeAgent.ts:585`.
-				uuid: effectiveTurnId as `${string}-${string}-${string}-${string}-${string}`,
-			};
-
-			await session.send(sdkPrompt, effectiveTurnId);
+			await session.send(this._buildSdkPrompt(sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId);
 		});
+	}
+
+	/** Builds the SDK user message for a send, addressed to `sdkSessionId`. */
+	private _buildSdkPrompt(sdkSessionId: string, prompt: string, attachments: readonly MessageAttachment[] | undefined, turnId: string): SDKUserMessage {
+		const contentBlocks = resolvePromptToContentBlocks(prompt, attachments);
+		return {
+			type: 'user',
+			message: { role: 'user', content: contentBlocks },
+			session_id: sdkSessionId,
+			parent_tool_use_id: null,
+			// M1 / Glossary: `Turn.id ↔ SDKUserMessage.uuid`. The SDK types this
+			// as a branded `${string}-…` template-literal alias of Node's
+			// `crypto.UUID`; cast at the boundary rather than threading the brand
+			// up to every caller.
+			uuid: turnId as `${string}-${string}-${string}-${string}-${string}`,
+		};
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
@@ -959,6 +1381,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// single matching session is all we need. Silent on miss
 		// (workbench may have raced a session dispose).
 		for (const entry of this._sessions.values()) {
+			if (entry.session.respondToPermissionRequest(requestId, approved)) {
+				return;
+			}
+		}
+		for (const entry of this._chatSessions.values()) {
 			if (entry.session.respondToPermissionRequest(requestId, approved)) {
 				return;
 			}
@@ -975,9 +1402,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				return;
 			}
 		}
+		for (const entry of this._chatSessions.values()) {
+			if (entry.session.respondToUserInputRequest(requestId, response, answers)) {
+				return;
+			}
+		}
 	}
 
-	async abortSession(session: URI): Promise<void> {
+	async abortSession(session: URI, chat?: URI): Promise<void> {
 		// Phase 9 D1: cancel via the abort controller, NOT `Query.interrupt()`.
 		// Abort is a control-plane operation — it must NOT serialize
 		// through `_sessionSequencer` because an in-flight `sendMessage`
@@ -986,8 +1418,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// `entry.session.abort()` directly rejects the in-flight deferred,
 		// which lets the queued sendMessage task complete and frees the
 		// sequencer for the next caller.
-		const sessionId = AgentSession.id(session);
-		const sess = this._findAnySession(sessionId);
+		const sess = (chat && !isDefaultChatUri(chat))
+			? this._chatSessions.get(chat.toString())?.session
+			: this._findAnySession(AgentSession.id(session));
 		if (!sess) {
 			return;
 		}
@@ -1014,7 +1447,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async changeModel(session: URI, model: ModelSelection): Promise<void> {
+	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+		// Additional peer chat: apply to its own conversation and persist the
+		// model in the catalog (peer chats have no server summary, so their
+		// model is tracked here rather than the session metadata overlay).
+		if (chat && !isDefaultChatUri(chat)) {
+			const chatKey = chat.toString();
+			await this._sessionSequencer.queue(chatKey, async () => {
+				const chatSession = this._chatSessions.get(chatKey)?.session;
+				if (chatSession) {
+					await chatSession.setModel(model);
+				} else {
+					await this._metadataStore.write(chat, { model });
+				}
+				await this._updateChatCatalogModel(session, chat, model);
+			});
+			return;
+		}
 		// Session owns its own provisional/runtime branching and metadata
 		// write (see {@link ClaudeAgentSession.setModel}). The agent only
 		// covers the "external-only session" case where there is no
@@ -1036,16 +1485,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * provisional/runtime branching and metadata write
 	 * (see {@link ClaudeAgentSession.setAgent}). For external-only
 	 * sessions (no in-memory record), the agent is persisted directly to
-	 * the overlay so a later resume picks it up.
+	 * the overlay so a later resume picks it up. When `chat` is an additional
+	 * peer chat, the change targets that chat's conversation.
 	 */
-	async changeAgent(session: URI, agent: AgentSelection | undefined): Promise<void> {
-		const sessionId = AgentSession.id(session);
-		await this._sessionSequencer.queue(sessionId, async () => {
-			const sess = this._findAnySession(sessionId);
+	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+		const target = (chat && !isDefaultChatUri(chat)) ? chat : session;
+		const queueKey = (chat && !isDefaultChatUri(chat)) ? chat.toString() : AgentSession.id(session);
+		const lookup = (chat && !isDefaultChatUri(chat))
+			? () => this._chatSessions.get(chat.toString())?.session
+			: () => this._findAnySession(AgentSession.id(session));
+		await this._sessionSequencer.queue(queueKey, async () => {
+			const sess = lookup();
 			if (sess) {
 				await sess.setAgent(agent);
 			} else {
-				await this._metadataStore.write(session, { agent: agent ?? null });
+				await this._metadataStore.write(target, { agent: agent ?? null });
 			}
 		});
 	}

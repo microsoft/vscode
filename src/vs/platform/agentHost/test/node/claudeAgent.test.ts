@@ -43,7 +43,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -5538,6 +5538,167 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.strictEqual(sdk.startupCallCount, 2);
 		assert.strictEqual(sdk.capturedStartupOptions[1]?.agent, undefined, 'cleared agent omitted from rebuilt Options');
 	});
+
+	// #region Multi-chat — additional (non-default) peer chats
+
+	test('createChat persists a peer chat; getChats lists it; disposeChat removes it', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+
+		await agent.createChat!(created.session, chatUri);
+		const afterCreate = (await agent.getChats!(created.session)).map(u => u.toString());
+
+		// Idempotent re-create must not duplicate the catalog entry.
+		await agent.createChat!(created.session, chatUri);
+		const afterRecreate = (await agent.getChats!(created.session)).map(u => u.toString());
+
+		await agent.disposeChat!(created.session, chatUri);
+		const afterDispose = (await agent.getChats!(created.session)).map(u => u.toString());
+
+		assert.deepStrictEqual({ afterCreate, afterRecreate, afterDispose }, {
+			afterCreate: [chatUri.toString()],
+			afterRecreate: [chatUri.toString()],
+			afterDispose: [],
+		});
+	});
+
+	test('createChat / disposeChat on the default chat URI are no-ops', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const defaultChat = URI.parse(buildChatUri(created.session.toString(), 'default'));
+
+		await agent.createChat!(created.session, defaultChat);
+		await agent.disposeChat!(created.session, defaultChat);
+
+		assert.deepStrictEqual(await agent.getChats!(created.session), []);
+	});
+
+	test('createChat({ fork }) forks the source conversation; the peer chat resumes its own forked SDK session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		// Parent session with a two-turn transcript; fork the peer chat at u1.
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'u1' } });
+
+		const forkCall = sdk.forkSessionCalls[0];
+
+		// Sending to the peer chat resumes ITS forked conversation, not the parent's.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(created.session, 'next', undefined, 'turn-1', chatUri);
+
+		assert.deepStrictEqual({
+			forkCall,
+			chats: (await agent.getChats!(created.session)).map(u => u.toString()),
+			startupResume: sdk.capturedStartupOptions[0]?.resume,
+		}, {
+			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
+			chats: [chatUri.toString()],
+			startupResume: 'forked-1',
+		});
+	});
+
+	test('createChat({ fork }) with an unknown turn falls back to a fresh conversation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'does-not-exist' } });
+
+		assert.deepStrictEqual({
+			forked: sdk.forkSessionCalls.length,
+			chats: (await agent.getChats!(created.session)).map(u => u.toString()),
+		}, {
+			forked: 0,
+			chats: [chatUri.toString()],
+		});
+	});
+
+	test('sendMessage to a peer chat targets a conversation distinct from the parent session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'u1' } });
+
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1', chatUri);
+
+		// The peer chat's startup resumed `forked-1`; the parent session was
+		// never materialized (no fresh `sessionId` startup for the parent).
+		assert.deepStrictEqual({
+			startupCount: sdk.capturedStartupOptions.length,
+			resume: sdk.capturedStartupOptions[0]?.resume,
+			parentMaterialized: sdk.capturedStartupOptions.some(o => o.sessionId === parentId),
+		}, {
+			startupCount: 1,
+			resume: 'forked-1',
+			parentMaterialized: false,
+		});
+	});
+
+	test('changeModel on a peer chat persists in the catalog so a later resume picks it up', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'u1' } });
+
+		// Change the peer chat's model before it is materialized.
+		await agent.changeModel(created.session, { id: 'claude-opus-4.6' }, chatUri);
+
+		// First send materializes (resumes) the chat with the changed model.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1', chatUri);
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.model, 'claude-opus-4-6');
+	});
+
+	test('disposing the parent session disposes its peer chats', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri);
+
+		await agent.disposeSession(created.session);
+
+		// The persisted catalog still records the chat (dispose tears down live
+		// state, not on-disk history), but no in-memory conversation survives —
+		// re-disposing the chat is a clean no-op.
+		await agent.disposeChat!(created.session, chatUri);
+		assert.deepStrictEqual(await agent.getChats!(created.session), []);
+	});
+
+	// #endregion
 });
 
 // #endregion

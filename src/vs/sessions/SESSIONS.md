@@ -252,8 +252,9 @@ can react.
 
 Providers that set `capabilities.supportsMultipleChats` can host several peer
 chats inside one session that share a single backend scope (workspace, model,
-config). For the local agent host provider this is enabled for the
-`copilotcli` session type only.
+config). For the agent host providers this is enabled for the `copilotcli` and
+`claude` session types, whose backends (`CopilotAgent` / `ClaudeAgent`)
+implement the peer-chat lifecycle (`createChat` / `disposeChat` / `getChats`).
 
 ```
 1. User adds a chat to a running session

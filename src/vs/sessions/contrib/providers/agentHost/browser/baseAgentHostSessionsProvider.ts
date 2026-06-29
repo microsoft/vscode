@@ -118,6 +118,19 @@ export const CopilotCLISessionType: ISessionType = {
 	icon: Codicon.copilot,
 };
 
+/** Logical session type id for the Claude agent-host provider. */
+const CLAUDE_SESSION_TYPE_ID = 'claude';
+
+/**
+ * Whether an agent-host session of the given logical session type supports
+ * multiple chats per session. Enabled for Copilot CLI and Claude agent-host
+ * sessions, whose backends implement the peer-chat lifecycle (`createChat` /
+ * `disposeChat` / `getChats`).
+ */
+function supportsMultipleChats(logicalSessionType: string): boolean {
+	return logicalSessionType === CopilotCLISessionType.id || logicalSessionType === CLAUDE_SESSION_TYPE_ID;
+}
+
 /**
  * Variation points the host provider supplies when building an adapter.
  * Differences between local and remote sessions (icon, description text,
@@ -359,7 +372,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
-		this.capabilities = { supportsMultipleChats: logicalSessionType === CopilotCLISessionType.id, supportsRename: true, supportsDelete: true };
+		this.capabilities = { supportsMultipleChats: supportsMultipleChats(logicalSessionType), supportsRename: true, supportsDelete: true };
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
