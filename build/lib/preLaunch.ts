@@ -48,7 +48,8 @@ async function getElectron() {
 
 async function isExpectedElectronInstalled(): Promise<boolean> {
 	try {
-		const { electronVersion } = await import('./electron.ts');
+		const { getElectronVersion } = await import('./util.ts');
+		const { electronVersion } = getElectronVersion();
 		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
 		return installedVersion === electronVersion;
 	} catch {
