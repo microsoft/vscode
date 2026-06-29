@@ -675,7 +675,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * destructively reset the selection. Deriving the worktree root from the agent
 	 * list closes that race.
 	 *
-	 * Mirrors the agent-host backend's code to rebase by relative path. 
+	 * Mirrors the agent-host backend's code to rebase by relative path.
 	 * The re-point is only applied to a URI that actually exists in
 	 * the supplied agent list, so it never runs ahead of the host reporting the
 	 * worktree agents (which would otherwise re-introduce the mismatch it fixes).
