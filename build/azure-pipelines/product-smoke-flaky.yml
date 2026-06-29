@@ -178,5 +178,4 @@ extends:
           jobs:
             - template: darwin/product-smoke-flaky-darwin.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 iterations: ${{ parameters.iterations }}

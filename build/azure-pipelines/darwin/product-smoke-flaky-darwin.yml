@@ -1,6 +1,4 @@
 parameters:
-  - name: VSCODE_QUALITY
-    type: string
   - name: iterations
     type: object
 
