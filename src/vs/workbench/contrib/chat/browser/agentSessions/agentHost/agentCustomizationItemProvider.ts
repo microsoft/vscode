@@ -101,10 +101,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, groupKey: string | undefined): ICustomizationItem[] {
+	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem[] {
 		const items: ICustomizationItem[] = [];
 		for (const child of customization.children ?? []) {
-			const item = this.toDirectoryChildItem(child, source, groupKey);
+			const item = this.toDirectoryChildItem(child, source, isRemote);
 			if (item) {
 				items.push(item);
 			}
@@ -112,7 +112,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return items;
 	}
 
-	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, groupKey: string | undefined): ICustomizationItem | undefined {
+	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem | undefined {
 		const type = toPromptsType(child.type);
 		if (!type) {
 			return undefined;
@@ -120,6 +120,16 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		let userInvocable: boolean | undefined = undefined;
 		if (child.type === CustomizationType.Agent) {
 			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
+		}
+		let groupKey = isRemote ? REMOTE_CLIENT_GROUP : undefined;
+		if (!groupKey && child.type === CustomizationType.Rule) {
+			if (child.alwaysApply) {
+				groupKey = 'agent-instructions';
+			} else if (child.globs && child.globs.length > 0) {
+				groupKey = 'context-instructions';
+			} else {
+				groupKey = 'on-demand-instructions';
+			}
 		}
 
 		return {
@@ -259,9 +269,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
-			const groupKey = sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : undefined;
-			for (const child of this.toDirectoryItems(sessionCustomization, source, groupKey)) {
+			const source = workingDirectory && isParentOrEqual(workingDirectory, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const isRemote = sessionCustomization.clientId !== undefined;
+			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
 					...child,
 					status: toStatusString(sessionCustomization.load),
@@ -287,6 +297,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, children });
 		return children;
 	}
+}
+function isParentOrEqual(folderURI: string, childURI: string): boolean {
+	return childURI === folderURI || childURI.startsWith(folderURI + '/');
 }
 
 function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
