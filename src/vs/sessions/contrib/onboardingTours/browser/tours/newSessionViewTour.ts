@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
@@ -71,6 +73,7 @@ const newSessionViewPayload: ISpotlightPayload = {
  * {@link NewSessionViewTourContribution}, which flips it once an eligible
  * (brand-new) user has the new-session view open and rendered.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
+ * The modal-editor gate keeps the tour hidden while a modal editor is showing.
  *
  * Shares {@link NEW_SESSION_ONBOARDING_SEEN_KEY} with the pulsing-button
  * {@link createNewSessionTour} variant, so a user who has seen either tour is
@@ -80,7 +83,7 @@ export function createNewSessionViewTour(signal: IObservable<boolean>): IOnboard
 	return {
 		id: NEW_SESSION_VIEW_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		presentation: {
