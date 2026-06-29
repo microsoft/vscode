@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, throttledObservable, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -51,7 +51,6 @@ import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionM
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 
@@ -817,13 +816,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		const mapDiffUri = this._options.mapDiffUri;
 
-		// Coalesce the per-envelope changeset stream. `sessionChangesetStateObs`
-		// is a nested observable (which-subscription → value); flatten it to the
-		// value stream, then throttle. Throttle (not debounce) so a continuous
-		// stream keeps updating ~10x/s instead of starving until edits stop; the
-		// trailing read always delivers the final state.
-		const throttledChangesetValueObs = throttledObservable(sessionChangesetStateObs.flatten(), CHANGESET_UPDATE_THROTTLE_MS);
-
 		// Hold the raw `ChangesetFile[]` (with last-value semantics) rather than
 		// the mapped changes. The changeset reducer preserves the reference of
 		// every file that didn't change, so keeping the raw list lets the
@@ -834,7 +826,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return lastValue;
 			}
 
-			const branchChangesState = throttledChangesetValueObs.read(reader);
+			const branchChangesState = sessionChangesetStateObs.read(reader).read(reader);
 			if (!branchChangesState || branchChangesState instanceof Error || branchChangesState.status !== 'ready') {
 				return lastValue;
 			}
@@ -846,7 +838,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// `ChangesetFile` reference is unchanged. Only the file(s) that actually
 		// changed get re-parsed and re-mapped, turning the previous O(all files)
 		// URI work per update into O(changed files).
-		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
+		const mappedChangesObs = mapObservableArrayCached(this,
+			changesetFilesObs.map(files => files ?? []),
+			file => changesetFileToChange(file, mapDiffUri));
 
 		const changesetChangesObs = derived<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, reader => {
 			const files = changesetFilesObs.read(reader);
