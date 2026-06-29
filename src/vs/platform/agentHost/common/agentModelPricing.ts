@@ -105,7 +105,7 @@ export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefine
 
 	// Resolve token prices: prefer camelCase `tokenPrices`, fall back to snake_case `token_prices`.
 	const rawTokenPrices = (billing.tokenPrices ?? billing.token_prices) as Record<string, unknown> | undefined;
-	let tokenPrices: ICAPIModelBilling['tokenPrices'];
+	let tokenPrices: ICAPIModelBilling['tokenPrices'] = undefined;
 	if (rawTokenPrices && typeof rawTokenPrices === 'object') {
 		// The CAPI snake_case format nests prices under `default` / `long_context` tiers;
 		// the camelCase format flattens them at the top level of `tokenPrices`.
@@ -171,7 +171,9 @@ export interface ICAPIModelBilling {
 
 /**
  * Converts a CAPI model's billing payload into an {@link IAgentModelPricingMeta} `_meta` bag. Long-context costs are
- * emitted whenever the long-context tier is present; the model picker decides whether to render the column.
+ * only emitted when there is an actual surcharge (at least one long-context price differs from the default tier).
+ * When emitting, any missing long-context field falls back to the default-tier value so the hover table renders
+ * complete rows. See {@link hasLongContextSurcharge} for the surcharge detection logic.
  *
  * @param billing - The model's billing info, narrowed through {@link ICAPIModelBilling}.
  * @param priceCategory - An optional override for the price category (e.g. from `modelPickerPriceCategory` on the
@@ -181,10 +183,16 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 	const tokenPrices = billing?.tokenPrices;
 	const longContext = tokenPrices?.longContext;
 
-	// Emit all long-context values when the tier exists so the hover table
-	// shows a complete row. The model picker only renders the column when at
-	// least one long-context field differs from the default tier.
-	const hasLongContext = longContext !== undefined;
+	// Only emit long-context costs when there is an actual surcharge (at least
+	// one price differs from default). When emitting, fall back to the default-
+	// tier value for any field the long-context tier does not specify so the
+	// hover table renders complete rows without gaps.
+	const showLongContext = longContext !== undefined && (
+		(longContext.inputPrice !== undefined && longContext.inputPrice !== tokenPrices?.inputPrice) ||
+		(longContext.outputPrice !== undefined && longContext.outputPrice !== tokenPrices?.outputPrice) ||
+		(longContext.cachePrice !== undefined && longContext.cachePrice !== tokenPrices?.cachePrice) ||
+		(longContext.cacheWritePrice !== undefined && longContext.cacheWritePrice !== tokenPrices?.cacheWritePrice)
+	);
 
 	return createAgentModelPricingMeta({
 		multiplierNumeric: typeof billing?.multiplier === 'number' ? billing.multiplier : undefined,
@@ -192,10 +200,10 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 		cacheCost: tokenPrices?.cachePrice,
 		cacheWriteCost: tokenPrices?.cacheWritePrice,
 		outputCost: tokenPrices?.outputPrice,
-		longContextInputCost: hasLongContext ? longContext?.inputPrice : undefined,
-		longContextCacheCost: hasLongContext ? (longContext?.cachePrice ?? tokenPrices?.cachePrice) : undefined,
-		longContextCacheWriteCost: hasLongContext ? (longContext?.cacheWritePrice ?? tokenPrices?.cacheWritePrice) : undefined,
-		longContextOutputCost: hasLongContext ? longContext?.outputPrice : undefined,
+		longContextInputCost: showLongContext ? (longContext.inputPrice ?? tokenPrices?.inputPrice) : undefined,
+		longContextCacheCost: showLongContext ? (longContext.cachePrice ?? tokenPrices?.cachePrice) : undefined,
+		longContextCacheWriteCost: showLongContext ? (longContext.cacheWritePrice ?? tokenPrices?.cacheWritePrice) : undefined,
+		longContextOutputCost: showLongContext ? (longContext.outputPrice ?? tokenPrices?.outputPrice) : undefined,
 		priceCategory: priceCategory ?? (typeof billing?.priceCategory === 'string' ? billing.priceCategory : undefined),
 		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
 	});
