@@ -2917,7 +2917,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 }
 
 /** Maximum number of sessions shown in the "Recent" date section. */
-export const RECENT_SESSIONS_LIMIT = 10;
+const RECENT_SESSIONS_LIMIT = 10;
 
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
