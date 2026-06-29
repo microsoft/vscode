@@ -73,17 +73,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			}
 			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
 		});
-		// Tab strip render order: open chats with tool-origin chats hidden and
-		// in-composer (untitled) drafts moved to the end.
-		this.visibleChatTabs = derived(this, reader => {
-			const open = this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
-			const committed: IChat[] = [];
-			const untitled: IChat[] = [];
-			for (const chat of open) {
-				(chat.status.read(reader) === SessionStatus.Untitled ? untitled : committed).push(chat);
-			}
-			return untitled.length === 0 ? open : [...committed, ...untitled];
-		});
+		// Tab strip contents: the open chats with tool-origin chats (subagents)
+		// hidden, in the provider's order.
+		this.visibleChatTabs = derived(this, reader =>
+			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
+		);
 	}
 
 	setActiveChat(chat: IChat): void {

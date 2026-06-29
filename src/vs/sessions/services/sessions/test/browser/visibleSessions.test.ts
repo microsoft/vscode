@@ -1044,7 +1044,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 		return disposables.add(new VisibleSession(session, chats[0]));
 	}
 
-	test('keeps order, hides tool-origin chats, moves untitled drafts to the end', () => {
+	test('keeps provider order and hides tool-origin chats', () => {
 		const visible = createSession([
 			makeChat('main'),
 			makeChat('draft', SessionStatus.Untitled),
@@ -1052,6 +1052,6 @@ suite('VisibleSession - visibleChatTabs', () => {
 			makeChat('second'),
 		]);
 
-		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'second', 'draft']);
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
 	});
 });
