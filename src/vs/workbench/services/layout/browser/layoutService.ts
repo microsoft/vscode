@@ -58,9 +58,9 @@ export const enum LayoutSettings {
  * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
  * content by this amount to leave room for the margin/border applied in CSS
  * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
- * Keep in sync with the `--vscode-spacing-size60` (6px) token used there.
+ * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
  */
-export const FLOATING_PANEL_MARGIN = 6;
+export const FLOATING_PANEL_MARGIN = 4;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
