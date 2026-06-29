@@ -102,12 +102,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.summary.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectory;
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 
-		const gitHubState = readSessionGitHubState(sessionState.summary._meta);
+		const gitHubState = readSessionGitHubState(sessionState._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,

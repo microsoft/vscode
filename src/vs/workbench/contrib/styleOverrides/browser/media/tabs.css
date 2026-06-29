@@ -41,11 +41,28 @@
 }
 
 .style-override .part.editor .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
+}
+
+/*
+ * Light themes: the foreground is dark, so the same foreground-based mixes read
+ * much heavier on a light surface than on a dark one. Tone the tab backgrounds
+ * down so the pills stay subtle.
+ */
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container,
@@ -147,6 +164,19 @@
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+/*
+ * Dim the foreground of inactive tabs so the active tab reads as the clear
+ * focal point. The active tab keeps the full `--vscode-foreground` colour
+ * (paired with the stronger active background above).
+ */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+	color: var(--vscode-foreground) !important;
 }
 
 /*

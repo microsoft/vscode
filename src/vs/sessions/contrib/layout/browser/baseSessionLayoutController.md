@@ -79,4 +79,6 @@ default layout instead of stale state. Open editors are still preserved.
   `_panelVisibilityBySession` for every visible session; editor working sets are left untouched.
 - **Subclass hook** — `_registerViewStateManagement()` runs at the end of the base constructor for
   platform-specific auxiliary bar wiring (no-op in the base); `_captureActiveSessionViewState(resource)`
-  is the save-time hook (no-op in the base) invoked by [B4].
+  is the save-time hook (no-op in the base) invoked by [B4]; `_onSidePaneToggled()` runs at the end of
+  `toggleSidePane()` (no-op in the base) so a subclass can record the resulting side-pane state, which
+  the per-session capture listener deliberately ignores while the side pane is toggled.

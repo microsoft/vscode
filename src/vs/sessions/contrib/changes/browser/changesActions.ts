@@ -22,7 +22,7 @@ import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 
@@ -53,6 +53,7 @@ class ViewAllChangesAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -61,6 +62,11 @@ class ViewAllChangesAction extends Action2 {
 		if (!sessionResource) {
 			return;
 		}
+
+		// The header pill reflects the session's default changeset, so reset any
+		// Changes-view selection to the default before opening so the diff editor
+		// (a shared per-session resource) shows the same changes as the pill.
+		changesViewService.setChangesetId(undefined);
 
 		// Open the multi-file diff editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
@@ -90,11 +96,9 @@ interface IDiffStats {
  * action, which opens the multi-file diff editor.
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
- * are shown even when several session views are visible at once. The counts always reflect
- * the session's **Branch Changes** changeset (the branch-vs-base diff), located by id in
- * {@link IActiveSession.changesets}, so the header is independent of whichever changeset the
- * Changes view currently has selected. When no branch changeset is present, it falls back to
- * the session's top-level {@link IActiveSession.changes}.
+ * are shown even when several session views are visible at once. The counts reflect the
+ * changeset the provider marks as {@link ISessionChangeset.isDefault}, falling back to the
+ * session's top-level {@link IActiveSession.changes} when none is default.
  */
 export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
 
@@ -109,8 +113,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 
 		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const session = sessionContext.session.read(reader);
-			const branchChangeset = session?.changesets.read(reader)?.find(c => c.id === BRANCH_CHANGES_CHANGESET_ID);
-			const changes = (branchChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
+			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
+			const changes = (defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
 			let insertions = 0;
 			let deletions = 0;
 			for (const change of changes) {

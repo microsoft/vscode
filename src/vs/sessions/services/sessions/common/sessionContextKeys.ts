@@ -21,8 +21,9 @@ import {
 	SessionWorkspaceIsVirtualContext,
 	SessionIdContext,
 	SessionHasMultipleCommittedChatsContext,
+	SessionHasMultipleOpenChatsContext,
 } from '../../../common/contextkeys.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -44,6 +45,7 @@ interface ISessionContextKeys {
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
+	readonly hasMultipleOpenChats: IContextKey<boolean>;
 }
 
 /**
@@ -75,6 +77,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
+			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -107,13 +110,11 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
 	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
 
-	// Mirror the changes pill's own source — the Branch Changes changeset
-	// (branch-vs-base diff) — falling back to the session's changes when absent,
-	// so the diff-stats menu item is shown exactly when it renders non-zero counts.
-	const branchChangeset = session?.changesets.read(reader)?.find(c => c.id === BRANCH_CHANGES_CHANGESET_ID);
+	// Mirror the changes pill: the default changeset, falling back to the session's changes.
+	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 	let insertions = 0;
 	let deletions = 0;
-	for (const change of branchChangeset?.changes.read(reader) ?? session?.changes.read(reader) ?? []) {
+	for (const change of defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader) ?? []) {
 		insertions += change.insertions;
 		deletions += change.deletions;
 	}
@@ -144,6 +145,10 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// real chat. Counts the whole chat list (open or closed) so a committed chat
 	// that was closed still keeps the menu available to reopen it.
 	const committedChatCount = session?.chats.read(reader)
-		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled ? count : count + 1, 0) ?? 0;
+		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
+
+	// More than one open chat (incl. drafts) means the tab strip is shown; the
+	// header then hides its own New Chat button.
+	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0) > 1);
 }

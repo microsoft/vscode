@@ -324,6 +324,7 @@ jobs:
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
@@ -365,6 +366,7 @@ jobs:
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
@@ -377,6 +379,7 @@ jobs:
         run: ./scripts/test-remote-integration.sh
         env:
           DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}

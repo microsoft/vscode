@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
@@ -40,14 +42,14 @@ const newSessionPayload: ISpotlightPayload = {
 			id: 'workspacePicker',
 			targetId: 'sessions.newSession.workspacePicker',
 			title: localize('sessions.onboarding.workspace.title', "Work Across Workspaces"),
-			description: localize('sessions.onboarding.workspace.description', "Pick any workspace — you can run multiple tasks in the same workspace as well as across several different workspaces at the same time."),
+			description: localize('sessions.onboarding.workspace.description', "Choose between the folders and repositories you work in. Run multiple sessions at once in a single workspace, or across many."),
 			placement: 'above',
 		},
 		{
 			id: 'isolation',
 			targetId: 'sessions.newSession.isolation',
 			title: localize('sessions.onboarding.isolation.title', "Isolate Your Work"),
-			description: localize('sessions.onboarding.isolation.description', "Choose a worktree to work on two different tasks in the same workspace while keeping the two tasks fully isolated from each other."),
+			description: localize('sessions.onboarding.isolation.description', "Use a worktree to work on multiple tasks in the same project without conflicts. Each task stays isolated, so you can experiment freely and safely."),
 			placement: 'below',
 		},
 	],
@@ -59,12 +61,13 @@ const newSessionPayload: ISpotlightPayload = {
  * {@link NewSessionTourContribution}, which flips it after the eligible user
  * presses the pulsing New Session button.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
+ * The modal-editor gate keeps the tour hidden while a modal editor is showing.
  */
 export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		presentation: {
