@@ -22,7 +22,7 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constan
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptValidator } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
+import { PromptValidator, PromptValidatorMarkerCode } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
@@ -942,6 +942,44 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool' will be ignored.`);
+		});
+
+		test('vscode target agent shows actionable warning for github alias when server is missing', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['github/*']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.deepStrictEqual(markers[0].code, {
+				value: PromptValidatorMarkerCode.MissingGithubMcpServer,
+				target: URI.parse('https://marketplace.visualstudio.com/items?itemName=io.github.github/github-mcp-server')
+			});
+			assert.strictEqual(markers[0].message, `Tool alias 'github/*' requires the GitHub MCP server. Enable the built-in server with setting 'github.copilot.chat.githubMcpServer.enabled' or install extension 'io.github.github/github-mcp-server' from Extensions (\`@mcp github\`).`);
+		});
+
+		test('vscode target agent shows actionable warning for playwrite alias when server is missing', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['playwrite/*']`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.deepStrictEqual(markers[0].code, {
+				value: PromptValidatorMarkerCode.MissingPlaywrightMcpServer,
+				target: URI.parse('https://marketplace.visualstudio.com/items?itemName=microsoft.playwright-mcp')
+			});
+			assert.strictEqual(markers[0].message, `Tool alias 'playwrite/*' requires the Playwright MCP server. Install it from Extensions (\`@mcp playwright\`).`);
 		});
 
 		test('vscode target agent with mcp-servers and github-tools', async () => {
@@ -2047,6 +2085,23 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.strictEqual(markers[0].message, `Unknown tool or toolset 'toolX'.`);
+		});
+
+		test('body with github alias variable reference shows actionable warning when server is missing', async () => {
+			const content = [
+				'---',
+				'description: "Unknown github tool var"',
+				'---',
+				'This line references #tool:github/*'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.deepStrictEqual(markers[0].code, {
+				value: PromptValidatorMarkerCode.MissingGithubMcpServer,
+				target: URI.parse('https://marketplace.visualstudio.com/items?itemName=io.github.github/github-mcp-server')
+			});
+			assert.strictEqual(markers[0].message, `Tool alias 'github/' requires the GitHub MCP server. Enable the built-in server with setting 'github.copilot.chat.githubMcpServer.enabled' or install extension 'io.github.github/github-mcp-server' from Extensions (\`@mcp github\`).`);
 		});
 
 		test('body with tool not present in tools list', async () => {
