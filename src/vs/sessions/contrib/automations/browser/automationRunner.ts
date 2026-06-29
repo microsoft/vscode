@@ -72,6 +72,7 @@ export class AutomationRunner implements IAutomationRunner {
 			const options: ISendRequestOptions = {
 				query: automation.prompt,
 				background: true,
+				source: 'automation',
 			};
 
 			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId || automation.sessionTypeId || automation.modelId || automation.mode || automation.permissionLevel || automation.isolationMode || automation.branch

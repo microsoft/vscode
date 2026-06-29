@@ -27,6 +27,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional tag identifying what created this request (e.g. `'automation'`). */
+	readonly source?: string;
 }
 
 /**
