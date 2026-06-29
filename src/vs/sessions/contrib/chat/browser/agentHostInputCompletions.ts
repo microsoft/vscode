@@ -175,7 +175,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		);
 	}
 
-	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
+	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
+		// For a `/troubleshoot` request, `#` references target sessions (served
+		// by the `#session` provider); suppress host-supplied completions (e.g.
+		// the host's `#file` list) so only sessions are offered.
+		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
+			return undefined;
+		}
 		const session = this._sessionsService.activeSession.get();
 		if (!session) {
 			return undefined;

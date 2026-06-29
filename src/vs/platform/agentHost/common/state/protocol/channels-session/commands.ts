@@ -8,8 +8,7 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { ModelSelection } from '../channels-root/state.js';
-import type { SessionActiveClient, AgentSelection } from './state.js';
+import type { SessionActiveClient } from './state.js';
 import type { Turn, MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
@@ -33,7 +32,7 @@ import type { Turn, MessageAttachment } from '../channels-chat/state.js';
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 2, "method": "createSession",
- *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot", "model": "gpt-4o" } }
+ *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot" } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 2, "result": null }
@@ -64,14 +63,6 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Model selection (ID and optional model-specific configuration) */
-	model?: ModelSelection;
-	/**
-	 * Initial custom agent selection for the new session.
-	 *
-	 * Omit to start the session with no custom agent selected (provider default).
-	 */
-	agent?: AgentSelection;
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**
@@ -85,9 +76,9 @@ export interface CreateSessionParams extends BaseParams {
 	 */
 	config?: Record<string, unknown>;
 	/**
-	 * Eagerly claim the active client role for the new session.
+	 * Eagerly claim an active client role for the new session.
 	 *
-	 * When provided, the server initializes the session with this client as the
+	 * When provided, the server initializes the session with this client as an
 	 * active client, equivalent to dispatching a `session/activeClientSet`
 	 * action immediately after creation. The `clientId` MUST match the
 	 * `clientId` the creating client supplied in `initialize`.

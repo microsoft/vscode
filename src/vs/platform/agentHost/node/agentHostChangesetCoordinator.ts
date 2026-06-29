@@ -6,11 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
-import {
-	ChangesetKind,
-	parseChangesetUri,
-} from '../common/changesetUri.js';
-import { ISessionGitState } from '../common/state/sessionState.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, formatSessionChangesetDescription as formatBranchChangesChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -18,6 +14,7 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { readSessionGitState } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -51,13 +48,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, this._stateManager));
-		this._register(this._changesetFileMonitor.onDidChangeSessionsRoot(activeSessions => this.onDidChangeSessionsRoot(activeSessions)));
+		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -109,42 +106,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	/**
-	 * Called after `_meta.git` is attached or updated. Git state can provide
-	 * the base branch used by Branch Changes and fresh uncommitted counts, so
-	 * refresh both static changesets once the session has a working directory.
-	 */
-	onSessionGitStateChanged(sessionStr: string, gitState?: ISessionGitState): void {
-		// Git state can provide the base branch used by Branch Changes and
-		// fresh uncommitted counts; recompute every changeset currently
-		// subscribed for the session (the service reads the exposed
-		// subscription list).
-		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
-	}
-
-	/**
-	 * Called after files in a directory have changed. In case of folder sessions
-	 * there may be multiple session that are associated with the same root directory.
-	 * The git state is updated to reflect the new state of the root directory. Then
-	 * we recompute the file list of the subscribed changesets and their respective
-	 * operations.
-	 */
-	async onDidChangeSessionsRoot(activeSessions: string[]): Promise<void> {
-		for (const sessionStr of activeSessions) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionStr)?.summary.workingDirectory;
-			const workingDirectory = workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined;
-
-			// Refresh the git state for the session
-			const gitState = await this._gitStateService.refreshSessionGitState(sessionStr, workingDirectory);
-
-			// Update subscribed changesets and operations
-			this.onSessionGitStateChanged(sessionStr, gitState ?? undefined);
-		}
-	}
-
-	/**
 	 * Called when a session is disposed. Forgets any pending refresh
 	 * queued for that session.
 	 */
@@ -183,21 +144,18 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Branch) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -208,7 +166,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
 			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 			return;
 		}
 		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
@@ -312,7 +269,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
@@ -359,5 +315,90 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
 		return changes ? { ...entry, changes } : entry;
+	}
+
+	// ---- Git state  events -------------------------------------------------
+
+	/**
+	 * Called when a session's Git state is refreshed.
+	 */
+	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		// Git state has been refreshed so we need to recompute every
+		// changeset currently subscribed for the session (the service
+		// reads the exposed subscription list).
+		this._changesets.recomputeSubscribedChangesets(sessionStr);
+
+		// Remove any changesets that are only relevant to Git state.
+		this._removeGitOnlyChangesets(sessionStr);
+
+		// Update the description of the branch changeset.
+		this._updateBranchChangesetDescription(sessionStr);
+	}
+
+	private _removeGitOnlyChangesets(sessionStr: string): void {
+		const state = this._stateManager.getSessionState(sessionStr);
+		const gitState = readSessionGitState(state?._meta);
+		if (gitState) {
+			return;
+		}
+
+		const currentChangesets = state?.changesets;
+		if (!currentChangesets || currentChangesets.length === 0) {
+			return;
+		}
+
+		const branchUri = buildBranchChangesetUri(sessionStr);
+		const sessionUri = buildSessionChangesetUri(sessionStr);
+		const uncommittedUri = buildUncommittedChangesetUri(sessionStr);
+
+		const nextChangesets = currentChangesets
+			.filter(c => c.uriTemplate !== branchUri &&
+				c.uriTemplate !== sessionUri &&
+				c.uriTemplate !== uncommittedUri);
+		if (nextChangesets.length === currentChangesets.length) {
+			return;
+		}
+
+		this._stateManager.setSessionChangesets(sessionStr, nextChangesets);
+	}
+
+	private _updateBranchChangesetDescription(sessionStr: string): void {
+		const state = this._stateManager.getSessionState(sessionStr);
+		const gitState = readSessionGitState(state?._meta);
+		if (!gitState) {
+			return;
+		}
+
+		const changesets = state?.changesets;
+		if (!changesets || changesets.length === 0) {
+			return;
+		}
+
+		const branchUri = buildBranchChangesetUri(sessionStr);
+		const description = formatBranchChangesChangesetDescription(gitState);
+
+		let changed = false;
+		const nextChangesets = changesets.map(changeset => {
+			if (changeset.uriTemplate !== branchUri) {
+				return changeset;
+			}
+			if (changeset.description === description) {
+				return changeset;
+			}
+
+			changed = true;
+			if (description === undefined) {
+				const { description: _omit, ...rest } = changeset;
+				return rest;
+			}
+
+			return { ...changeset, description };
+		});
+
+		if (!changed) {
+			return;
+		}
+
+		this._stateManager.setSessionChangesets(sessionStr, nextChangesets);
 	}
 }

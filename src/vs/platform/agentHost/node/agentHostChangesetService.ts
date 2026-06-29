@@ -38,6 +38,7 @@ import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncre
 import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
@@ -158,6 +159,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
@@ -223,7 +225,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// `changeKind: 'session'` changeset state (registered but not-yet-
 		// restored session) is authoritative, so the caller can skip loading
 		// the potentially-large persisted diff blobs.
-		const liveSummaryChanges = this._stateManager.getSessionState(sessionUri)?.summary.changes;
+		const liveSummaryChanges = this._stateManager.getSessionSummary(sessionUri)?.changes;
 		if (liveSummaryChanges) {
 			return undefined;
 		}
@@ -551,7 +553,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -794,6 +796,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs);
+
 			// Persist the file list so a subsequent `listSessions` /
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
@@ -859,36 +862,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * fresh file list has been applied.
 	 */
 	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
-		const previous = this._stateManager.getChangesetState(changesetUri);
-		const previousIds = new Set<string>(previous?.files.map(f => f.id) ?? []);
+		// Get the available operations for this changeset. This call assumes that at this point
+		// the git state of the session is up-to-date as it is being used to determine the available
+		// operations. Long term this should be replaced with a more robust mechanism.
+		const operations = this._changesetOperationService.getOperations(session, changesetUri);
 
-		// Emit file upserts. Use `after.uri` as the stable id when available
-		// (covers creates and edits) and fall back to `before.uri` for
-		// deletions; this matches the spec's recommendation and avoids id
-		// collisions for renames (which carry distinct before/after URIs).
-		const nextFilesById = new Map<string, ISessionFileDiff>();
+		const files: ChangesetFile[] = [];
 		for (const edit of diffs) {
 			const id = edit.after?.uri ?? edit.before?.uri;
 			if (!id) {
 				continue;
 			}
-			nextFilesById.set(id, edit);
-			const file: ChangesetFile = { id, edit };
-			this._stateManager.dispatchServerAction(changesetUri, {
-				type: ActionType.ChangesetFileSet,
-				file,
-			});
+			files.push({ id, edit });
 		}
 
-		// Emit removals for any file that disappeared in this pass.
-		for (const id of previousIds) {
-			if (!nextFilesById.has(id)) {
-				this._stateManager.dispatchServerAction(changesetUri, {
-					type: ActionType.ChangesetFileRemoved,
-					fileId: id,
-				});
-			}
-		}
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetContentChanged,
+			files,
+			operations: operations
+				? [...operations]
+				: undefined,
+		});
 
 		// Move the changeset out of `computing` (or out of an earlier error)
 		// now that we have a fresh, complete file list.
@@ -973,7 +967,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (!workingDirectory) {
 			return undefined;
 		}

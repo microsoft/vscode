@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -66,6 +66,7 @@ export interface IClaudeAgentSdkService {
 	canLoadWithoutDownload(): Promise<boolean>;
 
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -103,6 +104,7 @@ export interface IClaudeSdkBindings {
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -187,6 +189,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
 		const sdk = await this._getSdk();
 		return sdk.forkSession(sessionId, options);
+	}
+
+	async deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void> {
+		const sdk = await this._getSdk();
+		return sdk.deleteSession(sessionId, options);
 	}
 
 	async createSdkMcpServer(options: {

@@ -579,6 +579,96 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * In-place "Restore Checkpoint" truncation. Keeps turns
+	 * `[0..turnId]` INCLUSIVE (or removes all turns when `turnId` is
+	 * omitted) on the **same** session id / URI — unlike fork, which mints a
+	 * new id. The `turnId` path resolves the protocol turn to its SDK
+	 * assistant-envelope uuid ({@link resolveForkAnchorUuid}) and stages it
+	 * as a one-shot `resumeSessionAt` anchor that the next turn's rebuild
+	 * applies (the truncation finalizes when the next turn writes the
+	 * branch). Serialized on {@link _sessionSequencer} (same key as
+	 * `sendMessage`) so the `ChatTruncated` → `ChatTurnStarted` dispatch pair
+	 * stays ordered. Provisional sessions short-circuit.
+	 */
+	async truncateSession(session: URI, turnId?: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const existing = this._findAnySession(sessionId);
+			if (existing && !existing.isPipelineReady) {
+				this._logService.info(`[Claude:${sessionId}] truncateSession on a provisional session — nothing to truncate`);
+				return;
+			}
+
+			if (turnId === undefined) {
+				await this._removeAllTurns(session, sessionId, existing);
+				return;
+			}
+
+			const messages = await this._sdkService.getSessionMessages(sessionId, { includeSystemMessages: true });
+			const anchor = resolveForkAnchorUuid(messages, turnId);
+			if (anchor === undefined) {
+				throw new Error(`Cannot truncate session ${sessionId}: turn ${turnId} not found in transcript`);
+			}
+
+			// Operate on a live session; cold-resume an unloaded one first so
+			// there is a single code path that sets the anchor on a live
+			// pipeline (the next send applies it).
+			const live = existing ?? await this._resumeSession(sessionId, session);
+			await live.truncateToTurn(turnId, anchor);
+			this._logService.info(`[Claude:${sessionId}] truncateSession kept [0..${turnId}] (anchor=${anchor})`);
+		});
+	}
+
+	/**
+	 * Remove-all ("start over") branch of {@link truncateSession}: there is no
+	 * anchor to resume at, so tear down the live Query, delete the on-disk
+	 * transcript via the SDK, then recreate a fresh provisional under the SAME
+	 * id/URI so the next `sendMessage` materializes non-resume `{ sessionId }`
+	 * on a clean transcript (keeps the id stable). `deleteSession` is eagerly
+	 * durable (unlike the lazy `turnId` path), matching its "clear / start
+	 * over" semantic. `existing` is the live session, or `undefined` on the
+	 * cold path (unloaded session). Caller serializes on {@link _sessionSequencer}.
+	 */
+	private async _removeAllTurns(session: URI, sessionId: string, existing: ClaudeAgentSession | undefined): Promise<void> {
+		const info = existing ? undefined : await this._sdkService.getSessionInfo(sessionId);
+		const workingDirectory = existing?.workingDirectory ?? (info?.cwd ? URI.file(info.cwd) : undefined);
+		if (!workingDirectory) {
+			// Mirror `_resumeSession` / fork: fail fast rather than recreate a
+			// provisional with no cwd that would only fail later at materialize.
+			throw new Error(`Cannot clear session ${sessionId}: workingDirectory missing (SDK cwd absent and no live session)`);
+		}
+		let overlay: IClaudeSessionOverlay = {};
+		try {
+			overlay = await this._metadataStore.read(session);
+		} catch (err) {
+			this._logService.warn(`[Claude:${sessionId}] overlay read failed during remove-all; continuing with defaults`, err);
+		}
+
+		// `shutdownLiveQuery` awaits the subprocess's actual exit (and its final
+		// transcript flush), so the on-disk `<id>.jsonl` is now stable and safe
+		// to delete: no live writer can recreate it before the next turn
+		// respawns a fresh `--session-id <id>`.
+		await existing?.shutdownLiveQuery();
+		this._sessions.deleteAndDispose(sessionId);
+		await this._sdkService.deleteSession(sessionId);
+
+		await this.createSession({
+			session,
+			workingDirectory,
+			...(overlay.model ? { model: overlay.model } : {}),
+			...(overlay.agent ? { agent: overlay.agent } : {}),
+			...(overlay.permissionMode ? { config: { [ClaudeSessionConfigKey.PermissionMode]: overlay.permissionMode } } : {}),
+		});
+		// Re-fetch (not reuse `existing`): `existing` is the OLD session, already
+		// torn down by `deleteAndDispose` above, and is `undefined` entirely on
+		// the cold path. `createSession` registered a fresh instance under the
+		// same id — prune through that live session so a single path covers both
+		// warm and cold remove-all.
+		await this._findAnySession(sessionId)?.pruneAllTurns();
+		this._logService.info(`[Claude:${sessionId}] truncateSession removed all turns (deleteSession + fresh same-id)`);
+	}
+
+	/**
 	 * Fork an existing session at a protocol `turnId` (keep `[0..N]`
 	 * INCLUSIVE) into a new, non-provisional session. The SDK `Query` is
 	 * NOT started here (CONTEXT M9): `forkSession` writes the transcript to
@@ -1048,7 +1138,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(sessionUri: URI, _chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		// Plan section 3.8. The sequencer scope holds across BOTH materialize
 		// and `session.send` so two concurrent first-message calls on the
 		// same session collapse into one materialize plus two ordered
@@ -1234,10 +1324,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk subagent URIs to the root — nested subagents require iterated
-		// parsing. `_sessions` is keyed by root session ids only. Mirrors
-		// copilotAgent.ts:947.
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {
@@ -1282,7 +1369,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _fireCustomizationUpdated(session: URI, item: ISyncedCustomization): void {
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.SessionCustomizationUpdated,
 				customization: item.customization,

@@ -51,7 +51,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -380,6 +380,8 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return { sessionId: `forked-${sessionId}` };
 	}
 
+	async deleteSession(): Promise<void> { /* not exercised by the proxy round-trip */ }
+
 	async createSdkMcpServer(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 	async tool(): Promise<never> { throw new Error('not implemented in integration test fake'); }
 
@@ -647,7 +649,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		// First send materializes — drives `startup()`, which performs
 		// the real HTTP round-trip on the real proxy.
-		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		await agent.sendMessage(created.session, URI.parse(buildDefaultChatUri(created.session)), 'hi', undefined, 'turn-1');
 
 		// Snapshot what flowed through the integration in a single
 		// assertion so the failure surface is the whole pipeline.
@@ -768,7 +770,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const sessionId = created.session.path.replace(/^\//, '');
 		sdk.queryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		await agent.sendMessage(created.session, URI.parse(buildDefaultChatUri(created.session)), 'hi', undefined, 'turn-1');
 
 		const startup = sdk.capturedStartupOptions[0];
 		assert.ok(typeof startup.canUseTool === 'function', 'canUseTool was wired into Options');
@@ -858,7 +860,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			}
 		}));
 
-		await agent.sendMessage(created.session, 'please read /tmp/x', undefined, 'turn-1');
+		await agent.sendMessage(created.session, URI.parse(buildDefaultChatUri(created.session)), 'please read /tmp/x', undefined, 'turn-1');
 
 		// Snapshot the agent-side emission stream as a single shape so
 		// the failure surface is the whole pipeline.
