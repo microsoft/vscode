@@ -101,12 +101,10 @@ export class AutomationRunner implements IAutomationRunner {
 				return;
 			}
 
-			// Name the session with a watch badge (\u231A, Unicode escape to stay ASCII).
-			// Best-effort — a rename failure must not fail the run.
 			if (session) {
 				try {
 					const chatUri = session.mainChat.get().resource;
-					const title = localize('automationRunner.sessionTitle', "\u231A {0}", automation.name);
+					const title = localize('automationRunner.sessionTitle', "{0}", automation.name);
 					await this.sessionsManagementService.renameChat(session, chatUri, title);
 				} catch (renameErr) {
 					this.logService.warn(`[AutomationRunner] renameChat failed for ${automation.id}`, renameErr);

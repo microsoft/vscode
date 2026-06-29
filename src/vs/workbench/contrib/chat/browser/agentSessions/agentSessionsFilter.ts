@@ -441,7 +441,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private isAutomationSession(session: IAgentSession): boolean {
-		return session.label?.startsWith('\u231A') ?? false;
+		return (session as any).metadata?.source === 'automation';
 	}
 
 	reset(): void {
