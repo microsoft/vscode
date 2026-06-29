@@ -249,6 +249,26 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
+		test('passes the dispatching client id to sendMessage', async () => {
+			setupSession();
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
+			};
+			sideEffects.handleAction(defaultChatUri, action, 'client-B');
+
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'hello world',
+				attachments: undefined,
+				chat: URI.parse(defaultChatUri),
+				senderClientId: 'client-B',
+			}]);
+		});
+
 		test('logs telemetry when sending a direct user message', () => {
 			setupSession();
 			const activeClientAction: SessionAction = {
@@ -1859,6 +1879,47 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-orphan', approved: true },
 			], 'pending_confirmation without active turn should still be processed and auto-approved');
+		});
+	});
+
+	// ---- ChatToolCallComplete routing -----------------------------------
+
+	suite('handleAction — chat/toolCallComplete routing', () => {
+
+		test('forwards session + default chat URI for a default-chat completion', () => {
+			// Regression: agents key their sessions by session id, but the
+			// chat URI's path is a base64 blob. The session URI must be passed
+			// so the lookup resolves instead of silently dropping the call.
+			setupSession();
+
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'tc-default',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: defaultChatUri, toolCallId: 'tc-default' }],
+			);
+		});
+
+		test('forwards owning session + chat URI for an additional-chat completion', () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
+
+			sideEffects.handleAction(peerChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'tc-peer',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-peer' }],
+			);
 		});
 	});
 

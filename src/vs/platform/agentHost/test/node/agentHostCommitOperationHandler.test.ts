@@ -153,7 +153,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
+		}, createAgentService('gh-repo-token'), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};

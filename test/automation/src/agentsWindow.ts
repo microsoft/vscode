@@ -570,12 +570,15 @@ export class AgentsWindow {
 				// `force` bypasses the transient `context-view-pointerBlock` overlay
 				// that intercepts pointer events while the action widget animates open.
 				await row.click({ force: true });
-				// The picker dismisses after a selection (aria-expanded flips to false).
-				await page.waitForFunction(
-					(sel: string) => { const n = document.querySelector(sel); return !n || n.getAttribute('aria-expanded') !== 'true'; },
-					ACTIVE_SESSION_MODEL_PICKER_NAME,
-					{ timeout: 15_000 },
-				);
+				// Confirm the selection actually committed: the picker name button
+				// must now display the chosen model. A non-committing click (e.g.
+				// absorbed by the animating pointer-block overlay) silently leaves the
+				// previous model selected and the picker dismissed, so waiting only
+				// for the popup to close would miss it. Scope to `:visible` so a hidden
+				// overflow duplicate of the name button can't produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+					.first()
+					.waitFor({ state: 'visible', timeout: 15_000 });
 				return;
 			} catch (error) {
 				lastError = error;

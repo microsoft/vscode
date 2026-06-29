@@ -1300,14 +1300,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
+		let agent: AgentSelection | undefined;
 		try {
-			const resolvedAgentName = provisional.agent ? await this._resolveAgentName(provisional.sessionUri, snapshot, provisional.agent) : undefined;
+			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
 				sessionId,
 				workingDirectory,
-				resolvedAgentName,
+				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
@@ -1329,8 +1331,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
-		if (provisional.agent !== undefined) {
-			await this._storeSessionAgentMetadata(sessionUri, provisional.agent);
+		if (agent !== undefined) {
+			await this._storeSessionAgentMetadata(sessionUri, agent);
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so
@@ -1346,6 +1348,43 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		this._onDidMaterializeSession.fire({ session: sessionUri, workingDirectory, project });
 		return agentSession;
+	}
+
+	private async _resolveAgentWhenMaterializing(provisional: IProvisionalSession, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined> {
+		const agent = provisional.agent;
+		if (!agent) {
+			return undefined;
+		}
+		const alternativeAgent = this._getAlternativeAgentForWorktree(provisional, workingDirectory);
+
+		const [originalAgentName, alternativeAgentName] = await Promise.all([
+			this._resolveAgentName(provisional.sessionUri, snapshot, agent),
+			alternativeAgent ? this._resolveAgentName(provisional.sessionUri, snapshot, alternativeAgent) : Promise.resolve(undefined),
+		]);
+
+		if (originalAgentName) {
+			return { agent: agent, name: originalAgentName };
+		}
+		if (alternativeAgentName && alternativeAgent) {
+			this._logService.info(`[Copilot] Agent file ${agent.uri} is in the original repo; using worktree agent ${alternativeAgent?.uri}`);
+			return { agent: alternativeAgent, name: alternativeAgentName };
+		}
+		return undefined;
+	}
+	private _getAlternativeAgentForWorktree(provisional: IProvisionalSession, workingDirectory: URI | undefined): AgentSelection | undefined {
+		const agent = provisional.agent;
+		if (!agent) {
+			return undefined;
+		}
+		if (!provisional.workingDirectory || !workingDirectory) {
+			return undefined;
+		}
+		if (isEqual(provisional.workingDirectory, workingDirectory)) {
+			return undefined;
+		}
+		const agentUri = URI.parse(agent.uri);
+		const alternativeAgentUri = rebaseUnder(agentUri, provisional.workingDirectory, workingDirectory);
+		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -1440,19 +1479,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk up the subagent chain to reach the root SDK session entry;
-		// _sessions is keyed by root session IDs only.
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// Peer (non-default) chats own their SDK conversation in `_chatSessions`,
+		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
+		if (!isDefaultChatUri(chat)) {
+			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
+			return;
+		}
+		// Default chat (and subagents): walk up the subagent chain to reach the
+		// root SDK session entry, since `_sessions` is keyed by root session ids.
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {
 			target = parsed.parentSession;
 		}
-		// The completion may belong to a peer chat (tracked in `_chatSessions`
-		// keyed by chat URI) rather than the default/parent session.
-		const entry = this._sessions.get(AgentSession.id(target))
-			?? this._chatSessions.get(target.toString());
-		entry?.handleClientToolCallComplete(toolCallId, result);
+		this._sessions.get(AgentSession.id(target))?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
@@ -1464,7 +1505,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`, keyed by the chat URI.
 		if (!isDefaultChatUri(chat)) {
@@ -1473,9 +1514,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
-			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session));
+			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session), senderClientId);
 			return;
 		}
 		const sessionId = AgentSession.id(session);
@@ -1513,7 +1554,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
 
 			// Emit any pending first-turn announcement (e.g. worktree
@@ -1529,7 +1570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			try {
 				const sdkMode = this._resolveSdkMode(session);
-				await entry.send(prompt, attachments, turnId, sdkMode);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
@@ -2376,6 +2417,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
+			return undefined;
+		}
+
+		// Skip worktree isolation for a repo with no commits yet (unborn HEAD); `git worktree add` would fail.
+		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
+		if (!headCommit) {
 			return undefined;
 		}
 

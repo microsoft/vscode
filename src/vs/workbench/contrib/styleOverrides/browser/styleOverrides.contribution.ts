@@ -21,10 +21,12 @@ import './media/keyboardFocusOnly.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
+import './media/sashHandles.css';
 import './media/scrollShadows.css';
 import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
+import './media/titlebar.css';
 
 interface IStyleOverrideModule {
 	readonly id: string;
@@ -61,10 +63,12 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'padding' },
 	{ id: 'paneHeaders', layoutAffecting: true },
 	{ id: 'roundedCorners' },
+	{ id: 'sashHandles' },
 	{ id: 'scrollShadows' },
 	{ id: 'shadows' },
 	{ id: 'statusBar' },
-	{ id: 'tabs' }
+	{ id: 'tabs' },
+	{ id: 'titlebar' }
 ];
 
 /**
