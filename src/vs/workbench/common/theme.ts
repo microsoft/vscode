@@ -443,7 +443,21 @@ export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.bac
 	light: '#007ACC',
 	hcDark: '#000000',
 	hcLight: '#0F4A85'
-}, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, 
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', {
+	dark: Color.white,
+	light: '#333333',
+	hcDark: Color.white,
+	hcLight: '#333333'
+}, localize('activityBarHoverForeground', "Foreground color of the activity bar items on hover. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('activityBarHoverBackground', "Background color of the activity bar items on hover. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', Color.white, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
