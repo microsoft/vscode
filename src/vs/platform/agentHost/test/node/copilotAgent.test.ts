@@ -10,7 +10,7 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -49,6 +49,7 @@ import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
+import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -1335,20 +1336,34 @@ suite('CopilotAgent', () => {
 
 	test('client tool completion unblocks a pending permission request', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
-		const { agent, instantiationService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		const { agent, instantiationService, fileService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		disposables.add(registerPendingEditContentProvider(fileService));
 		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
 		const agentSession = disposables.add(createdSession.session);
+		const pendingEditContentUri = new DeferredPromise<URI>();
+		disposables.add(agent.onDidSessionProgress(signal => {
+			if (signal.kind === 'pending_confirmation') {
+				const uri = signal.state.edits?.items[0]?.after?.content.uri;
+				if (uri) {
+					pendingEditContentUri.complete(URI.parse(uri));
+				}
+			}
+		}));
 		try {
 			await agentSession.initializeSession();
 			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
 			assert.ok(onPermissionRequest);
 
-			const permissionResult = onPermissionRequest({
-				kind: 'custom-tool',
+			const permissionRequestResult = onPermissionRequest({
+				kind: 'write',
 				toolCallId: 'tool-1',
-				toolDescription: 'Client tool',
-				toolName: 'clientTool',
+				canOfferSessionApproval: false,
+				diff: '--- a/file.txt\n+++ b/file.txt\n@@ -0,0 +1 @@\n+after',
+				fileName: URI.file('/workspace/file.txt').fsPath,
+				intention: 'write file',
+				newFileContents: 'after',
 			}, { sessionId: 'test-session-1' });
+			const editContentUri = await pendingEditContentUri.p;
 
 			agentSession.handleClientToolCallComplete('tool-1', {
 				success: false,
@@ -1356,8 +1371,15 @@ suite('CopilotAgent', () => {
 				content: [{ type: ToolResultContentType.Text, text: 'failed before approval' }],
 				error: { message: 'failed before approval' },
 			});
+			await timeout(0);
 
-			assert.deepStrictEqual(await permissionResult, { kind: 'approve-once' });
+			assert.deepStrictEqual({
+				permissionResult: await permissionRequestResult,
+				pendingEditContentExists: await fileService.exists(editContentUri),
+			}, {
+				permissionResult: { kind: 'approve-once' },
+				pendingEditContentExists: false,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

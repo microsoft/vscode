@@ -998,9 +998,7 @@ export class CopilotAgentSession extends Disposable {
 
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
-		if (this._pendingPermissions.has(toolCallId)) {
-			this._pendingPermissions.get(toolCallId)?.complete(true);
-		}
+		this.respondToPermissionRequest(toolCallId, true);
 	}
 
 	/**
