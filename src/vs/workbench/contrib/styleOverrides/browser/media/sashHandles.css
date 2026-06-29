@@ -28,8 +28,8 @@
 	content: '';
 	position: absolute;
 	pointer-events: none;
-	width: 3px;
-	height: 3px;
+	width: 4px;
+	height: 4px;
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	opacity: 0.5;
