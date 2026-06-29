@@ -132,7 +132,7 @@ export class AutomationRunner implements IAutomationRunner {
 					});
 				}
 				publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
-				publishAutomationRunError(this.telemetryService, { trigger, automation, errorMessage });
+				publishAutomationRunError(this.telemetryService, { trigger, automation });
 			} catch (innerErr) {
 				this.logService.error(`[AutomationRunner] error recording failure for ${automation.id}`, innerErr);
 			}
