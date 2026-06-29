@@ -6,14 +6,14 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -64,9 +64,9 @@ class TestContribution implements IChangesetOperationContribution {
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
-	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<ISessionGitState | undefined | null> {
-		return undefined;
-	}
+	readonly onDidRefreshSessionGitState = Event.None;
+
+	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
 		return undefined;
@@ -85,7 +85,6 @@ suite('AgentHostChangesetOperationService', () => {
 			stateManager,
 			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
-			disposables.add(new InstantiationService()),
 		));
 	}
 
@@ -169,8 +168,8 @@ suite('AgentHostChangesetOperationService', () => {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 		};
 		stateManager.createSession(summary);
 		stateManager.registerChangeset(changesetUri);

@@ -52,9 +52,9 @@ export class SessionClientToolsModel {
 		}
 	}
 
-	/** The `clientId` that owns the merged tool named `toolName`, or `undefined`. */
-	ownerOf(toolName: string): string | undefined {
-		return this._toolSet.ownerOf(toolName);
+	/** The `clientId` that owns the tool named `toolName`, or `undefined`. */
+	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
+		return this._toolSet.ownerOf(toolName, preferredClientId);
 	}
 }
 

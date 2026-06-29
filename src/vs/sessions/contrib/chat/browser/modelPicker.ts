@@ -160,8 +160,8 @@ export class ModelPicker extends Disposable {
 		// Re-evaluate when workspace trust changes (or finishes initializing): an
 		// untrusted workspace disables the model providers, and the shared widget
 		// then renders its Restricted Mode state. Visibility is recomputed so the
-		// picker stays visible to surface "Pick Model" + the Trust action instead
-		// of hiding as an empty picker.
+		// picker stays visible to surface the "Models" placeholder + the Trust
+		// action instead of hiding as an empty picker.
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(() => this._initModel()));
 		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
 			if (!this._store.isDisposed) {
