@@ -1484,16 +1484,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
 		if (!isDefaultChatUri(chat)) {
 			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
-			return;
+		} else {
+			this._sessions.get(AgentSession.id(session))?.handleClientToolCallComplete(toolCallId, result);
 		}
-		// Default chat (and subagents): walk up the subagent chain to reach the
-		// root SDK session entry, since `_sessions` is keyed by root session ids.
-		let target = session;
-		let parsed;
-		while ((parsed = parseSubagentSessionUri(target))) {
-			target = parsed.parentSession;
-		}
-		this._sessions.get(AgentSession.id(target))?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
