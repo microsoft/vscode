@@ -16,7 +16,6 @@ import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -60,7 +59,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
-		const keybindingService = accessor.get(IKeybindingService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
@@ -144,16 +142,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-
-		// Enable quick navigation: when invoked via keybinding the user can keep
-		// the modifier held and press the trigger key again to cycle through
-		// sessions, then release the modifier to open the focused one (mirroring
-		// the editor switcher). The keybindings of this command drive which
-		// modifier release accepts the active item.
-		const keybindings = keybindingService.lookupKeybindings(SHOW_SESSIONS_PICKER_COMMAND_ID);
-		if (keybindings.length > 0) {
-			picker.quickNavigate = { keybindings };
-		}
 
 		// Default to the currently active session so it is selected on open.
 		if (activeItem) {
