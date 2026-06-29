@@ -158,8 +158,8 @@ export class PlaywrightDriver {
 	/**
 	 * Get the accessibility snapshot of the current window.
 	 */
-	async getAccessibilitySnapshot(): Promise<playwright.Accessibility['snapshot'] extends () => Promise<infer T> ? T : never> {
-		return await this.page.accessibility.snapshot();
+	async getAccessibilitySnapshot(): Promise<string> {
+		return await this.page.ariaSnapshot({ mode: 'ai' });
 	}
 
 	/**

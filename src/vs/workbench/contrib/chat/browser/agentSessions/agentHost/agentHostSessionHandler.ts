@@ -2283,25 +2283,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			if (!approvedDispatched) {
-				if (err !== undefined && !isCancellationError(err)) {
-					this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
-				}
-				return;
-			}
+
 			if (err !== undefined) {
 				if (!isCancellationError(err)) {
-					this._logService.warn(`[AgentHost] Client tool invocation failed: ${toolName}`, err);
+					if (!approvedDispatched) {
+						this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
+					} else {
+						this._logService.warn(`[AgentHost] Client tool invocation failed: ${toolName}`, err);
+					}
 				}
-				const message = err instanceof Error ? err.message : String(err);
-				result = { content: [], toolResultError: message };
+
+				result = { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
 			}
-			this._dispatchAction(opts.backendSession, {
-				type: ActionType.ChatToolCallComplete,
-				turnId: opts.turnId,
-				toolCallId,
-				result: toolResultToProtocol(result ?? { content: [] }, toolName),
-			}, opts.chatURI);
+
+			const protocolToolCall = part$.get().toolCall;
+			const isProtocolToolCallComplete = protocolToolCall.status === ToolCallStatus.Completed || protocolToolCall.status === ToolCallStatus.Cancelled;
+			if (!isProtocolToolCallComplete) {
+				this._dispatchAction(opts.backendSession, {
+					type: ActionType.ChatToolCallComplete,
+					turnId: opts.turnId,
+					toolCallId,
+					result: toolResultToProtocol(result ?? { content: [] }, toolName),
+				}, opts.chatURI);
+			}
 		};
 
 		// React to part$ updates: route external cancellation, and try to

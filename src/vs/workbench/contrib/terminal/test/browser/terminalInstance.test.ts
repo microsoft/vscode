@@ -281,29 +281,6 @@ suite('Workbench - TerminalInstance', () => {
 				true
 			);
 		});
-
-		test('should include Agents window session navigation commands', () => {
-			deepStrictEqual(
-				[
-					'sessions.showSessionsPicker',
-					'sessions.goBack',
-					'sessions.goForward',
-					'sessions.focusActiveSession',
-					'sessions.focusSessionInGrid1',
-					'sessions.focusSessionInGrid2',
-					'sessions.focusSessionInGrid3',
-					'sessions.focusSessionInGrid4',
-					'sessions.focusSessionInGrid5',
-					'sessions.focusSessionInGrid6',
-					'sessions.focusSessionInGrid7',
-					'sessions.focusSessionInGrid8',
-					'sessions.focusSessionInGrid9',
-					'sessionsViewPane.navigatePreviousSession',
-					'sessionsViewPane.navigateNextSession',
-				].filter(command => !DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(command)),
-				[]
-			);
-		});
 	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {

@@ -76,16 +76,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
 		const operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
 			}
-		}
-		if (operations.length === 0) {
-			return undefined;
 		}
 
 		// Operations are disabled while a turn is active so the working tree /

@@ -222,19 +222,19 @@ export interface IManagedSettingsSelection {
 /**
  * Select the authoritative managed-settings bag from the available delivery channels.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
+ * Precedence (highest first): native MDM → server-delivered → file on disk. The channels are
  * never merged — managed settings have a single authoritative source, so the first non-empty bag
- * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
- * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
- * report from drifting apart, and gives one obvious place to extend when a new channel is
- * introduced.
+ * wins outright. The parameter order matches that precedence so call sites read top-to-bottom.
+ * Centralizing the precedence here (rather than inlining it at each call site) keeps policy
+ * evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics report from
+ * drifting apart, and gives one obvious place to extend when a new channel is introduced.
  */
-export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
-	}
+export function selectManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
 	if (nativeMdm && !isEmptyObject(nativeMdm)) {
 		return { source: 'nativeMdm', values: nativeMdm };
+	}
+	if (server && !isEmptyObject(server)) {
+		return { source: 'server', values: server };
 	}
 	if (file && !isEmptyObject(file)) {
 		return { source: 'file', values: file };

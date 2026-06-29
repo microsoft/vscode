@@ -605,7 +605,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
-	'sessions.showSessionsPicker',
 	'sessions.goBack',
 	'sessions.goForward',
 	'sessions.focusActiveSession',
