@@ -151,6 +151,14 @@ export interface ISessionChangesSummary {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+/**
+ * Well-known id of the changeset that holds the diff between a session's branch
+ * and its base (e.g. `main...feature`). Shared so that consumers which always
+ * want the branch diff — regardless of the changeset currently selected in the
+ * Changes view — can locate it in {@link ISession.changesets} by id.
+ */
+export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
@@ -261,6 +269,16 @@ export interface IChatCheckpoints {
 	readonly lastCheckpointRef: string;
 }
 
+export const enum ChatOriginKind {
+	Tool = 'tool',
+	User = 'user',
+	Fork = 'fork',
+}
+
+export interface IChatOrigin {
+	readonly kind: ChatOriginKind;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -294,6 +312,8 @@ export interface IChat {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** How the chat came into existence, if provided by the backend. */
+	readonly origin?: IChatOrigin;
 }
 
 /**

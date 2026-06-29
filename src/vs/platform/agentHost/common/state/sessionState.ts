@@ -471,13 +471,28 @@ export function createRootState(): RootState {
 	};
 }
 
+/**
+ * Creates the initial flat {@link SessionState} for a session from its
+ * root-channel {@link SessionSummary} catalog entry. Session metadata
+ * ({@link SessionMetadata}) — and the shared `_meta` bag — are inlined directly
+ * onto the state.
+ */
 export function createSessionState(summary: SessionSummary): SessionState {
-	return {
-		summary,
+	const state: SessionState = {
+		provider: summary.provider,
+		title: summary.title,
+		status: summary.status,
 		lifecycle: SessionLifecycle.Creating,
+		activeClients: [],
 		chats: [],
 		defaultChat: undefined,
 	};
+	if (summary.activity !== undefined) { state.activity = summary.activity; }
+	if (summary.project !== undefined) { state.project = summary.project; }
+	if (summary.workingDirectory !== undefined) { state.workingDirectory = summary.workingDirectory; }
+	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
+	if (summary._meta !== undefined) { state._meta = summary._meta; }
+	return state;
 }
 
 /**
@@ -492,8 +507,6 @@ export function createChatState(summary: ChatSummary): ChatState {
 		status: summary.status,
 		activity: summary.activity,
 		modifiedAt: summary.modifiedAt,
-		model: summary.model,
-		agent: summary.agent,
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectory: summary.workingDirectory,
@@ -505,22 +518,19 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity, model, agent and working directory, and is marked as a
- * {@link ChatOriginKind.User | user-originated} chat. `modifiedAt` is
- * converted from the session's epoch-millis timestamp to the ISO-8601 string
- * the chat protocol uses.
+ * status, activity and working directory, and is marked as a
+ * {@link ChatOriginKind.User | user-originated} chat. Both the session and
+ * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
 export function createDefaultChatSummary(session: SessionSummary, chatUri: ProtocolURI): ChatSummary {
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
 		status: session.status,
-		modifiedAt: new Date(session.modifiedAt).toISOString(),
+		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	if (session.model !== undefined) { summary.model = session.model; }
-	if (session.agent !== undefined) { summary.agent = session.agent; }
 	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
 	return summary;
 }
@@ -538,8 +548,6 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
-	if (state.model !== undefined) { summary.model = state.model; }
-	if (state.agent !== undefined) { summary.agent = state.agent; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
@@ -609,6 +617,14 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
 }
 
+const SUBAGENT_CHAT_ID = 'subagent';
+
+export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
+	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
+	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);
+	return `${AHP_CHAT_SCHEME}://${SUBAGENT_CHAT_ID}/${encoded}/${encodeURIComponent(toolCallId)}`;
+}
+
 /**
  * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
  * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
@@ -629,6 +645,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
 		return undefined;
 	}
 	try {
+		if (parsed.authority === SUBAGENT_CHAT_ID) {
+			const [sessionPart, ...toolCallIdParts] = encoded.split('/');
+			const toolCallId = toolCallIdParts.join('/');
+			if (!sessionPart || !toolCallId) {
+				return undefined;
+			}
+			return { session: decodeBase64(sessionPart).toString(), chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
+		}
 		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
 	} catch {
 		return undefined;
@@ -643,6 +667,14 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
  */
 export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
 	return parseChatUri(uri)?.session;
+}
+
+export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceURI): string {
+	const session = parseDefaultChatUri(uri);
+	if (session === undefined) {
+		throw new Error(`Malformed AHP chat URI: ${typeof uri === 'string' ? uri : uri.toString()}`);
+	}
+	return session;
 }
 
 /** Returns `true` when `uri` is the default chat of its session. */
@@ -680,6 +712,8 @@ export interface ISessionWithDefaultChat extends SessionState {
 	queuedMessages?: PendingMessage[];
 	/** Input requests outstanding on the default chat. */
 	inputRequests?: ChatInputRequest[];
+	/** Draft input of the default chat. */
+	draft?: Message;
 }
 
 /**
@@ -695,6 +729,7 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
 		inputRequests: chat?.inputRequests,
+		draft: chat?.draft,
 	};
 }
 
@@ -728,6 +763,13 @@ export function getDefaultChat(session: SessionState): ChatSummary | undefined {
 export type SessionMeta = Record<string, unknown>;
 
 /**
+ * VS Code-side alias for the protocol's open `_meta` property bag on
+ * {@link SessionSummary}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
+ * to avoid collisions; values MUST be JSON-serializable.
+ */
+export type SessionSummaryMeta = Record<string, unknown>;
+
+/**
  * Reserved key under {@link SessionMeta} for the well-known git-state
  * payload. Value at this key, when present, MUST be shaped like
  * {@link ISessionGitState}. This is a VS Code-specific convention layered
@@ -735,6 +777,15 @@ export type SessionMeta = Record<string, unknown>;
  * not know about git state.
  */
 export const SESSION_META_GIT_KEY = 'git';
+
+/**
+ * Reserved key under {@link SessionMeta} for the well-known GitHub-state
+ * payload. Value at this key, when present, MUST be shaped like
+ * {@link ISessionGitHubState}. This is a VS Code-specific convention layered
+ * on top of the protocol's generic `_meta` bag — the protocol itself does
+ * not know about GitHub state.
+ */
+export const SESSION_META_GITHUB_KEY = 'github';
 
 /**
  * Git state of a session's working directory, carried under
@@ -765,6 +816,24 @@ export interface ISessionGitState {
 	readonly githubOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
+}
+
+/**
+ * GitHub state of a session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_GITHUB_KEY}. Used by clients to drive GitHub-specific
+ * affordances (e.g. PR/merge buttons in the Agents app).
+ *
+ * All fields are optional — agents that do not track a particular field
+ * should omit it rather than send a placeholder, so clients can distinguish
+ * "unknown" from "known to be zero".
+ */
+export interface ISessionGitHubState {
+	/** The owner of the GitHub repository. */
+	readonly owner?: string;
+	/** The name of the GitHub repository. */
+	readonly repo?: string;
+	/** The URL of the GitHub pull request. */
+	readonly pullRequestUrl?: string;
 }
 
 /**
@@ -818,6 +887,50 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 		next[SESSION_META_GIT_KEY] = gitState;
 	} else {
 		delete next[SESSION_META_GIT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
+ * present. Returns `undefined` when the meta bag is absent or the value at the
+ * GitHub key is not a plain object (e.g. an array or a primitive).
+ * Individual fields with wrong types are silently dropped so partial state
+ * still propagates.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
+ */
+export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
+	const value = meta?.[SESSION_META_GITHUB_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const result: {
+		owner?: string;
+		repo?: string;
+		pullRequestUrl?: string;
+	} = {};
+
+	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
+	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
+	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	return result;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
+ * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (gitHubState !== undefined) {
+		next[SESSION_META_GITHUB_KEY] = gitHubState;
+	} else {
+		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

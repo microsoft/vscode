@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -17,7 +17,7 @@ import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js'
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -32,9 +32,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	constructor(
 		private readonly getActiveDescriptor: () => IHarnessDescriptor,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
-		private readonly productService: IProductService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.onDidChange = Event.any(
 			this.promptsService.onDidChangeCustomAgents,
@@ -60,6 +60,14 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		const sessionType = getChatSessionType(sessionResource);
 		const agents = await this.promptsService.getCustomAgents(token);
 		return agents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
+	}
+
+	async provideSourceFolders(_sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const folders = await this.promptsService.getSourceFolders(type);
+		return folders.map(folder => ({
+			uri: folder.uri,
+			label: this.promptsService.getPromptLocationLabel(folder),
+		}));
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {
@@ -117,6 +125,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
 					pluginUri: skill.pluginUri,
+					pluginLabel: skill.pluginLabel,
 					userInvocable: skill.userInvocable
 				});
 			}
@@ -137,6 +146,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							badgeTooltip: uiTooltip,
 							extensionId: file.extension?.identifier.value,
 							pluginUri: file.pluginUri,
+							pluginLabel: file.pluginLabel,
 							userInvocable: false
 						});
 					}
@@ -157,6 +167,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					enabled: !disabledUris.has(command.uri),
 					extensionId: command.extension?.identifier.value,
 					pluginUri: command.pluginUri,
+					pluginLabel: command.pluginLabel,
 					userInvocable: command.userInvocable
 				});
 				if (command.extension) {
@@ -319,37 +330,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 	}
 
 	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): readonly ICustomizationItem[] {
-		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		let items = applySourceFilter(groupedItems, filter);
-
 		const descriptor = this.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-		const instrFilter = descriptor.instructionFileFilter;
-
-		if (subpaths) {
-			const projectRoot = this.workspaceService.getActiveProjectRoot();
-			items = items.filter(item => {
-				if (item.source !== AICustomizationSources.local || !projectRoot || !isEqualOrParent(item.uri, projectRoot)) {
-					return true;
-				}
-				if (matchesWorkspaceSubpath(item.uri.path, subpaths)) {
-					return true;
-				}
-				// Keep instruction files matching the harness's native patterns
-				if (instrFilter && promptType === PromptsType.instructions && matchesInstructionFileFilter(item.uri.path, instrFilter)) {
-					return true;
-				}
-				// Keep agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
-				if (item.groupKey === 'agent-instructions') {
-					return true;
-				}
-				return false;
-			});
-		}
-
-		if (instrFilter && promptType === PromptsType.instructions) {
-			items = items.filter(item => matchesInstructionFileFilter(item.uri.path, instrFilter));
-		}
+		const filter = descriptor.getStorageSourceFilter(promptType);
+		const items = applySourceFilter(groupedItems, filter);
 
 		return items;
 	}

@@ -235,8 +235,8 @@ suite('AgentFeedbackServerTools', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 		}
 

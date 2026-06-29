@@ -64,6 +64,9 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDispl
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
+import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
@@ -101,7 +104,7 @@ import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdown
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
@@ -116,6 +119,7 @@ const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
+const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -161,6 +165,57 @@ export interface IChatListItemTemplate {
 	readonly checkpointRestoreToolbar: MenuWorkbenchToolBar;
 	readonly checkpointContainer: HTMLElement;
 	readonly checkpointRestoreContainer: HTMLElement;
+}
+
+function escapeMarkdownLinkLabel(label: string): string {
+	return label.replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+}
+
+export function buildPlanReviewProgressContent(review: IChatPlanReview, message: string): MarkdownString {
+	const renderedAsUsed = !!review.isUsed;
+	const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
+	// Prefer the structured fields from `ChatPlanReviewPart`; fall
+	// back to the combined `feedback` string for older results.
+	let overall = data?.feedbackOverall?.trim();
+	const inlineMd = data?.feedbackInlineMarkdown?.trim();
+	if (!overall && !inlineMd && data?.feedback) {
+		overall = data.feedback.trim();
+	}
+
+	const content = new MarkdownString(undefined, { supportThemeIcons: true });
+	if (overall) {
+		content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
+	} else {
+		content.appendText(message);
+	}
+
+	if (renderedAsUsed) {
+		const reviewContent = review.content.trim();
+		const planUri = review.planUri ? URI.revive(review.planUri) : undefined;
+		if (reviewContent || planUri) {
+			content.appendMarkdown('\n\n');
+			if (reviewContent) {
+				content.appendMarkdown(reviewContent);
+			}
+			if (planUri) {
+				if (reviewContent) {
+					content.appendMarkdown('\n\n');
+				}
+				const planFileName = basename(planUri);
+				const label = planFileName
+					? localize('chat.planReview.openFullPlanFile', "Open full plan file ({0})", planFileName)
+					: localize('chat.planReview.openFullPlan', "Open full plan file");
+				const planWidgetUri = planUri.with({ query: planUri.query ? `${planUri.query}&vscodeLinkType=file` : 'vscodeLinkType=file' });
+				content.appendMarkdown(`[${escapeMarkdownLinkLabel(label)}](${planWidgetUri.toString(true)})`);
+			}
+		}
+	}
+
+	if (inlineMd) {
+		content.appendMarkdown('\n\n');
+		content.appendMarkdown(inlineMd);
+	}
+	return content;
 }
 
 interface IItemHeightChangeParams {
@@ -492,7 +547,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		const newWidth = width - 40; // padding
+		const newWidth = width - (this.rendererOptions.contentHorizontalPadding ?? DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING);
 		if (newWidth !== this._currentLayoutWidth.get()) {
 			this._currentLayoutWidth.set(newWidth, undefined);
 			for (const editor of this._editorPool.inUse()) {
@@ -561,6 +616,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
+					if (action.item.id === RestoreCheckpointActionId) {
+						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					}
 					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}
 				return undefined;
@@ -694,6 +752,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
 		return template;
+	}
+
+	/**
+	 * Determines whether restoring to the checkpoint at the given chat item
+	 * would discard file edits that the user should confirm in-place. Used by
+	 * the "Restore Checkpoint" button to present an inline confirm/cancel
+	 * affordance for agent host sessions, which do not surface the modal
+	 * removal-confirmation dialog used by the standard editing session.
+	 */
+	private checkpointRestoreNeedsConfirmation(context: unknown): boolean {
+		if (!isRequestVM(context) && !isResponseVM(context)) {
+			return false;
+		}
+
+		const requestId = isRequestVM(context) ? context.id : context.requestId;
+		const model = this.chatService.getSession(context.sessionResource);
+		const session = model?.editingSession;
+		if (!model || !(session instanceof AgentHostSnapshotController)) {
+			return false;
+		}
+
+		const requests = model.getRequests();
+		const index = requests.findIndex(request => request.id === requestId);
+		if (index === -1) {
+			return false;
+		}
+
+		return requests.slice(index).some(request => session.hasEditsInRequest(request.id));
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
@@ -1078,7 +1164,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
+		if (element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
@@ -1405,11 +1491,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.shouldShowFileChangesSummary(element)) {
 			return undefined;
 		}
-		// Only chat editing sessions surface diff data via the editing
-		// session; agent host responses emit `externalEdit` parts that
-		// already render the per-file change counts inline, so the
-		// aggregate summary is skipped intentionally here.
-		if (!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
+		// Agent host sessions compute their per-turn changes server-side and
+		// supply them via IChatResponseFileChangesService; the summary part
+		// resolves them asynchronously and self-hides when the turn produced no
+		// edits. Other sessions surface diff data through the chat editing
+		// session, which only has data when the response carries text/notebook
+		// edit groups — so skip the summary for those unless such a group is
+		// present.
+		const sessionType = getChatSessionType(element.sessionResource);
+		if (!isAgentHostTarget(sessionType) &&
+			!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
 			return undefined;
 		}
 
@@ -3097,24 +3188,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pending → used transition and trigger a re-render.
 			const renderedAsUsed = !!review.isUsed;
 			const isPending = !renderedAsUsed;
-			const data = renderedAsUsed && !review.data?.rejected ? review.data : undefined;
-			// Prefer the structured fields from `ChatPlanReviewPart`; fall
-			// back to the combined `feedback` string for older results.
-			let overall = data?.feedbackOverall?.trim();
-			const inlineMd = data?.feedbackInlineMarkdown?.trim();
-			if (!overall && !inlineMd && data?.feedback) {
-				overall = data.feedback.trim();
-			}
-			const content = new MarkdownString(undefined, { supportThemeIcons: true });
-			if (overall) {
-				content.appendText(localize('chat.planReview.feedbackInline', "{0}: {1}", message, overall.replace(/\s+/g, ' ')));
-			} else {
-				content.appendText(message);
-			}
-			if (inlineMd) {
-				content.appendMarkdown('\n\n');
-				content.appendMarkdown(inlineMd);
-			}
+			const content = buildPlanReviewProgressContent(review, message);
 			const progressPart = this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				{ content },

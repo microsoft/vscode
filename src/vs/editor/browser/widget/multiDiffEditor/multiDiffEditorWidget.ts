@@ -55,7 +55,11 @@ export class MultiDiffEditorWidget extends Disposable {
 		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
 
-	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined): void {
+	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean }): void {
+		// An editor opened with `preserveFocus` (e.g. restored in the background
+		// or on a session switch) must not have its automatic first-change
+		// selection steal keyboard focus from elsewhere (such as the chat input).
+		this._widgetImpl.get().setPreserveFocusOnLoad(!!options?.preserveFocus);
 		this._viewModel.set(viewModel, undefined);
 	}
 

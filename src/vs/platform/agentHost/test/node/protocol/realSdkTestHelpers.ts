@@ -26,7 +26,7 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
-	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, isSubagentSession,
+	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, buildSubagentSessionUri, parseChatUri,
 	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
@@ -175,7 +175,7 @@ export async function createRealSession(
 /** Dispatch a turn with the given user message text. */
 export function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
 	c.dispatch({
-		channel: session,
+		channel: buildDefaultChatUri(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
@@ -188,7 +188,7 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 /** Dispatch a turn with the given user message text and attachments. */
 export function dispatchTurnWithAttachments(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): void {
 	c.dispatch({
-		channel: session,
+		channel: buildDefaultChatUri(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
@@ -315,7 +315,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.dispatch({
-					channel: session,
+					channel: buildDefaultChatUri(session),
 					clientSeq: nextClientSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -333,7 +333,7 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 			sawInputRequest = true;
 			const action = getActionEnvelope(notification).action as ChatInputRequestedAction;
 			c.dispatch({
-				channel: session,
+				channel: buildDefaultChatUri(session),
 				clientSeq: nextClientSeq++,
 				action: {
 					type: ActionType.ChatInputCompleted,
@@ -658,7 +658,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				}
 				const action = getActionEnvelope(next).action as { toolCallId: string };
 				client.dispatch({
-					channel: sessionUri,
+					channel: buildDefaultChatUri(sessionUri),
 					clientSeq: nextSeq++,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -717,8 +717,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
 			const resubscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			const finalSnapshot = resubscribeResult.snapshot!.state as SessionState;
-			assert.strictEqual(finalSnapshot.summary.resource, sessionUri, 'follow-up turn should keep the original session resource');
+			assert.strictEqual(resubscribeResult.snapshot!.resource, sessionUri, 'follow-up turn should keep the original session resource');
 		});
 
 		test('can abort a running turn', async function () {
@@ -759,7 +758,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 			const sessionState = subscribeResult.snapshot!.state as SessionState;
-			assert.strictEqual(sessionState.summary.workingDirectory, workingDirUri,
+			assert.strictEqual(sessionState.workingDirectory, workingDirUri,
 				`subscribe snapshot summary should carry the requested working directory`);
 		});
 
@@ -805,7 +804,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				channel: sessionUri,
 				clientSeq: 1,
 				action: {
-					type: ActionType.SessionActiveClientChanged,
+					type: ActionType.SessionActiveClientSet,
 					activeClient: {
 						clientId: `real-sdk-worktree-${config.provider}`,
 						displayName: 'Test Client',
@@ -857,7 +856,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { confirmed?: string };
 			if (!toolReadyAction.confirmed) {
 				client.dispatch({
-					channel: addedSummary.resource,
+					channel: buildDefaultChatUri(addedSummary.resource),
 					clientSeq: 4,
 					action: {
 						type: ActionType.ChatToolCallConfirmed,
@@ -953,15 +952,15 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 			const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
-			const subagentSessionUri = subagentRef.resource as unknown as string;
-			assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
-				`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
-			const subagentChatUri = buildDefaultChatUri(subagentSessionUri);
+			const subagentChatUri = subagentRef.resource as unknown as string;
+			const parsedSubagentChat = parseChatUri(subagentChatUri);
+			assert.ok(
+				parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+				`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			);
 
-			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
 			// The subagent's conversation contents (its inner tool calls) are
-			// emitted on its own default chat channel; subscribe so we observe
-			// them separately from the parent.
+			// emitted on the chat channel carried by the tool result.
 			await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 
 			await client.waitForNotification(n => {
@@ -999,11 +998,13 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			writeFileSync(`${tempDir}/file-b.txt`, 'beta');
 
 			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionChatUri = buildDefaultChatUri(sessionUri);
 
-			// A unique marker the sub-agent — and only the sub-agent — is asked to
-			// emit, so we can detect whether its assistant message leaks into the
-			// parent transcript when the session is rebuilt from the event log.
-			const sentinel = `SUBAGENT_ONLY_MARKER_${generateUuid().replace(/-/g, '')}`;
+			// A unique phrase that only the subagent is asked to emit in an
+			// intermediate assistant message, so replay can detect whether
+			// subagent assistant text leaks upward without depending on the
+			// parent agent's final summary behavior.
+			const sentinel = `subagent replay note ${generateUuid().replace(/-/g, '').slice(0, 10)}`;
 
 			let approvalsActive = true;
 			let approvalSeq = 2000;
@@ -1024,13 +1025,14 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 							processedSeqs.add(envelope.serverSeq);
 							const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
 							if (!action.confirmed) {
-								client.notify('dispatchAction', {
+								client.dispatch({
 									channel: envelope.channel,
 									clientSeq: ++approvalSeq,
 									action: {
-										type: 'chat/toolCallConfirmed',
+										type: ActionType.ChatToolCallConfirmed,
 										turnId: action.turnId,
 										toolCallId: action.toolCallId, approved: true,
+										confirmed: ToolCallConfirmationReason.UserAction,
 									},
 								});
 							}
@@ -1041,8 +1043,9 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			dispatchTurn(client, sessionUri, 'turn-sa-replay',
 				`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
-				`Instruct the subagent to finish its response with the exact marker text ${sentinel} on its own line. ` +
-				`You, the main agent, must NOT write the marker text ${sentinel} yourself — only the subagent may emit it.`,
+				`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
+				'Then the subagent should list the files. ' +
+				'After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.',
 				1);
 
 			const subagentContentNotif = await client.waitForNotification(n => {
@@ -1051,34 +1054,42 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				}
 				const envelope = getActionEnvelope(n);
 				const action = envelope.action as { content: readonly ToolResultContent[] };
-				return envelope.channel === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+				return envelope.channel === sessionChatUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
 			}, 120_000);
 
 			const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
 			const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
-			const subagentSessionUri = subagentRef.resource as unknown as string;
-			assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
-				`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
+			const subagentChatUri = subagentRef.resource as unknown as string;
+			const parsedSubagentChat = parseChatUri(subagentChatUri);
+			assert.ok(
+				parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+				`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+			);
+			const subagentToolCallId = parsedSubagentChat.chatId.slice('subagent/'.length);
+			const replaySubagentSessionUri = buildSubagentSessionUri(sessionUri, subagentToolCallId);
 
-			await client.call<SubscribeResult>('subscribe', { channel: subagentSessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
 
 			await client.waitForNotification(n =>
-				isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === sessionUri, 150_000);
+				isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === sessionChatUri, 150_000);
 
 			approvalsActive = false;
 			await approvalLoop;
 
-			// Force a reopen: drop every subscription on the session and its
-			// sub-agent so the agent host evicts the cached, live-built state, then
-			// re-fetch — which rebuilds the turns from the persisted SDK event log
-			// through `mapSessionEvents` (the path the regression lived in). The
-			// parent-session unsubscribe is sent last so it triggers eviction.
-			for (const channel of [buildDefaultChatUri(subagentSessionUri), subagentSessionUri, buildDefaultChatUri(sessionUri), sessionUri]) {
+			// Force a reopen: drop the subagent chat and parent-session
+			// subscriptions so the agent host evicts the cached, live-built state,
+			// then re-fetch — which rebuilds the turns from the persisted SDK event
+			// log through `mapSessionEvents` (the path the regression lived in).
+			// The parent-session unsubscribe is sent last so it triggers eviction.
+			for (const channel of [subagentChatUri, buildDefaultChatUri(sessionUri), sessionUri]) {
 				client.notify('unsubscribe', { channel });
 			}
 
 			const reopenedParent = await fetchSessionWithChat(client, sessionUri);
-			const reopenedSubagent = await fetchSessionWithChat(client, subagentSessionUri);
+			// Persisted SDK replay still restores subagents through their derived
+			// session resource, while the live path exposes the dedicated chat
+			// resource above.
+			const reopenedSubagent = await fetchSessionWithChat(client, replaySubagentSessionUri);
 
 			const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
 				turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
@@ -1086,15 +1097,15 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			const subagentText = assistantText(reopenedSubagent.turns);
 			const parentText = assistantText(reopenedParent.turns);
 
-			// Precondition: the sub-agent emitted the marker and it is routed to the
+			// Precondition: the sub-agent emitted the phrase and it is routed to the
 			// sub-agent transcript on the replay path.
 			assert.ok(subagentText.includes(sentinel),
-				`sub-agent transcript should contain the marker after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
+				`sub-agent transcript should contain the phrase after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
 
 			// The regression: the sub-agent's assistant.message must NOT leak into
 			// the parent transcript when the session is reopened.
 			assert.ok(!parentText.includes(sentinel),
-				`parent transcript must NOT contain the sub-agent's marker after reopen ` +
+				`parent transcript must NOT contain the sub-agent's phrase after reopen ` +
 				`(replay path leaked sub-agent assistant.message into parent turns); ` +
 				`parent text: ${JSON.stringify(parentText).slice(0, 800)}`);
 		});
