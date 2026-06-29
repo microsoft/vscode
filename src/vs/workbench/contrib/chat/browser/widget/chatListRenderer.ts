@@ -1925,7 +1925,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 		displacedWorkingPart?.dispose();
-		displacedWorkingPart?.domNode.remove();
+		displacedWorkingPart?.domNode?.remove();
 
 		// Delete previously rendered parts that are removed
 		for (let i = partsToRender.length; i < renderedParts.length; i++) {
