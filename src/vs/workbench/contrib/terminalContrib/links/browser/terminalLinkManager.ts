@@ -405,15 +405,15 @@ export class TerminalLinkManager extends DisposableStore {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, actions, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
-			// TODO: _showHover also handles OSC 8 hovers with link undefined, should this clear/update the active hover cleanup even in the no-link case
-			if (attached && link) {
+			if (attached) {
 				const store = new DisposableStore();
 				store.add(attached);
-				store.add(link.onInvalidated(() => store.dispose()));
+				if (link) {
+					store.add(link.onInvalidated(() => store.dispose()));
+				}
 				this._linkHoverInvalidationDisposable.value = store;
 				return store;
 			}
-			return attached;
 		}
 		return undefined;
 	}
