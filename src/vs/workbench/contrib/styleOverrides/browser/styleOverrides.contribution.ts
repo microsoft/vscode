@@ -25,6 +25,7 @@ import './media/scrollShadows.css';
 import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
+import './media/titlebar.css';
 
 interface IStyleOverrideModule {
 	readonly id: string;
@@ -64,7 +65,8 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'scrollShadows' },
 	{ id: 'shadows' },
 	{ id: 'statusBar' },
-	{ id: 'tabs' }
+	{ id: 'tabs' },
+	{ id: 'titlebar' }
 ];
 
 /**
