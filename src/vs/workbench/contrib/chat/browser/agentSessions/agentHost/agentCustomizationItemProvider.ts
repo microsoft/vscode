@@ -123,10 +123,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 		let groupKey = isRemote ? REMOTE_CLIENT_GROUP : undefined;
 		if (!groupKey && child.type === CustomizationType.Rule) {
-			if (child.alwaysApply) {
-				groupKey = 'agent-instructions';
-			} else if (child.globs && child.globs.length > 0) {
+			if (child.globs && child.globs.length > 0) {
 				groupKey = 'context-instructions';
+			} else if (child.alwaysApply) {
+				groupKey = 'agent-instructions';
 			} else {
 				groupKey = 'on-demand-instructions';
 			}
