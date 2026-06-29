@@ -77,3 +77,13 @@
 .style-override.nosidebar .monaco-sash.vertical::after {
 	content: none;
 }
+
+@media (forced-colors: active) {
+	.style-override .monaco-sash:not(.disabled)::after,
+	.style-override .monaco-sash.vertical:not(.disabled)::after,
+	.style-override .monaco-sash.horizontal:not(.disabled)::after {
+		background: CanvasText;
+		color: CanvasText;
+		opacity: 1;
+	}
+}
