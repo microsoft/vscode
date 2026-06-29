@@ -16,7 +16,11 @@ import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHo
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+<<<<<<< HEAD
 import { buildChatUri, buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+=======
+import { buildChatUri, buildDefaultChatUri, ChangesetStatus, ChatState, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+>>>>>>> 9e6a2a71ddf (Enhance agent selection handling for worktree sessions (#323566))
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';

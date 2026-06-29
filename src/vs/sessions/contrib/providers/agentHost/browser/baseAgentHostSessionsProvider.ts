@@ -3234,6 +3234,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
+	 * Rebase the cached running adapter's selected agent against the host's agent
+	 * list from an AHP {@link SessionState}, before the picker is notified. A
+	 * session that has moved into an isolated worktree keeps its selection instead
+	 * of resetting to the default once the host starts reporting worktree-pathed
+	 * agents. See {@link AgentHostSessionAdapter.reconcileSelectedAgent}.
+	 */
+	private _reconcileAgentFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
+	}
+
+	/**
 	 * Cleanup sentinel from {@link NewSession.dispose}: drops the cached
 	 * `_lastSessionStates` entry the new session contributed. Fires
 	 * `_onDidChangeCustomAgents` so any open picker re-reads and falls

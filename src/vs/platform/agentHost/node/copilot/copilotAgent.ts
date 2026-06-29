@@ -1366,7 +1366,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return { agent: agent, name: originalAgentName };
 		}
 		if (alternativeAgentName && alternativeAgent) {
+<<<<<<< HEAD
 			this._logService.info(`[Copilot] Agent file ${agent.uri} is in the original repo; using worktree agent ${alternativeAgent?.uri}`);
+=======
+			this._logService.info(`[Copilot] Agent file ${agent.uri} is in the original repo; using worktree agent ${alternativeAgent.uri}`);
+>>>>>>> 9e6a2a71ddf (Enhance agent selection handling for worktree sessions (#323566))
 			return { agent: alternativeAgent, name: alternativeAgentName };
 		}
 		return undefined;
