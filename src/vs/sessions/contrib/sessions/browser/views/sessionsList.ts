@@ -37,6 +37,7 @@ import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultIn
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
@@ -269,7 +270,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -416,7 +417,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			if (!hideDetails) {
-				timeDate = element.updatedAt.read(reader);
+				timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
 			}
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -956,8 +957,8 @@ class SessionsAccessibilityProvider {
 				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
-		const updated = fromNow(element.updatedAt.get(), true);
-		return localize('sessionItemAria', "{0}, updated {1}", title, updated);
+		const created = fromNow(element.createdAt, true);
+		return localize('sessionItemAria', "{0}, created {1}", title, created);
 	}
 }
 
@@ -1363,6 +1364,8 @@ export interface ISessionsList {
 	isExcludeArchived(): boolean;
 	setExcludeRead(exclude: boolean): void;
 	isExcludeRead(): boolean;
+	setExcludeAutomation(exclude: boolean): void;
+	isExcludeAutomation(): boolean;
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
@@ -1381,6 +1384,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
+	private static readonly EXCLUDE_AUTOMATION_KEY = 'sessionsListControl.excludeAutomation';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
 	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
@@ -1398,6 +1402,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
+	private _excludeAutomation: boolean;
 	private workspaceGroupCapped: boolean;
 
 	/**
@@ -1440,6 +1445,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionGroupsService private readonly _sessionGroupsService: ISessionGroupsService,
 		@ISessionSectionOrderService private readonly _sessionSectionOrderService: ISessionSectionOrderService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -1460,6 +1466,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Load archived/read filter state
 		this._excludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
 		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
+		this._excludeAutomation = this.storageService.getBoolean(SessionsList.EXCLUDE_AUTOMATION_KEY, StorageScope.PROFILE, false);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control'));
@@ -1477,7 +1484,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -1804,6 +1811,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this._excludeRead) {
 			filtered = filtered.filter(s => !this.isSessionRead(s));
 		}
+		if (this._excludeAutomation) {
+			// Sessions don't carry an automation-origin flag on the model
+			// (the `source: 'automation'` request tag is dropped after send),
+			// so derive the set of automation-created sessions from the
+			// automation run history, which persists `sessionId` per run.
+			const automationSessionIds = new Set<string>();
+			for (const run of this._automationService.runs.get()) {
+				if (run.sessionId) {
+					automationSessionIds.add(run.sessionId);
+				}
+			}
+			filtered = filtered.filter(s => !automationSessionIds.has(s.sessionId));
+		}
 
 		// Always include the active session even if it was filtered out,
 		// so it remains visible while selected
@@ -1864,7 +1884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
 
-		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
+		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
 		// when grouping by workspace. An active find pattern bypasses partitioning
@@ -1945,8 +1965,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
-			if (grouping === SessionsGrouping.Date && hasRecentSessions) {
-				const olderSections = ['older', 'archived'];
+			if (grouping === SessionsGrouping.Date && hasTodaySessions) {
+				const olderSections = ['yesterday', 'thisWeek', 'older', 'archived'];
 				if (olderSections.includes(section.id)) {
 					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 				}
@@ -2620,6 +2640,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._excludeRead;
 	}
 
+	setExcludeAutomation(exclude: boolean): void {
+		this._excludeAutomation = exclude;
+		this.storageService.store(SessionsList.EXCLUDE_AUTOMATION_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.update();
+	}
+
+	isExcludeAutomation(): boolean {
+		return this._excludeAutomation;
+	}
+
 	resetFilters(): void {
 		this.excludedSessionTypes.clear();
 		this.saveExcludedSessionTypes();
@@ -2629,6 +2659,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
+		this._excludeAutomation = false;
+		this.storageService.store(SessionsList.EXCLUDE_AUTOMATION_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
 		this.workspaceGroupCapped = true;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this.expandedSessionGroups.clear();
@@ -2945,26 +2977,27 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
-/** Maximum number of sessions shown in the "Recent" date section. */
-const RECENT_SESSIONS_LIMIT = 10;
-
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+	const startOfYesterday = startOfToday - 86_400_000;
 	const startOfWeek = startOfToday - 7 * 86_400_000;
 
-	const recent: ISession[] = [];
+	const today: ISession[] = [];
+	const yesterday: ISession[] = [];
+	const week: ISession[] = [];
 	const older: ISession[] = [];
 
-	// `sessions` arrive sorted most-recent-first, so the first sessions within
-	// the last 7 days (capped at RECENT_SESSIONS_LIMIT) form the "Recent"
-	// section; everything else falls into "Older".
 	for (const session of sessions) {
 		const time = key(session, sorting);
 
-		if (time >= startOfWeek && recent.length < RECENT_SESSIONS_LIMIT) {
-			recent.push(session);
+		if (time >= startOfToday) {
+			today.push(session);
+		} else if (time >= startOfYesterday) {
+			yesterday.push(session);
+		} else if (time >= startOfWeek) {
+			week.push(session);
 		} else {
 			older.push(session);
 		}
@@ -2977,7 +3010,9 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 		}
 	};
 
-	addGroup('recent', localize('recent', "Recent"), recent);
+	addGroup('today', localize('today', "Today"), today);
+	addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
+	addGroup('thisWeek', localize('lastSevenDays', "Last 7 Days"), week);
 	addGroup('older', localize('older', "Older"), older);
 
 	return sections;

@@ -11,6 +11,7 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
@@ -56,6 +57,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	automation: false as const,
 	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
@@ -166,6 +168,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
+		this.registerAutomationActions(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
@@ -342,6 +345,28 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
+	private registerAutomationActions(disposables: DisposableStore, menuId: MenuId): void {
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.toggleExcludeAutomation.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.automations', 'Automations'),
+					menu: {
+						id: menuId,
+						group: '3_props',
+						order: 2,
+						when: ChatAutomationsEnabledContext,
+					},
+					toggled: that.excludes.automation ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+				});
+			}
+			run(): void {
+				that.storeExcludes({ ...that.excludes, automation: !that.excludes.automation });
+			}
+		}));
+	}
+
 	/**
 	 * Programmatically toggle the repository group capping state.
 	 */
@@ -393,6 +418,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return true;
 		}
 
+		if (this.excludes.automation && this.isAutomationSession(session)) {
+			return true;
+		}
+
 		if (this.excludes.providers.includes(session.providerType)) {
 			return true;
 		}
@@ -410,6 +439,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
+	}
+
+	private isAutomationSession(session: IAgentSession): boolean {
+		return session.metadata?.source === 'automation';
 	}
 
 	reset(): void {
