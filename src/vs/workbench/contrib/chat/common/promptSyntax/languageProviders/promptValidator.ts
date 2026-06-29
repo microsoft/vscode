@@ -32,6 +32,8 @@ export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 export const enum PromptValidatorMarkerCode {
 	MissingGithubMcpServer = 'promptValidator.missingGithubMcpServer',
 	MissingPlaywrightMcpServer = 'promptValidator.missingPlaywrightMcpServer',
+	UnknownExtensionReference = 'promptValidator.unknownExtensionReference',
+	UnknownMcpServerReference = 'promptValidator.unknownMcpServerReference',
 }
 
 export class PromptValidator {
@@ -213,7 +215,7 @@ export class PromptValidator {
 							if (missingPlaywrightServerMarker) {
 								report(missingPlaywrightServerMarker);
 							} else {
-								report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+								report(this.getUnknownToolMarker(variable.name, variable.range));
 							}
 						}
 					}
@@ -550,7 +552,7 @@ export class PromptValidator {
 								if (missingPlaywrightServerMarker) {
 									report(missingPlaywrightServerMarker);
 								} else {
-									report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+									report(this.getUnknownToolMarker(item.value, item.range));
 								}
 							}
 						}
@@ -591,6 +593,46 @@ export class PromptValidator {
 			MarkerSeverity.Warning,
 			undefined,
 			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
+		);
+	}
+
+	private getUnknownToolMarker(toolReferenceName: string, range: Range): IMarkerData {
+		const slashCount = toolReferenceName.split('/').length - 1;
+		if (slashCount >= 2) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownMcpServerReference',
+					"Unknown MCP server '{0}'.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownMcpServerReference
+			);
+		}
+		if (toolReferenceName.includes('.')) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownExtensionReference',
+					"Unknown extension tool '{0}'.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionReference
+			);
+		}
+		return toMarker(
+			localize(
+				'promptValidator.unknownToolReference',
+				"Unknown tool '{0}' will be ignored.",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary]
 		);
 	}
 

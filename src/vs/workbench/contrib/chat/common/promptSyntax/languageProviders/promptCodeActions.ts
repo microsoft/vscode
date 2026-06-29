@@ -111,6 +111,33 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
 			));
 		}
+
+		for (const marker of markersInRange) {
+			const markerCode = this.getMarkerCode(marker);
+			if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
+				const extensionId = this.getExtensionId(marker, model);
+				if (extensionId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplace', "Search Marketplace for Extension '{0}'", extensionId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
+					));
+				}
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownMcpServerReference) {
+				const serverId = this.getMcpServerId(marker, model);
+				if (serverId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplace', "Search Marketplace for MCP Server '{0}'", serverId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
+					));
+				}
+			}
+		}
 	}
 
 	private getMarkerCode(marker: IMarkerData): string | undefined {
@@ -126,6 +153,22 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			const markerRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 			return markerRange.intersectRanges(range);
 		});
+	}
+
+	private getExtensionId(marker: IMarkerData, model: ITextModel): string | undefined {
+		const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+		const slashIndex = reference.indexOf('/');
+		if (slashIndex === -1) {
+			return reference.includes('.') ? reference : undefined;
+		}
+		const extensionId = reference.substring(0, slashIndex);
+		return extensionId.includes('.') ? extensionId : undefined;
+	}
+
+	private getMcpServerId(marker: IMarkerData, model: ITextModel): string | undefined {
+		const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+		const parts = reference.split('/');
+		return parts.length >= 3 ? `${parts[0]}/${parts[1]}` : undefined;
 	}
 
 	private getUpdateModeCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {
