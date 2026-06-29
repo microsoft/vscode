@@ -1722,7 +1722,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats.length === 0) {
 			return;
 		}
-		await Promise.all(chats.map(async (chatUri) => {
+		// Load each chat's data in parallel but restore in the order `getChats`
+		// returned (creation order), so the catalog never reorders by which
+		// chat's history/title happened to resolve first.
+		const restored = await Promise.all(chats.map(async (chatUri) => {
 			let turns: readonly Turn[] = [];
 			try {
 				turns = await agent.getSessionMessages(chatUri);
@@ -1733,8 +1736,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns], draft });
+			return { chatUri, title, turns: [...turns], draft };
 		}));
+		for (const { chatUri, title, turns, draft } of restored) {
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns, draft });
+		}
 	}
 
 	/** Reads a peer chat's persisted custom title, if any. */
