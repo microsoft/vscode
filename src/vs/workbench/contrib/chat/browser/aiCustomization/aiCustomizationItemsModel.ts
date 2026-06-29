@@ -249,7 +249,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 				}
 				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
 			} else {
-				const itemProvider = descriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
+				const itemProvider = descriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => descriptor);
 				return new ItemProviderItemSource(
 					sessionResource,
 					itemProvider,
