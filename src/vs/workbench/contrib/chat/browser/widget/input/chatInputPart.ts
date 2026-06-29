@@ -90,7 +90,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
+import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldRecordSessionTypeDefaultModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { chatSessionResourceToId, getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1591,6 +1591,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Sync to model
 		this._syncInputStateToModel();
+	}
+
+	/**
+	 * Records this session's resolved model as the last-used model for its session type, so a new
+	 * editor/conversation of the same type restores it via `_getRememberedSessionTypeModel`.
+	 * Unlike `setCurrentLanguageModel`, this fires when a session is merely focused (not only on
+	 * explicit picks), capturing restored sessions that take the `keep` path. Skips local sessions,
+	 * session types without their own pool, and unresolved models to avoid clobbering with a
+	 * transient "Auto" during async model-list load.
+	 */
+	public recordCurrentModelAsSessionTypeDefault(): void {
+		const sessionType = this._currentSessionType;
+		const hasOwnPool = !!sessionType && this.sessionTypeHasOwnModelPool(sessionType);
+		const model = this._currentLanguageModel.get();
+		if (!model || !shouldRecordSessionTypeDefaultModel(sessionType, hasOwnPool, model, this.getModels())) {
+			return;
+		}
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefaultForLocation[this.location], StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private checkModelSupported(): void {

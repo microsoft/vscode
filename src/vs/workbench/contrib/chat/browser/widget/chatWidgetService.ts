@@ -259,6 +259,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			return;
 		}
 		this.storageService.store(ChatLastUsedEditorSessionTypeStorageKey, sessionType, StorageScope.PROFILE, StorageTarget.USER);
+		// Also remember this session's current model as the last-used model for its type, so new
+		// editors restore it even when restored sessions kept their model without an explicit pick.
+		widget?.input.recordCurrentModelAsSessionTypeDefault();
 	}
 
 	register(newWidget: IChatWidget): IDisposable {
