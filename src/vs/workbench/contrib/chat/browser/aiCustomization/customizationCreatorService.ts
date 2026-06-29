@@ -38,17 +38,14 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
-		// Grab the now-active widget's session and send with hidden instructions
-		const widget = this.chatWidgetService.lastFocusedWidget;
-		const sessionResource = widget?.viewModel?.sessionResource;
-		if (!sessionResource) {
-			return;
-		}
+		const currentSessionResource = this.harnessService.activeSessionResource.get();
+
 
 		// Ask for the name before entering chat
 		const typeLabel = getTypeLabel(type);
@@ -75,7 +72,7 @@ export class CustomizationCreatorService {
 		// Capture project root BEFORE opening new chat (which may change active session)
 		const picker = this.instantiationService.createInstance(CustomizatonLocationPicker);
 		const targetDir = await picker.resolveTargetDirectoryWithPicker(
-			sessionResource,
+			currentSessionResource,
 			type,
 			'local',
 		);
@@ -87,6 +84,13 @@ export class CustomizationCreatorService {
 
 		// Start a new chat, then send the request with hidden instructions
 		await this.commandService.executeCommand('workbench.action.chat.newChat');
+
+		// Grab the now-active widget's session and send with hidden instructions
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
 
 		await this.chatService.sendRequest(sessionResource, userMessage, {
 			modeInfo: {
