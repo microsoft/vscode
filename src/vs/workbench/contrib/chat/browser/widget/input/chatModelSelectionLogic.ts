@@ -84,24 +84,6 @@ export function hasModelsTargetingSession(
 }
 
 /**
- * Decide whether a focused session's current model should be recorded as the last-used model for
- * its session type. Only records non-local sessions that own a model pool and whose model is
- * resolved and present in the pool, so a transient "Auto" during async model-list load cannot
- * clobber the remembered selection.
- */
-export function shouldRecordSessionTypeDefaultModel(
-	sessionType: string | undefined,
-	hasOwnPool: boolean,
-	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	models: ILanguageModelChatMetadataAndIdentifier[],
-): boolean {
-	if (!sessionType || sessionType === 'local' || !hasOwnPool || !model) {
-		return false;
-	}
-	return models.some(m => m.identifier === model.identifier);
-}
-
-/**
  * Check if a model is valid for the current session's model pool.
  * If the session has targeted models, the model must target that session type.
  * If no models target this session, the model must not be session-specific.
