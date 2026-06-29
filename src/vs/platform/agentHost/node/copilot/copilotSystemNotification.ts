@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionEventPayload } from '@github/copilot-sdk';
-import { assertNever } from '../../../../base/common/assert.js';
+import { softAssertNever } from '../../../../base/common/assert.js';
 import { localize } from '../../../../nls.js';
 
 export interface ICopilotSystemNotification {
@@ -66,7 +66,8 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 				startsTurn: false,
 			};
 		default:
-			return assertNever(kind, `Unsupported Copilot system notification kind: ${kind}`);
+			softAssertNever(kind);
+			return undefined;
 	}
 }
 
