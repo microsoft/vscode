@@ -2735,6 +2735,16 @@ body:has(.automation-dialog) .monaco-menu-container {
 	flex-shrink: 0;
 }
 
+.automation-form-prompt-host .automation-form-isolation-chip {
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
 .automation-form-prompt-host .automation-form-isolation-chip-disabled {
 	cursor: default;
 }
