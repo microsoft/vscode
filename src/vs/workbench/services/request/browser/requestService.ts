@@ -58,6 +58,10 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 		return undefined; // not implemented in the web
 	}
 
+	async mightNeedProxy(url: string): Promise<boolean | undefined> {
+		return undefined; // not implemented in the web
+	}
+
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return undefined; // not implemented in the web
 	}

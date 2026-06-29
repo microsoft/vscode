@@ -14,6 +14,7 @@ import { ILoggerService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { windowLogGroup } from '../../log/common/logConstants.js';
 import { LogService } from '../../../../platform/log/common/logService.js';
+import { IShellEnvironmentService } from '../../environment/electron-browser/shellEnvironmentService.js';
 
 export class NativeRequestService extends AbstractRequestService implements IRequestService {
 
@@ -23,6 +24,7 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService,
+		@IShellEnvironmentService private readonly shellEnvironmentService: IShellEnvironmentService,
 	) {
 		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
 		const logService = new LogService(logger);
@@ -40,6 +42,18 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
+	}
+
+	override async mightNeedProxy(url: string): Promise<boolean | undefined> {
+		if ((this.configurationService.getValue<string>('http.proxy') || '').trim()) {
+			return true;
+		}
+		const env = await this.shellEnvironmentService.getShellEnv();
+		if (env['https_proxy'] || env['HTTPS_PROXY'] || env['http_proxy'] || env['HTTP_PROXY']) {
+			return true;
+		}
+		const proxy = await this.resolveProxy(url);
+		return !!proxy && proxy !== 'DIRECT';
 	}
 
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {

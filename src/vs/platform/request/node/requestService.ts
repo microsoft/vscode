@@ -122,6 +122,10 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		return undefined; // currently not implemented in node
 	}
 
+	async mightNeedProxy(url: string): Promise<boolean | undefined> {
+		return undefined; // currently not implemented in node
+	}
+
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return undefined; // currently not implemented in node
 	}

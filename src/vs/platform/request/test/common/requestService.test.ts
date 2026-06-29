@@ -22,6 +22,7 @@ class TestRequestService extends AbstractRequestService {
 	}
 
 	async resolveProxy(_url: string): Promise<string | undefined> { return undefined; }
+	async mightNeedProxy(_url: string): Promise<boolean | undefined> { return undefined; }
 	async lookupAuthorization(_authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(_url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }

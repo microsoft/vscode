@@ -37,6 +37,7 @@ export class RequestChannel implements IServerChannel {
 			case 'lookupAuthorization': return this.service.lookupAuthorization(args[0]);
 			case 'lookupKerberosAuthorization': return this.service.lookupKerberosAuthorization(args[0]);
 			case 'loadCertificates': return this.service.loadCertificates();
+			case 'mightNeedProxy': return this.service.mightNeedProxy(args[0]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -69,5 +70,9 @@ export class RequestChannelClient implements IRequestService {
 
 	async loadCertificates(): Promise<string[]> {
 		return this.channel.call<string[]>('loadCertificates');
+	}
+
+	async mightNeedProxy(url: string): Promise<boolean | undefined> {
+		return this.channel.call<boolean | undefined>('mightNeedProxy', [url]);
 	}
 }

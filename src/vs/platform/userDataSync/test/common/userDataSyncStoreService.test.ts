@@ -417,7 +417,8 @@ suite('UserDataSyncRequestsSession', () => {
 		async resolveProxy() { return undefined; },
 		async lookupAuthorization() { return undefined; },
 		async lookupKerberosAuthorization() { return undefined; },
-		async loadCertificates() { return []; }
+		async loadCertificates() { return []; },
+		async mightNeedProxy() { return undefined; }
 	};
 
 

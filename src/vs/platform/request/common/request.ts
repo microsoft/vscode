@@ -58,6 +58,12 @@ export interface IRequestService {
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
+
+	/**
+	 * Returns whether a request to the given URL might be routed through a proxy.
+	 * Returns `undefined` when this cannot be determined (e.g. in the web UI).
+	 */
+	mightNeedProxy(url: string): Promise<boolean | undefined>;
 }
 
 class LoggableHeaders {
@@ -120,6 +126,7 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	abstract lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	abstract lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	abstract loadCertificates(): Promise<string[]>;
+	abstract mightNeedProxy(url: string): Promise<boolean | undefined>;
 }
 
 export function isSuccess(context: IRequestContext): boolean {
