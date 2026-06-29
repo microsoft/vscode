@@ -2372,6 +2372,13 @@ body:has(.automation-dialog) .monaco-menu-container {
 	min-width: 0;
 }
 
+.automation-form-prompt-host .interactive-input-editor,
+.automation-form-prompt-host .monaco-editor,
+.automation-form-prompt-host .monaco-editor-background,
+.automation-form-prompt-host .monaco-editor .margin {
+	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
+}
+
 .automation-form-prompt-host .interactive-input-and-side-toolbar {
 	/* Allow the input column to shrink below its content's preferred
 	 * width so flex children (chips, custom-mode names) don't push the
@@ -2747,6 +2754,29 @@ body:has(.automation-dialog) .monaco-menu-container {
  * a 1px-wide bar in the gap to the chip's left. */
 .automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-slot {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	opacity: 0.6;
+	cursor: default;
+}
+
+.automation-form-prompt-host .automation-form-harness-chip > .codicon {
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.automation-form-prompt-host .automation-form-harness-label {
+	font-size: 11px;
 }
 
 /* Missing-branch state (no folder / no git repo / detached / empty): use

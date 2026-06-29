@@ -19,6 +19,8 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -281,31 +283,78 @@ export function renderForm(
 	folderChip.setAttribute('role', 'button');
 	folderChip.tabIndex = 0;
 
+	const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
+
 	const renderIsolationChip = () => {
 		DOM.clearNode(folderChip);
-		if (state.isolationMode === 'worktree') {
-			folderChip.setAttribute('aria-label', localize('automation.form.isolation.worktreeAria', "Isolation: Worktree"));
-			folderChip.title = localize('automation.form.isolation.worktreeTitle', "This automation runs in a worktree. Click to switch to workspace.");
-			DOM.append(folderChip, renderIcon(Codicon.gitBranch));
-			DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.worktree', "Worktree")));
-		} else {
-			folderChip.setAttribute('aria-label', localize('automation.form.isolation.workspaceAria', "Isolation: Workspace"));
-			folderChip.title = localize('automation.form.isolation.workspaceTitle', "This automation runs in the workspace folder. Click to switch to worktree.");
-			DOM.append(folderChip, renderIcon(Codicon.folder));
-			DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.workspace', "Workspace")));
-		}
+		const isWorktree = state.isolationMode === 'worktree';
+		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
+		const modeLabel = isWorktree
+			? localize('automation.form.isolation.worktree', "Worktree")
+			: localize('automation.form.isolation.folder', "Folder");
+		folderChip.setAttribute('aria-label', localize('automation.form.isolation.pickerAriaLabel', "Pick Isolation Mode, {0}", modeLabel));
+		folderChip.title = modeLabel;
+		DOM.append(folderChip, renderIcon(modeIcon));
+		DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
+		DOM.append(folderChip, renderIcon(Codicon.chevronDown));
 	};
 	renderIsolationChip();
 
-	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.CLICK, () => {
-		state.isolationMode = state.isolationMode === 'worktree' ? 'workspace' : 'worktree';
-		renderIsolationChip();
+	interface IIsolationPickerItem {
+		readonly mode: string;
+		readonly checked?: boolean;
+	}
+
+	const showIsolationPicker = () => {
+		if (actionWidgetService.isVisible) {
+			return;
+		}
+		const currentMode = state.isolationMode ?? 'worktree';
+		const items: IActionListItem<IIsolationPickerItem>[] = [
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.worktree', "Worktree"),
+				group: { title: '', icon: Codicon.worktree },
+				item: { mode: 'worktree', checked: currentMode === 'worktree' || undefined },
+			},
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.folder', "Folder"),
+				group: { title: '', icon: Codicon.folder },
+				item: { mode: 'workspace', checked: currentMode === 'workspace' || undefined },
+			},
+		];
+		const delegate: IActionListDelegate<IIsolationPickerItem> = {
+			onSelect: ({ mode }) => {
+				actionWidgetService.hide();
+				state.isolationMode = mode;
+				renderIsolationChip();
+			},
+			onHide: () => { folderChip.focus(); },
+		};
+		actionWidgetService.show<IIsolationPickerItem>(
+			'automationIsolationPicker',
+			false,
+			items,
+			delegate,
+			folderChip,
+			undefined,
+			[],
+			{
+				getAriaLabel: (item) => item.label ?? '',
+				getWidgetAriaLabel: () => localize('automation.form.isolation.widgetAriaLabel', "Isolation Mode"),
+			},
+		);
+	};
+
+	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.CLICK, (e) => {
+		DOM.EventHelper.stop(e, true);
+		showIsolationPicker();
 	}));
 	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			state.isolationMode = state.isolationMode === 'worktree' ? 'workspace' : 'worktree';
-			renderIsolationChip();
+			DOM.EventHelper.stop(e, true);
+			showIsolationPicker();
 		}
 	}));
 
@@ -363,9 +412,9 @@ export function renderForm(
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 
 	const chatInputStyles: IChatInputStyles = {
-		overlayBackground: 'var(--vscode-editor-background)',
+		overlayBackground: 'var(--vscode-input-background)',
 		listForeground: 'var(--vscode-foreground)',
-		listBackground: 'var(--vscode-editor-background)',
+		listBackground: 'var(--vscode-input-background)',
 	};
 
 	const chatInputOptions: IChatInputPartOptions = {
@@ -412,10 +461,21 @@ export function renderForm(
 		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
+	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 
 	// eslint-disable-next-line no-restricted-syntax
 	const secondaryToolbar = promptHost.querySelector('.chat-secondary-toolbar');
 	if (secondaryToolbar) {
+		const harnessChip = $('span.automation-form-harness-chip');
+		DOM.append(harnessChip, renderIcon(Codicon.copilot));
+		DOM.append(harnessChip, $('span.automation-form-harness-label', undefined, localize('automation.form.harness', "Copilot CLI")));
+		// eslint-disable-next-line no-restricted-syntax
+		const toolbarElement = secondaryToolbar.querySelector('.chat-secondary-input-toolbar');
+		if (toolbarElement) {
+			secondaryToolbar.insertBefore(harnessChip, toolbarElement);
+		} else {
+			secondaryToolbar.prepend(harnessChip);
+		}
 		secondaryToolbar.appendChild(isolationGroup);
 	}
 
