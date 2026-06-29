@@ -104,6 +104,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	addCodeBlockCopyButtons();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -191,6 +192,79 @@ function addImageContexts() {
 		const isLocalFile = imageSource && !(isOfScheme(Schemes.http, imageSource) || isOfScheme(Schemes.https, imageSource));
 		const webviewSection = isLocalFile ? 'localImage' : 'image';
 		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection, id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource, imageSource }));
+	}
+}
+
+function createCopyIcon(): SVGElement {
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('width', '16');
+	svg.setAttribute('height', '16');
+	svg.setAttribute('viewBox', '0 0 16 16');
+	svg.setAttribute('fill', 'none');
+	const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path1.setAttribute('d', 'M4 4H2V14H11V12H4V4Z');
+	path1.setAttribute('fill', 'currentColor');
+	const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path2.setAttribute('fill-rule', 'evenodd');
+	path2.setAttribute('clip-rule', 'evenodd');
+	path2.setAttribute('d', 'M5 2H14V11H5V2ZM6 3H13V10H6V3Z');
+	path2.setAttribute('fill', 'currentColor');
+	svg.appendChild(path1);
+	svg.appendChild(path2);
+	return svg;
+}
+
+function createCheckIcon(): SVGElement {
+	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	svg.setAttribute('width', '16');
+	svg.setAttribute('height', '16');
+	svg.setAttribute('viewBox', '0 0 16 16');
+	svg.setAttribute('fill', 'none');
+	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+	path.setAttribute('d', 'M6.27 10.87L3.63 8.23L2.56 9.3L6.27 13.01L14.07 5.21L13 4.14L6.27 10.87Z');
+	path.setAttribute('fill', 'currentColor');
+	svg.appendChild(path);
+	return svg;
+}
+
+function addCodeBlockCopyButtons() {
+	const codeBlocks = document.querySelectorAll('pre > code');
+	for (const code of codeBlocks) {
+		const pre = code.parentElement!;
+
+		// Inject copy button if not already present
+		if (!pre.querySelector('.code-block-copy-button')) {
+			const button = document.createElement('button');
+			button.className = 'code-block-copy-button';
+			button.setAttribute('aria-label', 'Copy code block');
+			button.appendChild(createCopyIcon());
+			button.addEventListener('click', async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const text = code.textContent ?? '';
+				try {
+					await navigator.clipboard.writeText(text);
+					button.replaceChildren(createCheckIcon());
+					button.classList.add('copied');
+					setTimeout(() => {
+						button.replaceChildren(createCopyIcon());
+						button.classList.remove('copied');
+					}, 2000);
+				} catch {
+					// Fallback: select the code block text and use execCommand
+					const selection = window.getSelection();
+					if (selection) {
+						selection.removeAllRanges();
+						const range = document.createRange();
+						range.selectNodeContents(code);
+						selection.addRange(range);
+						document.execCommand('copy');
+						selection.removeAllRanges();
+					}
+				}
+			});
+			pre.appendChild(button);
+		}
 	}
 }
 
@@ -335,6 +409,7 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			addCodeBlockCopyButtons();
 			applyLineChanges(lineChanges);
 			break;
 		}
