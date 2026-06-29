@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
-import { DeferredPromise, raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
@@ -1464,8 +1464,6 @@ export class CopilotAgentSession extends Disposable {
 	 * stale turns for an actively-running session.
 	 */
 	private _mappedEventsMemo: Promise<IMappedSessionEvents> | undefined;
-	private readonly _turnBoundaryWriteSequencer = new Sequencer();
-	private _turnBoundaryWriteError: Error | undefined;
 
 	private _getMappedEvents(): Promise<IMappedSessionEvents> {
 		if (!this._mappedEventsMemo) {
@@ -1482,10 +1480,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _computeMappedEvents(): Promise<IMappedSessionEvents> {
-		await this._turnBoundaryWriteSequencer.queue(async () => { });
-		if (this._turnBoundaryWriteError) {
-			throw this._turnBoundaryWriteError;
-		}
 		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -2375,10 +2369,6 @@ export class CopilotAgentSession extends Disposable {
 
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
-			void this._turnBoundaryWriteSequencer.queue(() => this._databaseRef.object.setTurnEventId(turnId, e.id)).catch(error => {
-				this._turnBoundaryWriteError = error instanceof Error ? error : new Error(getErrorMessage(error));
-				this._logService.error(this._turnBoundaryWriteError, `[Copilot:${sessionId}] Failed to persist system notification turn boundary`);
-			});
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -3167,7 +3157,6 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSubagentStarted(invalidate));
 		this._register(wrapper.onSubagentCompleted(invalidate));
 		this._register(wrapper.onSubagentFailed(invalidate));
-		this._register(wrapper.onSystemNotification(invalidate));
 		this._register(wrapper.onTurnEnd(invalidate));
 		// In-place rewrites of the persisted log.
 		this._register(wrapper.onSessionCompactionComplete(invalidate));

@@ -2502,6 +2502,23 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(totalContent, 'hello world');
 		}));
 
+		test('system notification response parts become live progress messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/responsePart',
+				session,
+				turnId,
+				part: { kind: ResponsePartKind.SystemNotification, content: 'Background command completed' },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const progressMessages = collected.flat().filter(part => part.kind === 'progressMessage');
+			assert.deepStrictEqual(progressMessages.map(part => part.content.value), ['Background command completed']);
+		}));
+
 		test('live turn marks chat session complete after turnComplete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -5545,7 +5562,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('reconnection to active turn', () => {
 
-		function makeSessionStateWithActiveTurn(sessionUri: string, overrides?: Partial<{ streamingText: string; reasoning: string }>): SeededSessionState {
+		function makeSessionStateWithActiveTurn(sessionUri: string, overrides?: Partial<{ streamingText: string; reasoning: string; systemNotification: string }>): SeededSessionState {
 			const summary: SessionSummary = {
 				resource: sessionUri,
 				provider: 'copilot',
@@ -5558,6 +5575,9 @@ suite('AgentHostChatContribution', () => {
 			const reasoningText = overrides?.reasoning ?? '';
 			if (reasoningText) {
 				activeTurnParts.push({ kind: ResponsePartKind.Reasoning as const, id: 'reasoning-1', content: reasoningText });
+			}
+			if (overrides?.systemNotification) {
+				activeTurnParts.push({ kind: ResponsePartKind.SystemNotification as const, content: overrides.systemNotification });
 			}
 			activeTurnParts.push({ kind: ResponsePartKind.Markdown as const, id: 'md-active', content: overrides?.streamingText ?? 'Partial response so far' });
 			return {
@@ -5621,6 +5641,21 @@ suite('AgentHostChatContribution', () => {
 			const markdownPart = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent | undefined;
 			assert.ok(markdownPart, 'Should have markdown content from streaming text');
 			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
+		});
+
+		test('does not duplicate system notification progress when reconnecting', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-system-notification');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString(), {
+				systemNotification: 'Background command completed',
+			}));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-system-notification' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const progressMessages = (session.progressObs?.get() ?? []).filter(part => part.kind === 'progressMessage');
+			assert.deepStrictEqual(progressMessages.map(part => part.content.value), ['Background command completed']);
 		});
 
 		test('provides interruptActiveResponseCallback when reconnecting', async () => {

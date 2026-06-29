@@ -38,7 +38,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledCo
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
@@ -286,7 +286,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	serverToolHost?: IAgentServerToolHost;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
-	sessionDatabase?: TestSessionDatabase;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -362,7 +361,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(options?.fileContents?.[resource.toString()] ?? options?.fileContents?.[resource.fsPath] ?? '') };
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
+	services.set(ISessionDataService, createSessionDataService());
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -2026,8 +2025,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('idle notification starts a system-initiated turn without sending another SDK message', async () => {
-			const sessionDatabase = disposables.add(new TestSessionDatabase());
-			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			const { mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.fire('system.notification', {
 				content: '<system_notification>\nShell command completed\n</system_notification>',
@@ -2039,8 +2037,6 @@ suite('CopilotAgentSession', () => {
 			const turnStarted = actions.find(a => a.type === ActionType.ChatTurnStarted);
 			assert.ok(turnStarted, 'should synthesize a fresh turn');
 			assert.deepStrictEqual(turnStarted.message, { text: '`sleep 6` completed', origin: { kind: MessageKind.SystemNotification } });
-			await session.getMessages();
-			assert.strictEqual(await sessionDatabase.hasTurnEventId('evt-1'), true);
 		});
 
 		test('agent idle notification routes resumed SDK events into a generated system turn', async () => {
@@ -2070,7 +2066,7 @@ suite('CopilotAgentSession', () => {
 
 		test('agent idle notification during an active turn appends a SystemNotification response part', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			await session.send('Wait for the shell command', undefined, 'turn-active');
+			session.resetTurnState('turn-active');
 
 			mockSession.fire('system.notification', {
 				content: 'Agent "agent-a" has finished processing and is now idle.',

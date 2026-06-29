@@ -15,7 +15,6 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
 	private readonly _drafts = new Map<string, Message>();
-	private readonly _turnEventIds = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -95,22 +94,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
-	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
-		if (!this._turnEventIds.has(turnId)) {
-			this._turnEventIds.set(turnId, eventId);
-		}
-	}
+	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
 
-	async hasTurnEventId(eventId: string): Promise<boolean> {
-		for (const candidate of this._turnEventIds.values()) {
-			if (candidate === eventId) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	async getTurnEventId(turnId: string): Promise<string | undefined> { return this._turnEventIds.get(turnId); }
+	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
 	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 

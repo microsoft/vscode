@@ -6,19 +6,18 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, TurnState, type ResponsePart, type StringOrMarkdown } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, TurnState, type ResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
-import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEvents — history replay', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = AgentSession.uri('copilot', 'test-session');
 
-	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
-		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
+	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: string }> {
+		return parts.map(p => p.kind === ResponsePartKind.Markdown ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
 	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
@@ -172,88 +171,6 @@ suite('mapSessionEvents — history replay', () => {
 				state: TurnState.Complete,
 				parts: [
 					{ kind: ResponsePartKind.Markdown, content: 'You are welcome.' },
-				],
-			},
-		]);
-	});
-
-	test('restores system notifications received during a turn as response parts', async () => {
-		const events: ISessionEvent[] = [
-			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Wait for the shell command' } },
-			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Waiting for it to finish.', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'sleep 6' } } },
-			{
-				type: 'system.notification',
-				data: {
-					content: '<system_notification>\nShell command completed\n</system_notification>',
-					kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
-				},
-			},
-			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: '' } } },
-			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'The command is done.', toolRequests: [] } },
-		];
-
-		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
-
-		assert.deepStrictEqual(turns.map(turn => ({
-			id: turn.id,
-			parts: partKinds(turn.responseParts),
-		})), [{
-			id: 'user-event',
-			parts: [
-				{ kind: ResponsePartKind.Markdown, content: 'Waiting for it to finish.' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
-				{ kind: ResponsePartKind.ToolCall },
-				{ kind: ResponsePartKind.Markdown, content: 'The command is done.' },
-			],
-		}]);
-	});
-
-	test('restores notifications after a completed turn as system-initiated turns', async () => {
-		const events: ISessionEvent[] = [
-			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Start the background shell command' } },
-			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'The command is running.', toolRequests: [] } },
-			{
-				type: 'system.notification',
-				id: 'system-event',
-				data: {
-					content: '<system_notification>\nShell command completed\n</system_notification>',
-					kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
-				},
-			},
-			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'The background command completed.', toolRequests: [] } },
-		];
-
-		const db = disposables.add(new TestSessionDatabase());
-		await db.setTurnEventId('system-turn', 'system-event');
-		const { turns } = await mapSessionEvents(session, db, toSessionEvents(events));
-
-		assert.deepStrictEqual(turns.map(turn => ({
-			id: turn.id,
-			message: turn.message,
-			state: turn.state,
-			parts: partKinds(turn.responseParts),
-		})), [
-			{
-				id: 'user-event',
-				message: {
-					text: 'Start the background shell command',
-					origin: { kind: MessageKind.User },
-				},
-				state: TurnState.Complete,
-				parts: [
-					{ kind: ResponsePartKind.Markdown, content: 'The command is running.' },
-				],
-			},
-			{
-				id: 'system-event',
-				message: {
-					text: '`sleep 6` completed',
-					origin: { kind: MessageKind.SystemNotification },
-				},
-				state: TurnState.Complete,
-				parts: [
-					{ kind: ResponsePartKind.Markdown, content: 'The background command completed.' },
 				],
 			},
 		]);
