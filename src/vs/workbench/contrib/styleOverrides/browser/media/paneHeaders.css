@@ -63,7 +63,7 @@
  * inline header background from the PaneView is overridden here; the hover tint
  * below still wins via its higher specificity. */
 .style-override .monaco-pane-view .pane > .pane-header {
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
 }
 

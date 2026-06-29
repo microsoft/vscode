@@ -79,3 +79,10 @@
 		padding-left: 12px;
 	}
 }
+
+/* Give the settings / profile (global) actions at the bottom of the default
+ * vertical activity bar a 4px bottom margin so they sit consistently above the
+ * window edge, matching the pane header margins. */
+.style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
+	margin-bottom: calc(var(--vscode-spacing-size20, 2px) + var(--vscode-strokeThickness, 1px));
+}
