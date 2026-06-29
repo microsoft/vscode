@@ -109,11 +109,15 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			}));
 		}
 		const shouldUnpack = shouldUnpackFile(file);
-		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
+		// Strip the `node_modules/` prefix so that modules live at the top level
+		// of the archive (`node_modules.asar/<module>`), matching both the
+		// `node_modules.asar.unpacked/<module>` layout and how the archive is
+		// referenced at runtime. This keeps a single, consistent top-level layout.
+		const relative = path.relative(folderPath, file.path);
+		insertFile(relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
 
 		if (shouldUnpack) {
 			// The file goes outside of xx.asar, in a folder xx.asar.unpacked
-			const relative = path.relative(folderPath, file.path);
 			this.queue(new VinylFile({
 				base: '.',
 				path: path.join(destFilename + '.unpacked', relative),
