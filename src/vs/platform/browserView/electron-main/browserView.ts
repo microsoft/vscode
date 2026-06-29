@@ -659,7 +659,7 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
-		if (this._view.getVisible() === visible) {
+		if (this._wantsVisibility === visible) {
 			return;
 		}
 
@@ -777,17 +777,19 @@ export class BrowserView extends Disposable {
 			await this._waitForNextPaint();
 		}
 		const image = await (async () => {
-			for (let i = 0; i < 5; i++) {
+			const maxAttempts = 5;
+			let lastError: Error | undefined;
+			for (let i = 0; i < maxAttempts; i++) {
 				try {
 					return await this._view.webContents.capturePage(options?.screenRect, {
 						stayHidden: true
 					});
 				} catch (error) {
-					// For offscreen scenarios in particular, the capture may fail due to not having a frame yet.
-					// The `setVisible(true)` call above gets the rendering started, but it isn't available immediately.
-					// So we retry up to 5 times.
-					// `UnknownVizError` is a known error from Electron that occurs when there is not yet a frame available.
+					// `UnknownVizError` is a transient Electron error when no frame is available yet
+					// (e.g. offscreen scenarios where rendering has just been kicked off by `setVisible(true)`),
+					// so retry a few times.
 					if (error instanceof Error && error.message === 'UnknownVizError') {
+						lastError = error;
 						await new Promise(resolve => setTimeout(resolve, 16));
 						continue;
 					} else {
@@ -795,7 +797,7 @@ export class BrowserView extends Disposable {
 					}
 				}
 			}
-			throw new Error('Failed to capture screenshot');
+			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
 		})();
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
