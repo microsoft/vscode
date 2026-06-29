@@ -28,6 +28,7 @@ import {
 	getToolFileEdits,
 	isAhpChatChannel,
 	isDefaultChatUri,
+	isSubagentChatUri,
 	MessageKind,
 	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
@@ -165,7 +166,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(envelope.channel), action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(this._toolCallCompletionChat(envelope.channel)), action.toolCallId, action.result);
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -700,6 +701,20 @@ export class AgentSideEffects extends Disposable {
 		return undefined;
 	}
 
+	private _toolCallCompletionChat(chatChannel: ProtocolURI): ProtocolURI {
+		if (!isSubagentChatUri(chatChannel)) {
+			return chatChannel;
+		}
+
+		for (const subagent of this._subagentChats.values()) {
+			if (subagent.chatUri === chatChannel) {
+				return this._toolCallCompletionChat(subagent.parentChatUri);
+			}
+		}
+
+		return chatChannel;
+	}
+
 	// ---- Side-effect handlers --------------------------------------------------
 
 	/**
@@ -744,7 +759,7 @@ export class AgentSideEffects extends Disposable {
 		);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string): void {
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		switch (action.type) {
@@ -790,6 +805,7 @@ export class AgentSideEffects extends Disposable {
 					chat: channel,
 					message: action.message,
 					turnId: action.turnId,
+					senderClientId: clientId,
 				});
 				break;
 			}
@@ -933,7 +949,7 @@ export class AgentSideEffects extends Disposable {
 					break; // Not a chat channel; ignore.
 				}
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(chatChannel), action.toolCallId, action.result);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(this._toolCallCompletionChat(chatChannel)), action.toolCallId, action.result);
 				break;
 			}
 		}
@@ -1142,6 +1158,7 @@ export class AgentSideEffects extends Disposable {
 			chat: session,
 			message: msg.message,
 			turnId,
+			senderClientId: undefined,
 		});
 	}
 
@@ -1169,8 +1186,9 @@ export class AgentSideEffects extends Disposable {
 		chat: ProtocolURI;
 		message: Message;
 		turnId: string;
+		senderClientId: string | undefined;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId } = options;
+		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
 
 		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = URI.parse(chat);
@@ -1192,7 +1210,7 @@ export class AgentSideEffects extends Disposable {
 
 		await Promise.all(selectionUpdates);
 
-		await agent.sendMessage(URI.parse(sessionChannel), chatUri, message.text, message.attachments, turnId).catch(err => {
+		await agent.sendMessage(URI.parse(sessionChannel), chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {

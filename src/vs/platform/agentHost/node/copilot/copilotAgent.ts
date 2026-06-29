@@ -1484,16 +1484,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
 		if (!isDefaultChatUri(chat)) {
 			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
-			return;
+		} else {
+			this._sessions.get(AgentSession.id(session))?.handleClientToolCallComplete(toolCallId, result);
 		}
-		// Default chat (and subagents): walk up the subagent chain to reach the
-		// root SDK session entry, since `_sessions` is keyed by root session ids.
-		let target = session;
-		let parsed;
-		while ((parsed = parseSubagentSessionUri(target))) {
-			target = parsed.parentSession;
-		}
-		this._sessions.get(AgentSession.id(target))?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
@@ -1505,7 +1498,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`, keyed by the chat URI.
 		if (!isDefaultChatUri(chat)) {
@@ -1514,9 +1507,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
-			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session));
+			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session), senderClientId);
 			return;
 		}
 		const sessionId = AgentSession.id(session);
@@ -1554,7 +1547,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
 
 			// Emit any pending first-turn announcement (e.g. worktree
@@ -1570,7 +1563,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			try {
 				const sdkMode = this._resolveSdkMode(session);
-				await entry.send(prompt, attachments, turnId, sdkMode);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
