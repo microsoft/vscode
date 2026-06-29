@@ -3185,7 +3185,7 @@ declare namespace monaco.editor {
 	/**
 	 * Configuration options for auto wrapping quotes and brackets
 	 */
-	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
+	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'both' | 'never';
 
 	/**
 	 * Configuration options for typing over closing quotes or brackets
@@ -5281,7 +5281,7 @@ declare namespace monaco.editor {
 		autoIndentOnPaste: IEditorOption<EditorOption.autoIndentOnPaste, boolean>;
 		autoIndentOnPasteWithinString: IEditorOption<EditorOption.autoIndentOnPasteWithinString, boolean>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
-		autoSurround: IEditorOption<EditorOption.autoSurround, 'never' | 'languageDefined' | 'quotes' | 'brackets'>;
+		autoSurround: IEditorOption<EditorOption.autoSurround, 'never' | 'languageDefined' | 'quotes' | 'brackets' | 'both'>;
 		bracketPairColorization: IEditorOption<EditorOption.bracketPairColorization, Readonly<Required<IBracketPairColorizationOptions>>>;
 		bracketPairGuides: IEditorOption<EditorOption.guides, Readonly<Required<IGuidesOptions>>>;
 		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
