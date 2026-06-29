@@ -106,17 +106,17 @@
 	border-radius: 0 !important;
 }
 
-/* Scrollbar sliders */
+/* Scrollbar sliders (panels, editor, lists — all consistent) */
 .style-override .monaco-scrollable-element > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
-/*
- * The editor's own scrollbars sit flush against the viewport edge (next to the
- * minimap); rounding their sliders looks odd, so keep those square.
- */
-.style-override .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
-	border-radius: 0 !important;
+/* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
+.style-override .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	/* Inset the slider so both left and right rounded corners are visible */
+	left: 1px !important;
+	width: 13px !important;
 }
 
 /* =============================================================================
