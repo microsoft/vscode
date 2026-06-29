@@ -277,12 +277,37 @@ export function renderForm(
 	}
 
 	const isolationGroup = $('span.automation-form-isolation-group');
-	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip.automation-form-isolation-chip-disabled')) as HTMLSpanElement;
-	folderChip.setAttribute('role', 'img');
-	folderChip.setAttribute('aria-label', localize('automation.form.isolation.folderAria', "Isolation: Folder (Worktree not supported for scheduled automations)"));
-	folderChip.title = localize('automation.form.isolation.folderTitle', "Scheduled automations run in the workspace folder. Worktree isolation is not yet supported.");
-	DOM.append(folderChip, renderIcon(Codicon.folder));
-	DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.folder', "Folder")));
+	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip')) as HTMLSpanElement;
+	folderChip.setAttribute('role', 'button');
+	folderChip.tabIndex = 0;
+
+	const renderIsolationChip = () => {
+		DOM.clearNode(folderChip);
+		if (state.isolationMode === 'worktree') {
+			folderChip.setAttribute('aria-label', localize('automation.form.isolation.worktreeAria', "Isolation: Worktree"));
+			folderChip.title = localize('automation.form.isolation.worktreeTitle', "This automation runs in a worktree. Click to switch to workspace.");
+			DOM.append(folderChip, renderIcon(Codicon.gitBranch));
+			DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.worktree', "Worktree")));
+		} else {
+			folderChip.setAttribute('aria-label', localize('automation.form.isolation.workspaceAria', "Isolation: Workspace"));
+			folderChip.title = localize('automation.form.isolation.workspaceTitle', "This automation runs in the workspace folder. Click to switch to worktree.");
+			DOM.append(folderChip, renderIcon(Codicon.folder));
+			DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.workspace', "Workspace")));
+		}
+	};
+	renderIsolationChip();
+
+	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.CLICK, () => {
+		state.isolationMode = state.isolationMode === 'worktree' ? 'workspace' : 'worktree';
+		renderIsolationChip();
+	}));
+	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			state.isolationMode = state.isolationMode === 'worktree' ? 'workspace' : 'worktree';
+			renderIsolationChip();
+		}
+	}));
 
 	const branchSlot = DOM.append(isolationGroup, $('span.automation-form-branch-slot')) as HTMLSpanElement;
 	branchSlot.setAttribute('aria-live', 'polite');
