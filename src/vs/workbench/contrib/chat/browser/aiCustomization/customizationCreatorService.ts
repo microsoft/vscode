@@ -70,7 +70,7 @@ export class CustomizationCreatorService {
 		// directory and have those changes tracked.
 
 		// Capture project root BEFORE opening new chat (which may change active session)
-		const picker = this.instantiationService.createInstance(CustomizatonLocationPicker);
+		const picker = this.instantiationService.createInstance(CustomizationLocationPicker);
 		const targetDir = await picker.resolveTargetDirectoryWithPicker(
 			currentSessionResource,
 			type,
@@ -125,7 +125,7 @@ export class CustomizationCreatorService {
 }
 
 
-export class CustomizatonLocationPicker {
+export class CustomizationLocationPicker {
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,

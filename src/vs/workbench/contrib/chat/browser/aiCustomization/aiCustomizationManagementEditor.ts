@@ -65,7 +65,7 @@ import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLo
 import { getAttributeDefinition, getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
-import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizatonLocationPicker } from './customizationCreatorService.js';
+import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -1176,7 +1176,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
-		const picker = this.instantiationService.createInstance(CustomizatonLocationPicker);
+		const picker = this.instantiationService.createInstance(CustomizationLocationPicker);
 		const targetDir = await picker.resolveTargetDirectoryWithPicker(
 			sessionResource,
 			type,
@@ -1186,7 +1186,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return; // User cancelled the picker
 		}
 
-		if (target === undefined) {
+		if (targetDir === undefined) {
 			// targetDir may be undefined when no matching folder exists for the
 			// requested storage type (e.g. skills have no user-storage folder).
 			await this.instantiationService.invokeFunction(showNoFoldersDialog, type);
