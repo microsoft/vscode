@@ -1593,10 +1593,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._syncInputStateToModel();
 	}
 
-/**
- * Record the focused session's resolved model as the last-used model for its session type.
- * Skips local sessions, session types without their own pool, and unresolved/out-of-pool models.
- */
+	/**
+	 * Record the focused session's resolved model as the last-used model for its session type.
+	 * Skips local sessions, session types without their own pool, and unresolved/out-of-pool models.
+	 */
 	public recordCurrentModelAsSessionTypeDefault(): void {
 		const sessionType = this._currentSessionType;
 		const hasOwnPool = !!sessionType && this.sessionTypeHasOwnModelPool(sessionType);
