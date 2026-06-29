@@ -16,12 +16,13 @@ import * as nls from '../../../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, ChatLastUsedEditorSessionTypeStorageKey, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getNewChatEditorSessionResource } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
@@ -65,6 +66,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -231,7 +233,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true, debugOwner: 'ChatEditorInput#resolveNewLocalSession' });
 			}
 		} else if (!this.options.target) {
-			const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+			const lastUsedSessionType = this.storageService.get(ChatLastUsedEditorSessionTypeStorageKey, StorageScope.PROFILE);
+			const defaultResource = getNewChatEditorSessionResource(this.configurationService, this.chatSessionsService, lastUsedSessionType);
 			if (getChatSessionType(defaultResource) === localChatSessionType) {
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled' });
 			} else {

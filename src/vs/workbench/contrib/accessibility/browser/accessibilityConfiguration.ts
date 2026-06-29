@@ -71,7 +71,8 @@ export const enum AccessibilityVerbositySettingId {
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
-	Survey = 'accessibility.verbosity.survey'
+	Survey = 'accessibility.verbosity.survey',
+	Automations = 'accessibility.verbosity.automations'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -223,6 +224,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Survey]: {
 			description: localize('verbosity.survey', 'Provide information about how to navigate and interact with the survey editor pane.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Automations]: {
+			description: localize('verbosity.automations', 'Provide information about how to use the Automations section of the Agent Customizations editor, including keyboard navigation and how to inspect scheduled runs.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
