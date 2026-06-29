@@ -249,6 +249,26 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
+		test('passes the dispatching client id to sendMessage', async () => {
+			setupSession();
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
+			};
+			sideEffects.handleAction(defaultChatUri, action, 'client-B');
+
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'hello world',
+				attachments: undefined,
+				chat: URI.parse(defaultChatUri),
+				senderClientId: 'client-B',
+			}]);
+		});
+
 		test('logs telemetry when sending a direct user message', () => {
 			setupSession();
 			const activeClientAction: SessionAction = {
