@@ -89,6 +89,8 @@ export interface IByokLmModelInfo {
 	readonly name?: string;
 	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
+	/** Whether the model accepts image inputs, when known. */
+	readonly supportsVision?: boolean;
 }
 
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');

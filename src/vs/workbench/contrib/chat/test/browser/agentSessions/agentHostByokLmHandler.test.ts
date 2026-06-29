@@ -53,7 +53,7 @@ class TestLanguageModelsService extends mock<ILanguageModelsService>() {
 	}
 }
 
-function byokModel(vendor: string, id: string): ILanguageModelChatMetadata {
+function byokModel(vendor: string, id: string, capabilities?: ILanguageModelChatMetadata['capabilities']): ILanguageModelChatMetadata {
 	return {
 		extension: new ExtensionIdentifier('test.byok'),
 		name: `${vendor} ${id}`,
@@ -65,6 +65,7 @@ function byokModel(vendor: string, id: string): ILanguageModelChatMetadata {
 		maxOutputTokens: 1000,
 		isDefaultForLocation: {},
 		isBYOK: true,
+		capabilities,
 	};
 }
 
@@ -90,7 +91,7 @@ suite('AgentHostByokLmHandler', () => {
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(
 			new Map<string, ILanguageModelChatMetadata>([
-				['id-acme', byokModel('acme', 'claude')],
+				['id-acme', byokModel('acme', 'claude', { vision: true })],
 				['id-copy', { ...byokModel('acme', 'claude'), targetChatSessionType: 'copilotcli' }],
 				['id-capi', { ...byokModel('copilot', 'gpt-4'), isBYOK: false }],
 			]),
@@ -101,7 +102,7 @@ suite('AgentHostByokLmHandler', () => {
 		const models = await handler.listModels(CancellationToken.None);
 
 		assert.deepStrictEqual(models, [
-			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 2000 },
+			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 2000, supportsVision: true },
 		]);
 	});
 
