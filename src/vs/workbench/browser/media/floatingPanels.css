@@ -109,7 +109,7 @@
 }
 
 /* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
-.monaco-workbench.floating-panels.activitybar-right .part.activitybar {
+.monaco-workbench.floating-panels .part.activitybar.right {
 	margin-left: 0;
 	margin-right: var(--vscode-spacing-size40);
 }
