@@ -91,6 +91,11 @@
 			color: var(--vscode-statusBarItem-remoteForeground);
 		}
 
+		&.warning {
+			background-color: var(--vscode-statusBarItem-warningBackground);
+			color: var(--vscode-statusBarItem-warningForeground);
+		}
+
 		.codicon {
 			color: inherit;
 		}
@@ -597,6 +602,13 @@
 			border-radius: 3px;
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
+		}
+
+		&.hint {
+			color: var(--vscode-descriptionForeground);
+			font-style: italic;
+			white-space: pre-wrap;
+			margin-top: 6px;
 		}
 	}
 

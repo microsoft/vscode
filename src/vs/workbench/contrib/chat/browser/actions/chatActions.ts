@@ -26,6 +26,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -56,22 +57,24 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatLastUsedEditorSessionTypeStorageKey, ChatModeKind, getDefaultNewChatSessionType, getNewChatEditorSessionResource } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
+
+const COPILOT_CLI_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
@@ -254,7 +257,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				throw new Error(`Language model not loaded: ${id}.`);
 			}
 
-			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id }, true);
 		}
 
 		if (opts?.toolsInclude || opts?.toolsExclude) {
@@ -569,6 +572,18 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 }
 
 export function registerChatActions() {
+	/**
+	 * Returns the session URI to use when opening a brand-new chat editor,
+	 * honoring the experimental {@link ChatConfiguration.EditorDefaultProvider}
+	 * setting. Falls back to a new local session when the setting selects
+	 * `local` or the chosen provider is unavailable.
+	 */
+	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
+		const storageService = accessor.get(IStorageService);
+		const lastUsedSessionType = storageService.get(ChatLastUsedEditorSessionTypeStorageKey, StorageScope.PROFILE);
+		return getNewChatEditorSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), lastUsedSessionType);
+	}
+
 	registerAction2(PrimaryOpenChatGlobalAction);
 	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() { super(ChatMode.Ask); }
@@ -668,7 +683,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -692,7 +707,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -716,7 +731,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -740,7 +755,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -757,7 +772,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), SIDE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), SIDE_GROUP, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -783,7 +798,7 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const widgetService = accessor.get(IChatWidgetService);
-			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), AUX_WINDOW_GROUP, { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions);
+			await widgetService.openSession(getNewChatEditorSessionUri(accessor), AUX_WINDOW_GROUP, { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -1082,6 +1097,29 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const widget = widgetService.lastFocusedWidget ?? (await widgetService.revealWidget());
 			widget?.input.showContextUsageDetails();
+		}
+	});
+
+	registerAction2(class CompactAgentHostConversationAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.compactAgentHostConversation',
+				title: localize2('interactiveSession.compactAgentHostConversation.label', "Compact Conversation"),
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ChatContextUsageActions,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.chatIsAgentHostSession,
+						ChatContextKeys.chatAgentHostProviderId.isEqualTo(COPILOT_CLI_AGENT_HOST_PROVIDER_ID)
+					),
+				},
+			});
+		}
+
+		async run(_accessor: ServicesAccessor, widget?: IChatWidget): Promise<void> {
+			await widget?.acceptInput('/compact');
 		}
 	});
 
@@ -1511,7 +1549,7 @@ export interface IToolFilteringOptions {
 }
 
 export interface IToolFilteringResult {
-	enablementMap: Map<IToolData | IToolSet, boolean>;
+	enablementMap: ToolAndToolSetEnablementMap;
 	unknownIdentifiers: string[];
 }
 
@@ -1661,7 +1699,7 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 		enablementMap.set(toolSet, allToolsEnabled);
 	}
 
-	return { enablementMap, unknownIdentifiers };
+	return { enablementMap: ToolAndToolSetEnablementMap.fromMap(enablementMap), unknownIdentifiers };
 }
 
 
@@ -1732,7 +1770,8 @@ export interface IClearEditingSessionConfirmationOptions {
 export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService): Promise<void> {
 	const currentResource = widget.viewModel?.model.sessionResource;
 	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
-	const newSessionType = sessionType ?? (currentResource ? getChatSessionType(currentResource) : defaultType);
+	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+	const newSessionType = sessionType ?? (currentSessionType === localChatSessionType && defaultType !== localChatSessionType ? defaultType : currentSessionType ?? defaultType);
 	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
 		// For the sidebar, we need to explicitly load a session with the same type
 		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });

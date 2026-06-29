@@ -9,9 +9,11 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
@@ -46,12 +48,18 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ChatInputStatusActionViewItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStatusActionViewItem.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
+import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -60,10 +68,15 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
-import { ISessionInputContext, SessionInputContext } from './sessionInputContext.js';
+import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
+import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 
 
+const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
+const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
+const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
+const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
@@ -71,6 +84,106 @@ const MAX_EDITOR_HEIGHT = 200;
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
+}
+
+class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
+	private readonly hoverContentDisposables = this._register(new MutableDisposable<DisposableStore>());
+
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		if (this._commandAction.id !== OTEL_STATUS_COMMAND) {
+			return;
+		}
+
+		this._register(this.chatStatusItemService.onDidChange(e => {
+			if (e.entry.id === OTEL_STATUS_ENTRY_ID) {
+				this.updateTooltip();
+			}
+		}));
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (this._commandAction.id === OTEL_STATUS_COMMAND && this.element) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.hoverService.showManagedHover(this.element);
+			return;
+		}
+
+		await super.onClick(event);
+	}
+
+	protected override getHoverContents(): IManagedHoverContent | undefined {
+		if (this._commandAction.id === OTEL_STATUS_COMMAND) {
+			return { element: () => this._renderStatusHover() };
+		}
+
+		return super.getHoverContents();
+	}
+
+	protected override getTooltip(): string {
+		if (this._commandAction.id === OTEL_STATUS_COMMAND) {
+			const tooltip = this._getStatusEntryTooltip();
+			if (tooltip) {
+				return tooltip;
+			}
+		}
+
+		return super.getTooltip();
+	}
+
+	private _getStatusEntryTooltip(): string | undefined {
+		for (const entry of this.chatStatusItemService.getEntries()) {
+			if (entry.id === OTEL_STATUS_ENTRY_ID) {
+				return entry.tooltip;
+			}
+		}
+
+		return undefined;
+	}
+
+	private _renderStatusHover(): HTMLElement {
+		const store = new DisposableStore();
+		this.hoverContentDisposables.value = store;
+
+		const root = dom.$('.new-chat-input-status-hover');
+		root.appendChild(dom.$('.new-chat-input-status-hover-title', undefined, localize('newChatInput.status.otel.title', "Monitoring with OpenTelemetry enabled")));
+		root.appendChild(dom.$('.new-chat-input-status-hover-detail', undefined, this._getStatusEntryTooltip() ?? super.getTooltip()));
+
+		const actions = root.appendChild(dom.$('.new-chat-input-status-hover-actions'));
+		const learnMoreButton = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		learnMoreButton.label = localize('newChatInput.status.otel.learnMore', "Learn More");
+		store.add(learnMoreButton.onDidClick(() => {
+			void this.commandService.executeCommand('vscode.open', URI.parse(OTEL_DOCS_URL));
+			this.hoverService.hideHover(true);
+		}));
+
+		const manageButton = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		manageButton.label = localize('newChatInput.status.otel.manage', "Manage");
+		store.add(manageButton.onDidClick(() => {
+			void this.commandService.executeCommand(OPEN_OTEL_SETTINGS_COMMAND);
+			this.hoverService.hideHover(true);
+		}));
+
+		return root;
+	}
 }
 
 /**
@@ -129,6 +242,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	readonly onDidBlur = this._onDidBlur.event;
 	get element(): HTMLElement { return this._editorContainer; }
 
+	/** The underlying input editor. Exposed for component fixtures. */
+	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
@@ -186,7 +302,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, new NewChatModelPickerService()],
-			[ISessionInputContext, new SessionInputContext(this.options.session)],
+			[ISessionContext, new SessionContext(this.options.session)],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {
@@ -280,13 +396,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// kicks in once a drag crosses a small threshold on phone.
 		this._register(installMobileChipLaneScroll(newChatBottomContainer, this.layoutService));
 
-		// Status indicators (e.g. OpenTelemetry pill) for the new-session view.
+		// Generic extension point for status indicators in the new-session view.
 		const statusContainer = dom.append(repoConfigContainer, dom.$('.new-chat-status-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			actionViewItemProvider: (action) => {
-				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChatInputStatusActionViewItem, action);
+			toolbarOptions: { primaryGroup: () => true },
+			actionViewItemProvider: (action, options) => {
+				if (action.id === OTEL_STATUS_COMMAND && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(NewChatInputStatusActionViewItem, action, options);
 				}
 				return undefined;
 			},
@@ -460,6 +577,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
+		// Session reference completions (#session)
+		this._register(this.instantiationService.createInstance(
+			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
+		));
+
 		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
@@ -597,6 +719,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
+		// Respect the same gate as the send button (e.g. a session with no
+		// usable model). The Enter keybinding and slash-command paths reach
+		// here directly, bypassing the button's disabled state.
+		if (!this.options.canSendRequest.get()) {
+			return;
+		}
+
 		// Check for slash commands first
 		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
@@ -705,6 +834,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	attach(uris: URI[]): void {
+		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
 }
 

@@ -6,7 +6,7 @@
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isSubagentSession, type SessionState } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -28,9 +28,9 @@ export type IAgentHostUserMessageSentClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
-	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active client identifier for the session, if any.' };
-	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools provided by the active client, if any.' };
-	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations provided by the active client, if any.' };
+	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
+	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of tools provided by the active clients, if any.' };
+	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of customizations provided by the active clients, if any.' };
 	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the user message.' };
 	owner: 'roblourens';
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
@@ -74,28 +74,30 @@ export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
 
-	userMessageSent(provider: string, session: string, sessionState: SessionState | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
-		const activeClient = sessionState?.activeClient;
+		const activeClients = sessionState?.activeClients ?? [];
+		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
-			agentSessionId: AgentSession.id(session),
+			agentSessionId: AgentSession.id(sessionUri),
 			source,
-			isSubagentSession: isSubagentSession(session),
+			isSubagentSession: isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
-			...(activeClient ? {
-				activeClientId: activeClient.clientId,
-				activeClientToolCount: activeClient.tools.length,
-				activeClientCustomizationCount: activeClient.customizations?.length ?? 0,
+			...(activeClients.length > 0 ? {
+				activeClientId: activeClients[0].clientId,
+				activeClientToolCount: activeClients.reduce((sum, client) => sum + client.tools.length, 0),
+				activeClientCustomizationCount: activeClients.reduce((sum, client) => sum + (client.customizations?.length ?? 0), 0),
 			} : {}),
 			attachmentCount,
 		});
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
-			agentSessionId: AgentSession.id(report.session),
+			agentSessionId: AgentSession.id(session),
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -104,4 +106,3 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 }
-

@@ -18,8 +18,10 @@ import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactor
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
-import { autorun } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext } from '../../common/contextkeys.js';
+import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
+import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -70,17 +72,13 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _currentSession: IActiveSession | undefined;
 	private _hasOpenedSession = false;
 
-	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
-	private readonly _sessionIsStickyKey: IContextKey<boolean>;
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
-	private readonly _sessionSupportsMultipleChatsKey: IContextKey<boolean>;
-	private readonly _sessionIsReadKey: IContextKey<boolean>;
-	private readonly _sessionIsArchivedKey: IContextKey<boolean>;
-	private readonly _chatSessionProviderIdKey: IContextKey<string>;
-	private readonly _chatSessionTypeKey: IContextKey<string>;
+	private readonly _scopedContextKeyService: IContextKeyService;
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
+
+	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	constructor(
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
@@ -91,17 +89,16 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		this._sessionIsCreatedKey = SessionIsCreatedContext.bindTo(scopedContextKeyService);
-		this._sessionIsStickyKey = SessionIsStickyContext.bindTo(scopedContextKeyService);
+		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
-		this._sessionSupportsMultipleChatsKey = SessionSupportsMultipleChatsContext.bindTo(scopedContextKeyService);
-		this._sessionIsReadKey = SessionIsReadContext.bindTo(scopedContextKeyService);
-		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
-		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
-		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
 
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// Scoped service exposing this view's session so toolbars and contributed
+		// action view items (e.g. the changes diff stats in the header) can read it.
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, scopedContextKeyService],
+			[ISessionContext, new SessionContext(this._sessionObs)],
+		)));
+
 
 		// Expose the centered-content cap as a CSS variable so styles that need
 		// to align with the centered band (e.g. the chat-view progress bar) can
@@ -143,6 +140,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		}
 		this._hasOpenedSession = true;
 		this._currentSession = session;
+		this._sessionObs.set(session, undefined);
 		this._openSessionDisposables.clear();
 
 		this._openSessionDisposables.add(this._handleContextKeys(session));
@@ -180,39 +178,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
-		if (!session) {
-			this._sessionIsCreatedKey.set(false);
-			this._sessionIsStickyKey.set(false);
-			this._sessionSupportsMultipleChatsKey.set(false);
-			this._sessionIsReadKey.set(true);
-			this._sessionIsArchivedKey.set(false);
-			this._chatSessionProviderIdKey.set('');
-			this._chatSessionTypeKey.set('');
-			return Disposable.None;
-		}
-
-		const disposables = new DisposableStore();
-		disposables.add(autorun(reader => {
-			this._sessionIsCreatedKey.set(session.isCreated.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsStickyKey.set(session.sticky.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsReadKey.set(session.isRead.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsArchivedKey.set(session.isArchived.read(reader));
-		}));
-
-		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
-		this._chatSessionProviderIdKey.set(session.providerId);
-		this._chatSessionTypeKey.set(session.sessionType);
-
-		return disposables;
+		// A single autorun re-applies every session-derived context key on the
+		// scoped service whenever the session's observable properties change.
+		// Passing `undefined` resets the keys to their defaults.
+		return autorun(reader => {
+			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader);
+		});
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
@@ -269,6 +240,13 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	sendQuery(text: string): void {
 		this._currentView.value?.sendQuery(text);
+	}
+
+	/**
+	 * Attaches the given resources as context to the hosted chat view's input.
+	 */
+	attach(uris: URI[]): void {
+		this._currentView.value?.attach(uris);
 	}
 
 	/**

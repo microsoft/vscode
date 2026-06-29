@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -283,11 +284,13 @@ suite('agentHostSchema', () => {
 
 	suite('platformSessionSchema', () => {
 
-		test('validates the three autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove', 'autopilot'];
+		test('validates the autoApprove levels', () => {
+			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
 		});
 
@@ -299,15 +302,100 @@ suite('agentHostSchema', () => {
 		});
 
 		test('validates the agent modes', () => {
-			const modes: SessionMode[] = ['interactive', 'plan'];
+			const modes: SessionMode[] = ['interactive', 'plan', 'autopilot'];
 			for (const mode of modes) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, mode), true, mode);
 			}
-			// `autopilot` is intentionally NOT in the AHP mode enum \u2014 it's
-			// modeled on the orthogonal `autoApprove` axis instead.
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
+		});
+	});
+
+	// ---- legacy autopilot migration ----------------------------------------
+
+	suite('migrateLegacyAutopilotConfig', () => {
+
+		test('maps legacy autoApprove=autopilot to mode=autopilot + autoApprove=default', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('preserves plan mode (legacy plan took precedence over autopilot)', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'plan', autoApprove: 'default' });
+		});
+
+		test('overwrites a stale interactive mode with autopilot', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('passes through configs without the legacy value untouched', () => {
+			const input = { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'interactive' };
+			assert.strictEqual(migrateLegacyAutopilotConfig(input), input);
+		});
+
+		test('migrated config validates against the schema', () => {
+			const input: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'autopilot' };
+			const result = migrateLegacyAutopilotConfig(input)!;
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, result[SessionConfigKey.Mode]), true);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, result[SessionConfigKey.AutoApprove]), true);
+		});
+
+		test('handles undefined', () => {
+			assert.strictEqual(migrateLegacyAutopilotConfig(undefined), undefined);
+		});
+	});
+
+	// ---- terminal auto-approve rule forwarding -----------------------------
+
+	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
+
+		test('keeps null entries and object rules', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			}, inspectValue, false);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			});
+		});
+
+		test('removes default-only entries when default rules are ignored', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true, python: false } },
+				user: { value: { echo: null } },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				ls: true,
+				python: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+			});
+		});
+
+		test('keeps entries that match defaults when they come from a non-default target', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true } },
+				userValue: { ls: true },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: true,
+				ls: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				ls: true,
+			});
 		});
 	});
 });

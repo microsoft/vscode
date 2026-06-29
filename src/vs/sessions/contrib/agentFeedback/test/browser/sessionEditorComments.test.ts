@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAcceptedAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
-import { AgentFeedbackState } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
 import { IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 
 suite('SessionEditorComments', () => {
@@ -27,8 +27,8 @@ suite('SessionEditorComments', () => {
 			],
 		};
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-b', text: 'feedback b', resourceUri: fileB, range: new Range(8, 1, 8, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-b', text: 'feedback b', resourceUri: fileB, range: new Range(8, 1, 8, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 		], prState);
 
 		assert.deepStrictEqual(comments.map(comment => `${comment.resourceUri.path}:${comment.range.startLineNumber}:${comment.source}`), [
@@ -48,7 +48,7 @@ suite('SessionEditorComments', () => {
 			],
 		};
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(10, 1, 10, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(10, 1, 10, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 		], prState);
 
 		const groups = groupNearbySessionEditorComments(comments, 5);
@@ -70,7 +70,7 @@ suite('SessionEditorComments', () => {
 			],
 		};
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 		], prState);
 
 		assert.strictEqual(hasAcceptedAgentFeedbackComments(comments), true);
@@ -105,7 +105,7 @@ suite('SessionEditorComments', () => {
 		};
 
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 		], prState);
 
 		assert.strictEqual(comments.length, 2);
@@ -123,10 +123,38 @@ suite('SessionEditorComments', () => {
 
 	test('excludes resolved feedback from the editor comments', () => {
 		const comments = getSessionEditorComments(session, [
-			{ id: 'feedback-accepted', text: 'accepted', resourceUri: fileA, range: new Range(2, 1, 2, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Accepted },
-			{ id: 'feedback-resolved', text: 'resolved', resourceUri: fileA, range: new Range(4, 1, 4, 1), sessionResource: session, kind: 'user', state: AgentFeedbackState.Resolved },
+			{ id: 'feedback-accepted', text: 'accepted', resourceUri: fileA, range: new Range(2, 1, 2, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
+			{ id: 'feedback-resolved', text: 'resolved', resourceUri: fileA, range: new Range(4, 1, 4, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Resolved },
 		]);
 
 		assert.deepStrictEqual(comments.map(comment => comment.sourceId), ['feedback-accepted']);
+	});
+
+	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+			],
+		};
+		const comments = getSessionEditorComments(session, [
+			{ id: 'mirror-1', text: 'Please fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'pr-thread-1', state: AgentFeedbackState.Created },
+		], prState);
+
+		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}`), ['prReview:pr-thread-1']);
+	});
+
+	test('shows an accepted PR-review mirror and hides the superseded raw PR comment', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+			],
+		};
+		const comments = getSessionEditorComments(session, [
+			{ id: 'mirror-1', text: 'Please fix this', resourceUri: fileA, range: new Range(5, 1, 5, 1), sessionResource: session, kind: AgentFeedbackKind.PRReview, sourcePRReviewCommentId: 'pr-thread-1', state: AgentFeedbackState.Accepted },
+		], prState);
+
+		assert.deepStrictEqual(comments.map(c => `${c.source}:${c.sourceId}`), ['agentFeedback:mirror-1']);
 	});
 });

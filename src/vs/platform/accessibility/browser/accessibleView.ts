@@ -47,6 +47,7 @@ export const enum AccessibleViewProviderId {
 	OutputFindHelp = 'outputFindHelp',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
+	Survey = 'survey',
 }
 
 export const enum AccessibleViewType {

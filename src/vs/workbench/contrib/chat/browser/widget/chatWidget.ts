@@ -91,6 +91,13 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 
 const $ = dom.$;
 
+/**
+ * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
+ */
+const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
 	readonly resultEditorBackground: string;
@@ -303,9 +310,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		name: string;
 		prefix: string;
 		displayName: string;
+		agentHostProviderId?: string;
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
+	private readonly _chatIsAgentHostSessionContextKey: IContextKey<boolean>;
+	private readonly _chatAgentHostProviderIdContextKey: IContextKey<string>;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -431,6 +441,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
+		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
+		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -756,7 +768,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
-		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
+		this.createList(this.listContainer, {
+			editable: !isInlineChat(this) && !isQuickChat(this),
+			contentHorizontalPadding: this.viewOptions.isSessionsWindow ? SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING : undefined,
+			...this.viewOptions.rendererOptions,
+			renderStyle
+		});
 
 		// Forward wheel events that target the chat container itself (the margins
 		// around the list and input) to the chat list.
@@ -987,7 +1004,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		if (this._lockedAgent) {
-			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id);
+			this.lockToCodingAgent(this._lockedAgent.name, this._lockedAgent.displayName, this._lockedAgent.id, this._lockedAgent.agentHostProviderId);
 		} else {
 			this.unlockFromCodingAgent();
 		}
@@ -1304,8 +1321,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modes = this.input.currentChatModesObs.get();
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
-		} else if (modeInfo?.modeId) {
-			responseMode = modes.findModeById(modeInfo.modeId);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -1704,13 +1719,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
-				if (currentElement.modelId) {
-					this.input.switchModelByIdentifier(currentElement.modelId);
-				}
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
 				this.inputPart.element.classList.add('editing');
+			}
+			if (currentElement.modelId) {
+				this.input.switchModelByIdentifier(currentElement.modelId);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);
@@ -2295,8 +2310,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	lockToCodingAgent(name: string, displayName: string, agentId: string): void {
-		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName) {
+	lockToCodingAgent(name: string, displayName: string, agentId: string, agentHostProviderId?: string): void {
+		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName && this._lockedAgent.agentHostProviderId === agentHostProviderId) {
 			return;
 		}
 
@@ -2304,10 +2319,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			id: agentId,
 			name,
 			prefix: `@${name} `,
-			displayName
+			displayName,
+			agentHostProviderId
 		};
 		this._lockedToCodingAgentContextKey.set(true);
 		this._lockedCodingAgentIdContextKey.set(agentId);
+		this._chatIsAgentHostSessionContextKey.set(!!agentHostProviderId);
+		this._chatAgentHostProviderIdContextKey.set(agentHostProviderId ?? '');
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2328,6 +2346,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 		this._lockedCodingAgentIdContextKey.set('');
+		this._chatIsAgentHostSessionContextKey.set(false);
+		this._chatAgentHostProviderIdContextKey.set('');
 		this._chatSessionSupportsForkContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
@@ -2379,6 +2399,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			modeInfo: this.input.currentModeInfo,
 		};
 		const result = await this.chatService.resendRequest(lastRequest, options);
@@ -2417,9 +2438,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The advanced autopilot goal banner is only supported in the local chat
+		// harness. Agent-host backed sessions (Copilot CLI, Claude, Codex and the
+		// local/remote agent hosts) must never render it.
+		const sessionResource = this.viewModel?.model.sessionResource;
+		const isLocalHarness = !!sessionResource && getChatSessionType(sessionResource) === localChatSessionType;
 		const permissionLevel = inputPart.currentModeInfo?.permissionLevel;
 		const goalModeOn = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) === true;
-		if (permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
+		if (!isLocalHarness || permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
 			this._cancelGoalSummary();
 			inputPart.clearGoalBanner();
 			return;
@@ -2642,10 +2668,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.viewModel.model.setCheckpoint(undefined);
 		}
-		// Capture instruction-collection parameters synchronously — the service
-		// will collect instructions asynchronously after showing the request in the UI.
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
@@ -2656,22 +2678,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
+		const modeKind = this.input.currentModeKind;
+		const modeInfo = this.input.currentModeInfo;
+
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
+			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
 			...this.getModeRequestOptions(),
-			modeInfo: this.input.currentModeInfo,
+			modeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
 			instructionContext: autoAttachEnabled ? {
-				modeKind: this.input.currentModeKind,
-				enabledTools,
-				enabledSubAgents,
+				modeKind,
+				enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
 			} : undefined,
 		});
 
@@ -2683,7 +2709,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus);
 
 		this._maybeStartGoalSummary(requestInputs.input);
 

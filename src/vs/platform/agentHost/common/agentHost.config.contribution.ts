@@ -22,6 +22,11 @@ import { AgentHostEnabledSettingId } from './agentService.js';
 //     (loaded transitively from `app.ts`).
 //   - `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts`
 //     (renderer registration for the settings UI).
+//
+// The `policy` block for `chat.agentHost.enabled` is added in the browser
+// layer (`agentHost/browser/agentHost.config.contribution.ts`) via
+// `updateConfigurations` because the `value` callback cannot be
+// structured-cloned over Electron IPC.
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -34,6 +39,41 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.agents.copilotCli.hideExtensionHost': {
+			type: 'boolean',
+			description: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.defaultProvider': {
+			type: 'string',
+			enum: ['local', 'copilotEh', 'copilotAh'],
+			enumDescriptions: [
+				nls.localize('chat.editor.defaultProvider.local', "Use the built-in VS Code local chat harness"),
+				nls.localize('chat.editor.defaultProvider.copilotEh', "Use the Extension Host Copilot CLI"),
+				nls.localize('chat.editor.defaultProvider.copilotAh', "Use the Agent Host Copilot CLI"),
+			],
+			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
+			default: 'local',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.localAgent.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker."),
+			default: true,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.copilotCli.hideExtensionHost': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the editor window chat picker."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 		},
 	}
 });

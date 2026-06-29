@@ -5,35 +5,44 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
+import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ResponsePartKind, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
-		summary: {
-			resource: 'copilot:/test',
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		activeClients: [],
+		chats: [],
 	};
 }
 
-function withActiveTurnAndToolCall(state: SessionState): SessionState {
-	state = sessionReducer(state, {
-		type: ActionType.SessionTurnStarted,
+function makeChat(): ChatState {
+	const now = new Date(Date.now()).toISOString();
+	return {
+		resource: 'ahp-chat://test',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		modifiedAt: now,
+		origin: { kind: ChatOriginKind.User },
+		turns: [],
+		activeTurn: undefined,
+	};
+}
+
+function withActiveTurnAndToolCall(state: ChatState): ChatState {
+	state = chatReducer(state, {
+		type: ActionType.ChatTurnStarted,
 		turnId: 'turn-1',
 		message: { text: 'hello', origin: { kind: MessageKind.User } },
 	});
-	state = sessionReducer(state, {
-		type: ActionType.SessionToolCallStart,
+	state = chatReducer(state, {
+		type: ActionType.ChatToolCallStart,
 		turnId: 'turn-1',
 		toolCallId: 'tc-1',
 		toolName: 'readFile',
@@ -42,31 +51,31 @@ function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	return state;
 }
 
-suite('sessionReducer – summaryStatus with tool call confirmations and input requests', () => {
+suite('chatReducer – summaryStatus with tool call confirmations and input requests', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('SessionStatus is InputNeeded when a tool call is PendingConfirmation', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Chat status is InputNeeded when a tool call is PendingConfirmation', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation (no `confirmed` field)
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
-	test('SessionStatus is InputNeeded when a tool call is PendingResultConfirmation', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Chat status is InputNeeded when a tool call is PendingResultConfirmation', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to Running first
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file',
@@ -75,8 +84,8 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		});
 
 		// Then complete with requiresResultConfirmation
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallComplete,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallComplete,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			requiresResultConfirmation: true,
@@ -86,44 +95,44 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 			},
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
 	test('SessionStatus transitions from InputNeeded to InProgress when tool call is confirmed', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Transition to PendingConfirmation
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
 		// Confirm it
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallConfirmed,
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallConfirmed,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			approved: true,
 			confirmed: ToolCallConfirmationReason.UserAction,
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		assert.strictEqual(state.status, SessionStatus.InProgress);
 	});
 
-	test('SessionStatus is InputNeeded with inputRequests', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Chat status is InputNeeded with inputRequests', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputRequested,
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
 				message: 'What is your name?',
 				questions: [{
-					kind: SessionInputQuestionKind.Text,
+					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
@@ -131,69 +140,69 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 			},
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
-	test('SessionStatus transitions from InputNeeded to InProgress after SessionInputCompleted', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('SessionStatus transitions from InputNeeded to InProgress after ChatInputCompleted', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
 		// Add an input request
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputRequested,
+		state = chatReducer(state, {
+			type: ActionType.ChatInputRequested,
 			request: {
 				id: 'req-1',
 				message: 'What is your name?',
 				questions: [{
-					kind: SessionInputQuestionKind.Text,
+					kind: ChatInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
 					required: true
 				}]
 			},
 		});
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 
 		// Complete the input request
-		state = sessionReducer(state, {
-			type: ActionType.SessionInputCompleted,
+		state = chatReducer(state, {
+			type: ActionType.ChatInputCompleted,
 			requestId: 'req-1',
-			response: SessionInputResponseKind.Accept,
-			answers: { 'q-1': { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' } } },
+			response: ChatInputResponseKind.Accept,
+			answers: { 'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } } },
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		assert.strictEqual(state.status, SessionStatus.InProgress);
 	});
 
-	test('Tool call transition to PendingConfirmation updates summary status to InputNeeded', () => {
-		let state = withActiveTurnAndToolCall(makeSession());
+	test('Tool call transition to PendingConfirmation updates chat status to InputNeeded', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
 
-		// After SessionToolCallStart, status should be InProgress (tool is Streaming)
-		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
+		// After ChatToolCallStart, status should be InProgress (tool is Streaming)
+		assert.strictEqual(state.status, SessionStatus.InProgress);
 
-		// Transition to PendingConfirmation via SessionToolCallReady (no confirmed)
-		state = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		// Transition to PendingConfirmation via ChatToolCallReady (no confirmed)
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 		});
 
-		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
-	test('SessionToolCallReady preserves action metadata on pending and running tool calls', () => {
-		const state = withActiveTurnAndToolCall(makeSession());
-		const pending = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+	test('ChatToolCallReady preserves action metadata on pending and running tool calls', () => {
+		const state = withActiveTurnAndToolCall(makeChat());
+		const pending = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
 			toolInput: '/foo.ts',
 			_meta: { autoApproveBySetting: true },
 		});
-		const running = sessionReducer(state, {
-			type: ActionType.SessionToolCallReady,
+		const running = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file',
@@ -202,7 +211,7 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 			_meta: { autoApproveBySetting: true },
 		});
 
-		const getToolCall = (s: SessionState) => {
+		const getToolCall = (s: ChatState) => {
 			const part = s.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
 			assert.ok(part?.kind === ResponsePartKind.ToolCall);
 			return part.toolCall;

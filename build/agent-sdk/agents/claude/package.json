@@ -1,0 +1,8 @@
+{
+	"name": "agent-sdk-claude",
+	"private": true,
+	"comment": "Pinned dependency set for the build/agent-sdk claude tarball. The package-lock.json alongside is the source of truth for transitive deps — produce.ts runs `npm ci` against this directory to get byte-deterministic output across pipeline runs.",
+	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "0.3.187"
+	}
+}

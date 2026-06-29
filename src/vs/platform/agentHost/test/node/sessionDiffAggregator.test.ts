@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
 import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 
 const TEST_SESSION_URI = 'session://test-session';
@@ -488,5 +488,102 @@ suite('computeSessionDiffs', () => {
 
 		assert.strictEqual(db.getAllFileEditsCalls, 0, 'no computation needed');
 		assert.deepStrictEqual(result, previousDiffs);
+	});
+});
+
+suite('computeUnionedDiffs', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const PEER_CHAT_URI = 'ahp-chat://peer/encoded';
+
+	test('returns empty array when no source has edits', async () => {
+		const result = await computeUnionedDiffs(
+			[{ sessionUri: TEST_SESSION_URI, db: new TestSessionDatabase() }],
+			createTestDiffService(),
+		);
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('unions edits from the session DB and a peer chat DB', async () => {
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a1'), afterContent: encodeString('a1\na2'),
+		});
+
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({
+			turnId: 'pt1', toolCallId: 'ptc1', filePath: '/b.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: undefined, afterContent: encodeString('b1\nb2\nb3'),
+		});
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: peerDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.deepStrictEqual(
+			result.map(simplify).sort((x, y) => (x.uri ?? '').localeCompare(y.uri ?? '')),
+			[simpleDiff('/a.txt', 1, 0), simpleDiff('/b.txt', 3, 0)],
+		);
+
+		// The peer file's content URI must encode the peer chat URI so the
+		// resource resolver opens the peer DB, not the session DB.
+		const peerDiff = result.find(d => getDiffUri(d) === URI.file('/b.txt').toString())!;
+		const afterFields = parseSessionDbUri(peerDiff.after!.content.uri);
+		assert.deepStrictEqual(afterFields, {
+			sessionUri: PEER_CHAT_URI,
+			toolCallId: 'ptc1',
+			filePath: '/b.txt',
+			part: 'after',
+		});
+	});
+
+	test('a file edited by multiple sources takes before from the first and after from the last source', async () => {
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		});
+
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({
+			turnId: 'pt1', toolCallId: 'ptc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v2'), afterContent: encodeString('v3'),
+		});
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: peerDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.strictEqual(result.length, 1);
+		const [diff] = result;
+
+		// before snapshot from the session DB (first source)
+		assert.deepStrictEqual(parseSessionDbUri(diff.before!.content.uri), {
+			sessionUri: TEST_SESSION_URI,
+			toolCallId: 'tc1',
+			filePath: '/shared.txt',
+			part: 'before',
+		});
+		// after snapshot from the peer chat DB (last source)
+		assert.deepStrictEqual(parseSessionDbUri(diff.after!.content.uri), {
+			sessionUri: PEER_CHAT_URI,
+			toolCallId: 'ptc1',
+			filePath: '/shared.txt',
+			part: 'after',
+		});
 	});
 });

@@ -4,33 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
+import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
-import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
+import { StateComponents, ROOT_STATE_URI, parseChatUri, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -49,6 +50,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private readonly _connectionTracker: IConnectionTrackerService;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
+	private readonly _subscribedResources = new Map<string, number>();
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -60,6 +62,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -123,6 +128,21 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
 				this._updateSessionSyncEnabled();
 			}
+			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID)) {
+				this._updateTerminalAutoApproveEnabled();
+			}
+			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
+				this._updateGlobalAutoApproveEnabled();
+			}
+			if (e.affectsConfiguration(AUTO_REPLY_SETTING_ID)) {
+				this._updateAutoReplyEnabled();
+			}
+			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
+				this._updateTerminalAutoApproveRules();
+			}
+			if (e.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)) {
+				this._updateCodexEnabled();
+			}
 		}));
 
 		if (isAgentHostEnabled(this._configurationService)) {
@@ -132,6 +152,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private async _connect(): Promise<void> {
 		this._logService.info('[AgentHost:renderer] Acquiring MessagePort to agent host...');
+		// Forward the enterprise-resolved OTel policy to the main-process starter BEFORE
+		// requesting the connection. The main config service does not include the renderer-only
+		// managed-settings policy (`AccountPolicyService`), so without this the agent host would
+		// be spawned missing managed OTel settings (endpoint/protocol/enabled). Sent first so it
+		// is processed (FIFO per sender) before the starter spawns the host on the connection
+		// request. See `AgentHostOTelPolicyIpcChannel`.
+		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 		const port = await acquirePort('vscode:createAgentHostMessageChannel', 'vscode:createAgentHostMessageChannelResult');
 		this._logService.info('[AgentHost:renderer] MessagePort acquired, creating client...');
 
@@ -147,9 +174,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
+		this._updateTerminalAutoApproveEnabled();
+		this._updateGlobalAutoApproveEnabled();
+		this._updateAutoReplyEnabled();
+		this._updateTerminalAutoApproveRules();
+		this._updateCodexEnabled();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
+			if (!isActionEnvelopeRelevantToSubscriptionUris(revived, this._subscribedResources.keys())) {
+				return;
+			}
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
 				this._ahpLogger.log(frame, 's2c');
@@ -164,6 +199,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 			this._onDidNotification.fire(revive(e));
 		}));
+		this._onMcpNotification.input = this._proxy.onMcpNotification;
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
 
@@ -187,6 +223,46 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateTerminalAutoApproveEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) !== false;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTerminalAutoApproveEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateGlobalAutoApproveEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostGlobalAutoApproveEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateAutoReplyEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(AUTO_REPLY_SETTING_ID) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostAutoReplyEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateCodexEnabled(): void {
+		// Disabling only takes effect on the next agent host restart.
+		const enabled = this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostCodexEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
+	private _updateTerminalAutoApproveRules(): void {
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTerminalAutoApproveRulesConfigKey]: getAgentHostTerminalAutoApproveRulesConfig(this._configurationService) },
 		}, this.clientId, 0);
 	}
 
@@ -227,6 +303,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		return this._proxy.createChat(session, chat, options);
+	}
+	disposeChat(chat: URI): Promise<void> {
+		const session = parseChatUri(chat)?.session;
+		if (!session) {
+			return Promise.resolve();
+		}
+		return this._proxy.disposeChat(URI.parse(session), chat);
+	}
 	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._proxy.createTerminal(params);
 	}
@@ -236,16 +322,42 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._proxy.invokeChangesetOperation(params);
 	}
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return this._proxy.handleMcpRequest(channel, method, params);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
 	private subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource, this.clientId);
+		this._addSubscribedResource(resource);
+		return this._proxy.subscribe(resource, this.clientId).catch(err => {
+			this._removeSubscribedResource(resource);
+			throw err;
+		});
 	}
 	private unsubscribe(resource: URI): void {
+		this._removeSubscribedResource(resource);
 		this._proxy.unsubscribe(resource, this.clientId);
 	}
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+
+	private _addSubscribedResource(resource: URI): void {
+		const key = resource.toString();
+		this._subscribedResources.set(key, (this._subscribedResources.get(key) ?? 0) + 1);
+	}
+
+	private _removeSubscribedResource(resource: URI): void {
+		const key = resource.toString();
+		const count = this._subscribedResources.get(key);
+		if (count === undefined) {
+			return;
+		}
+		if (count === 1) {
+			this._subscribedResources.delete(key);
+		} else {
+			this._subscribedResources.set(key, count - 1);
+		}
+	}
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
@@ -265,11 +377,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._subscriptionManager.getInflightSessionCreate(resource);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this.clientId, seq);
 	}

@@ -6,15 +6,15 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 
 /** Setting IDs that affect the engine's sandbox configuration (modern + deprecated). */
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxEnabled,
 	AgentSandboxSettingId.AgentSandboxWindowsEnabled,
+	AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-	AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxSettingId.AgentSandboxMacFileSystem,
 	AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
@@ -48,9 +48,8 @@ const DEPRECATED_SANDBOX_FALLBACKS: Readonly<Record<string, readonly string[]>> 
 /**
  * Reads a single sandbox-related setting from `IConfigurationService`,
  * preferring the modern key and falling back to its deprecated peers in
- * order. Boolean values for `chat.agent.sandbox.enabled` (legacy) are
- * normalized to the modern `'on' | 'off'` enum. Returns `undefined` when
- * no user value is configured.
+ * order. Legacy boolean sandbox enabled values are normalized to the agent-host
+ * `'on' | 'off'` enum. Returns `undefined` when no user value is configured.
  */
 export function readSandboxSetting<T>(configurationService: IConfigurationService, logService: ILogService, settingId: string): T | undefined {
 	const modern = configurationService.inspect<T>(settingId);
@@ -97,17 +96,17 @@ export function readAgentHostSandboxValues(configurationService: IConfigurationS
 
 /**
  * Coerce values into the canonical shape the agent-host schema expects.
- * Today the only non-trivial case is `chat.agent.sandbox.enabled`, which
- * historically accepted a boolean and now uses the `'on' | 'off' | 'allowNetwork'`
- * enum.
+ * Today the non-trivial cases are the boolean sandbox enabled settings,
+ * which are forwarded as the `'on' | 'off' | 'allowNetwork'` enum for
+ * agent-host compatibility.
  */
 function normalizeSandboxSettingValue<T>(settingId: string, value: T | undefined): T | undefined {
-	if (settingId === AgentSandboxSettingId.AgentSandboxEnabled || settingId === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
+	if (settingId === AgentSandboxSettingId.AgentSandboxEnabled || settingId === AgentSandboxSettingId.AgentSandboxWindowsEnabled || settingId === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
 		if (value === true) {
-			return AgentSandboxEnabledValue.On as unknown as T;
+			return 'on' as unknown as T;
 		}
 		if (value === false) {
-			return AgentSandboxEnabledValue.Off as unknown as T;
+			return 'off' as unknown as T;
 		}
 	}
 	return value;
