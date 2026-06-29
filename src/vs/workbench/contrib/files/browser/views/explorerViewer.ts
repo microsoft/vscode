@@ -40,6 +40,7 @@ import { IDialogService, getFileNamesMessage } from '../../../../../platform/dia
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { findValidPasteFileTarget } from '../fileActions.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
@@ -844,7 +845,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -990,6 +992,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
+	private isFilePinned(resource: URI): boolean {
+		for (const group of this.editorGroupsService.groups) {
+			const editors = group.findEditors(resource);
+			for (const editor of editors) {
+				if (group.isPinned(editor)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): void {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
@@ -1009,6 +1023,14 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Apply some CSS magic to get things looking as reasonable as possible.
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+
+		// Surface pinned editor state in tooltip
+		let title: string | undefined;
+		if (!stat.isDirectory && this.isFilePinned(stat.resource)) {
+			const filePath = this.labelService.getUriLabel(stat.resource);
+			title = `${filePath} (${localize('pinned', "pinned")})`;
+		}
+
 		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
@@ -1016,7 +1038,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			fileDecorations: this.config.explorer.decorations,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-			domId
+			domId,
+			title
 		});
 
 		const highlightResults = stat.isDirectory ? this.highlightTree.get(stat) : 0;
