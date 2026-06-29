@@ -1060,6 +1060,7 @@ suite('CopilotAgent', () => {
 				cacheCost: 1,
 				outputCost: 15,
 				longContextInputCost: 6,
+				longContextCacheCost: 1,
 				longContextOutputCost: 22.5,
 				priceCategory: 'medium',
 			});
