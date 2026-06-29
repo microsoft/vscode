@@ -1383,13 +1383,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const agentUri = URI.parse(agent.uri);
-		if (!isEqualOrParent(agentUri, provisional.workingDirectory)) {
-			return undefined;
-		}
-
-		// Replace the path with the new worktree path if the agent file is in the original repo
-		const relativePathOfAgent = relativePath(provisional.workingDirectory, agentUri);
-		const alternativeAgentUri = relativePathOfAgent ? URI.joinPath(workingDirectory, relativePathOfAgent) : undefined;
+		const alternativeAgentUri = rebaseUnder(agentUri, provisional.workingDirectory, workingDirectory);
 		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
 	}
 
