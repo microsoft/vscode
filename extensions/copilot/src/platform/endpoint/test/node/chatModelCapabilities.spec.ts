@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, modelSupportsContextEditing, modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
@@ -38,6 +38,51 @@ describe('modelSupportsPDFDocuments', () => {
 	test('returns false for other families', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('gemini-2.0-flash'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('o4-mini'))).toBe(false);
+	});
+});
+
+describe('Kimi edit tool capabilities', () => {
+	test('uses replace-string tools without insert-edit or apply-patch', () => {
+		const models = {
+			'kimi-k2.6': fakeModel('kimi-k2.6'),
+			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
+		};
+		const actual = Object.fromEntries(Object.entries(models).map(([name, model]) => [name, {
+			isKimiFamily: isKimiFamily(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+		}]));
+
+		expect(actual).toEqual({
+			'kimi-k2.6': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'unknown-family + kimi model id': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+		});
 	});
 });
 

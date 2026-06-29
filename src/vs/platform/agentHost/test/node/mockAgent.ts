@@ -37,6 +37,7 @@ interface IMockSendMessageCall {
 	readonly prompt: string;
 	readonly attachments?: readonly MessageAttachment[];
 	readonly chat?: URI;
+	readonly senderClientId?: string;
 }
 
 /**
@@ -68,6 +69,7 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
+	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -132,8 +134,8 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
-		const call = { session, prompt, attachments, chat };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
+		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
@@ -234,7 +236,9 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ clientId });
 	}
 
-	onClientToolCallComplete(): void { }
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result });
+	}
 
 	async shutdown(): Promise<void> { }
 
@@ -769,15 +773,19 @@ export class ScriptedMockAgent implements IAgent {
 
 	private didCompleteToolCalls = new Set<string>();
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		const key = `${session.toString()}:${toolCallId}`;
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// The mock's event model is chat-channel oriented (sendMessage fires
+		// every turn signal on the chat URI). Emit the completion on the chat
+		// channel the tool was started on so the parked turn callback — which
+		// captured that same chat URI — resolves on the right channel.
+		const key = `${chat.toString()}:${toolCallId}`;
 		if (this.didCompleteToolCalls.has(key)) {
 			return;
 		}
 		this.didCompleteToolCalls.add(key);
 		// Fire tool_complete action signal and resolve any pending callback.
-		const { sessionStr, turnId } = this._ctx(session);
-		this._onDidSessionProgress.fire(_toolComplete(session, sessionStr, turnId, toolCallId, result));
+		const { sessionStr, turnId } = this._ctx(chat);
+		this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, turnId, toolCallId, result));
 		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {
 			this._pendingPermissions.delete(toolCallId);

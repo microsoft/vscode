@@ -129,7 +129,8 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 
-	const allowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork;
+	const legacyAllowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork;
+	const allowAllNetwork = legacyAllowAllNetwork || (enabledRaw === AgentSandboxEnabledValue.On && sandbox[AgentHostSandboxKey.AllowNetwork] === true);
 	const hostListsEnforceable = false;
 	const rawAllow = sandbox[AgentHostSandboxKey.AllowedNetworkDomains];
 	const rawBlock = sandbox[AgentHostSandboxKey.DeniedNetworkDomains];

@@ -42,7 +42,7 @@ import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
@@ -96,10 +96,10 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const billing = m.billing as ICAPIModelBilling | undefined;
+	const billing = normalizeCAPIBilling(m.billing);
 	// priceCategory may appear as a top-level model field depending on the CAPI version.
-	const priceCategory = typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
-		? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+	const priceCategory = typeof m.model_picker_price_category === 'string'
+		? m.model_picker_price_category
 		: undefined;
 	return {
 		provider,
@@ -1315,10 +1315,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk subagent URIs to the root — nested subagents require iterated
-		// parsing. `_sessions` is keyed by root session ids only. Mirrors
-		// copilotAgent.ts:947.
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		let target = session;
 		let parsed;
 		while ((parsed = parseSubagentSessionUri(target))) {

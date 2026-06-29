@@ -9,7 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -26,7 +26,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSessi
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1474,51 +1474,61 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 		});
 
-		test('subscribe lazily attaches git state when an existing session has no _meta.git', async () => {
+		test('subscribe lazily attaches git state when an existing session has no _meta.git', () => {
 			// Regression test: previously AgentService was constructed without
-			// a git service, so _attachGitState always bailed and `_meta.git`
+			// a git service, so the git probe always bailed and `_meta.git`
 			// was never populated. This test ensures the lazy-fire path on
 			// subscribe() actually invokes the git service and writes git
 			// state into the session's `_meta`.
-			const workingDirectory = URI.file('/workspace/repo');
-			const gitState = {
-				hasGitHubRemote: false,
-				branchName: 'feature/lazy',
-				baseBranchName: 'main',
-				upstreamBranchName: undefined,
-				incomingChanges: 0,
-				outgoingChanges: 0,
-				uncommittedChanges: 0,
-			};
-			const calls: string[] = [];
-			const gitService = createNoopGitService();
-			gitService.getSessionGitState = async (uri: URI) => { calls.push(uri.fsPath); return gitState; };
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			agent.resolvedWorkingDirectory = workingDirectory;
-			agent.sessionMetadataOverrides = { workingDirectory };
-			localService.registerProvider(agent);
+			//
+			// subscribe() kicks off the git-state refresh as fire-and-forget
+			// (it does not await it), so the test must yield to let that async
+			// work run before asserting. Fake timers are used because the
+			// refresh is rate-limited (it only settles after a delay).
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const workingDirectory = URI.file('/workspace/repo');
+				const gitState = {
+					hasGitHubRemote: false,
+					branchName: 'feature/lazy',
+					baseBranchName: 'main',
+					upstreamBranchName: undefined,
+					incomingChanges: 0,
+					outgoingChanges: 0,
+					uncommittedChanges: 0,
+				};
+				const calls: string[] = [];
+				const gitService = createNoopGitService();
+				gitService.getSessionGitState = async (uri: URI) => { calls.push(uri.fsPath); return gitState; };
+				const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				agent.resolvedWorkingDirectory = workingDirectory;
+				agent.sessionMetadataOverrides = { workingDirectory };
+				localService.registerProvider(agent);
 
-			// Seed a session and clear its _meta so subscribe must lazily
-			// recompute git state.
-			const session = await localService.createSession({ provider: 'copilot' });
-			for (let i = 0; i < 5; i++) {
-				await Promise.resolve();
-			}
-			localService.stateManager.setSessionMeta(session.toString(), undefined);
-			calls.length = 0;
+				// Seed a session and clear its _meta so subscribe must lazily
+				// recompute git state. A microtask drain lets the
+				// createSession-triggered refresh record its call so we can
+				// reset the probes to a clean baseline.
+				const session = await localService.createSession({ provider: 'copilot' });
+				for (let i = 0; i < 5; i++) {
+					await Promise.resolve();
+				}
+				localService.stateManager.setSessionMeta(session.toString(), undefined);
+				calls.length = 0;
 
-			await localService.subscribe(session, 'client-1');
-			for (let i = 0; i < 5; i++) {
-				await Promise.resolve();
-			}
+				// subscribe fires the git-state refresh without awaiting it, so
+				// advance time to let that fire-and-forget refresh run and write
+				// _meta.git.
+				await localService.subscribe(session, 'client-1');
+				await timeout(5_000);
 
-			assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
-			assert.deepStrictEqual(
-				localService.stateManager.getSessionState(session.toString())?._meta,
-				{ git: gitState },
-			);
+				assert.deepStrictEqual(calls, [workingDirectory.fsPath]);
+				assert.deepStrictEqual(
+					localService.stateManager.getSessionState(session.toString())?._meta,
+					{ git: gitState },
+				);
+			});
 		});
 
 		test('subscribe to a registered session changeset URI returns a changeset snapshot', async () => {
@@ -2489,6 +2499,38 @@ suite('AgentService (node dispatcher)', () => {
 				inCatalog: true,
 				peerTurnIds: ['peer-turn-1'],
 			});
+		});
+
+		test('restoreSession preserves peer chat catalog order regardless of load timing', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					return [
+						URI.parse(buildChatUri(session, 'peer-a')),
+						URI.parse(buildChatUri(session, 'peer-b')),
+						URI.parse(buildChatUri(session, 'peer-c')),
+					];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					// Resolve in the reverse of catalog order so a resolution-order
+					// append would scramble the catalog; the restore must keep a,b,c.
+					const delays: Record<string, number> = { 'peer-a': 30, 'peer-b': 15, 'peer-c': 0 };
+					await timeout(delays[parseChatUri(session)?.chatId ?? ''] ?? 0);
+					return [];
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			const peerChatIds = (state?.chats ?? [])
+				.map(c => parseChatUri(c.resource)?.chatId)
+				.filter((id): id is string => !!id && id.startsWith('peer-'));
+			assert.deepStrictEqual(peerChatIds, ['peer-a', 'peer-b', 'peer-c']);
 		});
 
 		test('fork seeds the new chat with remapped source turns and forwards fork to the provider', async () => {

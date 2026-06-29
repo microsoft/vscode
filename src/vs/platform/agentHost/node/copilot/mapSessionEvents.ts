@@ -234,22 +234,38 @@ export async function mapSessionEvents(
 	// the most recent turn per subagent is built (subagents currently emit
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
+	const subagentTurnStates = new Map<string, TurnState>();
 	const subagentTurns = new Map<string, Turn[]>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
 	let parentBuilder: ITurnBuilder | undefined;
+	let parentTurnState = TurnState.Cancelled;
+	let parentTurnAborted = false;
+
+	const flushParent = (): void => {
+		if (!parentBuilder) {
+			return;
+		}
+		turns.push(finalizeTurn(parentBuilder, parentTurnState));
+		parentBuilder = undefined;
+		parentTurnState = TurnState.Cancelled;
+		parentTurnAborted = false;
+	};
 
 	const flushSubagent = (parentToolCallId: string): void => {
 		const builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
+			subagentTurnStates.delete(parentToolCallId);
 			return;
 		}
 		subagentBuilders.delete(parentToolCallId);
+		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
+		subagentTurnStates.delete(parentToolCallId);
 		if (builder.responseParts.length === 0) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
-		list.push(finalizeTurn(builder, TurnState.Complete));
+		list.push(finalizeTurn(builder, state));
 		subagentTurns.set(parentToolCallId, list);
 	};
 
@@ -258,6 +274,9 @@ export async function mapSessionEvents(
 		if (!builder) {
 			builder = newTurnBuilder(generateUuid(), '');
 			subagentBuilders.set(parentToolCallId, builder);
+			if (!subagentTurnStates.has(parentToolCallId)) {
+				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
+			}
 		}
 		return builder;
 	};
@@ -314,9 +333,7 @@ export async function mapSessionEvents(
 					// `setTurnEventId` records as `event_id`) so the restored
 					// turn id round-trips back to the SDK boundary id that
 					// fork / truncate RPCs operate on.
-					if (parentBuilder) {
-						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
-					}
+					flushParent();
 					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
 				}
@@ -329,6 +346,12 @@ export async function mapSessionEvents(
 				const reasoningText = d.reasoningText;
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				if (!content && !reasoningText && !hasToolRequests) {
+					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
+						parentTurnState = TurnState.Complete;
+					}
+					break;
+				}
 				// When this is the first event in a turn (no parent builder
 				// yet), seed the builder with the SDK envelope id so the
 				// turn id matches `turns.event_id` for fork/truncate
@@ -351,16 +374,11 @@ export async function mapSessionEvents(
 						content,
 					});
 				}
+				if (!parentToolCallId && builder === parentBuilder && !parentTurnAborted) {
+					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
+				}
 				if (d.toolRequests?.length) {
 					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
-				}
-				// A parent assistant message without further tool requests
-				// terminates the current parent turn (no more responses
-				// expected). Subagent turns are flushed at the parent's
-				// `tool.execution_complete` instead.
-				if (!parentToolCallId && !hasToolRequests && builder === parentBuilder) {
-					turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
-					parentBuilder = undefined;
 				}
 				break;
 			}
@@ -374,8 +392,10 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'tool.execution_start': {
-				// Already collected in the first pass; no per-event work
-				// needed here. Hidden tools are filtered above.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
+				if (!parentToolCallId && parentBuilder) {
+					parentTurnState = TurnState.Cancelled;
+				}
 				break;
 			}
 			case 'tool.execution_complete': {
@@ -400,9 +420,8 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!parentToolCallId && d.success && builder === parentBuilder) {
-						turns.push(finalizeTurn(parentBuilder, TurnState.Complete));
-						parentBuilder = undefined;
+					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnAborted) {
+						parentTurnState = TurnState.Complete;
 					}
 					continue;
 				}
@@ -422,7 +441,12 @@ export async function mapSessionEvents(
 			}
 			case 'skill.invoked': {
 				const synth = synthesizeSkillToolCall(e.data, e.id);
-				const builder = parentBuilder ?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				const builder = targetBuilderFor(parentToolCallId)
+					?? (parentBuilder = newTurnBuilder(generateUuid(), ''));
+				if (!parentToolCallId && builder === parentBuilder) {
+					parentTurnState = TurnState.Cancelled;
+				}
 				builder.responseParts.push({
 					kind: ResponsePartKind.ToolCall,
 					toolCall: {
@@ -438,16 +462,22 @@ export async function mapSessionEvents(
 				});
 				break;
 			}
+			case 'abort': {
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (parentToolCallId) {
+					subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+				} else if (parentBuilder) {
+					parentTurnState = TurnState.Cancelled;
+					parentTurnAborted = true;
+				}
+				break;
+			}
 			default:
 				break;
 		}
 	}
 
-	// Drain any unfinished turns.
-	if (parentBuilder) {
-		turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
-		parentBuilder = undefined;
-	}
+	flushParent();
 	for (const parentToolCallId of [...subagentBuilders.keys()]) {
 		flushSubagent(parentToolCallId);
 	}
@@ -473,6 +503,9 @@ export async function mapSessionEvents(
 						id: generateUuid(),
 						content: summary,
 					});
+				}
+				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnAborted) {
+					parentTurnState = TurnState.Complete;
 				}
 				continue;
 			}

@@ -51,13 +51,13 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, formatCopilotCredits, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -76,7 +76,7 @@ import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileCha
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -2278,25 +2278,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			if (!approvedDispatched) {
-				if (err !== undefined && !isCancellationError(err)) {
-					this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
-				}
-				return;
-			}
+
 			if (err !== undefined) {
 				if (!isCancellationError(err)) {
-					this._logService.warn(`[AgentHost] Client tool invocation failed: ${toolName}`, err);
+					if (!approvedDispatched) {
+						this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
+					} else {
+						this._logService.warn(`[AgentHost] Client tool invocation failed: ${toolName}`, err);
+					}
 				}
-				const message = err instanceof Error ? err.message : String(err);
-				result = { content: [], toolResultError: message };
+
+				result = { content: [], toolResultError: err instanceof Error ? err.message : String(err) };
 			}
-			this._dispatchAction(opts.backendSession, {
-				type: ActionType.ChatToolCallComplete,
-				turnId: opts.turnId,
-				toolCallId,
-				result: toolResultToProtocol(result ?? { content: [] }, toolName),
-			}, opts.chatURI);
+
+			const protocolToolCall = part$.get().toolCall;
+			const isProtocolToolCallComplete = protocolToolCall.status === ToolCallStatus.Completed || protocolToolCall.status === ToolCallStatus.Cancelled;
+			if (!isProtocolToolCallComplete) {
+				this._dispatchAction(opts.backendSession, {
+					type: ActionType.ChatToolCallComplete,
+					turnId: opts.turnId,
+					toolCallId,
+					result: toolResultToProtocol(result ?? { content: [] }, toolName),
+				}, opts.chatURI);
+			}
 		};
 
 		// React to part$ updates: route external cancellation, and try to
@@ -3531,43 +3535,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
-		// Resolve the registered language model for a turn, trying the
-		// turn's own reported model id first and then the session's
-		// fallback model id. The turn-reported id can differ from the
-		// registered id (e.g. the Claude SDK reports the raw provider
-		// slug `claude-sonnet-4-6` while models are registered under the
-		// CAPI id `claude-sonnet-4.6`); without this fallback the lookup
-		// fails and the entire response-detail footer — including
-		// per-turn credits — is dropped.
-		const lookupModel = (rawModelId: string | undefined) => {
-			for (const candidate of [rawModelId, fallbackRawModelId]) {
+		// Try the raw billed id, its dots-normalised form (slug mismatch: `claude-sonnet-4-6` → `.6`),
+		// then the fallback (picked) id. Only the last path sets resolvedFromRaw=false so the caller
+		// can surface billedModelId (e.g. "Auto (raptor-mini)") when the billed model is unregistered.
+		const lookupModel = (rawModelId: string | undefined): { model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
+			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
-				if (!modelId) {
-					continue;
-				}
+				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
-				if (model) {
-					return model;
-				}
+				if (model) { return { model, resolvedFromRaw: true }; }
+			}
+			const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
+			if (fallbackModelId) {
+				const model = this._languageModelsService.lookupLanguageModel(fallbackModelId);
+				if (model) { return { model, resolvedFromRaw: false }; }
 			}
 			return undefined;
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			toResponseDetails: (rawModelId, usage) => {
-				const model = lookupModel(rawModelId);
-				if (!model) {
-					return undefined;
-				}
-				const credits = usageInfoToChatUsage(usage)?.copilotCredits;
-				if (credits !== undefined) {
-					const formatted = formatCopilotCredits(credits);
-					const creditDetails = formatted === '1'
-						? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
-						: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
-					return [model.name, creditDetails].join(' • ');
-				}
-				return [model.name, model.pricing].filter(Boolean).join(' · ');
+				const resolved = lookupModel(rawModelId);
+				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
+				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
+				const billedModelId = resolved && !resolved.resolvedFromRaw ? rawModelId : undefined;
+				return formatTurnResponseDetails(resolved?.model, billedModelId, usage);
 			},
 		};
 	}

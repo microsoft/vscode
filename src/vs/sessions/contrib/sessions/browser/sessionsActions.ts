@@ -16,7 +16,6 @@ import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -60,7 +59,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
-		const keybindingService = accessor.get(IKeybindingService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
@@ -144,16 +142,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-
-		// Enable quick navigation: when invoked via keybinding the user can keep
-		// the modifier held and press the trigger key again to cycle through
-		// sessions, then release the modifier to open the focused one (mirroring
-		// the editor switcher). The keybindings of this command drive which
-		// modifier release accepts the active item.
-		const keybindings = keybindingService.lookupKeybindings(SHOW_SESSIONS_PICKER_COMMAND_ID);
-		if (keybindings.length > 0) {
-			picker.quickNavigate = { keybindings };
-		}
 
 		// Default to the currently active session so it is selected on open.
 		if (activeItem) {
@@ -462,19 +450,36 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 }
 
 // The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// opens with a "New Chat" entry (registered by SessionConversationsMenuContribution
-// below), then lists every chat in the session with a checkbox. Checked chats are
-// shown as tabs; unchecked chats are closed (hidden from the tab strip). Toggling
-// an entry closes or reopens the corresponding chat. The main chat is always shown
-// and cannot be closed, so its entry is checked and disabled. It is shown in the
-// session header toolbar once the session has more than one committed chat.
+// lists every chat in the session with a checkbox. Checked chats are shown as
+// tabs; unchecked chats are closed (hidden from the tab strip). Toggling an entry
+// closes or reopens the corresponding chat. The main chat is always shown and
+// cannot be closed, so its entry is checked and disabled.
+//
+// It surfaces in one of two places depending on whether the chat tab strip is
+// shown: when the strip is hidden it lives in the session header toolbar; once the
+// session has more than one open chat (the tab strip is shown) it moves to the
+// chat tab bar action menu at the end of the strip instead (see
+// Menus.SessionChatTabBar below).
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Conversations"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext.negate()),
+});
+
+// Mirror of the header Conversations submenu, rendered at the end of the chat tab
+// bar action menu while the tab strip is shown (more than one open chat). The two
+// `when` clauses are mutually exclusive on SessionHasMultipleOpenChatsContext so
+// the Conversations menu only ever appears in one place at a time.
+MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
+	submenu: Menus.SessionConversations,
+	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	icon: Codicon.commentDiscussion,
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext),
 });
 
 /**
@@ -482,9 +487,9 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
  * session. {@link Menus.SessionBarToolbar} is rendered once per session view
  * (header/floating toolbar) against that view's scoped context key service, so
  * the submenu items are scoped per session via {@link SessionIdContext}: each
- * session's "New Chat" action and per-chat toggle actions only render in (and
- * act on) their own session's toolbar. The actions are (re)registered whenever
- * the set of visible sessions or their chat lists change.
+ * session's per-chat toggle actions only render in (and act on) their own
+ * session's toolbar. The actions are (re)registered whenever the set of visible
+ * sessions or their chat lists change.
  */
 export class SessionConversationsMenuContribution extends Disposable implements IWorkbenchContribution {
 
@@ -492,7 +497,6 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 
 	constructor(
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -514,22 +518,6 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		// per session view against its own scoped context key service, where
 		// `sessionId` resolves to that view's session.
 		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
-
-		store.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `sessions.chatCompositeBar.addChat.${session.sessionId}`,
-					title: localize2('chatCompositeBar.addChat', "New Chat"),
-					icon: Codicon.add,
-					menu: { id: Menus.SessionConversations, group: 'navigation', order: 0, when: scopedToSession },
-				});
-			}
-			override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
-				const target = forwardedSession ?? session;
-				await that._sessionsService.openNewChatInSession(target);
-				that._sessionsPartService.focusSession(target);
-			}
-		}));
 
 		const allChats = session.chats.read(reader);
 		const mainResource = session.mainChat.read(reader).resource;
