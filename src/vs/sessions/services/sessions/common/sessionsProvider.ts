@@ -29,6 +29,15 @@ export interface ISendRequestOptions {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional source identifier for telemetry/bookkeeping (e.g. `'automation'`). */
 	readonly source?: string;
+	/**
+	 * Optional title for the new session. When provided, the session is named
+	 * this from creation instead of deriving its title from the first line of
+	 * {@link query}. Lets callers (e.g. automations) ensure the session shows a
+	 * meaningful name before the agent host launches — relevant for any
+	 * launch-time prompts (such as worktree file transfer) that surface the
+	 * session title mid-send.
+	 */
+	readonly title?: string;
 }
 
 /**
