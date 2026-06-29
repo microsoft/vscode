@@ -3092,10 +3092,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * The agent is persisted on the chat channel — the session channel
 	 * ({@link SessionState}) carries no draft — so we briefly observe the default
 	 * chat's state until its draft agent arrives. The subscription is shared and
-	 * ref-counted with the chat session handler (no extra wire cost), lives for
-	 * the session-state store's lifetime, and the listener no-ops once `mode` is
-	 * set (guarded inside {@link AgentHostSessionAdapter.hydrateSelectedAgent}),
-	 * so it neither leaks nor overrides a later graduation seed or user pick.
+	 * ref-counted with the chat session handler (no extra wire cost) and lives for
+	 * the session-state store's lifetime. Hydration is one-shot: the observer
+	 * stops as soon as `mode` is set — by us here, or by a concurrent graduation
+	 * seed or user pick (guarded inside
+	 * {@link AgentHostSessionAdapter.hydrateSelectedAgent}) — so it neither leaks,
+	 * overrides a later selection, nor keeps re-running on every chat update.
 	 */
 	private _hydrateAgentFromDraft(connection: IAgentConnection, cached: AgentHostSessionAdapter, sessionId: string, sessionUri: URI, store: DisposableStore): void {
 		if (cached.mode.get() !== undefined) {
@@ -3105,20 +3107,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const defaultChatUri = lastDefaultChat ? URI.parse(lastDefaultChat.toString()) : URI.parse(buildDefaultChatUri(sessionUri));
 		const chatRef = connection.getSubscription(StateComponents.Chat, defaultChatUri, 'BaseAgentHostSessionsProvider.draftAgent');
 		store.add(chatRef);
+		const listener = store.add(new MutableDisposable());
 		const tryHydrate = () => {
+			if (cached.mode.get() === undefined) {
+				const chatState = chatRef.object.value;
+				const agentUri = chatState && !(chatState instanceof Error) ? chatState.draft?.agent?.uri : undefined;
+				if (agentUri) {
+					cached.hydrateSelectedAgent(agentUri);
+				}
+			}
 			if (cached.mode.get() !== undefined) {
-				return;
-			}
-			const chatState = chatRef.object.value;
-			if (!chatState || chatState instanceof Error) {
-				return;
-			}
-			const agentUri = chatState.draft?.agent?.uri;
-			if (agentUri) {
-				cached.hydrateSelectedAgent(agentUri);
+				listener.clear(); // hydration is one-shot; stop observing
 			}
 		};
-		store.add(chatRef.object.onDidChange(() => tryHydrate()));
+		listener.value = chatRef.object.onDidChange(() => tryHydrate());
 		tryHydrate();
 	}
 
