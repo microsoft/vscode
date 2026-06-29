@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent } from '@github/copilot-sdk';
+import type { Attachment, SessionEvent, SessionEventPayload } from '@github/copilot-sdk';
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -102,6 +102,12 @@ export interface ISessionEventAbort {
 	};
 }
 
+export interface ISessionEventSystemNotification {
+	type: 'system.notification';
+	id?: string;
+	data: SessionEventPayload<'system.notification'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -110,6 +116,7 @@ export type ISessionEvent =
 	| ISessionEventSubagentStarted
 	| ISessionEventSkillInvoked
 	| ISessionEventAbort
+	| ISessionEventSystemNotification
 	| { type: string; data?: unknown };
 
 /**

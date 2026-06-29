@@ -413,6 +413,19 @@ suite('SessionDatabase', () => {
 
 	suite('turn event ids', () => {
 
+		test('hasTurnEventId identifies recorded boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.deepStrictEqual({
+				recorded: await db.hasTurnEventId('evt-1'),
+				unknown: await db.hasTurnEventId('evt-2'),
+			}, {
+				recorded: true,
+				unknown: false,
+			});
+		});
+
 		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');

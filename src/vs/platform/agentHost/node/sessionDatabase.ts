@@ -313,6 +313,11 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	async hasTurnEventId(eventId: string): Promise<boolean> {
+		const db = await this._ensureDb();
+		return !!await dbGet(db, 'SELECT 1 AS found FROM turns WHERE event_id = ? LIMIT 1', [eventId]);
+	}
+
 	async getTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?', [turnId]);

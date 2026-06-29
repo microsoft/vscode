@@ -82,11 +82,16 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
-	 * Associates a Copilot SDK event ID with a turn. The event ID corresponds
-	 * to the `user.message` event in the SDK event stream and is used by
-	 * the SDK's `history.truncate` and `sessions.fork` RPCs.
+	 * Associates a turn with the Copilot SDK event that started it. This is
+	 * usually a `user.message`, or a `system.notification` for a system-initiated
+	 * turn, and is used by the SDK's `history.truncate` and `sessions.fork` RPCs.
 	 */
 	setTurnEventId(turnId: string, eventId: string): Promise<void>;
+
+	/**
+	 * Returns whether an SDK event is recorded as a turn boundary.
+	 */
+	hasTurnEventId(eventId: string): Promise<boolean>;
 
 	/**
 	 * Retrieves the SDK event ID previously stored for a turn.

@@ -17,6 +17,7 @@ import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStat
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
+import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -86,10 +87,10 @@ export interface IMapSessionEventsOptions {
 	readonly agent?: AgentSelection;
 }
 
-function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection }): ITurnBuilder {
+function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind }): ITurnBuilder {
 	const message: Message = {
 		text,
-		origin: { kind: MessageKind.User },
+		origin: { kind: options?.origin ?? MessageKind.User },
 		...(options?.attachments?.length ? { attachments: options.attachments } : {}),
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
@@ -379,6 +380,23 @@ export async function mapSessionEvents(
 				}
 				if (d.toolRequests?.length) {
 					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
+				}
+				break;
+			}
+			case 'system.notification': {
+				const notification = buildCopilotSystemNotification(e);
+				if (!notification) {
+					break;
+				}
+				const startsTurn = await db?.hasTurnEventId(e.id) ?? false;
+				if (parentBuilder && !startsTurn) {
+					parentBuilder.responseParts.push({
+						kind: ResponsePartKind.SystemNotification,
+						content: notification.content,
+					});
+				} else {
+					flushParent();
+					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification });
 				}
 				break;
 			}
