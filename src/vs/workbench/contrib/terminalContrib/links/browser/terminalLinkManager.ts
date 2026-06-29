@@ -406,9 +406,11 @@ export class TerminalLinkManager extends DisposableStore {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, actions, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached && link) {
-				const disposable = combinedDisposable(attached, link.onInvalidated(() => disposable.dispose()));
-				this._linkHoverInvalidationDisposable.value = disposable;
-				return disposable;
+				const store = new DisposableStore();
+				store.add(attached);
+				store.add(link.onInvalidated(() => store.dispose()));
+				this._linkHoverInvalidationDisposable.value = store;
+				return store;
 			}
 			return attached;
 		}
