@@ -377,7 +377,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
-		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -471,16 +470,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			case Raw.ChatRole.System:
 				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
-		}
-
-		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
-			// Attach the prompt-cache marker to the last item this message produced, scanning back past
-			// reasoning/compaction items that cannot carry it.
-			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
-				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
-					break;
-				}
-			}
 		}
 	}
 
@@ -578,56 +567,6 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 				return { type: 'output_text', text: part.text };
 			}
 	}
-}
-
-interface ResponsesPromptCacheBreakpoint {
-	readonly mode: 'explicit';
-}
-
-const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
-
-/**
- * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
- * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
- * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
- */
-function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
-	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
-}
-
-/**
- * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
- * Responses API input item.
- *
- * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
- * on their last content block. Items without a content array (`function_call`,
- * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
- * marker was applied.
- */
-function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
-	const content = (item as { content?: unknown }).content;
-	if (Array.isArray(content)) {
-		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
-		if (!lastContentBlock) {
-			return false;
-		}
-
-		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
-	}
-
-	const itemType = (item as { type?: string }).type;
-	if (
-		itemType === 'function_call'
-		|| itemType === 'function_call_output'
-		|| itemType === 'tool_search_call'
-		|| itemType === 'tool_search_output'
-	) {
-		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
-		return true;
-	}
-
-	return false;
 }
 
 /**
