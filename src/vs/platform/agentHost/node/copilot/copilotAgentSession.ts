@@ -1120,6 +1120,12 @@ export class CopilotAgentSession extends Disposable {
 							result.options.map(option => option.name).join(', '),
 						));
 						break;
+					default:
+						// The runtime can be newer than these compiled SDK types, so an
+						// unknown kind must be logged rather than silently swallowed (the
+						// turn would otherwise complete with no user-facing output).
+						this._logService.warn(`[Copilot:${this.sessionId}] Unhandled slash command result kind: ${(result as { kind: string }).kind}`);
+						break;
 				}
 				if (result.runtimeSettingsChanged === true) {
 					this._invalidateRuntimeSlashCommandCache();
