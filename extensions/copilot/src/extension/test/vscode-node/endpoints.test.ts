@@ -267,6 +267,21 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		assert.strictEqual(endpoint.model, 'claude-haiku-4.5');
 	});
 
+	test('supported non-copilot vendor override exposes supportsToolSearch on extension-contributed endpoints', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		const fakeModel = makeFakeLanguageModelChat({
+			vendor: 'anthropic',
+			id: 'claude-sonnet-4.6',
+			family: 'claude-sonnet-4.6',
+		});
+		sandbox.stub(lm, 'selectChatModels').resolves([fakeModel]);
+		await configService.setNonExtensionConfig('chat.utilityModel', 'anthropic/claude-sonnet-4.6');
+
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		assert.ok(endpoint instanceof ExtensionContributedChatEndpoint);
+		assert.strictEqual(endpoint.supportsToolSearch, true);
+	});
+
 	test('non-copilot vendor override falls back when lm.selectChatModels returns no matches', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
 		sandbox.stub(lm, 'selectChatModels').resolves([]);

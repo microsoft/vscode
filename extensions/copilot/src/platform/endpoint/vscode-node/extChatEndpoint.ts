@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../common/endpointTypes';
+import { modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
@@ -110,6 +111,10 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 
 	get supportsPrediction(): boolean {
 		return false;
+	}
+
+	get supportsToolSearch(): boolean {
+		return modelSupportsToolSearch(this.languageModel);
 	}
 
 	get policy(): 'enabled' | { terms: string } {

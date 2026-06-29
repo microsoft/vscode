@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LanguageModelChat } from 'vscode';
 import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
@@ -10,6 +11,8 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/
 import { setCopilotToken } from '../../../../platform/authentication/common/staticGitHubAuthenticationService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
+import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -173,6 +176,24 @@ describe('getAgentTools background todo enablement', () => {
 		return tools.some(t => t.name === ToolName.CoreManageTodoList);
 	}
 
+	function hasTool(tools: readonly { name: string }[], name: string): boolean {
+		return tools.some(t => t.name === name);
+	}
+
+	function makeExtensionLanguageModel(modelId: string): LanguageModelChat {
+		return {
+			id: modelId,
+			vendor: 'anthropic',
+			name: modelId,
+			family: modelId,
+			version: '1.0.0',
+			maxInputTokens: 200_000,
+			capabilities: {
+				supportsToolCalling: true,
+				supportsImageToText: false,
+			},
+		} as LanguageModelChat;
+	}
 	test('todo tool is not in enabled tools when experiment is on', async () => {
 		configService.setConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, true);
 		const request = new TestChatRequest('fix the bug');
@@ -195,6 +216,24 @@ describe('getAgentTools background todo enablement', () => {
 		(request as any).toolReferences = [{ name: 'read_file' }];
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, mockEndpoint);
 		expect(hasTodoTool(tools)).toBe(false);
+	});
+
+	test('supported extension-contributed endpoints expose tool_search in enabled tools', async () => {
+		const request = new TestChatRequest('fix the bug');
+		const endpoint = instantiationService.createInstance(ExtensionContributedChatEndpoint, makeExtensionLanguageModel('claude-sonnet-4.6'));
+
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, endpoint);
+
+		expect(hasTool(tools, CUSTOM_TOOL_SEARCH_NAME)).toBe(true);
+	});
+
+	test('unsupported extension-contributed endpoints omit tool_search from enabled tools', async () => {
+		const request = new TestChatRequest('fix the bug');
+		const endpoint = instantiationService.createInstance(ExtensionContributedChatEndpoint, makeExtensionLanguageModel('claude-haiku-4.5'));
+
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, endpoint);
+
+		expect(hasTool(tools, CUSTOM_TOOL_SEARCH_NAME)).toBe(false);
 	});
 });
 

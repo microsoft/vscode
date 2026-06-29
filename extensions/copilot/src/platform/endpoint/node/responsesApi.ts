@@ -63,9 +63,18 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
 	// { type: 'tool_search', execution: 'client' }. The model emits tool_search_call, which we handle via
 	// our ToolSearchTool embeddings search, then round-trip as tool_search_output in the next request.
-	const toolSearchEnabled = !!endpoint.supportsToolSearch
-		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
-	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
+	const hasRequestToolSearch = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+	// BYOK custom Responses endpoints can filter tool_search out of request tools via agent restrictions
+	// or the tool picker. Keep the explicit request-tool gate for first-party endpoints, but allow the
+	// actual BYOK Responses request path to opt into client tool_search when the endpoint owns auth.
+	const isByokResponsesEndpoint = endpoint.ownsAuthorization === true;
+	const isImplicitByokToolSearchLocation = isByokResponsesEndpoint
+		&& (options.location === ChatLocation.Other || options.location === ChatLocation.ResponsesProxy);
+	const shouldImplicitlyEnableToolSearch = isImplicitByokToolSearchLocation;
+	const toolSearchEnabled = !!endpoint.supportsToolSearch && (hasRequestToolSearch || shouldImplicitlyEnableToolSearch);
+	const isAllowedConversationAgent = options.location === ChatLocation.Agent
+		|| options.location === ChatLocation.MessagesProxy
+		|| isImplicitByokToolSearchLocation;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
 	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;

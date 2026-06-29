@@ -244,6 +244,46 @@ suite('defaultIntentRequestHandler', () => {
 		expect(requestSpy.mock.calls[0][0].ignoreStatefulMarker).toBeUndefined();
 	});
 
+	test('forwards endpoint tool search support into request model capabilities', async () => {
+		(endpoint as any).supportsToolSearch = true;
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const handler = makeHandler();
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy).toHaveBeenCalledOnce();
+		expect(requestSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).toBe(true);
+	});
+
+	test('does not enable tool search in request model capabilities when endpoint support is false or absent', async () => {
+		for (const supportsToolSearch of [false, undefined] as const) {
+			if (supportsToolSearch === undefined) {
+				delete (endpoint as any).supportsToolSearch;
+			} else {
+				(endpoint as any).supportsToolSearch = supportsToolSearch;
+			}
+
+			const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+			const handler = makeHandler();
+			chatResponse[0] = 'some response here :)';
+			promptResult = {
+				...nullRenderPromptResult(),
+				messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+			};
+
+			await handler.getResult();
+
+			expect(requestSpy).toHaveBeenCalledOnce();
+			expect(requestSpy.mock.calls[0][0].modelCapabilities?.enableToolSearch).not.toBe(true);
+			requestSpy.mockRestore();
+		}
+	});
+
 	test('makes a tool call turn', async () => {
 		const handler = makeHandler();
 		chatResponse[0] = [{
