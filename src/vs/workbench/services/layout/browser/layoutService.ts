@@ -151,20 +151,20 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
-	const panelPart: Parts[] = panelInLeftSequence || panelInRightSequence ? [Parts.PANEL_PART] : [];
+	const panelGroup: Parts[] = [Parts.PANEL_PART];
 	const fullOrder: Parts[] = sideBarLeft
 		? [
 			...sideBarGroup,
-			...(panelInLeftSequence ? panelPart : []),
+			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelPart : []),
+			...(panelInRightSequence ? panelGroup : []),
 			Parts.AUXILIARYBAR_PART
 		]
 		: [
 			Parts.AUXILIARYBAR_PART,
-			...(panelInLeftSequence ? panelPart : []),
+			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelPart : []),
+			...(panelInRightSequence ? panelGroup : []),
 			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
 		];
 
