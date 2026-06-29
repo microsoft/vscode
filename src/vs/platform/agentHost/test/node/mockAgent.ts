@@ -37,6 +37,7 @@ interface IMockSendMessageCall {
 	readonly prompt: string;
 	readonly attachments?: readonly MessageAttachment[];
 	readonly chat?: URI;
+	readonly senderClientId?: string;
 }
 
 /**
@@ -133,8 +134,8 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
-		const call = { session, prompt, attachments, chat };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
+		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {

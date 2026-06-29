@@ -1090,7 +1090,7 @@ export interface IAgent {
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/** Send a user message into a chat within an existing session. */
-	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
+	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session, backed by a new
