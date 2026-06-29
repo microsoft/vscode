@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableMap, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, IQuickDiffChangeDto, MainContext, MainThreadQuickDiffShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, ITextEditorChange, ITextEditorDiffInformation, MainContext, MainThreadQuickDiffShape } from '../common/extHost.protocol.js';
 import { IQuickDiffService, QuickDiffProvider } from '../../contrib/scm/common/quickDiff.js';
 import { IQuickDiffModelService, QuickDiffModel } from '../../contrib/scm/browser/quickDiffModel.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -47,7 +47,7 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		}
 	}
 
-	async $createQuickDiffInformation(handle: number, uri: UriComponents): Promise<void> {
+	async $createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void> {
 		const reference = this.quickDiffModelService.createQuickDiffModelReference(URI.revive(uri));
 		if (!reference) {
 			return;
@@ -55,31 +55,41 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 
 		const store = new DisposableStore();
 		store.add(reference);
-		store.add(reference.object.onDidChange(() => this.sendQuickDiffInformation(handle, reference)));
+		store.add(reference.object.onDidChange(() => this.sendSourceControlDiffInformation(handle, reference)));
 		this.informationDisposables.set(handle, store);
 
 		// Push the current state so the extension host has an initial value.
-		this.sendQuickDiffInformation(handle, reference);
+		this.sendSourceControlDiffInformation(handle, reference);
 	}
 
-	async $disposeQuickDiffInformation(handle: number): Promise<void> {
+	async $disposeSourceControlDiffInformation(handle: number): Promise<void> {
 		if (this.informationDisposables.has(handle)) {
 			this.informationDisposables.deleteAndDispose(handle);
 		}
 	}
 
-	private sendQuickDiffInformation(handle: number, reference: IReference<QuickDiffModel>): void {
+	private sendSourceControlDiffInformation(handle: number, reference: IReference<QuickDiffModel>): void {
 		const model = reference.object;
-		const primaryQuickDiff = model.quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
-		const changes: IQuickDiffChangeDto[] = model.changes
-			.filter(change => change.providerId === primaryQuickDiff?.id)
-			.map(change => ({
-				originalStartLineNumber: change.change.originalStartLineNumber,
-				originalEndLineNumber: change.change.originalEndLineNumber,
-				modifiedStartLineNumber: change.change.modifiedStartLineNumber,
-				modifiedEndLineNumber: change.change.modifiedEndLineNumber,
-			}));
-		this.proxy.$acceptQuickDiffInformation(handle, model.changesVersionId, changes);
+		const primaryResult = model.getQuickDiffResults().find(result => result.providerKind === 'primary');
+		if (!primaryResult) {
+			this.proxy.$acceptSourceControlDiffInformation(handle, undefined);
+			return;
+		}
+
+		const changes: ITextEditorChange[] = primaryResult.changes2.map(change => [
+			change.original.startLineNumber,
+			change.original.endLineNumberExclusive,
+			change.modified.startLineNumber,
+			change.modified.endLineNumberExclusive,
+		]);
+
+		const diffInformation: ITextEditorDiffInformation = {
+			documentVersion: model.changesVersionId,
+			original: primaryResult.original,
+			modified: primaryResult.modified,
+			changes,
+		};
+		this.proxy.$acceptSourceControlDiffInformation(handle, diffInformation);
 	}
 
 	dispose(): void {

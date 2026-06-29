@@ -2764,12 +2764,6 @@ export enum SyntaxHighlightingTokenFontStyle {
 	Strikethrough = 8,
 }
 
-export enum QuickDiffChangeKind {
-	Added = 1,
-	Modified = 2,
-	Deleted = 3,
-}
-
 
 export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {

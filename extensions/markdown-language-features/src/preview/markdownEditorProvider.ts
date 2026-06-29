@@ -94,20 +94,21 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * offsets.
 	 */
 	#wireQuickDiff(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
-		const quickDiff = vscode.window.createQuickDiffInformation(document.uri);
+		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
 
 		const postMarkers = () => {
+			const diffInformation = diffProvider.diffInformation;
 			// The changes are computed asynchronously against a specific document
 			// version. Only map them to offsets while that version still matches the
 			// document we hold, otherwise the line positions could be stale. A newer
 			// diff for the current version will arrive via onDidChange.
-			if (quickDiff.documentVersion !== document.version) {
+			if (!diffInformation || diffInformation.isStale) {
 				return;
 			}
-			webview.postMessage({ type: 'gutterMarkers', markers: toGutterMarkers(document, quickDiff.changes) });
+			webview.postMessage({ type: 'gutterMarkers', markers: toGutterMarkers(document, diffInformation.changes) });
 		};
 
-		const onChange = quickDiff.onDidChange(postMarkers);
+		const onChange = diffProvider.onDidChange(postMarkers);
 		// Re-send once the webview has (re)initialized its model, and whenever the
 		// document settles on the version the changes were computed for.
 		const onMessage = webview.onDidReceiveMessage((message) => {
@@ -121,7 +122,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 		});
 
-		return vscode.Disposable.from(quickDiff, onChange, onMessage, onDocumentChange);
+		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
 	}
 
 	/**
@@ -191,29 +192,32 @@ interface GutterMarkerMessage {
 }
 
 /**
- * Converts the line-based quick diff changes into source character offset ranges
- * understood by the Markdown editor's `gutterMarkers`. Added/modified changes map
- * to the offset span of their modified lines; deleted changes map to an empty
- * range at the boundary where the removed text used to be.
+ * Converts the line-based source control changes into source character offset
+ * ranges understood by the Markdown editor's `gutterMarkers`. Added/modified
+ * changes map to the offset span of their modified lines; deleted changes map to
+ * an empty range at the boundary where the removed text used to be.
+ *
+ * Line ranges use {@link vscode.TextEditorLineRange} semantics: 1-based
+ * `startLineNumber` and exclusive `endLineNumberExclusive`.
  */
-function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode.QuickDiffChange[]): GutterMarkerMessage[] {
+function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode.TextEditorChange[]): GutterMarkerMessage[] {
 	const markers: GutterMarkerMessage[] = [];
 	for (const change of changes) {
-		if (change.kind === vscode.QuickDiffChangeKind.Deleted) {
-			// Empty range at the end of the line after which content was removed.
-			const offset = change.modifiedStartLineNumber > 0
-				? document.offsetAt(document.lineAt(change.modifiedStartLineNumber - 1).range.end)
-				: 0;
+		if (change.kind === vscode.TextEditorChangeKind.Deletion) {
+			// The modified range is empty; place an empty marker at the start of the
+			// line where the removed content used to be.
+			const line = Math.max(0, change.modified.startLineNumber - 1);
+			const offset = document.offsetAt(new vscode.Position(line, 0));
 			markers.push({ start: offset, endExclusive: offset, type: 'deleted' });
 			continue;
 		}
 
-		const start = document.offsetAt(new vscode.Position(change.modifiedStartLineNumber - 1, 0));
-		const endExclusive = document.offsetAt(document.lineAt(change.modifiedEndLineNumber - 1).range.end);
+		const start = document.offsetAt(new vscode.Position(change.modified.startLineNumber - 1, 0));
+		const endExclusive = document.offsetAt(document.lineAt(change.modified.endLineNumberExclusive - 2).range.end);
 		markers.push({
 			start,
 			endExclusive,
-			type: change.kind === vscode.QuickDiffChangeKind.Added ? 'added' : 'modified',
+			type: change.kind === vscode.TextEditorChangeKind.Addition ? 'added' : 'modified',
 		});
 	}
 	return markers;
