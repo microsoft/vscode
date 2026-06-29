@@ -360,21 +360,27 @@ function shouldUseBracketedPasteMode(command: string): boolean {
 
 function parseSentinel(content: string, sentinelId: string): { found: boolean; exitCode: number; outputBeforeSentinel: string } {
 	const marker = `${SENTINEL_PREFIX}${sentinelId}_EXIT_`;
-	const idx = content.indexOf(marker);
-	if (idx === -1) {
-		return { found: false, exitCode: -1, outputBeforeSentinel: content };
+	let markerIndex = content.lastIndexOf(marker);
+	while (markerIndex !== -1) {
+		const outputBeforeSentinel = content.substring(0, markerIndex);
+		const afterMarker = content.substring(markerIndex + marker.length);
+		const endIdx = afterMarker.indexOf('>>>');
+		if (endIdx !== -1) {
+			const exitCodeStr = afterMarker.substring(0, endIdx).trim();
+			if (/^-?\d+$/.test(exitCodeStr)) {
+				return {
+					found: true,
+					exitCode: parseInt(exitCodeStr, 10),
+					outputBeforeSentinel,
+				};
+			}
+		}
+		// Ignore echoed sentinel command text (for example `$?`) and continue
+		// scanning for the latest complete numeric sentinel marker.
+		markerIndex = content.lastIndexOf(marker, markerIndex - 1);
 	}
 
-	const outputBeforeSentinel = content.substring(0, idx);
-	const afterMarker = content.substring(idx + marker.length);
-	const endIdx = afterMarker.indexOf('>>>');
-	const exitCodeStr = endIdx >= 0 ? afterMarker.substring(0, endIdx) : afterMarker.trim();
-	const exitCode = parseInt(exitCodeStr, 10);
-	return {
-		found: true,
-		exitCode: isNaN(exitCode) ? -1 : exitCode,
-		outputBeforeSentinel,
-	};
+	return { found: false, exitCode: -1, outputBeforeSentinel: content };
 }
 
 function prepareOutputForModel(rawOutput: string): string {
