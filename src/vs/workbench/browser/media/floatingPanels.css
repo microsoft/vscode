@@ -108,6 +108,12 @@
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
+/* When the side bar (and activity bar) is on the right, mirror the gutter so the bar stays centered. */
+.monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: 0;
+	margin-right: var(--vscode-spacing-size40);
+}
+
 /* The status bar draws its top border via a pseudo-element — hide it too. */
 .monaco-workbench.floating-panels .part.statusbar::after {
 	display: none !important;
