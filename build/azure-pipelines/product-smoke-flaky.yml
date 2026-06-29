@@ -152,7 +152,7 @@ extends:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            - template: linux/product-smoke-flaky-linux.yml@self
+            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 iterations: ${{ parameters.iterations }}
@@ -164,7 +164,7 @@ extends:
             name: 1es-windows-2022-x64
             os: windows
           jobs:
-            - template: win32/product-smoke-flaky-win32.yml@self
+            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 iterations: ${{ parameters.iterations }}
@@ -176,6 +176,6 @@ extends:
             name: AcesShared
             os: macOS
           jobs:
-            - template: darwin/product-smoke-flaky-darwin.yml@self
+            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
               parameters:
                 iterations: ${{ parameters.iterations }}
