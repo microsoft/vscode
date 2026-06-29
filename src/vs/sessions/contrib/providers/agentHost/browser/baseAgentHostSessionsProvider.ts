@@ -2987,6 +2987,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
+
+		if (!previous) {
+			// This is the first time we've seen this session and the initial
+			// list of changesets are included in the state, so we use that to
+			// initialize the changeset catalogue.v Subsequent updates will be
+			// handled by handling the ActionType.SessionChangesetsChanged
+			// action.
+			this._applyChangesetsFromState(sessionId, state);
+		}
+	}
+
+	/**
+	 * Seed the cached adapter's changeset catalogue from an AHP
+	 * {@link SessionState}. The catalogue otherwise only flows in via the live
+	 * `SessionChangesetsChanged` action, which the host emits only when entries
+	 * are added or removed. On restore (e.g. after a reload) nothing mutates, so
+	 * that action never fires and the catalogue would stay empty. The restored
+	 * `SessionState` snapshot carries the persisted `changesets`, so apply it
+	 * here to surface the catalogue immediately.
+	 */
+	private _applyChangesetsFromState(sessionId: string, state: SessionState): void {
+		if (state.changesets === undefined) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.updateChangesets(state.changesets);
 	}
 
 	/**
