@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -241,7 +242,7 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
@@ -260,6 +261,9 @@ suite('AgentHostClientTools', () => {
 					invokedToolCalls.push(invocation);
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
+					if (options?.throwBeforeConfirmation) {
+						throw options.throwBeforeConfirmation;
+					}
 					if (options?.requireConfirmation && toolInvocation) {
 						toolInvocation.transitionFromStreaming({
 							invocationMessage: 'Run Task',
@@ -418,7 +422,7 @@ suite('AgentHostClientTools', () => {
 		function createHandlerWithMocks(
 			disposables: DisposableStore,
 			tools: IToolData[],
-			toolServiceOptions?: { requireConfirmation?: boolean },
+			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
@@ -554,6 +558,63 @@ suite('AgentHostClientTools', () => {
 			source: ToolDataSource.Internal,
 		};
 
+		async function provideSessionWithReadyRunTaskTool(handler: AgentHostSessionHandler, connection: MockAgentHostConnection): Promise<void> {
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Run Task',
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+		}
+
+		function getToolCallConfirmationAndCompletionActions(connection: MockAgentHostConnection) {
+			return connection.dispatchedActions
+				.filter(entry => isChatAction(entry.action)
+					&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
+					&& entry.action.toolCallId === 'tool-call-1')
+				.map(entry => {
+					if (entry.action.type === ActionType.ChatToolCallConfirmed) {
+						return {
+							type: entry.action.type,
+							approved: entry.action.approved,
+							success: undefined,
+							error: undefined,
+						};
+					}
+					if (entry.action.type === ActionType.ChatToolCallComplete) {
+						return {
+							type: entry.action.type,
+							approved: undefined,
+							success: entry.action.result.success,
+							error: entry.action.result.error?.message,
+						};
+					}
+					throw new Error(`Unexpected action type: ${entry.action.type}`);
+				});
+		}
+
 		test('maps tool data to protocol definitions', async () => {
 			const { connection } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
@@ -625,6 +686,32 @@ suite('AgentHostClientTools', () => {
 			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('reports client tool prepare failures before confirmation as failed completion', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new Error('prepare failed') });
+
+			await provideSessionWithReadyRunTaskTool(handler, connection);
+
+			assert.deepStrictEqual(getToolCallConfirmationAndCompletionActions(connection), [{
+				type: ActionType.ChatToolCallComplete,
+				approved: undefined,
+				success: false,
+				error: 'prepare failed',
+			}]);
+		});
+
+		test('reports client tool cancellation before confirmation as failed completion when protocol call is not terminal', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new CancellationError() });
+
+			await provideSessionWithReadyRunTaskTool(handler, connection);
+
+			assert.deepStrictEqual(getToolCallConfirmationAndCompletionActions(connection), [{
+				type: ActionType.ChatToolCallComplete,
+				approved: undefined,
+				success: false,
+				error: 'Canceled',
+			}]);
 		});
 
 		test('auto-approves client tool confirmation as a setting when the agent host marks the call', async () => {

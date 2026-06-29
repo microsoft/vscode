@@ -92,7 +92,8 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				if (root.type === type) {
 					folders.push({
 						uri: URI.joinPath(folder, ...root.path),
-						label: root.path.join('/'),
+						label: root.path[0],
+						source: 'local'
 					});
 				}
 			}
@@ -101,7 +102,8 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			if (root.type === type) {
 				folders.push({
 					uri: URI.joinPath(this.envService.userHome, ...root.path),
-					label: `~/${root.path.join('/')}`,
+					label: `~/${root.path[0]}`,
+					source: 'user'
 				});
 			}
 		}
