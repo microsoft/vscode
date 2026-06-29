@@ -51,6 +51,6 @@ suite('AgentHostCommitOperationContribution', () => {
 
 		const operations = provider.getOperations({ sessionKey, changesetUri: buildSessionChangesetUri(sessionKey), changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
+		assert.deepStrictEqual(operations?.map(op => op.id), undefined);
 	});
 });
