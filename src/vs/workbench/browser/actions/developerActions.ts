@@ -852,6 +852,16 @@ class PolicyDiagnosticsAction extends Action2 {
 			// jsonc-style: accumulate every error instead of failing on the first.
 			const parseErrors: { stage: string; message: string }[] = [];
 
+			// Sections are listed in precedence order (highest first): native MDM wins over the
+			// server endpoint, which in turn wins over the file on disk.
+			content += '### Native MDM\n\n';
+			content += PROPERTY_VALUE_TABLE_HEADER;
+			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
+			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
+			if (nativeManagedSettingsService) {
+				content += jsonBlock(nativeManagedSettings);
+			}
+
 			content += '### GitHub Server API\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += '| Endpoint | `/copilot_internal/managed_settings` |\n';
@@ -870,14 +880,6 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '**Normalized bag**\n\n';
 			content += jsonBlock(serverManagedSettings);
-
-			content += '### Native MDM\n\n';
-			content += PROPERTY_VALUE_TABLE_HEADER;
-			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
-			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
-			if (nativeManagedSettingsService) {
-				content += jsonBlock(nativeManagedSettings);
-			}
 
 			content += '### File (managed-settings.json)\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;

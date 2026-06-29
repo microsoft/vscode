@@ -222,7 +222,7 @@ export interface IManagedSettingsSelection {
 /**
  * Select the authoritative managed-settings bag from the available delivery channels.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
+ * Precedence (highest first): native MDM → server-delivered → file on disk. The channels are
  * never merged — managed settings have a single authoritative source, so the first non-empty bag
  * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
  * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
@@ -230,11 +230,11 @@ export interface IManagedSettingsSelection {
  * introduced.
  */
 export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
-	}
 	if (nativeMdm && !isEmptyObject(nativeMdm)) {
 		return { source: 'nativeMdm', values: nativeMdm };
+	}
+	if (server && !isEmptyObject(server)) {
+		return { source: 'server', values: server };
 	}
 	if (file && !isEmptyObject(file)) {
 		return { source: 'file', values: file };
