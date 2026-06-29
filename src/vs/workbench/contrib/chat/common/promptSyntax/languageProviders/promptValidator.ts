@@ -215,7 +215,17 @@ export class PromptValidator {
 							if (missingPlaywrightServerMarker) {
 								report(missingPlaywrightServerMarker);
 							} else {
-								report(this.getUnknownToolMarker(variable.name, variable.range));
+								const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(variable.name, variable.range);
+								if (missingGithubServerMarker) {
+									report(missingGithubServerMarker);
+								} else {
+									const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(variable.name, variable.range);
+									if (missingPlaywrightServerMarker) {
+										report(missingPlaywrightServerMarker);
+									} else {
+										report(this.getUnknownToolMarker(variable.name, variable.range));
+									}
+								}
 							}
 						}
 					}
@@ -552,7 +562,17 @@ export class PromptValidator {
 								if (missingPlaywrightServerMarker) {
 									report(missingPlaywrightServerMarker);
 								} else {
-									report(this.getUnknownToolMarker(item.value, item.range));
+									const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(item.value, item.range);
+									if (missingGithubServerMarker) {
+										report(missingGithubServerMarker);
+									} else {
+										const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(item.value, item.range);
+										if (missingPlaywrightServerMarker) {
+											report(missingPlaywrightServerMarker);
+										} else {
+											report(this.getUnknownToolMarker(item.value, item.range));
+										}
+									}
 								}
 							}
 						}
@@ -633,6 +653,40 @@ export class PromptValidator {
 			range,
 			MarkerSeverity.Hint,
 			[MarkerTag.Unnecessary]
+		);
+	}
+
+	private getMissingGithubMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'github/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingGithubMcpServer',
+				"Tool alias '{0}' requires the GitHub MCP server. Enable the built-in server with setting 'github.copilot.chat.githubMcpServer.enabled' or install extension 'io.github.github/github-mcp-server' from Extensions (`@mcp github`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Warning,
+			undefined,
+			PromptValidatorMarkerCode.MissingGithubMcpServer
+		);
+	}
+
+	private getMissingPlaywrightMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'playwright/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingPlaywrightMcpServer',
+				"Tool alias '{0}' requires the Playwright MCP server. Install it from Extensions (`@mcp playwright`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Warning,
+			undefined,
+			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
 		);
 	}
 
