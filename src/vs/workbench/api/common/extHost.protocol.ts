@@ -1828,6 +1828,7 @@ export interface IChatSessionCustomizationItemDto {
 export interface IChatSessionCustomizationSourceFolderDto {
 	readonly uri: UriComponents;
 	readonly label: string;
+	readonly source: IChatResourceSourceDto;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
