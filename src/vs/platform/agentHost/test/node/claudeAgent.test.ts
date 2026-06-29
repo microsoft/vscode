@@ -6144,14 +6144,14 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.sendMessage(created.session, chatUri, 'hi', undefined, 'turn-1');
 
-		// Known materialized peer chat: resolved, no warning.
+		// Known materialized peer chat: resolved via the `chat` arg, no warning.
 		logService.warns.length = 0;
-		agent.setPendingMessages!(chatUri, { id: 'p1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
+		agent.setPendingMessages!(created.session, { id: 'p1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, [], chatUri);
 		const warnAfterKnown = logService.warns.filter(w => w.includes('setPendingMessages'));
 
 		// Unknown peer chat URI: not found, warns.
 		const unknownChat = URI.parse(buildChatUri(created.session.toString(), 'chat-missing'));
-		agent.setPendingMessages!(unknownChat, undefined, []);
+		agent.setPendingMessages!(created.session, undefined, [], unknownChat);
 		const warnAfterUnknown = logService.warns.filter(w => w.includes('setPendingMessages'));
 
 		assert.deepStrictEqual({ knownWarns: warnAfterKnown.length, unknownWarns: warnAfterUnknown.length }, { knownWarns: 0, unknownWarns: 1 });

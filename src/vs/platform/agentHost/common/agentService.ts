@@ -1122,12 +1122,14 @@ export interface IAgent {
 	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`.
+	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
+	 * peer chat's URI), the steering targets that chat's conversation rather
+	 * than the session's default chat.
 	 *
 	 * Queued messages are consumed on the server side and are not
 	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
-	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
+	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void;
 
 	/**
 	 * Retrieve the reconstructed turns for a session, used when restoring

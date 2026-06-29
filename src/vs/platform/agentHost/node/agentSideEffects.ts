@@ -1084,6 +1084,7 @@ export class AgentSideEffects extends Disposable {
 			URI.parse(sessionChannel),
 			state.steeringMessage,
 			[],
+			isDefaultChatUri(chatChannel) ? undefined : URI.parse(chatChannel),
 		);
 
 		// Steering message removal is now dispatched by the agent
