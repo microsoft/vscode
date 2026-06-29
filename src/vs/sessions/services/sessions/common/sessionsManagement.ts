@@ -54,6 +54,37 @@ export interface ICreateNewSessionOptions {
 	 * chosen provider advertises for the folder URI.
 	 */
 	readonly sessionTypeId?: string;
+	/**
+	 * Optional model identifier to apply to the new session via
+	 * {@link ISessionsProvider.setModel}. Ignored if the chosen provider
+	 * does not recognise the id.
+	 */
+	readonly modelId?: string;
+	/**
+	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
+	 * to apply via {@link ISessionsProvider.setMode}. Ignored if the chosen
+	 * provider does not support setting a mode or does not recognise the id.
+	 */
+	readonly modeId?: string;
+	/**
+	 * Optional permission level (typically a value from
+	 * `ChatPermissionLevel`) to apply via
+	 * {@link ISessionsProvider.setPermissionLevel}. Ignored if the chosen
+	 * provider does not support permission gating or does not recognise the
+	 * value.
+	 */
+	readonly permissionLevel?: string;
+	/**
+	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
+	 * via {@link ISessionsProvider.setIsolationMode}. Ignored if the chosen
+	 * provider does not support isolation.
+	 */
+	readonly isolationMode?: string;
+	/**
+	 * Optional git branch to apply via {@link ISessionsProvider.setBranch}.
+	 * Ignored if the chosen provider does not support branch selection.
+	 */
+	readonly branch?: string;
 }
 
 /**
@@ -312,7 +343,7 @@ export interface ISessionsManagementService {
 	 * programmatically. Rejects (after disposing the stranded draft) if the send
 	 * fails.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void>;
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.

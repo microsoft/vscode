@@ -480,12 +480,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * If the send fails, the stranded draft is disposed through its provider and
 	 * the error is rethrown so the caller can react.
 	 */
-	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void> {
+	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 
+		if (createOptions?.modelId) {
+			provider.setModel(session.sessionId, createOptions.modelId);
+		}
+		if (createOptions?.modeId) {
+			provider.setMode?.(session.sessionId, createOptions.modeId);
+		}
+		if (createOptions?.permissionLevel) {
+			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
+		}
+		if (createOptions?.isolationMode) {
+			provider.setIsolationMode?.(session.sessionId, createOptions.isolationMode);
+		}
+		if (createOptions?.branch) {
+			provider.setBranch?.(session.sessionId, createOptions.branch);
+		}
+
 		try {
-			await this._sendNewChatRequestInBackground(provider, session, options);
+			return await this._sendNewChatRequestInBackground(provider, session, options);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it
 			// through its provider to release the eager backend session before
@@ -511,7 +527,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Providers are multi-new-session aware, so the graduating session and a
 	 * concurrently reseeded composer draft coexist without conflict.
 	 */
-	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<void> {
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<ISession | undefined> {
 		// Notify listeners (e.g., telemetry) that a send is starting so they can
 		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
 		this._onWillSendRequest.fire(session);
@@ -530,10 +546,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
 		if (this._store.isDisposed) {
-			return;
+			return undefined;
 		}
 		this._onDidStartSession.fire(updatedSession);
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
+		return updatedSession;
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
