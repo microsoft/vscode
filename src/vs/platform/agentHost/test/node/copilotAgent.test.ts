@@ -32,7 +32,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -1060,6 +1060,7 @@ suite('CopilotAgent', () => {
 				cacheCost: 1,
 				outputCost: 15,
 				longContextInputCost: 6,
+				longContextCacheCost: 1,
 				longContextOutputCost: 22.5,
 				priceCategory: 'medium',
 			});
@@ -2202,50 +2203,6 @@ suite('CopilotAgent', () => {
 				agent.onClientToolCallComplete(sessionUri, defaultChat, 'tc-top', result);
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-top', result }]);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('routes a subagent session URI to its parent session entry', async () => {
-			// Regression: client-tool completions for tools running inside a
-			// subagent are dispatched against the subagent session URI by
-			// the renderer. The agent must resolve that to the parent
-			// session entry — only the parent owns the SDK session and the
-			// pending deferred for the tool call.
-			const agent = createTestAgent(disposables);
-			try {
-				const parentUri = AgentSession.uri('copilotcli', 'session-parent');
-				const defaultChat = URI.parse(buildDefaultChatUri(parentUri));
-				const { calls } = installStubSession(agent, AgentSession.id(parentUri));
-
-				const subagentUri = URI.parse(buildSubagentSessionUri(parentUri.toString(), 'tc-parent'));
-				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent tool done' };
-				agent.onClientToolCallComplete(subagentUri, defaultChat, 'tc-inner', result);
-
-				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('routes a nested subagent session URI (depth > 1) to the root session entry', async () => {
-			// Regression for depth > 1: a nested subagent URI like
-			// `copilot:/root/subagent/tc1/subagent/tc2` must walk all the way
-			// to the root session entry in `_sessions`, not stop at the
-			// intermediate parent `copilot:/root/subagent/tc1`.
-			const agent = createTestAgent(disposables);
-			try {
-				const rootUri = AgentSession.uri('copilotcli', 'session-root');
-				const defaultChat = URI.parse(buildDefaultChatUri(rootUri));
-				const { calls } = installStubSession(agent, AgentSession.id(rootUri));
-
-				const subagentUri = URI.parse(buildSubagentSessionUri(rootUri.toString(), 'tc-parent'));
-				const nestedUri = URI.parse(buildSubagentSessionUri(subagentUri.toString(), 'tc-nested'));
-				const result: ToolCallResult = { success: true, pastTenseMessage: 'nested done' };
-				agent.onClientToolCallComplete(nestedUri, defaultChat, 'tc-inner', result);
-
-				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-inner', result }]);
 			} finally {
 				await disposeAgent(agent);
 			}

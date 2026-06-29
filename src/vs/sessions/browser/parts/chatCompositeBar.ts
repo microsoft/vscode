@@ -208,17 +208,7 @@ export class ChatCompositeBar extends Disposable {
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = mainChat.resource.toString();
 			const visibleOpenChats = openChats.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool);
-			// Keep the provider's order, but move untitled (in-composer) chats
-			// to the end so a just-completed background chat never jumps last.
-			// Partition so each chat's status is read exactly once (tracked) and
-			// relative order is preserved by construction.
-			const committedOpen: IChat[] = [];
-			const untitledOpen: IChat[] = [];
-			for (const chat of visibleOpenChats) {
-				(chat.status.read(reader) === SessionStatus.Untitled ? untitledOpen : committedOpen).push(chat);
-			}
-			const orderedChats = untitledOpen.length === 0 ? visibleOpenChats : [...committedOpen, ...untitledOpen];
-			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
+			this._rebuildTabs(visibleOpenChats, activeChatUri, mainChatUri);
 
 			// Archived sessions are read-only, so disable the trailing New Chat
 			// action (mirrors the header action's SessionIsArchivedContext gating).

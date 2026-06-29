@@ -26,7 +26,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSessi
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2499,6 +2499,38 @@ suite('AgentService (node dispatcher)', () => {
 				inCatalog: true,
 				peerTurnIds: ['peer-turn-1'],
 			});
+		});
+
+		test('restoreSession preserves peer chat catalog order regardless of load timing', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					return [
+						URI.parse(buildChatUri(session, 'peer-a')),
+						URI.parse(buildChatUri(session, 'peer-b')),
+						URI.parse(buildChatUri(session, 'peer-c')),
+					];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					// Resolve in the reverse of catalog order so a resolution-order
+					// append would scramble the catalog; the restore must keep a,b,c.
+					const delays: Record<string, number> = { 'peer-a': 30, 'peer-b': 15, 'peer-c': 0 };
+					await timeout(delays[parseChatUri(session)?.chatId ?? ''] ?? 0);
+					return [];
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			const peerChatIds = (state?.chats ?? [])
+				.map(c => parseChatUri(c.resource)?.chatId)
+				.filter((id): id is string => !!id && id.startsWith('peer-'));
+			assert.deepStrictEqual(peerChatIds, ['peer-a', 'peer-b', 'peer-c']);
 		});
 
 		test('fork seeds the new chat with remapped source turns and forwards fork to the provider', async () => {

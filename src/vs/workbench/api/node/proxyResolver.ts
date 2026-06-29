@@ -298,6 +298,7 @@ type ProxyResolveStatsClassification = {
 	minDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Minimum resolution time (ms)' };
 	maxDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Maximum resolution time (ms)' };
 	avgDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Average resolution time (ms)' };
+	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Sorted, comma-separated list of resolved proxy types seen during the interval (e.g. DIRECT, PROXY, HTTPS, SOCKS, EMPTY, UNKNOWN)' };
 };
 
 type ProxyResolveStatsEvent = {
@@ -306,6 +307,7 @@ type ProxyResolveStatsEvent = {
 	minDuration: number;
 	maxDuration: number;
 	avgDuration: number;
+	type: string;
 };
 
 const proxyResolveStats = {
@@ -313,10 +315,19 @@ const proxyResolveStats = {
 	totalDuration: 0,
 	minDuration: Number.MAX_SAFE_INTEGER,
 	maxDuration: 0,
+	types: new Set<string>(),
 	lastSentTime: 0,
 };
 
 const telemetryInterval = 60 * 60 * 1000; // 1 hour
+
+function proxyResolveType(proxy: string | undefined): string {
+	const type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
+	if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
+		return 'UNKNOWN';
+	}
+	return type;
+}
 
 function sendProxyResolveStats(mainThreadTelemetry: MainThreadTelemetryShape) {
 	if (proxyResolveStats.count > 0) {
@@ -327,12 +338,14 @@ function sendProxyResolveStats(mainThreadTelemetry: MainThreadTelemetryShape) {
 			minDuration: proxyResolveStats.minDuration,
 			maxDuration: proxyResolveStats.maxDuration,
 			avgDuration,
+			type: [...proxyResolveStats.types].sort().join(','),
 		});
 		// Reset stats after sending
 		proxyResolveStats.count = 0;
 		proxyResolveStats.totalDuration = 0;
 		proxyResolveStats.minDuration = Number.MAX_SAFE_INTEGER;
 		proxyResolveStats.maxDuration = 0;
+		proxyResolveStats.types.clear();
 	}
 	proxyResolveStats.lastSentTime = Date.now();
 }
@@ -340,14 +353,17 @@ function sendProxyResolveStats(mainThreadTelemetry: MainThreadTelemetryShape) {
 function createTimedResolveProxy(extHostWorkspace: IExtHostWorkspaceProvider, mainThreadTelemetry: MainThreadTelemetryShape) {
 	return async (url: string): Promise<string | undefined> => {
 		const startTime = performance.now();
+		let proxy: string | undefined;
 		try {
-			return await extHostWorkspace.resolveProxy(url);
+			proxy = await extHostWorkspace.resolveProxy(url);
+			return proxy;
 		} finally {
 			const duration = performance.now() - startTime;
 			proxyResolveStats.count++;
 			proxyResolveStats.totalDuration += duration;
 			proxyResolveStats.minDuration = Math.min(proxyResolveStats.minDuration, duration);
 			proxyResolveStats.maxDuration = Math.max(proxyResolveStats.maxDuration, duration);
+			proxyResolveStats.types.add(proxyResolveType(proxy));
 
 			// Send telemetry if at least an hour has passed since last send
 			const now = Date.now();
