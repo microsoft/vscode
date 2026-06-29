@@ -447,6 +447,7 @@ const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previous'): void {
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
+	const extUri = accessor.get(IUriIdentityService).extUri;
 	const session = sessionsService.activeSession.get();
 	if (!session) {
 		return;
@@ -455,8 +456,8 @@ function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previo
 	if (tabs.length < 2) {
 		return;
 	}
-	const activeResource = session.activeChat.get()?.resource.toString();
-	const currentIndex = tabs.findIndex(chat => chat.resource.toString() === activeResource);
+	const activeChat = session.activeChat.get();
+	const currentIndex = activeChat ? tabs.findIndex(chat => extUri.isEqual(chat.resource, activeChat.resource)) : -1;
 	const from = currentIndex === -1 ? 0 : currentIndex;
 	const delta = direction === 'next' ? 1 : -1;
 	const target = tabs[(from + delta + tabs.length) % tabs.length];
@@ -544,6 +545,7 @@ registerAction2(class CloseChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor, context?: IChatTabContext): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
 		// From the tab menu: act on the forwarded tab's chat. From the keybinding:
 		// act on the active chat of the active session.
 		const session = context?.session ?? sessionsService.activeSession.get();
@@ -551,7 +553,7 @@ registerAction2(class CloseChatAction extends Action2 {
 			return;
 		}
 		const chat = context?.chat ?? session.activeChat.get();
-		if (!chat || chat.resource.toString() === session.mainChat.get().resource.toString()) {
+		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
 			return;
 		}
 		// An untitled (in-composer) draft has nothing to reopen, so delete it
@@ -566,14 +568,14 @@ registerAction2(class CloseChatAction extends Action2 {
 
 // -- Show Chats Picker (chats within the active session) --
 
-// A no-input quick pick (pure switcher) listing the active session's committed
-// chats (drafts skipped), each shown with a chat icon. Driven by Ctrl+Tab /
-// Ctrl+Shift+Tab in editor-switcher (MRU) style: opens with quick navigate
-// active, so holding the modifier and pressing Tab cycles and releasing accepts
-// the focused chat. These are gated to multi-chat sessions at a higher weight
-// than the session-history secondary on the same chord, so they fall back to
-// session navigation when the session has a single chat. The command is also in
-// the palette ("Go to Chat in Session") for mouse/keyboard discovery.
+// A no-input quick pick (pure switcher) over the active session's open chats,
+// each shown with a chat icon. Driven by Ctrl+Tab / Ctrl+Shift+Tab in
+// editor-switcher (MRU) style: opens with quick navigate active, so holding the
+// modifier and pressing Tab cycles and releasing accepts the focused chat. These
+// are gated to sessions with more than one open chat at a higher weight than the
+// session-history secondary on the same chord, so they fall back to session
+// navigation otherwise. The same picker is also reachable from the palette ("Go
+// to Chat in Session"), which additionally lists closed chats and skips drafts.
 
 export const SHOW_CHATS_PICKER_COMMAND_ID = 'sessions.showChatsPicker';
 const QUICK_SWITCH_NEXT_CHAT_ID = 'sessions.quickSwitchNextChat';
@@ -600,6 +602,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	if (!session) {
 		return;
 	}
+	const extUri = accessor.get(IUriIdentityService).extUri;
 
 	interface IChatPickItem extends IQuickPickItem {
 		readonly chat: IChat;
@@ -612,11 +615,14 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 		chat,
 	});
 
-	// Skip untitled (in-composer draft) chats: they are transient "New Chat"
-	// drafts with no meaningful title. Mirrors the Conversations submenu.
-	const openItems = session.visibleChatTabs.get()
-		.filter(chat => chat.status.get() !== SessionStatus.Untitled)
-		.map(toItem);
+	// MRU mode cycles every open tab (including in-composer drafts) so the set of
+	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
+	// searchable palette flow instead skips untitled drafts (no meaningful title,
+	// mirroring the Conversations submenu) and adds the closed chats below.
+	const openItems = (mru
+		? session.visibleChatTabs.get()
+		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
+	).map(toItem);
 	// Closed chats are hidden from the tab strip but still reopenable. They are
 	// only offered in the searchable palette flow — not the Ctrl+Tab MRU switcher,
 	// which mirrors the editor switcher and cycles open items only.
@@ -639,8 +645,8 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 			...closedItems,
 		];
 
-	const activeResource = session.activeChat.get()?.resource.toString();
-	const activeIndex = Math.max(0, pickItems.findIndex(item => item.chat.resource.toString() === activeResource));
+	const activeChat = session.activeChat.get();
+	const activeIndex = Math.max(0, activeChat ? pickItems.findIndex(item => extUri.isEqual(item.chat.resource, activeChat.resource)) : -1);
 	// MRU style starts on the adjacent chat so a single tap+release switches to
 	// it; palette invocation (non-MRU) focuses the active chat.
 	const startIndex = mru ? (activeIndex + (mru.backward ? -1 : 1) + pickItems.length) % pickItems.length : activeIndex;

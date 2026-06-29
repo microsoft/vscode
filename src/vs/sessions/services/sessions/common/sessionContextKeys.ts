@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import {
 	SessionHasChangesContext,
@@ -161,7 +162,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const mainResource = session?.mainChat.read(reader).resource;
 	keys.activeChatIsClosable.set(
 		!!activeChat && !!mainResource
-		&& activeChat.resource.toString() !== mainResource.toString()
+		&& !isEqual(activeChat.resource, mainResource)
 		&& activeChat.origin?.kind !== ChatOriginKind.Tool
 	);
 }
