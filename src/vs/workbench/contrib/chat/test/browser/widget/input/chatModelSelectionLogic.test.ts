@@ -21,6 +21,7 @@ import {
 	mergeModelsWithCache,
 	resolveConfiguredModel,
 	resolveModelFromSyncState,
+	shouldRecordSessionTypeDefaultModel,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestoreLateArrivingModel,
@@ -1839,6 +1840,36 @@ suite('ChatModelSelectionLogic', () => {
 
 		test('accepts a Set of live ids', () => {
 			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+		});
+	});
+
+	suite('shouldRecordSessionTypeDefaultModel', () => {
+		const sessionType = 'agent-host-copilotcli';
+		const opus = createSessionModel('claude-opus-4.8', 'Opus 4.8', sessionType);
+		const pool = [opus];
+
+		test('records a resolved non-local model present in the pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, opus, pool), true);
+		});
+
+		test('skips local sessions', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel('local', true, opus, pool), false);
+		});
+
+		test('skips when session type has no own pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, false, opus, pool), false);
+		});
+
+		test('skips when no model is resolved (transient Auto during load)', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, undefined, pool), false);
+		});
+
+		test('skips when the model is not in the pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, opus, []), false);
+		});
+
+		test('skips when there is no session type', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(undefined, true, opus, pool), false);
 		});
 	});
 });

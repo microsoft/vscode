@@ -142,7 +142,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				// we have a separate completion provider for skills.
 				continue;
 			}
-			if (HIDDEN_RUNTIME_COMMANDS.has(command.name)) {
+			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
 				continue;
 			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
