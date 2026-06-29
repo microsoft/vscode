@@ -116,7 +116,7 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	/* Inset the slider so both left and right rounded corners are visible */
 	left: 1px !important;
-	width: calc(100% - 2px) !important;
+	width: calc(100% - 1px) !important;
 }
 
 /* =============================================================================
