@@ -530,6 +530,24 @@
 	font-size: 11px;
 }
 
+.action-widget .action-list-header .action-list-header-dismiss {
+	flex-shrink: 0;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.action-widget .action-list-header .action-list-header-dismiss:hover {
+	color: var(--vscode-foreground);
+}
+
+.action-widget .action-list-header .action-list-header-dismiss:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;

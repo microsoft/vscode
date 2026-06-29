@@ -23,13 +23,15 @@ import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
@@ -95,6 +97,12 @@ const SETUP_REQUIRED_SIGN_IN_ACTION_ID = 'setupRequiredSignIn';
 
 /** Synthetic command entries (Trust / Sign in) that are not selectable models. */
 const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
+
+/** Storage key remembering that the user dismissed the cache-break hint. */
+const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
+
+/** Setting gating the cache-break hint, so it can be toggled / run as an experiment. */
+const CACHE_BREAK_HINT_ENABLED_SETTING = 'chat.cacheBreakHint.enabled';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -1048,6 +1056,8 @@ export class ModelPickerWidget extends Disposable {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
@@ -1266,6 +1276,45 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
+	/** The "Learn more" header link for cache-break hints; `undefined` when the product has no URL. */
+	private getCacheBreakLearnMoreLink(): IActionListHeaderLink | undefined {
+		const url = this._productService.defaultChatAgent?.optimizeUsageDocumentationUrl;
+		return url ? { label: localize('chat.cacheBreak.learnMore', "Learn more"), uri: URI.parse(url) } : undefined;
+	}
+
+	private isCacheBreakHintEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(CACHE_BREAK_HINT_ENABLED_SETTING) === true;
+	}
+
+	private isCacheBreakHintDismissed(): boolean {
+		return this._storageService.getBoolean(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private dismissCacheBreakHint(): void {
+		this._storageService.store(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	/**
+	 * Whether a picker should show the cache-break hint: the feature is enabled,
+	 * not dismissed, and the session's cache is warm. When `excludeAutoModel` is
+	 * set (the model picker), the hint is suppressed for the Auto model, since
+	 * Auto routes each request dynamically so "switching models" does not apply.
+	 * The options picker passes `false`: changing reasoning effort / context size
+	 * resets the cache even under Auto, which only routes the model.
+	 */
+	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
+		if (!this.isCacheBreakHintEnabled() || this.isCacheBreakHintDismissed()) {
+			return false;
+		}
+		if (!(this._delegate.isCacheWarm?.() ?? false)) {
+			return false;
+		}
+		if (excludeAutoModel && !!this._selectedModel && isAutoModel(this._selectedModel)) {
+			return false;
+		}
+		return true;
+	}
+
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
@@ -1359,7 +1408,12 @@ export class ModelPickerWidget extends Disposable {
 		// stale, unusable models. Shown otherwise (it also hosts the secondary
 		// heading).
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const listOptions = {
+			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
+			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+			headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			showFilter: !unavailable,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
@@ -1689,6 +1743,8 @@ export class ModelPickerWidget extends Disposable {
 
 		this._configButton.setAttribute('aria-expanded', 'true');
 
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
+
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
 			false,
@@ -1705,8 +1761,10 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
-				headerIcon: Codicon.info,
+				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
+				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			}
 		);
 

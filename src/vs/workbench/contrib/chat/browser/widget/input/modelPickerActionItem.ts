@@ -63,6 +63,14 @@ export interface IModelPickerDelegate {
 	 */
 	getChatSessionId?(): string | undefined;
 	/**
+	 * UI hint flag controlling whether the picker shows the cache-break hint.
+	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
+	 * has sent a request), inferred from request history / session status rather
+	 * than the provider's actual cache state — so it does not account for cache
+	 * expiry or a cache that was already reset. Defaults to `false` when omitted.
+	 */
+	isCacheWarm?(): boolean;
+	/**
 	 * Per-editor model configuration access. When omitted, the picker reads and
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */
