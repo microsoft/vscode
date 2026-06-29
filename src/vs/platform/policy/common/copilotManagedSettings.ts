@@ -301,18 +301,37 @@ function encodeStringMap(value: unknown): Record<string, string> | undefined {
 	return out;
 }
 
+/** Pass an object value through unchanged; omit the key for any non-object value. */
+function encodeObject(value: unknown): object | undefined {
+	return isObject(value) ? value : undefined;
+}
+
+/** Pass an array value through unchanged (including an empty array); omit the key otherwise. */
+function encodeArray(value: unknown): unknown[] | undefined {
+	return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
+ * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
+ * the key when there are none.
+ */
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): Record<string, string> | undefined {
+	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
-		encode: value => isObject(value) ? value : undefined,
+		encode: encodeObject,
 	},
 	{
 		key: COPILOT_STRICT_MARKETPLACES_KEY,
-		encode: value => Array.isArray(value) ? value : undefined,
+		encode: encodeArray,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
-		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+		encode: encodeExtraMarketplaces,
 	},
 	{
 		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
