@@ -18,7 +18,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentSessionMetadata, CLAUDE_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -120,7 +120,7 @@ export const CopilotCLISessionType: ISessionType = {
 };
 
 /** Logical session type id for the Claude agent-host provider. */
-const CLAUDE_SESSION_TYPE_ID = 'claude';
+const CLAUDE_SESSION_TYPE_ID = CLAUDE_AGENT_PROVIDER_ID;
 
 /**
  * Whether an agent-host session of the given logical session type supports

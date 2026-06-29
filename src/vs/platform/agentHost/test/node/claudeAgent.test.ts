@@ -6128,6 +6128,35 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(await agent.getChats!(created.session), []);
 	});
 
+	test('setPendingMessages routes steering to a materialized peer chat, warns for an unknown one', async () => {
+		const logService = new CapturingLogService();
+		const { agent, sdk } = createTestContext(disposables, { logService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'u1' } });
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(created.session, chatUri, 'hi', undefined, 'turn-1');
+
+		// Known materialized peer chat: resolved, no warning.
+		logService.warns.length = 0;
+		agent.setPendingMessages!(chatUri, { id: 'p1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
+		const warnAfterKnown = logService.warns.filter(w => w.includes('setPendingMessages'));
+
+		// Unknown peer chat URI: not found, warns.
+		const unknownChat = URI.parse(buildChatUri(created.session.toString(), 'chat-missing'));
+		agent.setPendingMessages!(unknownChat, undefined, []);
+		const warnAfterUnknown = logService.warns.filter(w => w.includes('setPendingMessages'));
+
+		assert.deepStrictEqual({ knownWarns: warnAfterKnown.length, unknownWarns: warnAfterUnknown.length }, { knownWarns: 0, unknownWarns: 1 });
+	});
+
 	// #endregion
 });
 

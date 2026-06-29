@@ -23,7 +23,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { toSdkModelId } from './claudeModelId.js';
@@ -275,7 +275,15 @@ export class ClaudeAgentSession extends Disposable {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
-		this._chatChannelUri = URI.parse(buildDefaultChatUri(sessionUri));
+		// Routing channel for every signal this session emits. A default chat's
+		// `sessionUri` is the real session URI, so derive its default chat
+		// channel. A peer chat's `sessionUri` is ALREADY its `ahp-chat` channel
+		// URI (it doubles as the chat's storage identity), so use it directly —
+		// re-encoding it via `buildDefaultChatUri` would produce a double-nested
+		// channel the renderer never matches, leaving the chat stuck in progress.
+		this._chatChannelUri = isAhpChatChannel(sessionUri.toString())
+			? sessionUri
+			: URI.parse(buildDefaultChatUri(sessionUri));
 		this.project = project;
 		this._provisionalModel = model;
 		this._provisionalAgent = agent;

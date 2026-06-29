@@ -215,7 +215,7 @@ export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): strin
  * should unconditionally return `true` and callers can drop the gate entirely.
  */
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== 'claude') {
+	if (provider !== CLAUDE_AGENT_PROVIDER_ID) {
 		return true;
 	}
 	return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
@@ -678,6 +678,9 @@ export interface IAgentMaterializeSessionEvent {
 }
 
 export type AgentProvider = string;
+
+/** Well-known agent provider id for the Claude agent-host backend. */
+export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
