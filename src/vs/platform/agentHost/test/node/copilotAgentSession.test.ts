@@ -34,7 +34,7 @@ import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
@@ -3163,6 +3163,24 @@ suite('CopilotAgentSession', () => {
 			await Promise.resolve();
 			assert.strictEqual(signals.length, 1);
 			assert.ok(isAction(signals[0], ActionType.ChatInputRequested));
+		});
+
+		test('auto-reply auto-answers a question without firing a progress event', async () => {
+			// `chat.autoReply` is forwarded as the autoReplyEnabled root config.
+			// Even in interactive mode it must short-circuit like autopilot.
+			const { runtime, signals } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
+				rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true },
+			});
+
+			const result = await runtime.handleUserInputRequest(
+				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
+				{ sessionId: 'test-session-1' }
+			);
+
+			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
+			assert.strictEqual(result.wasFreeform, true);
+			assert.strictEqual(signals.length, 0);
 		});
 	});
 
