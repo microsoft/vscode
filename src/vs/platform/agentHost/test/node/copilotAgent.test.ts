@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ModelInfo, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ModelInfo, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -32,8 +32,8 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { CustomizationType, ToolCallContributorKind, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -307,11 +307,38 @@ interface IFakeAgentSession {
 
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	private readonly _handlers = new Set<SessionEventHandler>();
+	private readonly _typedHandlers = new Map<SessionEventType, Set<(event: SessionEventPayload<SessionEventType>) => void>>();
 
 	on(_handler: SessionEventHandler): () => void;
 	on<K extends SessionEventType>(_eventType: K, _handler: TypedSessionEventHandler<K>): () => void;
-	on<K extends SessionEventType>(_eventTypeOrHandler: K | SessionEventHandler, _handler?: TypedSessionEventHandler<K>): () => void {
-		return () => { };
+	on<K extends SessionEventType>(eventTypeOrHandler: K | SessionEventHandler, handler?: TypedSessionEventHandler<K>): () => void {
+		if (typeof eventTypeOrHandler === 'function') {
+			this._handlers.add(eventTypeOrHandler);
+			return () => this._handlers.delete(eventTypeOrHandler);
+		}
+		if (!handler) {
+			throw new Error(`Missing handler for ${eventTypeOrHandler}`);
+		}
+		let handlers = this._typedHandlers.get(eventTypeOrHandler);
+		if (!handlers) {
+			handlers = new Set();
+			this._typedHandlers.set(eventTypeOrHandler, handlers);
+		}
+		const typedHandler = handler as (event: SessionEventPayload<SessionEventType>) => void;
+		handlers.add(typedHandler);
+		return () => handlers.delete(typedHandler);
+	}
+
+	emit<K extends SessionEventType>(event: SessionEventPayload<K>): void {
+		const sessionEvent = event as SessionEvent;
+		for (const handler of this._handlers) {
+			handler(sessionEvent);
+		}
+		const typedEvent = event as SessionEventPayload<SessionEventType>;
+		for (const handler of this._typedHandlers.get(event.type) ?? []) {
+			handler(typedEvent);
+		}
 	}
 
 	async send(): Promise<string> { return ''; }
@@ -474,24 +501,25 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { 
 
 type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService): { readonly session: CopilotAgentSession; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot }): { readonly session: CopilotAgentSession; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, undefined);
 	let createOptions: CopilotCreateSessionOptions | undefined;
+	const mockSession = options?.mockSession ?? new MockCopilotSession();
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
 		client: {
 			createSession: async options => {
 				createOptions = options;
-				return new MockCopilotSession() as unknown as CopilotSession;
+				return mockSession as unknown as CopilotSession;
 			},
-			resumeSession: async () => new MockCopilotSession() as unknown as CopilotSession,
+			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
-		activeClientToolSet: new ActiveClientToolSet(),
+		activeClientToolSet: options?.activeClientToolSet ?? new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
-		snapshot: { tools: [], plugins: [], mcpServers: {} },
+		snapshot: options?.snapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager,
 		githubToken: 'token',
 		model: undefined,
@@ -1262,6 +1290,75 @@ suite('CopilotAgent', () => {
 			} else {
 				process.env['XDG_STATE_HOME'] = previousXdgStateHome;
 			}
+			await disposeAgent(agent);
+		}
+	});
+
+	test('client tool call contributor prefers the message sender when it provides the tool', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		const actions: (SessionAction | ChatAction)[] = [];
+		disposables.add(agent.onDidSessionProgress(signal => {
+			if (signal.kind === 'action') {
+				actions.push(signal.action);
+			}
+		}));
+		const activeClientToolSet = new ActiveClientToolSet();
+		const sharedTool: ToolDefinition = { name: 'shared', description: 'Shared tool', inputSchema: { type: 'object', properties: {} } };
+		activeClientToolSet.set('client-A', [sharedTool]);
+		activeClientToolSet.set('client-B', [sharedTool]);
+		const mockSession = new MockCopilotSession();
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService, {
+			mockSession,
+			activeClientToolSet,
+			snapshot: { tools: activeClientToolSet.merged(), plugins: [], mcpServers: {} },
+		});
+		const agentSession = disposables.add(createdSession.session);
+		try {
+			await agentSession.initializeSession();
+			agentSession.resetTurnState('turn-1', 'client-B');
+
+			mockSession.emit({
+				type: 'tool.execution_start',
+				data: { toolCallId: 'tool-1', toolName: 'shared', arguments: {} },
+			} as SessionEventPayload<'tool.execution_start'>);
+
+			const toolStart = actions.find(action => action.type === ActionType.ChatToolCallStart);
+			assert.deepStrictEqual(toolStart?.type === ActionType.ChatToolCallStart ? toolStart.contributor : undefined, {
+				kind: ToolCallContributorKind.Client,
+				clientId: 'client-B',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('client tool completion unblocks a pending permission request', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+		const agentSession = disposables.add(createdSession.session);
+		try {
+			await agentSession.initializeSession();
+			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
+			assert.ok(onPermissionRequest);
+
+			const permissionResult = onPermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tool-1',
+				toolDescription: 'Client tool',
+				toolName: 'clientTool',
+			}, { sessionId: 'test-session-1' });
+
+			agentSession.handleClientToolCallComplete('tool-1', {
+				success: false,
+				pastTenseMessage: 'Client tool failed',
+				content: [{ type: ToolResultContentType.Text, text: 'failed before approval' }],
+				error: { message: 'failed before approval' },
+			});
+
+			assert.deepStrictEqual(await permissionResult, { kind: 'approve-once' });
+		} finally {
 			await disposeAgent(agent);
 		}
 	});
