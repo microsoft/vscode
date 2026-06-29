@@ -1439,6 +1439,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 
+	/**
+	 * Last known effective availability of the Claude / Copilot CLI session
+	 * types, used to fire `onDidChangeSessionTypes` only when the effective set
+	 * actually changes (the relevant settings can change without altering it,
+	 * e.g. toggling `chat.agents.claude.preferAgentHost` while the agent host is
+	 * disabled and the preference is ignored).
+	 */
+	private _claudeAvailable: boolean;
+	private _copilotCliAvailable: boolean;
+
 	/** Whether the agent host is enabled via `chat.agentHost.enabled`. */
 	private _isAgentHostEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
@@ -1505,6 +1515,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		super();
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
+		this._claudeAvailable = this._isClaudeAvailable();
+		this._copilotCliAvailable = this._isCopilotCliAvailable();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const affectsSessionTypes = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)
@@ -1514,6 +1526,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (!affectsSessionTypes) {
 				return;
 			}
+			const claudeAvailable = this._isClaudeAvailable();
+			const copilotCliAvailable = this._isCopilotCliAvailable();
+			if (claudeAvailable === this._claudeAvailable && copilotCliAvailable === this._copilotCliAvailable) {
+				return;
+			}
+			this._claudeAvailable = claudeAvailable;
+			this._copilotCliAvailable = copilotCliAvailable;
 			this._onDidChangeSessionTypes.fire();
 			this._refreshSessionCache();
 		}));

@@ -439,6 +439,28 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
+	test('onDidChangeSessionTypes fires when chat.agentHost.enabled toggles the Claude gate', () => {
+		// With preferAgentHost on but the agent host initially disabled, this
+		// provider still surfaces Claude. Enabling the agent host must live-apply
+		// the preference and drop the Claude entry without a window reload.
+		const { provider, configService } = createProviderWithConfig(disposables, model, { claudeEnabled: true, preferAgentHost: true, agentHostEnabled: false });
+		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+
+		let fired = false;
+		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+
+		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([AgentHostEnabledSettingId]),
+			change: { keys: [AgentHostEnabledSettingId], overrides: [] },
+			affectsConfiguration: (key: string) => key === AgentHostEnabledSettingId,
+		});
+
+		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
+		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
 	test('toggling claude setting refreshes sessions list', () => {
 		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
 		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
