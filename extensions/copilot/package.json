@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.55.0",
+  "version": "0.56.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.127.0",
+    "vscode": "^1.128.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -1835,7 +1835,10 @@
       },
       {
         "vendor": "ollama",
-        "displayName": "Ollama",
+        "displayName": "Ollama (Deprecated)",
+        "deprecation": {
+          "link": "vscode:extension/Ollama.ollama"
+        },
         "configuration": {
           "type": "object",
           "properties": {
@@ -4013,7 +4016,7 @@
           },
           "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "experimental",
               "onExp"
@@ -4104,7 +4107,7 @@
           },
           "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
             "tags": [
               "experimental",
@@ -4328,7 +4331,10 @@
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
             "default": "tag",
-            "enum": ["grep", "tag"],
+            "enum": [
+              "grep",
+              "tag"
+            ],
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
             "tags": [
               "experimental",
@@ -5273,7 +5279,10 @@
             "type": "boolean",
             "default": false,
             "scope": "application",
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Configurable in user settings only. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+            "policyReference": {
+              "name": "CopilotOtelEnabled"
+            },
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Precedence: enterprise policy > env var `COPILOT_OTEL_ENABLED` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5288,7 +5297,28 @@
             ],
             "default": "otlp-http",
             "scope": "application",
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings only. Requires window reload.",
+            "policyReference": {
+              "name": "CopilotOtelProtocol"
+            },
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "http/json",
+              "http/protobuf",
+              "grpc"
+            ],
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOtlpProtocol"
+            },
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Precedence: enterprise policy > env var > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5297,7 +5327,10 @@
             "type": "string",
             "default": "http://localhost:4318",
             "scope": "application",
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+            "policyReference": {
+              "name": "CopilotOtelEndpoint"
+            },
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Precedence: enterprise policy > env var `OTEL_EXPORTER_OTLP_ENDPOINT` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5306,7 +5339,52 @@
             "type": "boolean",
             "default": false,
             "scope": "application",
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Configurable in user settings only. Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+            "policyReference": {
+              "name": "CopilotOtelCaptureContent"
+            },
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Precedence: enterprise policy > env var `COPILOT_OTEL_CAPTURE_CONTENT` > user setting. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.serviceName": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelServiceName"
+            },
+            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_SERVICE_NAME` takes precedence over the setting; enterprise policy takes precedence over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.resourceAttributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelResourceAttributes"
+            },
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Configurable in user settings only. Merged per-key with `OTEL_RESOURCE_ATTRIBUTES` env (env wins over the setting); enterprise policy wins over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelHeaders"
+            },
+            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. Configurable in user settings only. Merged per-key with `OTEL_EXPORTER_OTLP_HEADERS` env (env wins over the setting); enterprise policy wins over both. **Contains potentially sensitive credentials.** Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5325,7 +5403,10 @@
             "type": "string",
             "default": "",
             "scope": "application",
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings only. Requires window reload.",
+            "policyReference": {
+              "name": "CopilotOtelOutfile"
+            },
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -7098,10 +7179,13 @@
     "@opentelemetry/api-logs": "^0.212.0",
     "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.214.0",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.214.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",

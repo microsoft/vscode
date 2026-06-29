@@ -10,6 +10,7 @@ dotenv.config();
 import 'source-map-support/register';
 
 // Load other imports
+import { Raw } from '@vscode/prompt-tsx';
 import * as fs from 'fs';
 import minimist from 'minimist';
 import { createConnection } from 'net';
@@ -17,17 +18,27 @@ import * as path from 'path';
 import * as v8 from 'v8';
 import type * as vscodeType from 'vscode';
 import { SimpleRPC } from '../src/extension/onboardDebug/node/copilotDebugWorker/rpc';
+import { ChatMLFetcherImpl } from '../src/extension/prompt/node/chatMLFetcher';
 import { ISimulationModelConfig, createExtensionUnitTestingServices } from '../src/extension/test/node/services';
+import { IChatMLFetcher } from '../src/platform/chat/common/chatMLFetcher';
+import { ChatFetchResponseType, ChatLocation } from '../src/platform/chat/common/commonTypes';
+import { toTextParts } from '../src/platform/chat/common/globalStringUtils';
 import { CHAT_MODEL } from '../src/platform/configuration/common/configurationService';
 import { IEndpointProvider, ModelSupportedEndpoint } from '../src/platform/endpoint/common/endpointProvider';
+import { createProxyXtabEndpoint } from '../src/platform/endpoint/node/proxyXtabEndpoint';
 import { IModelConfig } from '../src/platform/endpoint/test/node/openaiCompatibleEndpoint';
 import { fileSystemServiceReadAsJSON } from '../src/platform/filesystem/common/fileSystemService';
 import { LogLevel } from '../src/platform/log/common/logService';
+import { IChatEndpoint } from '../src/platform/networking/common/networking';
 import { ParserWithCaching } from '../src/platform/parser/node/parserWithCaching';
 import { structureComputer } from '../src/platform/parser/node/structure';
 import { NullTelemetryService } from '../src/platform/telemetry/common/nullTelemetryService';
 import { TokenizerProvider } from '../src/platform/tokenizer/node/tokenizer';
 import { assert } from '../src/util/vs/base/common/assert';
+import { CancellationToken } from '../src/util/vs/base/common/cancellation';
+import { DisposableStore } from '../src/util/vs/base/common/lifecycle';
+import { SyncDescriptor } from '../src/util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../src/util/vs/platform/instantiation/common/instantiation';
 import { Cache } from './base/cache';
 import { IChatMLCache } from './base/cachingChatMLFetcher';
 import { usedResourceCaches } from './base/cachingResourceFetcher';
@@ -48,7 +59,7 @@ import { runInputPipeline, runInputPipelineParallel } from './pipeline/pipeline'
 import { ITestDiscoveryOptions, discoverTests } from './simulation/externalScenarios';
 import { discoverCoffeTests } from './simulation/nesCoffeTests';
 import { discoverNesTests } from './simulation/nesExternalTests';
-import { OLD_BASELINE_FILENAME, OutputType, PRODUCED_BASELINE_FILENAME, REPORT_FILENAME, RUN_METADATA, SCORECARD_FILENAME, SIMULATION_FOLDER_NAME, generateOutputFolderName } from './simulation/shared/sharedTypes';
+import { AdhocResponseOutput, AdhocResponseType, IAdhocRequest, OLD_BASELINE_FILENAME, OutputType, PRODUCED_BASELINE_FILENAME, REPORT_FILENAME, RUN_METADATA, SCORECARD_FILENAME, SIMULATION_FOLDER_NAME, generateOutputFolderName } from './simulation/shared/sharedTypes';
 import { logger } from './simulationLogger';
 import { IInitParams, IInitResult, IRunTestParams, IRunTestResult } from './testExecutionInExtension';
 import { GroupedScores, ITestResult, SimulationTestContext, executeTestOnce, executeTests } from './testExecutor';
@@ -105,6 +116,9 @@ async function run(opts: SimulationOptions): Promise<RunResult> {
 			return opts.printTrainHelp();
 		case opts.help:
 			return opts.printHelp();
+		case !!opts.adhocRequestFile:
+			await sendAdhocRequest(opts.adhocRequestFile!);
+			return;
 		case opts.listModels:
 			await listChatModels(opts.modelCacheMode === CacheMode.Disable);
 			return;
@@ -531,6 +545,118 @@ async function listChatModels(skipCache: boolean = false) {
 
 	console.table(tableData);
 	return;
+}
+
+/**
+ * Validates and normalizes a parsed adhoc request JSON object. Returns a focused
+ * error message instead of letting `.trim()`/`toTextParts()` throw on malformed
+ * input (missing/`null` fields, wrong types, etc.).
+ */
+function validateAdhocRequest(raw: unknown): { ok: true; request: IAdhocRequest } | { ok: false; error: string } {
+	if (typeof raw !== 'object' || raw === null) {
+		return { ok: false, error: 'Invalid adhoc request: expected a JSON object.' };
+	}
+	const obj = raw as Record<string, unknown>;
+	if (typeof obj.model !== 'string' || obj.model.trim().length === 0) {
+		return { ok: false, error: 'Invalid adhoc request: "model" must be a non-empty string.' };
+	}
+	if (typeof obj.user !== 'string' || obj.user.trim().length === 0) {
+		return { ok: false, error: 'Invalid adhoc request: "user" must be a non-empty string.' };
+	}
+	if (obj.system !== undefined && typeof obj.system !== 'string') {
+		return { ok: false, error: 'Invalid adhoc request: "system" must be a string when provided.' };
+	}
+	return {
+		ok: true,
+		request: {
+			model: obj.model,
+			user: obj.user,
+			system: typeof obj.system === 'string' ? obj.system : '',
+		},
+	};
+}
+
+/**
+ * Sends a single adhoc chat request (used by the simulation workbench
+ * "Adhoc request sender" mode) and streams the response back as JSONL on
+ * stdout. The request is described by a JSON file at {@link requestFilePath}.
+ */
+async function sendAdhocRequest(requestFilePath: string): Promise<void> {
+	const printAdhocOutput = (output: AdhocResponseOutput) => {
+		process.stdout.write(JSON.stringify(output) + '\n');
+	};
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(await fs.promises.readFile(requestFilePath, 'utf8'));
+	} catch (err) {
+		printAdhocOutput({ type: AdhocResponseType.error, value: `Failed to read adhoc request file: ${err instanceof Error ? err.message : String(err)}` });
+		return;
+	}
+
+	const validation = validateAdhocRequest(parsed);
+	if (!validation.ok) {
+		printAdhocOutput({ type: AdhocResponseType.error, value: validation.error });
+		return;
+	}
+	const request = validation.request;
+
+	const disposables = new DisposableStore();
+	try {
+		const model = request.model.trim();
+
+		const testingServiceCollection = createExtensionUnitTestingServices(disposables);
+		// The unit-testing services bind a mock chat fetcher; override it with the
+		// real implementation so the request actually hits the model endpoint.
+		testingServiceCollection.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		// Prefer a registered chat endpoint (e.g. `gpt-4.1`, `claude-sonnet-4.5`).
+		let endpoint: IChatEndpoint | undefined;
+		try {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			endpoint = allEndpoints.find(e => e.model === model) ?? allEndpoints.find(e => e.family === model);
+		} catch {
+			// Ignore and fall back to the proxy endpoint below.
+		}
+		if (!endpoint) {
+			// Otherwise send the model name directly against the proxy endpoint, the
+			// same way `xtabProvider` does. This allows targeting models that aren't
+			// registered chat endpoints (e.g. NES models like `copilot-nes-oct`).
+			endpoint = createProxyXtabEndpoint(instantiationService, model);
+		}
+
+		const messages: Raw.ChatMessage[] = [];
+		if (request.system.trim().length > 0) {
+			messages.push({ role: Raw.ChatRole.System, content: toTextParts(request.system) });
+		}
+		messages.push({ role: Raw.ChatRole.User, content: toTextParts(request.user) });
+
+		const response = await endpoint.makeChatRequest2({
+			debugName: 'adhoc-request',
+			messages,
+			finishedCb: async (_text, _index, delta) => {
+				if (delta.text) {
+					printAdhocOutput({ type: AdhocResponseType.delta, value: delta.text });
+				}
+				return undefined;
+			},
+			location: ChatLocation.Other,
+			userInitiatedRequest: true,
+		}, CancellationToken.None);
+
+		if (response.type === ChatFetchResponseType.Success) {
+			printAdhocOutput({ type: AdhocResponseType.done, value: response.value });
+		} else {
+			printAdhocOutput({ type: AdhocResponseType.error, value: `${response.type}: ${response.reason}` });
+		}
+	} catch (err) {
+		printAdhocOutput({ type: AdhocResponseType.error, value: err instanceof Error ? (err.stack ?? err.message) : String(err) });
+	} finally {
+		disposables.dispose();
+	}
 }
 
 function createSimulationTestContext(

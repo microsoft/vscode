@@ -21,6 +21,7 @@ import {
 	mergeModelsWithCache,
 	resolveConfiguredModel,
 	resolveModelFromSyncState,
+	shouldRecordSessionTypeDefaultModel,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestoreLateArrivingModel,
@@ -1817,12 +1818,16 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
 		});
 
-		test('a live, picker-offered model wins over any unavailable state (e.g. BYOK)', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
 		});
 
-		test('stale cached models that are not live do not mask the unavailable state', () => {
-			assert.strictEqual(reason({ trusted: false, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.Restricted);
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
 		});
 
 		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
@@ -1834,7 +1839,37 @@ suite('ChatModelSelectionLogic', () => {
 		});
 
 		test('accepts a Set of live ids', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+		});
+	});
+
+	suite('shouldRecordSessionTypeDefaultModel', () => {
+		const sessionType = 'agent-host-copilotcli';
+		const opus = createSessionModel('claude-opus-4.8', 'Opus 4.8', sessionType);
+		const pool = [opus];
+
+		test('records a resolved non-local model present in the pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, opus, pool), true);
+		});
+
+		test('skips local sessions', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel('local', true, opus, pool), false);
+		});
+
+		test('skips when session type has no own pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, false, opus, pool), false);
+		});
+
+		test('skips when no model is resolved (transient Auto during load)', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, undefined, pool), false);
+		});
+
+		test('skips when the model is not in the pool', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(sessionType, true, opus, []), false);
+		});
+
+		test('skips when there is no session type', () => {
+			assert.strictEqual(shouldRecordSessionTypeDefaultModel(undefined, true, opus, pool), false);
 		});
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode, DisposableResizeObserver, getWindow, hide, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { $, clearNode, DisposableResizeObserver, getWindow, hide, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -301,7 +301,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private allThinkingParts: IChatThinkingPart[] = [];
 	private hookCount: number = 0;
-	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null; toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized } | undefined;
+	private singleItemInfo: { element: HTMLElement; thinkingWrapper: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null; toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized } | undefined;
 	private lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
 	private workingSpinnerElement: HTMLElement | undefined;
@@ -310,7 +310,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
-	private readonly toolOriginalPositionByCallId = new Map<string, { element: HTMLElement; originalParent: HTMLElement }>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -328,7 +327,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
-	private readonly _singleItemPromotionRetry = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
 
@@ -1135,12 +1133,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				if (lazyItem && lazyItem.kind === 'tool') {
 					const toolInvocation = lazyItem.toolInvocationOrMarkdown && (lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? lazyItem.toolInvocationOrMarkdown : undefined;
 					const result = lazyItem.lazy.value;
-					this.singleItemInfo = {
-						element: result.domNode,
-						originalParent: lazyItem.originalParent!,
-						originalNextSibling: this.domNode,
-						toolInvocation
-					};
+					this.appendItemToDOM(result.domNode, lazyItem.toolInvocationId, lazyItem.toolInvocationOrMarkdown, lazyItem.originalParent);
 					if (result.disposable) {
 						const toolCallId = toolInvocation?.toolCallId;
 						if (toolCallId) {
@@ -1151,39 +1144,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				}
 			}
-			// If singleItemInfo was cleared (eager render or transient sibling), reconstruct it from the sole tool's recorded original position.
-			if (!this.singleItemInfo && this.toolInvocations.length === 1) {
-				const soleTool = this.toolInvocations[0];
-				const recorded = this.toolOriginalPositionByCallId.get(soleTool.toolCallId);
-				if (recorded) {
-					this.singleItemInfo = {
-						element: recorded.element,
-						originalParent: recorded.originalParent,
-						originalNextSibling: this.domNode,
-						toolInvocation: soleTool
-					};
-				}
-			}
-			// Only restore once the tool is complete; if it completes after finalize, retry promotion.
-			if (this.singleItemInfo) {
-				const toolInvocation = this.singleItemInfo.toolInvocation;
-				if (!toolInvocation || IChatToolInvocation.isComplete(toolInvocation)) {
-					if (this.restoreSingleItemToOriginalPosition()) {
-						return;
-					}
-				} else {
-					this._singleItemPromotionRetry.value = autorun(reader => {
-						const pending = this.singleItemInfo;
-						if (this._store.isDisposed || !pending?.toolInvocation) {
-							return;
-						}
-						if (IChatToolInvocation.isComplete(pending.toolInvocation, reader)) {
-							this.restoreSingleItemToOriginalPosition();
-							this._singleItemPromotionRetry.clear();
-						}
-					});
-					return;
-				}
+			if (this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
+				return;
 			}
 		}
 
@@ -1460,15 +1422,37 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return false;
 		}
 
-		const { element, originalParent, originalNextSibling, toolInvocation } = this.singleItemInfo;
+		const { element, thinkingWrapper, originalParent, originalNextSibling, toolInvocation } = this.singleItemInfo;
 
-		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+		const hasOtherThinkingItems = this.wrapper && Array.from(this.wrapper.children).some(child =>
+			child !== thinkingWrapper && child !== this.workingSpinnerElement
+		);
+		if (hasOtherThinkingItems) {
+			this.singleItemInfo = undefined;
+			return false;
+		}
+
+		const precedingToolInvocationPart = isHTMLElement(originalNextSibling) && originalNextSibling.parentElement === originalParent
+			? originalNextSibling.previousElementSibling
+			: originalParent.lastElementChild;
+		if (toolInvocation) {
+			if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+				originalParent.insertBefore(element, originalNextSibling);
+			} else {
+				originalParent.appendChild(element);
+			}
+		} else if (precedingToolInvocationPart?.classList.contains('chat-tool-invocation-part')) {
+			precedingToolInvocationPart.appendChild(element);
+		} else if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
 			originalParent.insertBefore(element, originalNextSibling);
 		} else {
 			originalParent.appendChild(element);
 		}
+		thinkingWrapper.remove();
 
 		if (toolInvocation) {
+			this.toolWrappersByCallId.delete(toolInvocation.toolCallId);
+			this.toolIconsByCallId.delete(toolInvocation.toolCallId);
 			toolInvocation.isAttachedToThinking = false;
 		}
 
@@ -1606,7 +1590,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
-		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
 		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
@@ -1754,7 +1737,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolWrappersByCallId.delete(toolCallId);
 			this.toolIconsByCallId.delete(toolCallId);
 		}
-		this.toolOriginalPositionByCallId.delete(toolCallId);
 
 		// make sure to remove any lazy item as well
 		const lazyIndex = this.lazyItems.findIndex(item =>
@@ -2049,19 +2031,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return;
 		}
 
-		// Save the first item info for potential restoration later
-		if (this.toolInvocationCount === 1 && this.hookCount === 0 && originalParent) {
-			const toolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown : undefined;
-			this.singleItemInfo = {
-				element: content,
-				originalParent,
-				originalNextSibling: this.domNode,
-				toolInvocation
-			};
-		} else {
-			this.singleItemInfo = undefined;
-		}
-
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isExternalEdit = toolInvocationOrMarkdown?.kind === 'externalEdit';
@@ -2097,13 +2066,23 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
+		if (this.toolInvocationCount === 1 && this.hookCount === 0 && originalParent) {
+			const toolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown : undefined;
+			this.singleItemInfo = {
+				element: content,
+				thinkingWrapper: itemWrapper,
+				originalParent,
+				originalNextSibling: this.domNode,
+				toolInvocation
+			};
+		} else {
+			this.singleItemInfo = undefined;
+		}
+
 		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
 			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
 			this.toolIconsByCallId.set(toolInvocationOrMarkdown.toolCallId, iconElement);
-			if (originalParent) {
-				this.toolOriginalPositionByCallId.set(toolInvocationOrMarkdown.toolCallId, { element: content, originalParent });
-			}
 		}
 
 		this.appendToWrapper(itemWrapper);

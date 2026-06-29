@@ -7,7 +7,7 @@ import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
-import type { FileEditKind } from './state/sessionState.js';
+import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -203,6 +203,16 @@ export interface ISessionDatabase extends IDisposable {
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/**
+	 * Store or clear the draft for a chat in this session.
+	 */
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
+
+	/**
+	 * Read the stored draft for a chat in this session.
+	 */
+	getChatDraft(chat: URI): Promise<Message | undefined>;
 
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
