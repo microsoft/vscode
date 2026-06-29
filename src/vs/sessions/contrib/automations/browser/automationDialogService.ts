@@ -60,6 +60,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			folderUri: initial?.folderUri,
 			providerId: initial?.providerId,
 			sessionTypeId: initial?.sessionTypeId,
+			isolationMode: initial?.isolationMode,
+			branch: initial?.branch,
 			enabled: initial?.enabled ?? true,
 		};
 
@@ -162,6 +164,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					modelId: modelId ?? null,
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
+					isolationMode: state.isolationMode ?? null,
+					branch: state.branch ?? null,
 					enabled: state.enabled,
 				};
 				return { kind: 'update', id: initial.id, value: patch };
@@ -177,6 +181,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				modelId,
 				mode,
 				permissionLevel,
+				isolationMode: state.isolationMode,
+				branch: state.branch,
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };

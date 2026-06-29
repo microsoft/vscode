@@ -67,6 +67,8 @@ export interface IFormState {
 	folderUri: URI | undefined;
 	providerId: string | undefined;
 	sessionTypeId: string | undefined;
+	isolationMode: string | undefined;
+	branch: string | undefined;
 	enabled: boolean;
 }
 

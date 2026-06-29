@@ -72,13 +72,15 @@ export class AutomationRunner implements IAutomationRunner {
 				background: true,
 			};
 
-			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId || automation.sessionTypeId || automation.modelId || automation.mode || automation.permissionLevel
+			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId || automation.sessionTypeId || automation.modelId || automation.mode || automation.permissionLevel || automation.isolationMode || automation.branch
 				? {
 					providerId: automation.providerId,
 					sessionTypeId: automation.sessionTypeId,
 					modelId: automation.modelId,
 					modeId: automation.mode,
 					permissionLevel: automation.permissionLevel,
+					isolationMode: automation.isolationMode,
+					branch: automation.branch,
 				}
 				: undefined;
 

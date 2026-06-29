@@ -24,6 +24,8 @@ export interface ICreateAutomationOptions {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+	readonly isolationMode?: string;
+	readonly branch?: string;
 	readonly enabled?: boolean;
 }
 
@@ -42,6 +44,8 @@ export interface IUpdateAutomationOptions {
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
+	readonly isolationMode?: string | null;
+	readonly branch?: string | null;
 	readonly enabled?: boolean;
 }
 

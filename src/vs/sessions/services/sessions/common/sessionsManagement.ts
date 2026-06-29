@@ -74,6 +74,17 @@ export interface ICreateNewSessionOptions {
 	 * value.
 	 */
 	readonly permissionLevel?: string;
+	/**
+	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
+	 * via {@link ISessionsProvider.setIsolationMode}. Ignored if the chosen
+	 * provider does not support isolation.
+	 */
+	readonly isolationMode?: string;
+	/**
+	 * Optional git branch to apply via {@link ISessionsProvider.setBranch}.
+	 * Ignored if the chosen provider does not support branch selection.
+	 */
+	readonly branch?: string;
 }
 
 /**

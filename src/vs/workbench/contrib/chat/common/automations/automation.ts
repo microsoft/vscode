@@ -63,6 +63,12 @@ export interface IAutomation {
 	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
 	readonly permissionLevel?: string;
 
+	/** Optional worktree isolation mode (`worktree` or `workspace`). */
+	readonly isolationMode?: string;
+
+	/** Optional git branch for isolated runs. */
+	readonly branch?: string;
+
 	readonly enabled: boolean;
 
 	/** ISO-8601 UTC timestamp. */
