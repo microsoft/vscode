@@ -1759,7 +1759,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 export class DisableGloballyAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.disableGlobally';
-	static readonly LABEL = localize('disableGloballyAction', "Disable");
+	static readonly LABEL = localize('disableGloballyAction', "Disable (Always)");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1768,7 +1768,7 @@ export class DisableGloballyAction extends ExtensionAction {
 		@IProductService private readonly productService: IProductService,
 	) {
 		super(DisableGloballyAction.ID, DisableGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this.tooltip = localize('disableGloballyActionToolTip', "Disable this extension");
+		this.tooltip = localize('disableGloballyActionToolTip', "Disable this extension for all workspaces");
 		this.update();
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 	}
