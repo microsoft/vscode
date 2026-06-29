@@ -531,8 +531,8 @@ export class SessionsView extends ViewPane {
 					toggled: ContextKeyExpr.equals(automationContextKey.key, true),
 					menu: [{
 						id: SessionsViewFilterOptionsSubMenu,
-						group: '3_props',
-						order: 2,
+						group: '4_automations',
+						order: 0,
 						when: ChatAutomationsEnabledContext,
 					}]
 				});
