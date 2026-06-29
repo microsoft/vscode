@@ -5,7 +5,7 @@
 
 import { EventType } from '../../../../../base/browser/dom.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
@@ -47,6 +47,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
+	private readonly _linkHoverInvalidationDisposable = this.add(new MutableDisposable<IDisposable>());
 
 	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
 
@@ -404,8 +405,10 @@ export class TerminalLinkManager extends DisposableStore {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, actions, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
-			if (attached) {
-				link?.onInvalidated(() => attached.dispose());
+			if (attached && link) {
+				const disposable = combinedDisposable(attached, link.onInvalidated(() => disposable.dispose()));
+				this._linkHoverInvalidationDisposable.value = disposable;
+				return disposable;
 			}
 			return attached;
 		}
