@@ -287,7 +287,7 @@ export function renderForm(
 
 	const renderIsolationChip = () => {
 		DOM.clearNode(folderChip);
-		const isWorktree = state.isolationMode === 'worktree';
+		const isWorktree = state.isolationMode !== 'workspace';
 		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
 		const modeLabel = isWorktree
 			? localize('automation.form.isolation.worktree', "Worktree")
@@ -296,7 +296,6 @@ export function renderForm(
 		folderChip.title = modeLabel;
 		DOM.append(folderChip, renderIcon(modeIcon));
 		DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
-		DOM.append(folderChip, renderIcon(Codicon.chevronDown));
 	};
 	renderIsolationChip();
 
