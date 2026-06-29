@@ -1050,7 +1050,20 @@ export class CopilotAgentSession extends Disposable {
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
-				await this._wrapper.session.rpc.history.compact();
+				const result = await this._wrapper.session.rpc.history.compact();
+				// Compaction shrinks the context window. Report the new
+				// occupancy so the context-usage widget refreshes immediately:
+				// `currentTokens` is the post-compaction window size. Emitted
+				// before `_completeActiveTurn` since the reducer drops usage for
+				// a non-active turn.
+				const currentTokens = result.contextWindow?.currentTokens;
+				if (typeof currentTokens === 'number') {
+					this._emitAction({
+						type: ActionType.ChatUsage,
+						turnId: this._turnId,
+						usage: { inputTokens: currentTokens, outputTokens: 0, model: this._lastSeenModelId },
+					});
+				}
 				this.emitInitialMarkdown(localize('copilotAgent.compactionCompleted', "Compaction completed"));
 			} catch (err) {
 				if (getErrorMessage(err).toLowerCase().includes('nothing to compact')) {
