@@ -1409,6 +1409,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			AgentSession.uri('claude', 'test-session'),
+			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -1436,6 +1437,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			AgentSession.uri('claude', 'test-session'),
+			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -4343,6 +4345,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse('claude:/session-id'),
+			URI.parse(buildDefaultChatUri('claude:/session-id')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
