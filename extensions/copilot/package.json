@@ -4055,19 +4055,6 @@
               "clear-both"
             ]
           },
-          "github.copilot.chat.responsesApiReasoningSummary": {
-            "type": "string",
-            "default": "detailed",
-            "markdownDescription": "%github.copilot.config.responsesApiReasoningSummary%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "enum": [
-              "off",
-              "detailed"
-            ]
-          },
           "github.copilot.chat.responsesApiContextManagement.enabled": {
             "type": "boolean",
             "default": false,
