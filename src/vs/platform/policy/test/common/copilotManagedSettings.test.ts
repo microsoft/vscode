@@ -110,16 +110,16 @@ suite('Copilot managed settings projection', () => {
 
 	test('selectManagedSettings: native MDM wins over server and file, never merged', () => {
 		const selection = selectManagedSettings(
-			{ 'permissions.x': 'server' },
 			{ 'permissions.y': 'native' },
+			{ 'permissions.x': 'server' },
 			{ 'permissions.z': 'file' },
 		);
 		assert.deepStrictEqual(selection, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
 	});
 
 	test('selectManagedSettings: falls through to server when native MDM is absent or empty', () => {
-		const fromUndefined = selectManagedSettings({ 'permissions.x': 'server' }, undefined, undefined);
-		const fromEmptyObject = selectManagedSettings({ 'permissions.x': 'server' }, {}, undefined);
+		const fromUndefined = selectManagedSettings(undefined, { 'permissions.x': 'server' }, undefined);
+		const fromEmptyObject = selectManagedSettings({}, { 'permissions.x': 'server' }, undefined);
 		assert.deepStrictEqual(fromUndefined, { source: 'server', values: { 'permissions.x': 'server' } });
 		assert.deepStrictEqual(fromEmptyObject, { source: 'server', values: { 'permissions.x': 'server' } });
 	});

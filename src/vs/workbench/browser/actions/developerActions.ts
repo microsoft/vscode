@@ -843,7 +843,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			// Reuse the same precedence as policy evaluation so this report can never drift from the
 			// source AccountPolicyService actually applies.
-			const selection = selectManagedSettings(serverManagedSettings, nativeManagedSettings, fileManagedSettings);
+			const selection = selectManagedSettings(nativeManagedSettings, serverManagedSettings, fileManagedSettings);
 
 			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
 
