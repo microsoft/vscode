@@ -272,11 +272,14 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		const tasConfig = this.productService.tasConfig!;
 
+		const tasClientModule = await importAMDNodeModule<typeof import('tas-client')>('tas-client', 'dist/tas-client.min.js');
+
 		// Measure the client-side latency of the first network call to the
 		// Treatment Assignment Service. The fetch is triggered by constructing
-		// the client, so start timing right before construction.
+		// the client, so start timing right before construction to exclude
+		// module loading time from the measurement.
 		const fetchStopWatch = StopWatch.create();
-		const tasClient = new (await importAMDNodeModule<typeof import('tas-client')>('tas-client', 'dist/tas-client.min.js')).ExperimentationService({
+		const tasClient = new tasClientModule.ExperimentationService({
 			filterProviders: [filterProvider, extensionsFilterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
@@ -291,7 +294,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		tasClient.initialFetch.then(() => {
 			this.networkInitialized = true;
 			this.logFetchLatency('initial', fetchStopWatch.elapsed());
-		});
+		}).catch(() => undefined);
 
 		return tasClient;
 	}
