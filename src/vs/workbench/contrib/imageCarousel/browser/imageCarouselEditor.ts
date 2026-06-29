@@ -750,7 +750,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		this._showOrUpdateStatusbarEntry(this._imageZoomStatusbarEntry, 'status.imageCarousel.zoom', {
 			name: localize('imageCarousel.zoomStatus', "Image Zoom"),
 			text: zoomText,
-			ariaLabel: zoomText,
+			ariaLabel: localize('imageCarousel.zoomStatus.ariaLabel', "Image zoom: {0}", zoomText),
 			tooltip: localize('imageCarousel.zoomStatus.tooltip', "Image Zoom"),
 		}, 102);
 
