@@ -76,12 +76,52 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		const highlight = this.#wireHighlight(webview);
+		const quickDiff = this.#wireQuickDiff(document, webview);
 
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
 			onDocumentChange.dispose();
 			highlight.dispose();
+			quickDiff.dispose();
 		});
+	}
+
+	/**
+	 * Forwards the source-control change information for the document (the same
+	 * added/modified/deleted line changes shown in the editor gutter) to the
+	 * webview, where it is painted in the Markdown editor's gutter. Line ranges
+	 * are converted to source character offsets here, since the webview works in
+	 * offsets.
+	 */
+	#wireQuickDiff(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+		const quickDiff = vscode.window.createQuickDiffInformation(document.uri);
+
+		const postMarkers = () => {
+			// The changes are computed asynchronously against a specific document
+			// version. Only map them to offsets while that version still matches the
+			// document we hold, otherwise the line positions could be stale. A newer
+			// diff for the current version will arrive via onDidChange.
+			if (quickDiff.documentVersion !== document.version) {
+				return;
+			}
+			webview.postMessage({ type: 'gutterMarkers', markers: toGutterMarkers(document, quickDiff.changes) });
+		};
+
+		const onChange = quickDiff.onDidChange(postMarkers);
+		// Re-send once the webview has (re)initialized its model, and whenever the
+		// document settles on the version the changes were computed for.
+		const onMessage = webview.onDidReceiveMessage((message) => {
+			if (message.type === 'ready') {
+				postMarkers();
+			}
+		});
+		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
+			if (e.document.uri.toString() === document.uri.toString()) {
+				postMarkers();
+			}
+		});
+
+		return vscode.Disposable.from(quickDiff, onChange, onMessage, onDocumentChange);
 	}
 
 	/**
@@ -142,4 +182,39 @@ function getNonce(): string {
 		text += possible.charAt(Math.floor(Math.random() * possible.length));
 	}
 	return text;
+}
+
+interface GutterMarkerMessage {
+	readonly start: number;
+	readonly endExclusive: number;
+	readonly type: 'added' | 'modified' | 'deleted';
+}
+
+/**
+ * Converts the line-based quick diff changes into source character offset ranges
+ * understood by the Markdown editor's `gutterMarkers`. Added/modified changes map
+ * to the offset span of their modified lines; deleted changes map to an empty
+ * range at the boundary where the removed text used to be.
+ */
+function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode.QuickDiffChange[]): GutterMarkerMessage[] {
+	const markers: GutterMarkerMessage[] = [];
+	for (const change of changes) {
+		if (change.kind === vscode.QuickDiffChangeKind.Deleted) {
+			// Empty range at the end of the line after which content was removed.
+			const offset = change.modifiedStartLineNumber > 0
+				? document.offsetAt(document.lineAt(change.modifiedStartLineNumber - 1).range.end)
+				: 0;
+			markers.push({ start: offset, endExclusive: offset, type: 'deleted' });
+			continue;
+		}
+
+		const start = document.offsetAt(new vscode.Position(change.modifiedStartLineNumber - 1, 0));
+		const endExclusive = document.offsetAt(document.lineAt(change.modifiedEndLineNumber - 1).range.end);
+		markers.push({
+			start,
+			endExclusive,
+			type: change.kind === vscode.QuickDiffChangeKind.Added ? 'added' : 'modified',
+		});
+	}
+	return markers;
 }

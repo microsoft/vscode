@@ -1053,6 +1053,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(extension, checkSelector(selector), quickDiffProvider, id, label, rootUri);
 			},
+			createQuickDiffInformation(uri: vscode.Uri): vscode.QuickDiffInformation {
+				checkProposedApiEnabled(extension, 'quickDiff');
+				return extHostQuickDiff.createQuickDiffInformation(uri);
+			},
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
 			},
@@ -2076,6 +2080,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
 			SyntaxHighlightingTokenFontStyle: extHostTypes.SyntaxHighlightingTokenFontStyle,
+			QuickDiffChangeKind: extHostTypes.QuickDiffChangeKind,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,

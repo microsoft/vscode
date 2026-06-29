@@ -10,7 +10,8 @@
   "enabledApiProposals": [
     "customEditorDiffs",
     "documentDiff",
-    "documentSyntaxHighlighting"
+    "documentSyntaxHighlighting",
+    "quickDiff"
   ],
   "engines": {
     "vscode": "^1.70.0"

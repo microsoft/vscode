@@ -2194,6 +2194,15 @@ export interface MainThreadSCMShape extends IDisposable {
 export interface MainThreadQuickDiffShape extends IDisposable {
 	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
+	$createQuickDiffInformation(handle: number, uri: UriComponents): Promise<void>;
+	$disposeQuickDiffInformation(handle: number): Promise<void>;
+}
+
+export interface IQuickDiffChangeDto {
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
 }
 
 export interface IDocumentDiffLineChangeDto {
@@ -3190,6 +3199,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostQuickDiffShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
+	$acceptQuickDiffInformation(handle: number, version: number, changes: IQuickDiffChangeDto[]): void;
 }
 
 export interface ExtHostShareShape {
