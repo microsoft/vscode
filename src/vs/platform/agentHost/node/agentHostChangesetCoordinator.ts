@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, formatSessionChangesetDescription as formatBranchChangesChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, formatSessionChangesetDescription as formatBranchChangesChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -71,6 +71,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
+
 		this._changesets.registerStaticChangesets(sessionStr);
 	}
 
@@ -82,6 +85,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
+
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
@@ -101,6 +107,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
+
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
