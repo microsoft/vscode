@@ -1921,6 +1921,35 @@ suite('AgentSideEffects', () => {
 				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-peer' }],
 			);
 		});
+
+		test('forwards parent peer chat URI for a subagent-chat completion', () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-subagent-parent');
+			stateManager.addChat(sessionUri.toString(), peerChatUri);
+			startTurn('turn-peer', peerChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'subagent_started',
+				chat: URI.parse(peerChatUri),
+				toolCallId: 'tc-parent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			});
+
+			const subagentChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			sideEffects.handleAction(subagentChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-subagent',
+				toolCallId: 'tc-inner',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-inner' }],
+			);
+		});
 	});
 
 	// ---- Session-level auto-approve (config) ----------------------------
