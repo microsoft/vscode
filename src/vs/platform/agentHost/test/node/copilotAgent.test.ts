@@ -33,7 +33,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildSubagentSessionUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { CustomizationType, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -3204,6 +3204,159 @@ suite('CopilotAgent', () => {
 				},
 				'skill/instruction directories sent to the SDK must resolve inside the worktree, never the original folder',
 			);
+		});
+
+	});
+
+	suite('custom agent worktree translation', () => {
+
+		// The new methods under test are private; reach in the same way the
+		// surrounding suites do (e.g. `customization anchoring`).
+		type AgentInternals = {
+			_getAlternativeAgentForWorktree(provisional: unknown, workingDirectory: URI | undefined): AgentSelection | undefined;
+			_resolveAgentWhenMaterializing(provisional: unknown, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined>;
+			_resolveAgentName(sessionUri: URI, snapshot: IActiveClientSnapshot, agent: AgentSelection): Promise<string | undefined>;
+			_resolveSessionWorkingDirectory(config: unknown, sessionId: string, prompt?: string): Promise<URI | undefined>;
+			_createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, channelUri?: URI): CopilotAgentSession;
+			_readSessionMetadata(session: URI): Promise<{ agent?: AgentSelection }>;
+		};
+
+		const repo = URI.file('/repo');
+		const worktree = URI.joinPath(URI.file('/repo.worktrees'), 'agents-x');
+		const repoAgentUri = URI.joinPath(repo, '.github', 'agents', 'agent.md').toString();
+		const worktreeAgentUri = URI.joinPath(worktree, '.github', 'agents', 'agent.md').toString();
+		const emptySnapshot: IActiveClientSnapshot = { tools: [], plugins: [], mcpServers: {} };
+
+		function provisional(workingDirectory: URI | undefined, agent: AgentSelection | undefined): unknown {
+			const sessionUri = AgentSession.uri('copilotcli', 'prov-agent');
+			return { sessionId: AgentSession.id(sessionUri), sessionUri, workingDirectory, model: undefined, agent, project: undefined };
+		}
+
+		test('_getAlternativeAgentForWorktree rewrites a repo agent path onto the worktree', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				assert.deepStrictEqual(
+					internals._getAlternativeAgentForWorktree(provisional(repo, { uri: repoAgentUri }), worktree),
+					{ uri: worktreeAgentUri },
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('_getAlternativeAgentForWorktree returns undefined when there is nothing to translate', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				const outsideRepoAgent: AgentSelection = { uri: URI.file('/home/me/.copilot/agents/agent.md').toString() };
+				assert.deepStrictEqual(
+					{
+						noAgent: internals._getAlternativeAgentForWorktree(provisional(repo, undefined), worktree),
+						folderIsolation: internals._getAlternativeAgentForWorktree(provisional(repo, { uri: repoAgentUri }), undefined),
+						sameWorkingDirectory: internals._getAlternativeAgentForWorktree(provisional(repo, { uri: repoAgentUri }), repo),
+						agentOutsideRepo: internals._getAlternativeAgentForWorktree(provisional(repo, outsideRepoAgent), worktree),
+					},
+					{
+						noAgent: undefined,
+						folderIsolation: undefined,
+						sameWorkingDirectory: undefined,
+						agentOutsideRepo: undefined,
+					},
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('_resolveAgentWhenMaterializing keeps the original agent for folder isolation (no worktree)', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				internals._resolveAgentName = async (_sessionUri, _snapshot, selection) => selection.uri === repoAgentUri ? 'Repo Agent' : undefined;
+				// Folder isolation: the resolved working directory equals the
+				// user-picked folder, so there is no worktree copy to translate to
+				// and the originally selected agent is kept as-is.
+				assert.deepStrictEqual(
+					await internals._resolveAgentWhenMaterializing(provisional(repo, { uri: repoAgentUri }), emptySnapshot, repo),
+					{ agent: { uri: repoAgentUri }, name: 'Repo Agent' },
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('_resolveAgentWhenMaterializing returns undefined when no agent is selected or neither resolves', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				internals._resolveAgentName = async () => undefined;
+				assert.deepStrictEqual(
+					{
+						noAgent: await internals._resolveAgentWhenMaterializing(provisional(repo, undefined), emptySnapshot, worktree),
+						neitherResolves: await internals._resolveAgentWhenMaterializing(provisional(repo, { uri: repoAgentUri }), emptySnapshot, worktree),
+					},
+					{ noAgent: undefined, neitherResolves: undefined },
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materialization rewrites a repo agent to its worktree copy and persists it (no resolution stubbing)', async () => {
+			// End-to-end through real customization discovery: the same custom
+			// agent file exists in both the original repo and the worktree. The
+			// user selects the repo copy, but once the worktree is materialized
+			// discovery re-anchors there, so the persisted/launched agent must be
+			// the worktree copy — proving the translation against real resolution
+			// rather than a stubbed `_resolveAgentName`.
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const repoFolder = URI.from({ scheme: Schemas.inMemory, path: '/repo' });
+			const worktreeFolder = URI.from({ scheme: Schemas.inMemory, path: '/repo.worktrees/agents-x' });
+			const repoAgentFile = URI.joinPath(repoFolder, '.github', 'agents', 'agent.md');
+			const worktreeAgentFile = URI.joinPath(worktreeFolder, '.github', 'agents', 'agent.md');
+			const agentContents = VSBuffer.fromString('---\nname: My Agent\ndescription: a custom agent\n---\nbody');
+			await fileService.writeFile(repoAgentFile, agentContents);
+			await fileService.writeFile(worktreeAgentFile, agentContents);
+
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			let launchAgentName: string | undefined;
+			const internals = agent as unknown as AgentInternals;
+			internals._resolveSessionWorkingDirectory = async () => worktreeFolder;
+			const originalCreateAgentSession = internals._createAgentSession;
+			internals._createAgentSession = (launchPlan, customizationDirectory, activeClient, channelUri) => {
+				launchAgentName = launchPlan.resolvedAgentName;
+				return originalCreateAgentSession.call(agent, launchPlan, customizationDirectory, activeClient, channelUri);
+			};
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'agent-translate'),
+					workingDirectory: repoFolder,
+					agent: { uri: repoAgentFile.toString() },
+				});
+				assert.strictEqual(result.provisional, true);
+				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+
+				// `_readSessionMetadata` reads back the exact agent field the
+				// resume path consumes, so asserting it stands in for restore.
+				const stored = await internals._readSessionMetadata(result.session);
+				assert.deepStrictEqual(
+					{ storedAgent: stored.agent, launchAgentName },
+					{ storedAgent: { uri: worktreeAgentFile.toString() }, launchAgentName: 'My Agent' },
+					'the repo agent must be rewritten to its worktree copy, both for the SDK launch and the persisted metadata the restore path reads',
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
 		});
 
 	});
