@@ -11,6 +11,7 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
@@ -355,7 +356,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 						id: menuId,
 						group: '3_props',
 						order: 2,
-						when: ContextKeyExpr.equals('config.chat.automations.enabled', true),
+						when: ChatAutomationsEnabledContext,
 					},
 					toggled: that.excludes.automation ? ContextKeyExpr.false() : ContextKeyExpr.true(),
 				});
@@ -441,7 +442,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private isAutomationSession(session: IAgentSession): boolean {
-		return (session as any).metadata?.source === 'automation';
+		return session.metadata?.source === 'automation';
 	}
 
 	reset(): void {

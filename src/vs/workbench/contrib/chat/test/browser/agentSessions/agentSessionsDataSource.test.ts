@@ -145,7 +145,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, automation: false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -1385,7 +1385,7 @@ suite('AgentSessionsPicker', () => {
 	const filter: IAgentSessionsFilter = {
 		onDidChange: Event.None,
 		exclude: () => false,
-		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, automation: false, repositoryGroupCapped: true }),
 		isDefault: () => true,
 		limitResults: () => undefined,
 		notifyResults: () => { },
