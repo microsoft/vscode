@@ -61,6 +61,10 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Maximized left vertical panel with the activity bar hidden: the panel spans the
 			// full width and owns both edges.
 			maximizedVerticalPanel: owners(s => { s.panelPosition = Position.LEFT; s.visibleParts = new Set([Parts.PANEL_PART]); }),
+
+			// Visible horizontal (bottom) panel: not part of the vertical order, so it owns no
+			// edge; the secondary side bar still owns the right edge.
+			horizontalPanelVisible: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
 		};
 
 		assert.deepStrictEqual(actual, {
@@ -72,6 +76,7 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			editorOnly: { left: Parts.EDITOR_PART, right: Parts.EDITOR_PART },
 			verticalPanelFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
+			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
 		});
 	});
 });
