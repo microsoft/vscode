@@ -504,14 +504,25 @@ registerAction2(class NavigatePreviousChatAction extends Action2 {
 	}
 });
 
-registerAction2(class CloseActiveChatAction extends Action2 {
+// The close-chat action is both a keybinding (Ctrl/Cmd+W closes the active chat)
+// and a per-tab toolbar action contributed to {@link Menus.SessionChatTab}: the
+// chat tab strip renders this menu and forwards the tab's {@link IChatTabContext}
+// as the action argument so the button closes that specific tab.
+export interface IChatTabContext {
+	readonly session: IActiveSession;
+	readonly chat: IChat;
+}
+
+registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.chatCompositeBar.closeChat',
 			title: localize2('closeActiveChat', "Close Chat"),
-			f1: true,
+			icon: Codicon.close,
+			// Hidden from the palette: closing a specific chat is contextual (the
+			// keybinding targets the active chat; the menu targets a tab).
+			f1: false,
 			category: SessionsCategories.Sessions,
-			precondition: SessionActiveChatIsClosableContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Intercept Ctrl/Cmd+W (which otherwise closes the session) only
@@ -521,25 +532,34 @@ registerAction2(class CloseActiveChatAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
+			// Rendered as the tab's close button by the chat tab strip; the main
+			// chat's tab does not render this menu, so no per-tab gating is needed.
+			menu: {
+				id: Menus.SessionChatTab,
+				group: 'navigation',
+				order: 10,
+			},
 		});
 	}
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: IChatTabContext): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const session = sessionsService.activeSession.get();
+		// From the tab menu: act on the forwarded tab's chat. From the keybinding:
+		// act on the active chat of the active session.
+		const session = context?.session ?? sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
-		const activeChat = session.activeChat.get();
-		if (!activeChat || activeChat.resource.toString() === session.mainChat.get().resource.toString()) {
+		const chat = context?.chat ?? session.activeChat.get();
+		if (!chat || chat.resource.toString() === session.mainChat.get().resource.toString()) {
 			return;
 		}
-		// Mirror the tab close button: an untitled (in-composer) draft has nothing
-		// to reopen, so delete it outright; a committed chat is hidden (reopenable).
-		if (activeChat.status.get() === SessionStatus.Untitled) {
-			await sessionsManagementService.deleteChat(session, activeChat.resource, { skipConfirmation: true });
+		// An untitled (in-composer) draft has nothing to reopen, so delete it
+		// outright; a committed chat is hidden (reopenable).
+		if (chat.status.get() === SessionStatus.Untitled) {
+			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 		} else {
-			await sessionsService.closeChat(session, activeChat);
+			await sessionsService.closeChat(session, chat);
 		}
 	}
 });
