@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -28,6 +29,7 @@ export class AutomationRunner implements IAutomationRunner {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
 	async runOnce(
@@ -121,6 +123,7 @@ export class AutomationRunner implements IAutomationRunner {
 			// Defensive: the error path must not propagate secondary failures to the outer caller.
 			try {
 				const errorMessage = err instanceof Error ? err.message : String(err);
+				this.notificationService.error(localize('automationRunFailed', "Automation '{0}' failed: {1}", automation.name, errorMessage));
 				if (runId) {
 					await this.automationService.updateRun(runId, {
 						status: 'failed',
