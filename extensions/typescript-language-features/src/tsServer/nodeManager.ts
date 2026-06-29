@@ -23,33 +23,41 @@ export class NodeVersionManager extends Disposable {
 	) {
 		super();
 
-		this._currentVersion = this.configuration.globalNodePath || undefined;
+		this._currentVersion = this.configuration.globalNodePath?.path || undefined;
 		if (vscode.workspace.isTrusted) {
-			const workspaceVersion = this.configuration.localNodePath;
-			if (workspaceVersion) {
-				const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
-				if (useWorkspaceNode === undefined) {
-					setImmediate(() => {
-						this.promptAndSetWorkspaceNode();
-					});
-				}
-				else if (useWorkspaceNode) {
-					this._currentVersion = workspaceVersion;
-				}
-			}
-		}
-		else {
-			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-				const workspaceVersion = this.configuration.localNodePath;
-				if (workspaceVersion) {
-					const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
+			const workspaceNodeConfiguration = this.configuration.localNodePath;
+			if (workspaceNodeConfiguration) {
+				if (workspaceNodeConfiguration.isTrusted) {
+					this._currentVersion = workspaceNodeConfiguration.path;
+				} else {
+					const useWorkspaceNode = this.canUseWorkspaceNode(workspaceNodeConfiguration.path);
 					if (useWorkspaceNode === undefined) {
 						setImmediate(() => {
 							this.promptAndSetWorkspaceNode();
 						});
 					}
 					else if (useWorkspaceNode) {
-						this.updateActiveVersion(workspaceVersion);
+						this._currentVersion = workspaceNodeConfiguration.path;
+					}
+				}
+			}
+		}
+		else {
+			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+				const workspaceNodeConfiguration = this.configuration.localNodePath;
+				if (workspaceNodeConfiguration) {
+					if (workspaceNodeConfiguration.isTrusted) {
+						this.updateActiveVersion(workspaceNodeConfiguration.path);
+					} else {
+						const useWorkspaceNode = this.canUseWorkspaceNode(workspaceNodeConfiguration.path);
+						if (useWorkspaceNode === undefined) {
+							setImmediate(() => {
+								this.promptAndSetWorkspaceNode();
+							});
+						}
+						else if (useWorkspaceNode) {
+							this.updateActiveVersion(workspaceNodeConfiguration.path);
+						}
 					}
 				}
 			}));
@@ -66,30 +74,36 @@ export class NodeVersionManager extends Disposable {
 	public async updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
 		const oldConfiguration = this.configuration;
 		this.configuration = nextConfiguration;
-		if (oldConfiguration.globalNodePath !== nextConfiguration.globalNodePath
-			|| oldConfiguration.localNodePath !== nextConfiguration.localNodePath) {
+		if (oldConfiguration.globalNodePath?.path !== nextConfiguration.globalNodePath?.path
+			|| oldConfiguration.localNodePath?.path !== nextConfiguration.localNodePath?.path) {
 			await this.computeNewVersion();
 		}
 	}
 
 	private async computeNewVersion() {
-		let version = this.configuration.globalNodePath || undefined;
-		const workspaceVersion = this.configuration.localNodePath;
-		if (vscode.workspace.isTrusted && workspaceVersion) {
-			const useWorkspaceNode = this.canUseWorkspaceNode(workspaceVersion);
-			if (useWorkspaceNode === undefined) {
-				version = await this.promptUseWorkspaceNode() || version;
-			}
-			else if (useWorkspaceNode) {
-				version = workspaceVersion;
+		let version = this.configuration.globalNodePath?.path || undefined;
+		const workspaceNodeConfiguration = this.configuration.localNodePath;
+		if (vscode.workspace.isTrusted && workspaceNodeConfiguration) {
+			if (workspaceNodeConfiguration.isTrusted) {
+				version = workspaceNodeConfiguration.path;
+			} else {
+				const useWorkspaceNode = this.canUseWorkspaceNode(workspaceNodeConfiguration.path);
+				if (useWorkspaceNode === undefined) {
+					const result = await this.promptUseWorkspaceNode();
+					version = result || version;
+				}
+				else if (useWorkspaceNode) {
+					version = workspaceNodeConfiguration.path;
+				}
 			}
 		}
 		this.updateActiveVersion(version);
 	}
 
 	private async promptUseWorkspaceNode(): Promise<string | undefined> {
-		const workspaceVersion = this.configuration.localNodePath;
-		if (workspaceVersion === null) {
+		const workspaceNodeConfiguration = this.configuration.localNodePath;
+		const workspaceVersion = workspaceNodeConfiguration?.path;
+		if (workspaceVersion === undefined) {
 			throw new Error('Could not prompt to use workspace Node installation because no workspace Node installation is specified');
 		}
 
