@@ -24,17 +24,8 @@ import { AutomationService } from './automationService.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 
-// Stub runner for Layer 1 — the real implementation (Layer 2) replaces this registration.
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAutomation, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-
-class StubAutomationRunner implements IAutomationRunner {
-	declare readonly _serviceBrand: undefined;
-	async runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): Promise<void> {
-		// No-op: real runner is registered in Layer 2.
-	}
-}
-registerSingleton(IAutomationRunner, StubAutomationRunner, InstantiationType.Delayed);
+import { AutomationRunner } from './automationRunner.js';
+registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.AfterRestored);
 
