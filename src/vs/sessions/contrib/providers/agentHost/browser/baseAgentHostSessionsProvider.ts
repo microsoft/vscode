@@ -1479,11 +1479,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
 
 	/**
-	 * Active progress indicators keyed by `progressToken`. Each entry owns one
-	 * long-running notification progress (opened on the first frame) that is
-	 * driven via {@link IActiveDownload.report} and dismissed via
-	 * {@link IActiveDownload.complete} once `progress >= total`. See
-	 * {@link _handleProgress}.
+	 * Active progress indicators keyed by `progressToken`. Today's only
+	 * producer is the agent host's lazy, first-use SDK download, which is
+	 * provider-global: the host emits a single stream per download keyed by the
+	 * download's own stable identity (so distinct sessions of a provider share
+	 * one indicator). Each entry owns one long-running notification progress
+	 * (opened on the first frame), driven via {@link IActiveDownload.report} and
+	 * dismissed via {@link IActiveDownload.complete} once `progress >= total`.
+	 * See {@link _handleProgress}.
 	 */
 	private readonly _activeDownloads = new Map<string, IActiveDownload>();
 
@@ -3451,14 +3454,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Render a generic `progress` notification as a notification progress bar.
-	 * Progress is correlated to its originating `createSession` call by
-	 * {@link ProgressParams.progressToken}; today the only producer is the
-	 * agent host's lazy, first-use SDK download (shared across a provider's
-	 * sessions). We surface one notification per `progressToken`: determinate
-	 * when the host knows the `total` (`Content-Length`), or a byte-count spinner
-	 * otherwise. The operation is complete — and the notification dismissed —
-	 * once `progress >= total`. The human-readable brand noun rides on
-	 * {@link ProgressParams.message}.
+	 * Progress is correlated by {@link ProgressParams.progressToken}; today's
+	 * only producer is the agent host's lazy, first-use SDK download, which the
+	 * host surfaces as a single stream per provider keyed by the download's own
+	 * stable identity — so one indicator per download regardless of how many
+	 * sessions await it. Determinate when the host knows the `total`
+	 * (`Content-Length`), or a byte-count spinner otherwise. The operation is
+	 * complete — and the notification dismissed — once `progress >= total`. The
+	 * human-readable brand noun rides on {@link ProgressParams.message}.
 	 */
 	private _handleProgress(progress: ProgressParams): void {
 		// New AI UI must stay hidden when the user has turned AI features off.
@@ -3479,15 +3482,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		let entry = this._activeDownloads.get(progress.progressToken);
 		if (!entry) {
-			// First frame for this token (or one we joined late): open one
-			// long-running notification progress and drive it via `report`
-			// until a terminal frame resolves `deferred`.
+			// First frame for this download: open one long-running notification
+			// progress and drive it via `report` until a terminal frame resolves
+			// `deferred`. `message` is the host-supplied, already-localized title
+			// (e.g. "Downloading Claude agent…"); render it verbatim so this stays
+			// a generic indicator that makes no assumption about what's downloading.
 			const deferred = new DeferredPromise<void>();
 			let report: ((step: IProgressStep) => void) | undefined;
-			// `message` is the host-supplied, already-localized human-readable
-			// title (e.g. "Downloading Claude agent…"). Render it verbatim so
-			// this stays a generic progress indicator that makes no assumption
-			// about what is being downloaded; fall back only if a producer omits it.
 			const title = progress.message ?? localize('agentHost.download.titleFallback', "Downloading…");
 			this._progressService.withProgress(
 				{
