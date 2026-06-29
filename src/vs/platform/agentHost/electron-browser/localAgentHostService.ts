@@ -157,7 +157,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// calls (vscode-agent-client filesystem reads) back to this renderer
 		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
 		const client = store.add(new MessagePortClient(port, this.clientId));
-		registerAgentHostClientChannels(client, this._instantiationService, this._ahpLogger, this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true);
+		registerAgentHostClientChannels(client, this._instantiationService, this._logService, this._ahpLogger, this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true);
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
@@ -426,6 +426,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 export function registerAgentHostClientChannels(
 	client: IChannelServer,
 	instantiationService: IInstantiationService,
+	logService: ILogService,
 	ahpLogger: AhpJsonlLogger | undefined,
 	byokEnabled: boolean,
 ): void {
@@ -436,7 +437,12 @@ export function registerAgentHostClientChannels(
 	// Serve BYOK language-model reverse-RPCs from the renderer LM API, gated
 	// behind `chat.agentHost.byokModels.enabled`. When disabled, the node-side
 	// proxy + registry are also skipped, so the channel would never be called.
+
 	if (byokEnabled) {
-		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
+		try {
+			client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
+		} catch (err) {
+			logService.warn(`[AgentHost:renderer] BYOK language-model bridge not registered for this window. ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 }
