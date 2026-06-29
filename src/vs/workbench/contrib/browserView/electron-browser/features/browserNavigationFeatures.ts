@@ -539,7 +539,7 @@ class OpenBrowserSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const ids = ['workbench.browser.*', 'chat.sendElementsToChat.*'];
+		const ids = ['workbench.browser.*'];
 		if (IsSessionsWindowContext.getValue(contextKeyService)) {
 			ids.push(AgentHostChatToolsEnabledSettingId);
 		}
