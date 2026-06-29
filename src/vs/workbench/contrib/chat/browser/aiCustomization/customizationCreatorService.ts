@@ -123,7 +123,7 @@ export class CustomizationCreatorService {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 		if (!provider.provideSourceFolders) {
 			return undefined;
 		}

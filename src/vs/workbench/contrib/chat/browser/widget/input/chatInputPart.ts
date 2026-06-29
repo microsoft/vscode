@@ -90,7 +90,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldRecordSessionTypeDefaultModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
+import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { chatSessionResourceToId, getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -907,21 +907,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			|| hasModelsTargetingSession(this.getAllMergedModels(), sessionType);
 	}
 
-	/**
-	 * Returns the persisted model for the current session type, if it exists in the current model pool.
-	 */
-	private _getRememberedSessionTypeModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
-		const sessionType = this._currentSessionType;
-		if (!sessionType || !this.sessionTypeHasOwnModelPool(sessionType)) {
-			return undefined;
-		}
-		const persisted = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		if (!persisted) {
-			return undefined;
-		}
-		return this.getModels().find(m => m.identifier === persisted);
-	}
-
 	private initSelectedModel() {
 		// initSelectedModel is scoped to the current storage key/session type.
 		// Do not let a delayed restore from a previous session type apply later.
@@ -1343,13 +1328,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!state && this._chatSessionIsEmpty) {
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
-				// Seed model/config from the last-used selection for this session type (configured default still wins).
-				const rememberedSessionTypeModel = this._getRememberedSessionTypeModel();
-				if (rememberedSessionTypeModel) {
-					const base = state ?? this.getCurrentInputState();
-					const rememberedModelConfiguration = this._modelConfigStore.getModelConfiguration(rememberedSessionTypeModel.identifier);
-					state = { ...base, selectedModel: rememberedSessionTypeModel, modelConfiguration: rememberedModelConfiguration };
-				}
 				// A configured default model (e.g. set by enterprise policy via
 				// `chat.defaultModel`) starts every NEW conversation and
 				// must win over the remembered empty-input draft model. `initSelectedModel`
@@ -1591,21 +1569,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Sync to model
 		this._syncInputStateToModel();
-	}
-
-	/**
-	 * Record the focused session's resolved model as the last-used model for its session type.
-	 * Skips local sessions, session types without their own pool, and unresolved/out-of-pool models.
-	 */
-	public recordCurrentModelAsSessionTypeDefault(): void {
-		const sessionType = this._currentSessionType;
-		const hasOwnPool = !!sessionType && this.sessionTypeHasOwnModelPool(sessionType);
-		const model = this._currentLanguageModel.get();
-		if (!model || !shouldRecordSessionTypeDefaultModel(sessionType, hasOwnPool, model, this.getModels())) {
-			return;
-		}
-		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefaultForLocation[this.location], StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private checkModelSupported(): void {
