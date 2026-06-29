@@ -1593,14 +1593,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._syncInputStateToModel();
 	}
 
-	/**
-	 * Records this session's resolved model as the last-used model for its session type, so a new
-	 * editor/conversation of the same type restores it via `_getRememberedSessionTypeModel`.
-	 * Unlike `setCurrentLanguageModel`, this fires when a session is merely focused (not only on
-	 * explicit picks), capturing restored sessions that take the `keep` path. Skips local sessions,
-	 * session types without their own pool, and unresolved models to avoid clobbering with a
-	 * transient "Auto" during async model-list load.
-	 */
+/**
+ * Record the focused session's resolved model as the last-used model for its session type.
+ * Skips local sessions, session types without their own pool, and unresolved/out-of-pool models.
+ */
 	public recordCurrentModelAsSessionTypeDefault(): void {
 		const sessionType = this._currentSessionType;
 		const hasOwnPool = !!sessionType && this.sessionTypeHasOwnModelPool(sessionType);
