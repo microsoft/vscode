@@ -298,10 +298,12 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 			}
 
 			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
-			// Othwerise we fall through to let the editor do default focusing on the main area.
+			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
 			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
 			if (!url && !this._hasInitiatedNavigation) {
 				this._navbar.openUrlPicker();
+			} else {
+				this.editor.ensureBrowserFocus();
 			}
 		}, 0);
 		return true;
