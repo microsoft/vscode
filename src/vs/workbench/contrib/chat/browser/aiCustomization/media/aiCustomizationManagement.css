@@ -1897,7 +1897,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.automations-list-widget .automations-row:focus-within {
+.automations-list-widget .automations-row:has(:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
