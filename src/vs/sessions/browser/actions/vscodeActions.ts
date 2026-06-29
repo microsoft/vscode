@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../base/common/codicons.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
@@ -23,7 +25,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
-import { getOpenInVSCodeUri, getVSCodeProtocolScheme, resolveRemoteAuthority } from '../openInVSCodeUtils.js';
+import { resolveRemoteAuthority } from '../openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
 
 export class OpenInVSCodeAction extends Action2 {
@@ -53,11 +55,21 @@ export class OpenInVSCodeAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-		const scheme = getVSCodeProtocolScheme(productService);
+
+		const scheme = productService.quality === 'stable'
+			? 'vscode'
+			: productService.quality === 'exploration'
+				? 'vscode-exploration'
+				: productService.quality === 'insider'
+					? 'vscode-insiders'
+					: productService.urlProtocol;
+
+		const params = new URLSearchParams();
+		params.set('windowId', '_blank');
 
 		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
-			await openerService.open(getOpenInVSCodeUri(scheme, undefined, undefined, undefined), { openExternal: true });
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
@@ -66,7 +78,7 @@ export class OpenInVSCodeAction extends Action2 {
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 
 		if (!rawFolderUri) {
-			await openerService.open(getOpenInVSCodeUri(scheme, undefined, undefined, undefined), { openExternal: true });
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
 			return;
 		}
 
@@ -74,7 +86,23 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		await openerService.open(getOpenInVSCodeUri(scheme, folderUri, remoteAuthority, activeSession.resource), { openExternal: true });
+		params.set('session', activeSession.resource.toString());
+
+		if (remoteAuthority) {
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.vscodeRemote,
+				path: `/${remoteAuthority}${folderUri.path}`,
+				query: params.toString(),
+			}), { openExternal: true });
+		} else {
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.file,
+				path: folderUri.path,
+				query: params.toString(),
+			}), { openExternal: true });
+		}
 	}
 }
 
