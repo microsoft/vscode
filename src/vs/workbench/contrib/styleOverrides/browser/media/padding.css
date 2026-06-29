@@ -73,3 +73,9 @@
 .style-override.monaco-workbench .monaco-pane-view .pane > .pane-header > .actions {
 	margin-right: 0px;
 }
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
+	.agent-sessions-title-container {
+		padding-left: 12px;
+	}
+}
