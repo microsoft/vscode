@@ -132,21 +132,21 @@ interface IFixedDiscoveryFile {
  */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
-		{ path: ['.github', 'agents'], type: DiscoveredType.Agent, name: '.github/agents' },
-		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent, name: '.agents/agents' },
-		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent, name: '.claude/agents' },
-		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.github/skills' },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents/skills' },
-		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude/skills' },
-		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github/instructions' },
-		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github/hooks' },
+		{ path: ['.github', 'agents'], type: DiscoveredType.Agent, name: '.github' },
+		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent, name: '.agents' },
+		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent, name: '.claude' },
+		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.github' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents' },
+		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude' },
+		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github' },
+		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github' },
 
 	],
 	user: [
-		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot/agents' },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents/skills' },
-		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot/instructions' },
-		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot/hooks' },
+		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents' },
+		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot' },
+		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
 	],
 };
 

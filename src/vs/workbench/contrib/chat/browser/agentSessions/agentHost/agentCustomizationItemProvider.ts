@@ -137,6 +137,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
 			if (!isDirectoryCustomization(customization) || !customization.writable) {
@@ -145,9 +147,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (toPromptsType(customization.contents) !== type) {
 				continue;
 			}
+			const source = workingDirectory && customization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
+				source,
 			});
 		}
 		return folders;

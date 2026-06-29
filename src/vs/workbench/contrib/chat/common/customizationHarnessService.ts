@@ -235,6 +235,8 @@ export interface ICustomizationSourceFolder {
 	readonly uri: URI;
 	/** Display label for the picker when multiple folders are offered. */
 	readonly label: string;
+	/** Customization source (local, user). Set by providers that know the source. */
+	readonly source: AICustomizationSource;
 }
 
 /**
