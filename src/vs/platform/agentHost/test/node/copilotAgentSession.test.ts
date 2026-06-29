@@ -25,7 +25,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -55,7 +55,7 @@ class MockCopilotSession {
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
-	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
 	commandListResult: {
 		commands: Array<{
@@ -760,6 +760,52 @@ suite('CopilotAgentSession', () => {
 		const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete');
 		assert.strictEqual((turnComplete as ChatTurnCompleteAction).turnId, 'turn-compact');
+	});
+
+	test('`/compact` reports post-compaction context window usage before completing the turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		const usage = actions.find(a => a.type === ActionType.ChatUsage) as ChatUsageAction | undefined;
+		assert.ok(usage, 'expected a usage action reporting the shrunken context window');
+		assert.deepStrictEqual({ turnId: usage.turnId, usage: usage.usage }, {
+			turnId: 'turn-compact',
+			usage: { inputTokens: 4500, outputTokens: 0, model: undefined },
+		});
+		// Usage must precede the turn completion so the reducer accepts it.
+		const usageIndex = actions.findIndex(a => a.type === ActionType.ChatUsage);
+		const completeIndex = actions.findIndex(a => a.type === ActionType.ChatTurnComplete);
+		assert.ok(usageIndex >= 0 && completeIndex > usageIndex, 'usage emitted before turn complete');
+	});
+
+	test('`/compact` skips usage when the SDK omits the context window', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const usage = getActions(signals).find(a => a.type === ActionType.ChatUsage);
+		assert.strictEqual(usage, undefined, 'no usage action without a context window');
+	});
+
+	test('`/compact` carries the last-seen model id on the post-compaction usage', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		// A prior model call sets `_lastSeenModelId`, which the compaction usage
+		// reports so the context-usage widget can resolve the context window.
+		mockSession.fire('assistant.usage', {
+			inputTokens: 10,
+			outputTokens: 20,
+			model: 'claude-sonnet-4.6',
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const usage = getActions(signals).reverse().find(a => a.type === ActionType.ChatUsage) as ChatUsageAction | undefined;
+		assert.deepStrictEqual(usage?.usage, { inputTokens: 4500, outputTokens: 0, model: 'claude-sonnet-4.6' });
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
