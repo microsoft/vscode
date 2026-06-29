@@ -71,6 +71,9 @@ interface IAutomationRowTemplateData {
 }
 
 class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntry> {
+	// Initial estimate only — actual row height is measured from the DOM because
+	// the list is created with `supportDynamicHeights` (meta wraps, prompt wraps,
+	// and run-error text is variable-height). See `hasDynamicHeight` below.
 	getHeight(element: IAutomationListEntry): number {
 		if (!element.expanded) {
 			return AUTOMATION_ROW_HEIGHT;
@@ -85,6 +88,10 @@ class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntr
 			historyHeight += HISTORY_MORE_HEIGHT;
 		}
 		return AUTOMATION_ROW_HEIGHT + historyHeight;
+	}
+
+	hasDynamicHeight(_element: IAutomationListEntry): boolean {
+		return true;
 	}
 
 	getTemplateId(_element: IAutomationListEntry): string {
@@ -370,6 +377,7 @@ export class AutomationsListWidget extends Disposable {
 			{
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
+				supportDynamicHeights: true,
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IAutomationListEntry) => {
