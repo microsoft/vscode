@@ -2368,6 +2368,10 @@ export class CopilotAgentSession extends Disposable {
 				});
 				return;
 			}
+			if (!notification.startsTurn) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring passive system.notification kind=${e.data.kind.type} without an active turn`);
+				return;
+			}
 
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
