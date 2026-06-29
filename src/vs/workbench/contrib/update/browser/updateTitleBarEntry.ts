@@ -8,24 +8,24 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { InEditorZenModeContext } from '../../../common/contextkeys.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { computeProgressPercent } from '../common/updateUtils.js';
-import { autorun } from '../../../../base/common/observable.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
@@ -162,18 +162,18 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			return;
 		}
 
-		if (ACTIONABLE_STATES.includes(this.state.type)) {
-			this.context.set(true);
-		} else {
-			this.context.set(false);
-		}
-
+		// Tooltip already shown or window not last focused: only sync content and indicator visibility.
 		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.context.set(ACTIONABLE_STATES.includes(this.state.type));
 			this.tooltip.renderState(this.state);
 			return;
 		}
 
 		this.tooltip.renderState(this.state);
+
+		// Set the context key only once. Toggling it (e.g. off then on) recreates the entry on every
+		// state update, which for frequent updates like download progress flashes the tooltip (#311938).
+		let context = ACTIONABLE_STATES.includes(this.state.type);
 		let showTooltip = false;
 		switch (this.state.type) {
 			case StateType.Disabled:
@@ -191,16 +191,21 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Downloading:
 			case StateType.Updating:
 			case StateType.Overwriting:
-				this.context.set(this.state.explicit);
+				context = this.state.explicit;
 				break;
 			case StateType.Restarting:
-				this.context.set(true);
+				context = true;
 				break;
 		}
 
 		if (showTooltip) {
 			this.tooltipVisible = true;
-			this.context.set(true);
+			context = true;
+		}
+
+		this.context.set(context);
+
+		if (showTooltip) {
 			this.entry?.showTooltip();
 			if (this.state.type === StateType.Disabled) {
 				this.storageService.store(DISABLED_REMINDER_LAST_SHOWN_KEY, Date.now(), StorageScope.APPLICATION, StorageTarget.MACHINE);

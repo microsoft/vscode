@@ -173,7 +173,7 @@ suite('OnboardingScenarioService', () => {
 		first.start();
 		await timeout(0);
 
-		const { service: second, contextKeyService } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: true }, undefined, storage);
+		const { service: second, contextKeyService } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'dev-repeat-1': true } }, undefined, storage);
 		second.start();
 		await timeout(0);
 

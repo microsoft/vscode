@@ -18,6 +18,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';
+import { AgentFeedbackPRReviewSeederContribution } from './agentFeedbackPRReviewSeeder.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
@@ -82,6 +83,7 @@ registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, Acti
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackPRThreadResolverContribution.ID, AgentFeedbackPRThreadResolverContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRReviewSeederContribution.ID, AgentFeedbackPRReviewSeederContribution, WorkbenchPhase.AfterRestored);
 
 registerAgentFeedbackEditorActions();
 

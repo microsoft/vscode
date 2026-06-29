@@ -13,19 +13,23 @@ import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { LRUCache } from '../../../base/common/map.js';
+import { SequencerByKey } from '../../../base/common/async.js';
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
+
+	/**
+	 * A cache of repository roots that have already been discovered.
+	 */
+	private readonly _repositoryRoots = new LRUCache<string, URI>(100);
+	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
-
-	async isInsideWorkTree(workingDirectory: URI): Promise<boolean> {
-		return (await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']))?.trim() === 'true';
-	}
 
 	async getCurrentBranch(workingDirectory: URI): Promise<string | undefined> {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim()
@@ -72,8 +76,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
-		const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
-		return repositoryRootPath ? URI.file(repositoryRootPath) : undefined;
+		const workingDirectoryKey = workingDirectory.toString();
+
+		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
+			let repositoryRoot = this._repositoryRoots.get(workingDirectoryKey);
+			if (repositoryRoot) {
+				return repositoryRoot;
+			}
+
+			try {
+				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+				if (repositoryRootPath) {
+					repositoryRoot = URI.file(repositoryRootPath);
+					this._repositoryRoots.set(workingDirectoryKey, repositoryRoot);
+				}
+
+				return repositoryRoot;
+			} catch (error) { }
+
+			return undefined;
+		});
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
@@ -186,21 +208,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
-		// Bail fast if not inside a git work tree so callers can fall back
-		// to other diff sources.
-		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
-		if (inside?.trim() !== 'true') {
-			return undefined;
-		}
-
 		// All git invocations run from the working tree's repository root so
 		// `--raw` paths are repo-relative — that's what `git show <sha>:<path>`
 		// expects when we resolve `git-blob:` URIs later.
-		const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
-		if (!repositoryRootPath) {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
-		const repositoryRoot = URI.file(repositoryRootPath);
 
 		// Resolve the merge-base commit. With a base branch, prefer the
 		// corresponding origin/<base> remote-tracking ref when it exists so
@@ -308,10 +322,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
 			return undefined;
 		}
-		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
-		if (inside?.trim() !== 'true') {
+
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
+
 		// `git show` exits non-zero when the path didn't exist at that
 		// commit; `_runGit` swallows that into `undefined` which is exactly
 		// the contract callers want.
@@ -331,15 +347,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined> {
-		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
-		if (inside?.trim() !== 'true') {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
-		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
-		if (!repoRoot) {
-			return undefined;
-		}
-		const repositoryRoot = URI.file(repoRoot);
+
 		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
 		if (statusOut === undefined) {
 			return undefined;
@@ -402,33 +414,27 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined> {
-		const repoRoot = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
-		if (!repoRoot) {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const repositoryRoot = URI.file(repoRoot);
+		try {
+			const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', options.fromRef, options.toRef, '--']);
+			if (raw === undefined) {
+				return undefined;
+			}
 
-		// Validate both refs resolve before invoking `git diff` so a missing
-		// ref returns undefined rather than producing a confusing error.
-		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
-		const toOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.toRef]))?.trim();
-		if (!fromOid || !toOid) {
+			return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, options.fromRef, options.toRef);
+		} catch (err) {
+			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}: ${err}`);
 			return undefined;
 		}
-
-		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
-		if (raw === undefined) {
-			return undefined;
-		}
-
-		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
-		// Bail fast if not inside a git work tree.
-		const inside = await this._runGit(workingDirectory, ['rev-parse', '--is-inside-work-tree']);
-		if (inside?.trim() !== 'true') {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
@@ -439,9 +445,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			remotesOutput,
 			defaultBranchRef,
 		] = await Promise.all([
-			this._runGit(workingDirectory, ['status', '-b', '--porcelain=v2']),
-			this._runGit(workingDirectory, ['remote', '-v']),
-			this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
+			this._runGit(repositoryRoot, ['status', '-b', '--porcelain=v2']),
+			this._runGit(repositoryRoot, ['remote', '-v']),
+			this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
 		const status = parseGitStatusV2(statusOutput);
@@ -458,7 +464,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// actually cares about for "is there work to PR?".
 		let outgoingChanges = status.outgoingChanges;
 		if (outgoingChanges === undefined && baseBranchName && status.branchName && status.branchName !== baseBranchName) {
-			const ahead = await this._runGit(workingDirectory, ['rev-list', '--count', `${baseBranchName}..HEAD`]);
+			const ahead = await this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranchName}..HEAD`]);
 			const parsed = ahead === undefined ? NaN : Number(ahead.trim());
 			if (Number.isFinite(parsed)) {
 				outgoingChanges = parsed;

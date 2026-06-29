@@ -7,7 +7,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from '../shared/copilotApiService.js';
 
-const COPILOT_BRANCH_PREFIX = 'agents/';
+export const COPILOT_BRANCH_PREFIX = 'agents/';
 const COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;
@@ -17,6 +17,12 @@ export interface ICopilotBranchNameGeneratorRequest {
 	readonly message?: string;
 	readonly githubToken?: string;
 	readonly signal?: AbortSignal;
+	/**
+	 * Optional predicate used to check whether a candidate branch name already
+	 * exists. When it reports a collision, a short suffix derived from the
+	 * session id is appended so the generated branch name stays unique.
+	 */
+	readonly branchExists?: (branchName: string) => Promise<boolean>;
 }
 
 export const ICopilotBranchNameGenerator = createDecorator<ICopilotBranchNameGenerator>('copilotBranchNameGenerator');
@@ -36,7 +42,7 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 
 	async generateBranchName(request: ICopilotBranchNameGeneratorRequest): Promise<string> {
 		const branchNameHint = (await this._generateBranchNameHint(request)) ?? getCopilotBranchNameHintFromMessage(request.message ?? '');
-		return this._buildBranchName(request.sessionId, branchNameHint);
+		return this._buildBranchName(request, branchNameHint);
 	}
 
 	private async _generateBranchNameHint(request: ICopilotBranchNameGeneratorRequest): Promise<string | undefined> {
@@ -98,8 +104,20 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 		];
 	}
 
-	private _buildBranchName(sessionId: string, branchNameHint: string | undefined): string {
-		return `${COPILOT_BRANCH_PREFIX}${branchNameHint ? `${branchNameHint}-${sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}` : sessionId}`;
+	private async _buildBranchName(request: ICopilotBranchNameGeneratorRequest, branchNameHint: string | undefined): Promise<string> {
+		if (!branchNameHint) {
+			// No usable hint - fall back to the (already unique) session id.
+			return `${COPILOT_BRANCH_PREFIX}${request.sessionId}`;
+		}
+
+		// Prefer the bare hint and only append a short session-id suffix when
+		// the branch name would collide with an existing branch.
+		const branchName = `${COPILOT_BRANCH_PREFIX}${branchNameHint}`;
+		if (request.branchExists && await request.branchExists(branchName)) {
+			return `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`;
+		}
+
+		return branchName;
 	}
 }
 

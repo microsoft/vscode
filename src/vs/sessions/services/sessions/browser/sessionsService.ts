@@ -401,12 +401,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
 
-		// When the active session becomes archived, return to the new-session view.
+		// When the active session becomes archived, return to the new-session view
+		// pre-selecting the same folder so the user stays in context.
 		let wasArchived = activeSession.isArchived.get();
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
-				this.openNewSession();
+				const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
+				this.openNewSession(folderUri ? { folderUri, providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType } : undefined);
 			}
 			wasArchived = isArchived;
 		}));
@@ -428,7 +430,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Track active chat changes to persist per-session state. The visible /
 		// active / sticky flags are snapshotted from the live grid at save time
 		// (see `_snapshotVisibleSessionStates`); here we only remember the last
-		// active chat so reopening the session restores its selected chat.
+		// active chat so reopening the session restores its selected chat. The
+		// closed-chat set is persisted deterministically in `closeChat`/`openChat`
+		// instead (see `_setChatClosedState`), so it never depends on chats being
+		// loaded or on autorun timing.
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
 			if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
@@ -577,6 +582,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				// Opening a chat also un-hides it if it was previously closed.
 				this._visibility.openChat(session, chat);
 				this._visibility.setActiveChat(session, chat);
+				this._setChatClosedState(session, chat, false);
 			}
 		}
 
@@ -592,6 +598,33 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
+		this._setChatClosedState(session, chat, true);
+	}
+
+	/**
+	 * Persist a chat's closed/open state into the session's stored view state so
+	 * it survives switching the session out of the grid (which disposes its
+	 * wrapper) and reloads. Done synchronously on the close/open action rather
+	 * than reactively from `closedChats`, which would depend on the session's
+	 * chats being loaded. The main chat can never be closed and is ignored.
+	 */
+	private _setChatClosedState(session: ISession, chat: IChat, closed: boolean): void {
+		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		const existing = this._sessionStates.get(session.resource);
+		const closedSet = new Set(existing?.closedChatResources ?? []);
+		const chatResource = chat.resource.toString();
+		if (closed) {
+			closedSet.add(chatResource);
+		} else if (!closedSet.delete(chatResource)) {
+			return; // nothing changed (chat was not closed)
+		}
+		this._sessionStates.set(session.resource, {
+			...existing,
+			sessionResource: session.resource.toString(),
+			closedChatResources: [...closedSet],
+		});
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
@@ -828,12 +861,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 
 			// Keep the in-memory record up to date so the session's last active
-			// chat is remembered while reopening it within this window.
+			// chat is remembered while reopening it within this window. The
+			// closed-chat set is maintained deterministically by
+			// `_setChatClosedState`; prefer it over the live (loaded-chats only)
+			// `closedChats` so a not-yet-loaded session does not drop its set.
 			const existing = this._sessionStates.get(session.resource);
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
 				activeChatResource: session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
-				closedChatResources: session.closedChats.get().map(c => c.resource.toString()),
+				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
 				visibleOrder: index,
 				isSticky: session.sticky.get(),
 				isActive: session.sessionId === activeId,

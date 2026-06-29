@@ -43,13 +43,13 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
-import { ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
+import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -59,6 +59,8 @@ import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
+
+const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -227,7 +229,12 @@ export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
 }
 
 export function getCopilotWorktreeName(branchName: string): string {
-	return branchName.replace(/\//g, '-');
+	// Strip the `agents/` branch prefix so the worktree directory name stays
+	// concise, then flatten any remaining path separators.
+	const withoutPrefix = branchName.startsWith(COPILOT_BRANCH_PREFIX)
+		? branchName.substring(COPILOT_BRANCH_PREFIX.length)
+		: branchName;
+	return withoutPrefix.replace(/\//g, '-');
 }
 
 /**
@@ -428,10 +435,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
-			hasHistory: (sessionId) => !this._provisionalSessions.has(sessionId) && this._sessions.has(sessionId),
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-			hasRuntimeSlashCommand: async (sessionId, command) => this._sessions.get(sessionId)?.hasRuntimeSlashCommand(command) ?? false,
-		})));
+			getRuntimeSlashCommands: async (sessionId, options) => this._sessions.get(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+		}, RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. Both session sync (a client
@@ -832,10 +838,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same, always use the full context window and
-		// skip the picker entirely — there is no reason to restrict the user.
+		// When both tiers cost the same, show only the long-context option as
+		// a non-switchable indicator — the user always gets the full window.
 		if (!hasLongContextSurcharge(billing as ICAPIModelBilling | undefined)) {
-			return undefined;
+			return {
+				type: 'number',
+				title: localize('copilot.modelContextSize.title', "Context Size"),
+				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
+				default: longContextMax,
+				enum: [longContextMax],
+				enumLabels: [formatTokenCount(longContextMax)],
+				enumDescriptions: [
+					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
+				],
+			};
 		}
 
 		return {
@@ -1000,8 +1016,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				modifiedTime: s.modifiedTime.getTime(),
 				project,
 				summary: s.summary,
-				model: metadata.model,
-				agent: metadata.agent,
 				workingDirectory,
 				customizationDirectory: metadata.customizationDirectory,
 			};
@@ -1039,8 +1053,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
-			model: storedMetadata?.model,
-			agent: storedMetadata?.agent,
 			workingDirectory,
 			customizationDirectory: storedMetadata?.customizationDirectory,
 		};
@@ -1288,14 +1300,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
+		let agent: AgentSelection | undefined;
 		try {
-			const resolvedAgentName = provisional.agent ? await this._resolveAgentName(provisional.sessionUri, snapshot, provisional.agent) : undefined;
+			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
 				sessionId,
 				workingDirectory,
-				resolvedAgentName,
+				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
@@ -1317,8 +1331,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._provisionalSessions.delete(sessionId);
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
-		if (provisional.agent !== undefined) {
-			await this._storeSessionAgentMetadata(sessionUri, provisional.agent);
+		if (agent !== undefined) {
+			await this._storeSessionAgentMetadata(sessionUri, agent);
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so
@@ -1334,6 +1348,43 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		this._onDidMaterializeSession.fire({ session: sessionUri, workingDirectory, project });
 		return agentSession;
+	}
+
+	private async _resolveAgentWhenMaterializing(provisional: IProvisionalSession, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined> {
+		const agent = provisional.agent;
+		if (!agent) {
+			return undefined;
+		}
+		const alternativeAgent = this._getAlternativeAgentForWorktree(provisional, workingDirectory);
+
+		const [originalAgentName, alternativeAgentName] = await Promise.all([
+			this._resolveAgentName(provisional.sessionUri, snapshot, agent),
+			alternativeAgent ? this._resolveAgentName(provisional.sessionUri, snapshot, alternativeAgent) : Promise.resolve(undefined),
+		]);
+
+		if (originalAgentName) {
+			return { agent: agent, name: originalAgentName };
+		}
+		if (alternativeAgentName && alternativeAgent) {
+			this._logService.info(`[Copilot] Agent file ${agent.uri} is in the original repo; using worktree agent ${alternativeAgent?.uri}`);
+			return { agent: alternativeAgent, name: alternativeAgentName };
+		}
+		return undefined;
+	}
+	private _getAlternativeAgentForWorktree(provisional: IProvisionalSession, workingDirectory: URI | undefined): AgentSelection | undefined {
+		const agent = provisional.agent;
+		if (!agent) {
+			return undefined;
+		}
+		if (!provisional.workingDirectory || !workingDirectory) {
+			return undefined;
+		}
+		if (isEqual(provisional.workingDirectory, workingDirectory)) {
+			return undefined;
+		}
+		const agentUri = URI.parse(agent.uri);
+		const alternativeAgentUri = rebaseUnder(agentUri, provisional.workingDirectory, workingDirectory);
+		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -1428,19 +1479,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		// Walk up the subagent chain to reach the root SDK session entry;
-		// _sessions is keyed by root session IDs only.
-		let target = session;
-		let parsed;
-		while ((parsed = parseSubagentSessionUri(target))) {
-			target = parsed.parentSession;
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// Peer (non-default) chats own their SDK conversation in `_chatSessions`,
+		// keyed by the chat URI. Mirrors the routing in `sendMessage`.
+		if (!isDefaultChatUri(chat)) {
+			this._chatSessions.get(chat.toString())?.handleClientToolCallComplete(toolCallId, result);
+		} else {
+			this._sessions.get(AgentSession.id(session))?.handleClientToolCallComplete(toolCallId, result);
 		}
-		// The completion may belong to a peer chat (tracked in `_chatSessions`
-		// keyed by chat URI) rather than the default/parent session.
-		const entry = this._sessions.get(AgentSession.id(target))
-			?? this._chatSessions.get(target.toString());
-		entry?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
@@ -1452,18 +1498,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`, keyed by the chat URI.
-		if (chat && !isDefaultChatUri(chat)) {
+		if (!isDefaultChatUri(chat)) {
 			const entry = await this._ensureChatSession(session, chat);
 			if (!entry) {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
-			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session));
+			await entry.send(prompt, attachments, turnId, this._resolveSdkMode(session), senderClientId);
 			return;
 		}
 		const sessionId = AgentSession.id(session);
@@ -1501,7 +1547,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId);
+				entry.resetTurnState(turnId, senderClientId);
 			}
 
 			// Emit any pending first-turn announcement (e.g. worktree
@@ -1517,7 +1563,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			try {
 				const sdkMode = this._resolveSdkMode(session);
-				await entry.send(prompt, attachments, turnId, sdkMode);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
@@ -2211,11 +2257,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, channelUri?: URI): CopilotAgentSession {
 		const sessionUri = channelUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
+		const chatChannelUri = channelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
 			{
 				sessionUri,
+				chatChannelUri,
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidSessionProgress,
 				sessionLauncher: this._sessionLauncher,
@@ -2360,12 +2408,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
-		if (!await this._gitService.isInsideWorkTree(workingDirectory)) {
+		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(workingDirectory) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(workingDirectory) ?? currentBranch;
+		// Skip worktree isolation for a repo with no commits yet (unborn HEAD); `git worktree add` would fail.
+		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
+		if (!headCommit) {
+			return undefined;
+		}
+
+		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
 		return { currentBranch, defaultBranch };
 	}
 
@@ -2384,7 +2439,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchName = await this._branchNameGenerator.generateBranchName({ sessionId, message: prompt, githubToken: this._githubToken });
+		const branchName = await this._branchNameGenerator.generateBranchName({
+			sessionId,
+			message: prompt,
+			githubToken: this._githubToken,
+			// Treat a failed existence check as a collision so we fall back to a
+			// suffixed branch name rather than risk `addWorktree` failing because
+			// the branch already exists.
+			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => true),
+		});
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
@@ -3554,7 +3617,7 @@ class ActiveClient extends Disposable {
 		// Forward per-session publish events into the agent's progress
 		// stream. This replaces the previous clientId-based routing.
 		this._register(this.pluginController.onDidPublish(action => {
-			onDidSessionProgress.fire({ kind: 'action', session: this._sessionUri, action });
+			onDidSessionProgress.fire({ kind: 'action', resource: this._sessionUri, action });
 		}));
 	}
 

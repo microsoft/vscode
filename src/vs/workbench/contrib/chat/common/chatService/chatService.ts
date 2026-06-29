@@ -1036,6 +1036,7 @@ export interface IChatSubagentToolInvocationData {
 	prompt?: string;
 	result?: string;
 	modelName?: string;
+	credits?: number;
 }
 
 /**

@@ -238,14 +238,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	if (!options?.disableStandardTransfer) {
 
 		// Text: allows to paste into text-capable areas
-		// Only include file:// URIs — remote URIs are not meaningful to
-		// native apps and macOS would create .webloc URL bookmark files
-		// when these are dragged to Finder.
-		const nativeResources = fileSystemResources.filter(({ resource }) => resource.scheme === Schemas.file);
-		if (nativeResources.length) {
-			const lineDelimiter = isWindows ? '\r\n' : '\n';
-			event.dataTransfer.setData(DataTransfers.TEXT, nativeResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
-		}
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
 		// Download URL: enables support to drag a tab as file to desktop
 		// Requirements:
