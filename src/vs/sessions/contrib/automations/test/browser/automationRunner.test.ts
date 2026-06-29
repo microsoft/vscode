@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../browser/automationService.js';
@@ -69,7 +70,7 @@ suite('AutomationRunner', () => {
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService);
+		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new TestNotificationService());
 		return { service, sessionsMgmt, runner };
 	}
 
