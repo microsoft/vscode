@@ -1008,8 +1008,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// If reconnecting to an active turn, wire up an ongoing state listener
-			// to stream new progress into the session's progressObs.
 			if (activeTurnId && initialProgress !== undefined) {
 				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
 			}
@@ -2177,6 +2175,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolCallId = initial.toolCallId;
 		const toolName = initial.toolName;
 
+		// `beginToolCall`/`invokeTool` below resolve the ChatModel by session
+		// resource and throw `Tool called for unknown chat session` if it is
+		// not registered yet. On reconnect, provider content is resolved
+		// before the model is created, so defer until it exists to avoid
+		// stranding the turn. (Live turns already have a model, so this runs
+		// synchronously.)
+		if (!this._chatService.getSession(opts.sessionResource)) {
+			const sub = this._chatService.onDidCreateModel(model => {
+				if (isEqual(model.sessionResource, opts.sessionResource)) {
+					sub.dispose();
+					this._setupClientToolCall(initial, part$, store, opts);
+				}
+			});
+			store.add(sub);
+			return;
+		}
+
 		// Reconnect adoption: settle any snapshot invocation so the new
 		// streaming one created by `beginToolCall` can take over the UI
 		// slot rather than leaving the old instance orphaned.
@@ -2281,6 +2296,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!approvedDispatched) {
 				if (err !== undefined && !isCancellationError(err)) {
 					this._logService.warn(`[AgentHost] Client tool rejected pre-execution: ${toolName}`, err);
+					// The agent is blocked waiting for this tool's result. A
+					// pre-execution failure (e.g. the tool service rejected
+					// the call) would otherwise strand the turn forever, so
+					// report it back as a failed completion.
+					const message = err instanceof Error ? err.message : String(err);
+					this._dispatchAction(opts.backendSession, {
+						type: ActionType.ChatToolCallComplete,
+						turnId: opts.turnId,
+						toolCallId,
+						result: {
+							success: false,
+							pastTenseMessage: `Failed to execute ${toolName}`,
+							error: { message },
+						},
+					}, opts.chatChannel);
 				}
 				return;
 			}
