@@ -186,12 +186,6 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	private async _handleChatCompletions(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
-		const connection = this._bridgeRegistry.getActive();
-		if (!connection) {
-			this._writeJsonError(res, 503, 'No renderer connection available to service BYOK models', 'api_error');
-			return;
-		}
-
 		let body: IOpenAiChatRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
@@ -207,6 +201,12 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		} catch (err) {
 			const message = err instanceof OpenAiTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
+			return;
+		}
+
+		const connection = this._bridgeRegistry.getServingConnection();
+		if (!connection) {
+			this._writeJsonError(res, 503, 'No renderer connection available to service BYOK models', 'api_error');
 			return;
 		}
 

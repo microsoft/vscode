@@ -254,21 +254,31 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	const connection = bridgeRegistry.getActive();
-	if (!connection) {
-		return {};
-	}
+	// Aggregate BYOK models across every connected renderer (deduped by
+	// `vendor/id`). Inbound inference is routed back to the owning window by
+	// `IByokLmProxyService.getConnectionForModel`, so a session may advertise
+	// models served by any connected window — matching the window-agnostic CAPI
+	// catalogue.
 	let byokModels: IByokLmModelInfo[];
 	try {
-		byokModels = await connection.listModels();
+		byokModels = await bridgeRegistry.listModels();
 	} catch (err) {
-		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridge`, err);
+		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
 		return {};
 	}
 	if (byokModels.length === 0) {
 		return {};
 	}
-	const handle = await startProxy();
+	// `startProxy` binds a local loopback listener — unlikely to fail, but it
+	// must never break session materialization (which fires the cross-window
+	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.
+	let handle: IByokLmProxyHandle;
+	try {
+		handle = await startProxy();
+	} catch (err) {
+		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
+		return {};
+	}
 	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
 		name: vendor,
 		type: 'openai',

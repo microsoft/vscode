@@ -240,6 +240,41 @@ suite('ByokLmProxyService', () => {
 		}
 	});
 
+	test('routes requests to a serving window and excludes a non-serving one', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const calls: string[] = [];
+		// The serving window (editor): enumerates models and answers chat.
+		const regServing = registry.register('editor', {
+			chat: async () => { calls.push('serving'); return { content: 'from serving' }; },
+			listModels: async () => [{ vendor: 'acme', id: 'claude' }],
+		});
+		// A non-serving window (connected without a BYOK handler): its bridge
+		// rejects, so it must never be picked for routing even though it is connected.
+		const regNonServing = registry.register('no-handler', {
+			chat: async () => { calls.push('no-handler'); return { content: 'from non-serving' }; },
+			listModels: async () => { throw new Error('no BYOK handler'); },
+		});
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		// Warm the cache so the serving window is known before routing.
+		await registry.listModels();
+		const handle = await service.start();
+		try {
+			const res = await fetch(chatUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle),
+				body: JSON.stringify({ model: 'claude', messages: [] }),
+			});
+			assert.deepStrictEqual({
+				routedToServing: (await res.text()).includes('from serving'),
+				calls,
+			}, { routedToServing: true, calls: ['serving'] });
+		} finally {
+			handle.dispose();
+			regServing.dispose();
+			regNonServing.dispose();
+			service.dispose();
+		}
+	});
+
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', { chat: async () => ({ content: 'ok' }), listModels: async () => [] });
