@@ -8,7 +8,7 @@ import { IObservable, ISettableObservable, ITransaction, autorun, derived, obser
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -36,6 +36,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
 
 	constructor(
 		private readonly _session: ISession,
@@ -71,6 +72,17 @@ export class VisibleSession extends Disposable implements IActiveSession {
 				return [];
 			}
 			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
+		});
+		// Tab strip render order: open chats with tool-origin chats hidden and
+		// in-composer (untitled) drafts moved to the end.
+		this.visibleChatTabs = derived(this, reader => {
+			const open = this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
+			const committed: IChat[] = [];
+			const untitled: IChat[] = [];
+			for (const chat of open) {
+				(chat.status.read(reader) === SessionStatus.Untitled ? untitled : committed).push(chat);
+			}
+			return untitled.length === 0 ? open : [...committed, ...untitled];
 		});
 	}
 
