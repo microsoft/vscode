@@ -48,7 +48,7 @@ import '../tools/browserTools.contribution.js';
  * Setting that controls whether a screenshot of the selected element is attached
  * to the chat when sending elements from the Integrated Browser.
  */
-export const BrowserSendElementsToChatAttachImagesSettingId = 'workbench.browser.sendElementsToChat.attachImages';
+const BrowserSendElementsToChatAttachImagesSettingId = 'workbench.browser.sendElementsToChat.attachImages';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -791,9 +791,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
 		key: 'chat.sendElementsToChat.attachImages',
-		migrateFn: value => ([
-			['chat.sendElementsToChat.attachImages', { value: undefined }],
-			[BrowserSendElementsToChatAttachImagesSettingId, { value }]
-		])
+		migrateFn: value => {
+			const result: [string, { value: unknown | undefined }][] = [
+				['chat.sendElementsToChat.attachImages', { value: undefined }],
+			];
+			if (typeof value === 'boolean') {
+				result.push([BrowserSendElementsToChatAttachImagesSettingId, { value }]);
+			}
+			return result;
+		}
 	}
 ]);
