@@ -109,6 +109,17 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(sessionsMgmt.calls[0].folderUri.toString(), FOLDER_B.toString());
 	});
 
+	test('truncates the session title to 100 characters', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+
+		const longName = 'A'.repeat(150);
+		const a = await service.createAutomation({ name: longName, prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
+		await runner.runOnce(a, 'manual', 1);
+
+		assert.strictEqual(sessionsMgmt.calls[0].options.title, 'A'.repeat(100));
+	});
+
 	test('marks the run failed when createAndSendNewChatRequest throws', async () => {
 		const { service, sessionsMgmt, runner } = setup();
 		sessionsMgmt.nextError = new Error('provider offline');
@@ -208,6 +219,8 @@ suite('AutomationRunner', () => {
 			modelId: undefined,
 			modeId: undefined,
 			permissionLevel: undefined,
+			isolationMode: undefined,
+			branch: undefined,
 		});
 	});
 
@@ -232,6 +245,8 @@ suite('AutomationRunner', () => {
 			modelId: undefined,
 			modeId: 'agent',
 			permissionLevel: 'autopilot',
+			isolationMode: undefined,
+			branch: undefined,
 		});
 	});
 
@@ -250,8 +265,8 @@ suite('AutomationRunner', () => {
 		const { service, sessionsMgmt, runner } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await service.deleteAutomation(a.id);
-		// recordRunStart throws "Automation not found"; the runner must swallow
-		// it, never start a session, and produce no run rows.
+		// The runner detects the deletion via getAutomation before attempting
+		// recordRunStart, bails early, and produces no run rows.
 		await runner.runOnce(a, 'manual', 1);
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		assert.deepStrictEqual(service.runs.get(), []);

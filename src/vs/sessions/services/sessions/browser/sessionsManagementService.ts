@@ -470,37 +470,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Create a new session for the given folder and send a chat request to it,
 	 * without navigating into the started session. The started session appears
 	 * in the sessions list once the provider commits it, while the user's
-	 * current view is left untouched.
+	 * current view is left untouched. Returns the committed session,
+	 * or `undefined` if the service was disposed during the send.
 	 *
 	 * Unlike {@link sendNewChatRequest} with `background`, this does not go
 	 * through the new-session composer: it creates a fresh session purely for
 	 * this request and never sets it as pending/active. Intended for callers
 	 * outside the composer that want to kick off a session programmatically.
 	 *
-	 * If the send fails, the stranded draft is disposed through its provider and
-	 * the error is rethrown so the caller can react.
+	 * If the send or any configuration setter fails, the stranded draft is
+	 * disposed through its provider and the error is rethrown.
 	 */
 	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 
-		if (createOptions?.modelId) {
-			provider.setModel(session.sessionId, createOptions.modelId);
-		}
-		if (createOptions?.modeId) {
-			provider.setMode?.(session.sessionId, createOptions.modeId);
-		}
-		if (createOptions?.permissionLevel) {
-			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
-		}
-		if (createOptions?.isolationMode) {
-			provider.setIsolationMode?.(session.sessionId, createOptions.isolationMode);
-		}
-		if (createOptions?.branch) {
-			provider.setBranch?.(session.sessionId, createOptions.branch);
-		}
-
 		try {
+			if (createOptions?.modelId) {
+				provider.setModel(session.sessionId, createOptions.modelId);
+			}
+			if (createOptions?.modeId) {
+				provider.setMode?.(session.sessionId, createOptions.modeId);
+			}
+			if (createOptions?.permissionLevel) {
+				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
+			}
+			if (createOptions?.isolationMode) {
+				provider.setIsolationMode?.(session.sessionId, createOptions.isolationMode);
+			}
+			if (createOptions?.branch) {
+				provider.setBranch?.(session.sessionId, createOptions.branch);
+			}
+
 			return await this._sendNewChatRequestInBackground(provider, session, options);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it

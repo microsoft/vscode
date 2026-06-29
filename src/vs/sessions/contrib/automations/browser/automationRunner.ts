@@ -14,12 +14,7 @@ import { IAutomationService } from '../../../../workbench/contrib/chat/common/au
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
-/**
- * Sessions-layer runner that turns an automation kickoff into a chat session.
- * The run row records the kickoff only — the session runs independently thereafter.
- * Token is re-checked post-send so mid-flight cancellations surface as `failed`, not `completed`.
- * Never throws; failures are recorded on the run row.
- */
+/** Sessions-layer runner. Never throws; failures are recorded on the run row. */
 export class AutomationRunner implements IAutomationRunner {
 
 	declare readonly _serviceBrand: undefined;
@@ -38,7 +33,7 @@ export class AutomationRunner implements IAutomationRunner {
 		leaderWindowId: number,
 		token: CancellationToken = CancellationToken.None,
 	): Promise<void> {
-		// Must not throw per IAutomationRunner contract; unexpected errors from the inner path are swallowed here.
+		// Must not throw per IAutomationRunner contract. Unexpected errors are swallowed here.
 		try {
 			await this._runOnceInner(automation, trigger, leaderWindowId, token);
 		} catch (err) {
@@ -60,6 +55,11 @@ export class AutomationRunner implements IAutomationRunner {
 		const startTimeMs = Date.now();
 		let runId: string | undefined;
 		try {
+			if (!this.automationService.getAutomation(automation.id)) {
+				this.logService.trace(`[AutomationRunner] skipping ${automation.id}: automation was deleted.`);
+				return;
+			}
+
 			const run = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
 			runId = run.id;
 			await this.automationService.updateRun(runId, { status: 'running' });
@@ -72,10 +72,10 @@ export class AutomationRunner implements IAutomationRunner {
 			const options: ISendRequestOptions = {
 				query: automation.prompt,
 				background: true,
-				source: 'automation',
+				title: automation.name?.substring(0, 100),
 			};
 
-			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId || automation.sessionTypeId || automation.modelId || automation.mode || automation.permissionLevel || automation.isolationMode || automation.branch
+			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId !== undefined || automation.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || automation.isolationMode !== undefined || automation.branch !== undefined
 				? {
 					providerId: automation.providerId,
 					sessionTypeId: automation.sessionTypeId,
@@ -91,24 +91,10 @@ export class AutomationRunner implements IAutomationRunner {
 
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions);
 
-			// Re-check cancellation post-send: a scheduler timeout/dispose
-			// that landed during the in-flight send should surface as
-			// `failed`/`Cancelled`, not `completed`. The session itself is
-			// already committed and continues independently — only the run
-			// row outcome is corrected here.
+			// Re-check cancellation post-send so mid-flight timeouts surface as `failed`.
 			if (token.isCancellationRequested) {
 				await this._markCancelled(runId, trigger, automation, startTimeMs);
 				return;
-			}
-
-			if (session) {
-				try {
-					const chatUri = session.mainChat.get().resource;
-					const title = localize('automationRunner.sessionTitle', "{0}", automation.name);
-					await this.sessionsManagementService.renameChat(session, chatUri, title);
-				} catch (renameErr) {
-					this.logService.warn(`[AutomationRunner] renameChat failed for ${automation.id}`, renameErr);
-				}
 			}
 
 			await this.automationService.updateRun(runId, {
@@ -119,7 +105,6 @@ export class AutomationRunner implements IAutomationRunner {
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
 			this.logService.error(`[AutomationRunner] run for ${automation.id} failed`, err);
-			// Defensive: the error path must not propagate secondary failures to the outer caller.
 			try {
 				const errorMessage = err instanceof Error ? err.message : String(err);
 				this.notificationService.error(localize('automationRunFailed', "Automation '{0}' failed: {1}", automation.name, errorMessage));
