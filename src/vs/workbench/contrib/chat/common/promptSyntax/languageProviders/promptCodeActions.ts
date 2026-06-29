@@ -16,7 +16,7 @@ import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { MARKERS_OWNER_ID, PromptValidatorMarkerCode, PromptValidatorMarkerCode } from './promptValidator.js';
+import { MARKERS_OWNER_ID, PromptValidatorMarkerCode } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
 import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
@@ -136,23 +136,26 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
 					));
 				}
+			} else if (!markerCode) {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				if (reference) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplaceGeneric', "Search Marketplace for Extension '{0}'", reference),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [reference] }
+					));
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplaceGeneric', "Search Marketplace for MCP Server '{0}'", reference),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${reference}`] }
+					));
+				}
 			}
 		}
-	}
-
-	private getMarkerCode(marker: IMarkerData): string | undefined {
-		if (!marker.code) {
-			return undefined;
-		}
-		return typeof marker.code === 'string' ? marker.code : marker.code.value;
-	}
-
-	private getMarkersInRange(model: ITextModel, range: Range): IMarkerData[] {
-		const markers = this.markerService.read({ resource: model.uri, owner: MARKERS_OWNER_ID });
-		return markers.filter(marker => {
-			const markerRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
-			return markerRange.intersectRanges(range);
-		});
 	}
 
 	private getExtensionId(marker: IMarkerData, model: ITextModel): string | undefined {
@@ -169,35 +172,6 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
 		const parts = reference.split('/');
 		return parts.length >= 3 ? `${parts[0]}/${parts[1]}` : undefined;
-	}
-
-	private getEnableMcpServerCodeActions(model: ITextModel, range: Range, result: CodeAction[]): void {
-		const markersInRange = this.getMarkersInRange(model, range);
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingGithubMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
-				undefined,
-				{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
-			));
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
-			));
-		}
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingPlaywrightMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
-			));
-		}
 	}
 
 	private getMarkerCode(marker: IMarkerData): string | undefined {

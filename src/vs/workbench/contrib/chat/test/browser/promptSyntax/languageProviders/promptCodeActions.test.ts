@@ -326,6 +326,31 @@ suite('PromptCodeActionProvider', () => {
 				`Search Marketplace for MCP Server 'io.github.github/github-mcp-server'`
 			]);
 		});
+
+		test('offers both quick fixes for generic unknown references', async () => {
+			markerData = [{
+				owner: 'prompts-diagnostics-provider',
+				resource: URI.parse('test:///test' + getPromptFileExtension(PromptsType.agent)),
+				severity: MarkerSeverity.Hint,
+				message: 'Unknown tool',
+				startLineNumber: 4,
+				startColumn: 9,
+				endLineNumber: 4,
+				endColumn: 18
+			}];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`tools: ['unknownTool']`,
+				'---',
+			].join('\n');
+			const actions = await getCodeActions(content, 4, 11, PromptsType.agent);
+			assert.deepStrictEqual(actions.map(action => action.title), [
+				`Search Marketplace for Extension 'unknownTool'`,
+				`Search Marketplace for MCP Server 'unknownTool'`
+			]);
+		});
 	});
 
 	suite('prompt code actions', () => {
