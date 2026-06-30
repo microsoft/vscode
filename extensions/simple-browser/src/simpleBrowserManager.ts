@@ -21,6 +21,9 @@ export class SimpleBrowserManager {
 
 	public show(inputUri: string | vscode.Uri, options?: ShowOptions): void {
 		const url = typeof inputUri === 'string' ? inputUri : inputUri.toString(true);
+		if (this.existInTabGroup()) {
+			return;
+		}
 		if (this._activeView) {
 			this._activeView.show(url, options);
 		} else {
@@ -36,6 +39,10 @@ export class SimpleBrowserManager {
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
 		this.registerWebviewListeners(view);
 		this._activeView ??= view;
+	}
+
+	private existInTabGroup(): boolean {
+		return !!vscode.window.tabGroups.activeTabGroup.tabs.find(tabGroup => tabGroup.label === SimpleBrowserView.title);
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {
