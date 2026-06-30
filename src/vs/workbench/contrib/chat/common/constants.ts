@@ -10,6 +10,9 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { LocalChatSessionUri } from './model/chatUri.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
@@ -29,7 +32,6 @@ export enum ChatConfiguration {
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
-	EditModeHidden = 'chat.editMode.hidden',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -68,15 +70,18 @@ export enum ChatConfiguration {
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
+	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
-	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
+	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
+	DefaultConfiguration = 'chat.defaultConfiguration',
+	DefaultModel = 'chat.defaultModel',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -86,13 +91,17 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
-	AgentHostClientTools = 'chat.agentHost.clientTools',
-	AgentHostDefaultChatProvider = 'chat.agentHost.defaultChatProvider',
+	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
+	EditorDefaultProvider = 'chat.editor.defaultProvider',
+	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
+	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
+
+	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 }
 
 /**
@@ -120,6 +129,21 @@ const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel))
 
 export function isChatPermissionLevel(level: unknown | undefined): level is ChatPermissionLevel {
 	return chatPermissionLevels.has(level as string);
+}
+
+/**
+ * Shape of the {@link ChatConfiguration.DefaultConfiguration}
+ * object setting. Controls the starting `mode` and `approvals` for new agent-host
+ * sessions (such as Copilot CLI). All properties are optional — a missing property
+ * falls back to the per-axis default.
+ */
+export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
+
+export interface IChatDefaultConfiguration {
+	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
+	readonly mode?: AgentSessionMode;
+	/** Starting approval level: `default` / `autoApprove`. */
+	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
 }
 
 /**
@@ -220,20 +244,93 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 /**
  * Returns the effective default session type for a new chat in the VS Code
- * window, honoring the experimental
- * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting. Falls back to
- * {@link localChatSessionType} when the setting is disabled or the agent host
- * contribution is not registered.
+ * editor window, honoring the experimental
+ * {@link ChatConfiguration.EditorDefaultProvider} setting:
+ * - `'copilotAh'` selects the Agent Host Copilot CLI when its contribution is registered.
+ * - `'copilotEh'` selects the Extension Host Copilot CLI when its contribution is
+ *   registered and it is not hidden by {@link ChatConfiguration.CopilotCliHideExtensionHostEditor}.
+ *
+ * Falls back to {@link localChatSessionType} when local is enabled, or when no
+ * visible non-local provider is available.
  */
 export function getDefaultNewChatSessionType(
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
 ): string {
-	if (configurationService.getValue<boolean>(ChatConfiguration.AgentHostDefaultChatProvider) &&
-		chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
-		return SessionType.AgentHostCopilot;
+	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
+	const defaultType = getConfiguredEditorDefaultSessionType(defaultProvider);
+	if (defaultType === SessionType.AgentHostCopilot && !isEditorLocalAgentEnabled(configurationService)) {
+		return defaultType;
 	}
-	return localChatSessionType;
+
+	if (defaultType && isVisibleEditorChatSessionType(defaultType, configurationService, chatSessionsService)) {
+		return defaultType;
+	}
+
+	if (isEditorLocalAgentEnabled(configurationService)) {
+		return localChatSessionType;
+	}
+
+	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService)[0] ?? localChatSessionType;
+}
+
+export function getDefaultNewChatSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): URI {
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
+	return defaultType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
+}
+
+export function isVisibleEditorChatSessionType(
+	sessionType: string,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): boolean {
+	if (sessionType === localChatSessionType) {
+		if (!isEditorLocalAgentEnabled(configurationService) && configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh') {
+			return false;
+		}
+		return isEditorLocalAgentEnabled(configurationService) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService).length === 0;
+	}
+
+	if (sessionType === SessionType.CopilotCLI && configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
+		return false;
+	}
+
+	return !!chatSessionsService.getChatSessionContribution(sessionType);
+}
+
+function getConfiguredEditorDefaultSessionType(defaultProvider: string | undefined): string | undefined {
+	switch (defaultProvider) {
+		case 'local':
+			return localChatSessionType;
+		case 'copilotAh':
+			return SessionType.AgentHostCopilot;
+		case 'copilotEh':
+			return SessionType.CopilotCLI;
+		default:
+			return undefined;
+	}
+}
+
+function getVisibleNonLocalEditorChatSessionTypes(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): string[] {
+	const sessionTypes = new Set<string>();
+	for (const contribution of chatSessionsService.getAllChatSessionContributions()) {
+		if (contribution.type !== localChatSessionType && isVisibleEditorChatSessionType(contribution.type, configurationService, chatSessionsService)) {
+			sessionTypes.add(contribution.type);
+		}
+	}
+	return Array.from(sessionTypes);
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';

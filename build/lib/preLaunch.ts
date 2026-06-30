@@ -33,7 +33,28 @@ async function ensureNodeModules() {
 }
 
 async function getElectron() {
+	// `npm run electron` deletes and re-downloads `.build/electron` on every
+	// invocation. When preLaunch runs repeatedly (e.g. once per integration test
+	// section) this is both wasteful and a source of flaky failures on Windows,
+	// where the just-exited Electron process can still hold file locks while the
+	// directory is being removed and re-extracted. Skip the refresh when the
+	// already-present Electron matches the expected version; any detection
+	// failure falls back to a (re)download to preserve the previous behavior.
+	if (await isExpectedElectronInstalled()) {
+		return;
+	}
 	await runProcess(npm, ['run', 'electron']);
+}
+
+async function isExpectedElectronInstalled(): Promise<boolean> {
+	try {
+		const { getElectronVersion } = await import('./util.ts');
+		const { electronVersion } = getElectronVersion();
+		const installedVersion = (await fs.readFile(path.join(rootDir, '.build', 'electron', 'version'), 'utf8')).trim().replace(/^v/, '');
+		return installedVersion === electronVersion;
+	} catch {
+		return false;
+	}
 }
 
 async function ensureCompiled() {

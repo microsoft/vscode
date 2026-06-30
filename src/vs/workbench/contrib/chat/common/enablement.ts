@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IReader, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -119,6 +119,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 				break;
 			}
 		}
+
 	}
 
 	remove(key: string): void {
@@ -144,5 +145,65 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		const next = new Map(current);
 		next.delete(key);
 		memento.set(next, tx);
+	}
+}
+
+export class CollisionEnablementModel implements IEnablementModel {
+
+	constructor(
+		private readonly _base: IEnablementModel,
+		private readonly _collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
+	) { }
+
+	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		const baseState = this._base.readEnabled(key, reader);
+
+		if (!isContributionEnabled(baseState)) {
+			return baseState;
+		}
+
+		const group = this._collisionGroups.read(reader).get(key);
+		if (!group) {
+			return baseState;
+		}
+
+		for (const otherId of group) {
+			if (otherId === key) {
+				return baseState;
+			}
+			if (isContributionEnabled(this._base.readEnabled(otherId, reader))) {
+				return ContributionEnablementState.DisabledProfile;
+			}
+		}
+		return baseState;
+	}
+
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const isEnabling = state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.EnabledWorkspace;
+		const group = isEnabling ? this._collisionGroups.get().get(key) : undefined;
+
+		if (!group) {
+			this._base.setEnabled(key, state, tx);
+			return;
+		}
+
+		const updateGroup = (innerTx: ITransaction) => {
+			this._base.setEnabled(key, state, innerTx);
+			for (const otherId of group) {
+				if (otherId !== key) {
+					this._base.setEnabled(otherId, ContributionEnablementState.DisabledWorkspace, innerTx);
+				}
+			}
+		};
+
+		if (tx) {
+			updateGroup(tx);
+		} else {
+			transaction(innerTx => updateGroup(innerTx));
+		}
+	}
+
+	remove(key: string): void {
+		this._base.remove(key);
 	}
 }

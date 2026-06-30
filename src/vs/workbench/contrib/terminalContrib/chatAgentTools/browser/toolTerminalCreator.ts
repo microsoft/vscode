@@ -164,6 +164,10 @@ export class ToolTerminalCreator {
 			// `:` is a POSIX shell built-in no-op (returns 0), works cross-platform
 			// since git always invokes the editor via `sh -c`.
 			GIT_EDITOR: ':',
+			// Prevent apt/dpkg from opening interactive prompts (e.g. needrestart
+			// "Which services should be restarted?" dialogs). The agent cannot
+			// drive TUI prompts, so non-interactive mode picks safe defaults.
+			DEBIAN_FRONTEND: 'noninteractive',
 		};
 
 		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;

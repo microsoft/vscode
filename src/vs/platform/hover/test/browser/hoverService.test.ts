@@ -198,6 +198,40 @@ suite('HoverService', () => {
 			assertNotInDOM(hover, 'Hover should be removed from DOM after dispose');
 		});
 
+		test('should call onDidHide exactly once when hover is disposed', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const hover = hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidHide: () => { didHideCount++; }
+			});
+
+			assert.ok(hover);
+			hover.dispose();
+			hover.dispose();
+
+			assert.strictEqual(didHideCount, 1);
+		});
+
+		test('should call onDidHide when hover is hidden during onDidShow', () => {
+			const target = createTarget();
+			const calls: string[] = [];
+
+			hoverService.showInstantHover({
+				content: 'Test',
+				target,
+				onDidShow: () => {
+					calls.push('show');
+					hoverService.hideHover(true);
+				},
+				onDidHide: () => { calls.push('hide'); }
+			});
+
+			assert.deepStrictEqual(calls, ['show', 'hide']);
+		});
+
 		test('should deduplicate hovers by id', () => {
 			const target = createTarget();
 
@@ -441,6 +475,20 @@ suite('HoverService', () => {
 			disposable.dispose();
 			hoverService.hideHover(true);
 		}));
+
+		test('should not call onDidHide when delayed hover is never shown', () => {
+			const target = createTarget();
+			let didHideCount = 0;
+
+			const disposable = hoverService.setupDelayedHover(target, {
+				content: 'Test',
+				onDidHide: () => { didHideCount++; }
+			});
+
+			disposable.dispose();
+
+			assert.strictEqual(didHideCount, 0);
+		});
 
 		test('should use reduced delay when reducedDelay is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();

@@ -237,7 +237,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 ## Step 7: Fix and Iterate
 
 1. Make the fix locally
-2. Verify compilation: check the `VS Code - Build` task or run `npm run compile-check-ts-native`
+2. Verify compilation: check the `VS Code - Build` task or run `npm run typecheck-client`
 3. Run relevant unit tests locally: `./scripts/test.sh --grep "<pattern>"`
 4. Commit and push:
    ```bash

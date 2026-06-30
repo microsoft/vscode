@@ -316,7 +316,7 @@ export class ChatRequestTelemetry {
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
-			chatMode: this.opts.options?.modeInfo?.modeName ?? this.opts.options?.modeInfo?.modeId,
+			chatMode: this.opts.options?.modeInfo?.telemetryModeName ?? this.opts.options?.modeInfo?.telemetryModeId,
 			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
 		});
 	}

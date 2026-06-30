@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,10 +20,12 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -60,6 +61,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 
@@ -69,22 +71,19 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					if (!this._isVisible(sessionTypeItem.type)) {
-						continue;
-					}
-
-					const lockedForEntitlement = this._isLockedForEntitlement(sessionTypeItem.type);
+					const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
+					const unavailable = availability !== SessionTypeAvailability.Available;
 					actions.push({
 						...action,
 						id: sessionTypeItem.commandId,
 						label: sessionTypeItem.label,
 						checked: currentType === sessionTypeItem.type,
 						icon: this._getSessionIcon(sessionTypeItem),
-						enabled: lockedForEntitlement ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
+						enabled: unavailable ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
-						description: lockedForEntitlement ? this._getUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
+						description: getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? this._getUpgradeHover() : sessionTypeItem.hoverDescription },
+						hover: { content: getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -115,7 +114,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentHostDefaultChatProvider)) {
+			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
+				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
@@ -169,7 +170,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.Local}`,
 		};
 
-		const agentSessionItems: ISessionTypeItem[] = [localSessionItem];
+		const allAgentSessionItems: ISessionTypeItem[] = [localSessionItem];
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
@@ -177,7 +178,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			const agentSessionType = getAgentSessionProvider(contribution.type);
 			if (agentSessionType) {
 				// Well-known session type — use hardcoded metadata
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: agentSessionType,
 					label: getAgentSessionProviderName(agentSessionType),
 					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
@@ -189,7 +190,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				// Extension-contributed session type — always use in-place
 				// (openNewChatSessionExternal requires a menu action registered
 				// by _registerMenuItems, which may not exist for extensions)
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: contribution.type,
 					label: contribution.displayName ?? contribution.name ?? contribution.type,
 					hoverDescription: contribution.description ?? '',
@@ -197,6 +198,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				});
 			}
 		}
+
+		// Filter out hidden items based on settings
+		const agentSessionItems = allAgentSessionItems.filter(item => this._isVisible(item.type));
 
 		// When the experimental "local agent host as default" setting is
 		// enabled, hoist the agent-host item to the front of the picker so it
@@ -215,17 +219,16 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * The default session type for the picker when no session is yet active.
-	 * Defaults to {@link AgentSessionProviders.Local} but is overridden to
-	 * {@link AgentSessionProviders.AgentHostCopilot} when the experimental
-	 * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting is enabled
-	 * and that provider is registered.
+	 * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
+	 * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
+	 * when the selected provider is registered.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
 		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
 	}
 
-	protected _isVisible(_type: AgentSessionTarget): boolean {
-		return true;
+	protected _isVisible(type: AgentSessionTarget): boolean {
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService);
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
@@ -234,33 +237,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);
-	}
-
-	/**
-	 * Whether the given session type is locked behind a plan upgrade for the
-	 * current user's entitlement. The cloud agent is not available to Copilot
-	 * Free or Copilot Student (EDU) users, so it is shown greyed out with an
-	 * Upgrade prompt instead of being selectable.
-	 */
-	protected _isLockedForEntitlement(type: AgentSessionTarget): boolean {
-		if (type !== AgentSessionProviders.Cloud) {
-			return false;
-		}
-		const entitlement = this.chatEntitlementService.entitlement;
-		return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
-	}
-
-	private _getUpgradeDescription(): IMarkdownString {
-		return new MarkdownString(
-			localize('chat.sessionTarget.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
-			{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
-		);
-	}
-
-	private _getUpgradeHover(): MarkdownString {
-		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
-		hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to delegate work to the cloud agent."));
-		return hover;
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {

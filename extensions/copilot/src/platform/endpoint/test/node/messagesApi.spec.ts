@@ -566,8 +566,12 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+	test('matches Fable 5, Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
+			'claude-fable-5': modelSupportsExtendedCacheTtl('claude-fable-5'),
+			'claude-opus-4.8': modelSupportsExtendedCacheTtl('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsExtendedCacheTtl('claude-opus-4-8'),
+			'claude-opus-4-8-1m': modelSupportsExtendedCacheTtl('claude-opus-4-8-1m'),
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
 			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
@@ -583,6 +587,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-opus-4-8-1m': true,
 			'claude-opus-4.6-1m': true,
 			'claude-opus-4-6-1m': true,
 			'claude-opus-4.7-1m-internal': true,
@@ -617,6 +625,26 @@ suite('modelSupportsExtendedCacheTtl', function () {
 });
 
 suite('modelSupportsMemory', function () {
+	test('matches Claude id strings', function () {
+		expect({
+			'claude-fable-5': modelSupportsMemory('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsMemory('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsMemory('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsMemory('claude-opus-4-8'),
+			'claude-haiku-4-5': modelSupportsMemory('claude-haiku-4-5'),
+			'claude-opus-4-1': modelSupportsMemory('claude-opus-4-1'),
+			'gpt-5': modelSupportsMemory('gpt-5'),
+		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-haiku-4-5': true,
+			'claude-opus-4-1': true,
+			'gpt-5': false,
+		});
+	});
+
 	test('matches via endpoint.family when the model id is unknown', function () {
 		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
 		expect({
@@ -1090,7 +1118,10 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
-	test('omits effort when model does not declare supportsReasoningEffort', () => {
+	test('falls back to the requested effort when adaptive model declares no supportsReasoningEffort', () => {
+		// Every adaptive-thinking Claude model accepts output_config.effort even
+		// when the endpoint metadata doesn't declare it — a user-selected effort
+		// must not be silently dropped (#cacheExplorer effort visibility).
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			// supportsReasoningEffort is undefined
@@ -1102,13 +1133,48 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
 		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
-		expect(body.output_config).toBeUndefined();
+		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
-	test('omits effort when supportsReasoningEffort is an empty array', () => {
+	test('defaults to high effort (the provider default) when adaptive model declares no supportsReasoningEffort and none is requested', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			// supportsReasoningEffort is absent — the capability is not declared
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toEqual({ effort: 'high' });
+	});
+
+	test('omits effort when supportsReasoningEffort is explicitly empty', () => {
+		// An empty list is a declaration that the model supports no effort
+		// levels — distinct from the capability being absent, which falls
+		// back to the adaptive default.
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			supportsReasoningEffort: [],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toBeUndefined();
+	});
+
+	test('omits effort when model is not adaptive and declares no supportsReasoningEffort', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: false,
+			maxThinkingBudget: 32000,
+			minThinkingBudget: 1024,
+			// supportsReasoningEffort is undefined
 		});
 		const options = createMinimalOptions({
 			modelCapabilities: { enableThinking: true, reasoningEffort: 'medium' },
@@ -1116,7 +1182,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8191 });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -1135,7 +1201,56 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		expect(body.output_config).toBeUndefined();
 	});
 
-	test('omits effort when reasoningEffort is an invalid value', () => {
+	test('sends xhigh when the endpoint declares it (Opus 4.8 metadata)', () => {
+		// Opus 4.7+ metadata declares xhigh/max and the Opus 4.8 picker
+		// defaults to xhigh — a hardcoded low|medium|high validator used to
+		// silently drop it, so no effort reached the wire at all.
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['low', 'medium', 'high', 'xhigh', 'max'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'xhigh' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toEqual({ effort: 'xhigh' });
+	});
+
+	test('accepts any level the endpoint declares, including unknown future ones', () => {
+		// Validation is purely metadata-driven — a new level (as xhigh/max
+		// once were) must work without a client change.
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['low', 'ultra'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'ultra' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.output_config).toEqual({ effort: 'ultra' });
+	});
+
+	test('defaults to a declared level when the list does not include medium', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['high', 'max'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		// Middle of the declared list — never a level the endpoint rejects.
+		expect(body.output_config).toEqual({ effort: 'high' });
+	});
+
+	test('omits effort when the requested level is not declared by the endpoint', () => {
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			supportsReasoningEffort: ['low', 'medium', 'high'],

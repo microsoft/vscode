@@ -35,6 +35,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { AgentIntentInvocation } from './agentIntent';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
@@ -131,9 +132,10 @@ export class AskAgentIntentInvocation extends AgentIntentInvocation {
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
 		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, { processCodeblocks: true }, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, sessionTranscriptService, authenticationService);
+		super(intent, location, endpoint, request, { processCodeblocks: true }, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, sessionTranscriptService, automaticInstructionsCollector, authenticationService);
 	}
 
 	public override async getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

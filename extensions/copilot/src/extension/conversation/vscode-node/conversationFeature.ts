@@ -11,7 +11,6 @@ import { IConversationOptions } from '../../../platform/chat/common/conversation
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DevContainerConfigGeneratorArguments, IDevContainerConfigurationService } from '../../../platform/devcontainer/common/devContainerConfigurationService';
 import { ICombinedEmbeddingIndex } from '../../../platform/embeddings/common/vscodeIndex';
-import { FEEDBACK_URL } from '../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -129,7 +128,13 @@ export class ConversationFeature implements IExtensionContribution {
 		void refreshHasByokModels();
 		this._disposables.add(vscode.lm.onDidChangeChatModels(() => void refreshHasByokModels()));
 
-		// Always unblock activation when auth settles; chat enablement is driven by `reevaluate` independently.
+		// Re-evaluate enablement whenever the Copilot token changes (including routine refreshes),
+		// since reevaluate() checks `copilotToken` to decide whether to enable/activate.
+		this._disposables.add(authenticationService.onDidCopilotTokenChange(() => {
+			reevaluate();
+		}));
+
+		// Always unblock activation when the identity settles; chat enablement is driven by `reevaluate` independently.
 		// Without this, BYOK-only sessions can deadlock (the BYOK query needs this extension fully activated,
 		// while activation waits for the BYOK query to set `hasByokModels`).
 		this._disposables.add(authenticationService.onDidAuthenticationChange(() => {
@@ -268,9 +273,7 @@ export class ConversationFeature implements IExtensionContribution {
 		const disposables = new DisposableStore();
 
 		[
-			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', async () => {
-				return vscode.env.openExternal(vscode.Uri.parse(FEEDBACK_URL));
-			}),
+			vscode.commands.registerCommand('github.copilot.interactiveSession.feedback', () => vscode.commands.executeCommand('github.copilot.report', 'Copilot chat feedback')),
 			vscode.commands.registerCommand('github.copilot.chat.compact', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/compact' })),
 			vscode.commands.registerCommand('github.copilot.terminal.explainTerminalLastCommand', async () => this.triggerTerminalChat({ query: `/${TerminalExplainIntent.intentName} #terminalLastCommand` })),
 			vscode.commands.registerCommand('github.copilot.terminal.fixTerminalLastCommand', async () => generateTerminalFixes(this.instantiationService)),

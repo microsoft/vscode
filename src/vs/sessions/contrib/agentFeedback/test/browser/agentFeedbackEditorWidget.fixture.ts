@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
-import { IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidgetContribution.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
@@ -61,6 +61,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		id: `agentFeedback:${id}`,
 		sourceId: id,
 		source: SessionEditorCommentSource.AgentFeedback,
+		kind: AgentFeedbackKind.UserReview,
 		sessionResource,
 		resourceUri: fileResource,
 		range: createRange(startLineNumber, endLineNumber),
@@ -76,6 +77,7 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 		id: `prReview:${id}`,
 		sourceId: id,
 		source: SessionEditorCommentSource.PRReview,
+		kind: AgentFeedbackKind.PRReview,
 		text,
 		resourceUri: fileResource,
 		range: createRange(startLineNumber, endLineNumber),

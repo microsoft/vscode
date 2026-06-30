@@ -332,7 +332,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					otelSpan.setAttributes({
 						[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-						...(result.usage.prompt_tokens_details?.cached_tokens
+						...(result.usage.prompt_tokens_details?.cached_tokens !== undefined
 							? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 							: {}),
 						[GenAiAttr.RESPONSE_MODEL]: model.id,

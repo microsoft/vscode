@@ -876,7 +876,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						});
 						listenStream(result.stream, {
 							onData: (chunk) => {
-								const data = new Uint8Array(chunk.buffer.buffer, chunk.buffer.byteOffset, chunk.buffer.byteLength);
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = chunk.buffer.slice();
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

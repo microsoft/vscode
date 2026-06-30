@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { IExtraKnownMarketplaceEntry } from '../../../../../base/common/managedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
+
+export { extraKnownMarketplacesToConfigDict } from '../../../../../base/common/managedSettings.js';
 
 export const enum MarketplaceReferenceKind {
 	GitHubShorthand = 'githubShorthand',
@@ -45,37 +46,6 @@ export interface IConfiguredMarketplaces {
 
 /** Shorthand-or-URI regex used to detect GitHub `owner/repo[#ref]` entries. */
 const _githubShorthandRe = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#.+)?$/;
-
-/**
- * Converts the {@link IExtraKnownMarketplaceEntry} array delivered by the
- * `ChatExtraMarketplaces` policy into the `{ [name]: url-or-shorthand }` dict
- * stored on the `chat.plugins.extraMarketplaces` setting.
- *
- * The dict shape is what the Settings Editor's ComplexObject renderer can
- * display inline as key/value rows. {@link readConfiguredMarketplaces} reverses
- * this conversion so {@link parseMarketplaceReferences} keeps producing
- * `displayLabel = name` (required for `enabledPlugins["plugin@<name>"]` keys).
- *
- * Plain-string entries (allowed by the policy schema but unnamed) are stored
- * with the value used as both key and value so they survive the round-trip
- * intact.
- */
-export function extraKnownMarketplacesToConfigDict(entries: readonly (string | IExtraKnownMarketplaceEntry)[] | undefined): Record<string, string> | undefined {
-	if (!entries?.length) {
-		return undefined;
-	}
-	const obj: Record<string, string> = {};
-	for (const entry of entries) {
-		if (typeof entry === 'string') {
-			obj[entry] = entry;
-		} else {
-			const s = entry.source;
-			const base = s.source === 'github' ? s.repo : s.url;
-			obj[entry.name] = s.ref ? `${base}#${s.ref}` : base;
-		}
-	}
-	return obj;
-}
 
 export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
 	const userValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.PluginMarketplaces) ?? [];

@@ -21,8 +21,8 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
 import { OpenCopilotCliStateFileAction } from './openCopilotCliStateFileAction.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
@@ -287,27 +287,22 @@ function formatConnectionSubscriptions(label: string, details: string, connectio
 }
 
 function formatAgentHostSubscriptionsInspection(accessor: ServicesAccessor): string {
-	const agentHostService = accessor.get(IAgentHostService);
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const connectionsService = accessor.get(IAgentHostConnectionsService);
 
-	const remoteConnections = remoteAgentHostService.connections;
+	const connections = connectionsService.connections;
+	const remoteCount = connections.filter(c => !c.isAmbient).length;
 
 	let output = '# Agent Host Subscriptions\n\n';
-	output += `- Connections: ${1 + remoteConnections.length} (1 local, ${remoteConnections.length} remote)\n`;
+	output += `- Connections: ${connections.length} (1 ambient, ${remoteCount} remote)\n`;
 	output += 'Lists every resource each connected agent host is currently subscribed to. The always-live root state is summarized separately from the per-resource subscription table.\n\n';
 
-	output += formatConnectionSubscriptions(
-		'Local agent host',
-		`clientId: ${agentHostService.clientId || '(none)'}`,
-		agentHostService,
-	);
-
-	for (const info of remoteConnections) {
-		output += formatConnectionSubscriptions(
-			`Remote: ${info.name}`,
-			`address: ${info.address} · status: ${info.status} · clientId: ${info.clientId || '(none)'}`,
-			remoteAgentHostService.getConnection(info.address),
-		);
+	for (const info of connections) {
+		const heading = info.isAmbient ? 'Ambient agent host' : `Remote: ${info.name}`;
+		const details = [
+			...(info.address ? [`address: ${info.address}`] : []),
+			`clientId: ${info.connection?.clientId || '(none)'}`,
+		].join(' · ');
+		output += formatConnectionSubscriptions(heading, details, info.connection);
 	}
 
 	return output;

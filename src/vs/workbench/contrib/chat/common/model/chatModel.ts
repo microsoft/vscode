@@ -6,6 +6,7 @@
 import { asArray } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -30,7 +31,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -64,6 +65,7 @@ export interface IChatPendingRequest {
 export interface ISerializableSendOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
+	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	/** Static snapshot of user-selected tools (not an observable) */
 	userSelectedTools?: UserSelectedTools;
 	location?: ChatAgentLocation;
@@ -204,7 +206,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatHookPart
 	| IChatPullRequestContent
 	| IChatWorkspaceEdit
-	| IChatExternalEdit;
+	| IChatExternalEdit
+	| IChatAutoModeResolutionPart;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -332,11 +335,11 @@ export type ChatResponseModelChangeReason =
 export const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { reason: 'other' };
 
 export interface IChatRequestModeInfo {
-	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
+	kind: ChatModeKind | undefined; // is undefined in case of telemetryModeId === 'applyCodeBlock'
 	isBuiltin: boolean;
 	modeInstructions: IChatRequestModeInstructions | undefined;
-	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
-	modeName?: string;
+	telemetryModeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
+	telemetryModeName?: string;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 	permissionLevel?: ChatPermissionLevel;
 }
@@ -346,6 +349,7 @@ export interface IChatRequestModeInstructions {
 	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
+	readonly allowedSubagents?: readonly string[];
 	readonly metadata?: Record<string, boolean | string | number>;
 	readonly isBuiltin?: boolean;
 }
@@ -612,6 +616,7 @@ class AbstractResponse implements IResponse {
 				case 'questionCarousel':
 				case 'planReview':
 				case 'disabledClaudeHooks':
+				case 'autoModeResolution':
 					// Ignore
 					continue;
 				case 'toolInvocation':
@@ -1426,7 +1431,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setResult(result: IChatAgentResult): void {
-		this._result = result;
+		// If already cancelled, discard error details from late-arriving agent responses.
+		if (this.isCanceled && result.errorDetails) {
+			const { errorDetails: _errorDetails, ...rest } = result;
+			this._result = rest;
+		} else {
+			this._result = result;
+		}
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
@@ -1447,6 +1458,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			&& currentUsage.promptTokens === usage.promptTokens
 			&& currentUsage.completionTokens === usage.completionTokens
 			&& currentUsage.outputBuffer === usage.outputBuffer
+			&& currentUsage.copilotCredits === usage.copilotCredits
 			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails);
 	}
 
@@ -1546,7 +1558,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			codeCitations: this.codeCitations,
 			timestamp: this._timestamp,
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
+			promptTokens: this.usage?.promptTokens,
 			completionTokens: this.completionTokenCount,
+			outputBuffer: this.usage?.outputBuffer,
+			promptTokenDetails: this.usage?.promptTokenDetails,
+			copilotCredits: this.usage?.copilotCredits,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<ISerializableChatResponseData>;
 	}
@@ -1601,6 +1617,8 @@ export interface IChatModel extends IDisposable {
 	/** Whether this model will be kept alive while it is running or has edits */
 	readonly willKeepAlive: boolean;
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
+	/** Total copilot credits consumed across all turns in this session. */
+	readonly sessionCost: number;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1641,7 +1659,11 @@ interface ISerializableChatResponseData {
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timeSpentWaiting?: number;
+	promptTokens?: number;
 	completionTokens?: number;
+	outputBuffer?: number;
+	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	copilotCredits?: number;
 	elapsedMs?: number;
 }
 
@@ -1855,6 +1877,13 @@ export interface IChatModelInputState {
 	/** Currently selected language model, if any */
 	selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
+	/**
+	 * Configuration (e.g. context size, thinking effort) for the selected
+	 * model, captured so it can be restored alongside the model when the
+	 * session is reopened.
+	 */
+	modelConfiguration?: IStringDictionary<unknown>;
+
 	/** Current input text */
 	inputText: string;
 
@@ -1880,11 +1909,27 @@ export interface ISerializableChatModelInputState {
 	selectedModel: {
 		identifier: string;
 		metadata: ILanguageModelChatMetadata;
+		/**
+		 * Configuration (e.g. context size, thinking effort) for the selected
+		 * model, captured so it can be restored alongside the model when the
+		 * session is reopened.
+		 */
+		modelConfiguration?: IStringDictionary<unknown>;
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
 	permissionLevel?: ChatPermissionLevel;
 	contrib: Record<string, unknown>;
+}
+
+/**
+ * Legacy shape of {@link ISerializableChatModelInputState} as persisted by older
+ * versions, where the selected model's configuration was stored as a sibling
+ * `modelConfiguration` field instead of nested inside `selectedModel`. Retained
+ * so sessions serialized in the old format can still be read.
+ */
+interface ILegacySerializableChatModelInputState extends ISerializableChatModelInputState {
+	modelConfiguration?: IStringDictionary<unknown>;
 }
 
 /**
@@ -2104,7 +2149,8 @@ class InputModel implements IInputModel {
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
-				metadata: value.selectedModel.metadata
+				metadata: value.selectedModel.metadata,
+				modelConfiguration: value.modelConfiguration
 			} : undefined,
 			inputText: value.inputText,
 			selections: value.selections,
@@ -2277,6 +2323,17 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests.at(-1);
 	}
 
+	get sessionCost(): number {
+		let totalCredits = 0;
+		for (const request of this._requests) {
+			const credits = request.response?.usage?.copilotCredits;
+			if (typeof credits === 'number') {
+				totalCredits += credits;
+			}
+		}
+		return totalCredits;
+	}
+
 	private _timestamp: number;
 	get timestamp(): number {
 		return this._timestamp;
@@ -2407,6 +2464,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				identifier: serializedInputState.selectedModel.identifier,
 				metadata: serializedInputState.selectedModel.metadata
 			},
+			modelConfiguration: serializedInputState.selectedModel ? (serializedInputState.selectedModel.modelConfiguration ?? (serializedInputState as ILegacySerializableChatModelInputState).modelConfiguration) : undefined,
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,
@@ -2606,7 +2664,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 			if (typeof raw.completionTokens === 'number') {
-				request.response.setUsage({ kind: 'usage', promptTokens: 0, completionTokens: raw.completionTokens });
+				request.response.setUsage({
+					kind: 'usage',
+					promptTokens: raw.promptTokens ?? 0,
+					completionTokens: raw.completionTokens,
+					outputBuffer: raw.outputBuffer,
+					promptTokenDetails: raw.promptTokenDetails,
+					copilotCredits: raw.copilotCredits,
+				});
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));
@@ -3029,6 +3094,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 	return {
 		modeInfo: options.modeInfo,
 		userSelectedModelId: options.userSelectedModelId,
+		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
 		userSelectedTools: options.userSelectedTools?.get(),
 		location: options.location,
 		locationData: options.locationData,

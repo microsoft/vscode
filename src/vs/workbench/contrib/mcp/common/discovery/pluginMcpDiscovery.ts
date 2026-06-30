@@ -23,6 +23,14 @@ import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
+/**
+ * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
+ * MCP collections contributed by agent plugins. The remainder of the id is
+ * the plugin's URI. Consumers can use this to tell plugin-sourced MCP servers
+ * apart from servers configured directly in VS Code.
+ */
+export const MCP_PLUGIN_COLLECTION_ID_PREFIX = 'plugin.';
+
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
@@ -67,7 +75,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	}
 
 	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
-		const collectionId = `plugin.${plugin.uri}`;
+		const collectionId = `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
 			label: `${plugin.label} (Agent Plugin)`,

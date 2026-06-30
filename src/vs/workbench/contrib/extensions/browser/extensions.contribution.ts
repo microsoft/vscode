@@ -136,22 +136,55 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
-				type: ['boolean', 'string'],
-				enum: [true, 'onlyEnabledExtensions', false,],
-				enumItemLabels: [
-					localize('all', "All Extensions"),
-					localize('enabled', "Only Enabled Extensions"),
-					localize('none', "None"),
-				],
+				type: 'string',
+				enum: ['on', 'off'],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions.'),
-					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
+					localize('extensions.autoUpdate.on', 'Download and install updates automatically only for enabled extensions.'),
+					localize('extensions.autoUpdate.off', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
-				default: true,
+				default: 'on',
 				scope: ConfigurationScope.APPLICATION,
-				tags: ['usesOnlineServices']
+				tags: ['usesOnlineServices'],
+				policy: {
+					name: 'ExtensionsAutoUpdate',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.125',
+					localization: {
+						description: {
+							key: 'extensions.autoUpdate',
+							value: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.autoUpdate.on',
+								value: localize('extensions.autoUpdate.on', 'Download and install updates automatically only for enabled extensions.'),
+							},
+							{
+								key: 'extensions.autoUpdate.off',
+								value: localize('extensions.autoUpdate.off', 'Extensions are not automatically updated.'),
+							},
+						]
+					}
+				}
+			},
+			'extensions.autoUpdateDelay': {
+				type: 'number',
+				default: 2,
+				minimum: 0,
+				markdownDescription: localize('extensions.autoUpdateDelay', "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."),
+				scope: ConfigurationScope.APPLICATION,
+				policy: {
+					name: 'ExtensionsAutoUpdateDelay',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.125',
+					localization: {
+						description: {
+							key: 'extensions.autoUpdateDelay',
+							value: localize('extensions.autoUpdateDelay', "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."),
+						}
+					}
+				}
 			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
@@ -728,10 +761,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false);
+		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off');
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
+			title: localize2('enableAutoUpdate', 'Enable Auto Update for Extensions'),
 			category: ExtensionsLocalizedLabel,
 			precondition: enableAutoUpdateWhenCondition,
 			menu: [{
@@ -745,10 +778,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateForAllExtensions(true)
 		});
 
-		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, false);
+		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'off');
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
+			title: localize2('disableAutoUpdate', 'Disable Auto Update for Extensions'),
 			precondition: disableAutoUpdateWhenCondition,
 			category: ExtensionsLocalizedLabel,
 			menu: [{
@@ -1440,7 +1473,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'on'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1467,7 +1500,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdatesForPublisherAction.ID,
 			title: { value: ToggleAutoUpdatesForPublisherAction.LABEL, original: 'Auto Update (Publisher)' },
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false),
+			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -2095,18 +2128,26 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: AutoUpdateConfigurationKey,
+		/**
+		 * Migrates the `extensions.autoUpdate` setting to its new `'on' | 'off'` values.
+		 *
+		 * The setting previously supported several values that are now retired:
+		 * - `true` (All Extensions) and `'onlyEnabledExtensions'` (Only Enabled Extensions)
+		 *   are folded into the new `'on'` value, along with the insiders-only `'delayed'` value.
+		 * - `false` (None) and the internal `'onlySelectedExtensions'` value map to `'off'`.
+		 *   In `'off'` mode, extensions explicitly opted in per-extension are still auto-updated,
+		 *   which preserves the `'onlySelectedExtensions'` behavior.
+		 *
+		 * Returning `[]` is a no-op, used when the value is already in the new format
+		 * (`'on'`/`'off'`) or unset.
+		 */
 		migrateFn: (value, accessor) => {
-			if (value === 'onlySelectedExtensions') {
-				return { value: false };
+			if (value === undefined || value === 'on' || value === 'off') {
+				return [];
 			}
-			// Migrate insiders values ('on' | 'delayed' | 'off') that were
-			// rolled out with the delayed auto-update mode back to booleans.
-			if (value === 'on' || value === 'delayed') {
-				return { value: true };
+			if (value === false || value === 'onlySelectedExtensions') {
+				return { value: 'off' };
 			}
-			if (value === 'off') {
-				return { value: false };
-			}
-			return [];
+			return { value: 'on' };
 		}
 	}]);

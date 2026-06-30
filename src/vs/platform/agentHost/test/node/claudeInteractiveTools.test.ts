@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ConfirmationOptionKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, ToolCallStatus } from '../../common/state/protocol/state.js';
+import { ConfirmationOptionKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ToolCallStatus } from '../../common/state/protocol/state.js';
 import {
 	buildAskUserSessionInputQuestions,
 	buildExitPlanModeConfirmationState,
@@ -87,7 +87,7 @@ suite('claudeInteractiveTools', () => {
 
 			assert.deepStrictEqual(result, [{
 				id: 'pick',
-				kind: SessionInputQuestionKind.SingleSelect,
+				kind: ChatInputQuestionKind.SingleSelect,
 				title: 'pick',
 				message: 'Pick one',
 				options: [
@@ -111,8 +111,9 @@ suite('claudeInteractiveTools', () => {
 
 			const result = buildAskUserSessionInputQuestions(askInput);
 
-			assert.strictEqual(result[0].kind, SessionInputQuestionKind.MultiSelect);
-			assert.strictEqual(result[0].allowFreeformInput, true);
+			const question = result[0];
+			assert.strictEqual(question.kind, ChatInputQuestionKind.MultiSelect);
+			assert.strictEqual(question.kind === ChatInputQuestionKind.MultiSelect ? question.allowFreeformInput : undefined, true);
 		});
 
 		test('falls back to q-{idx} id when header is empty', () => {
@@ -144,19 +145,19 @@ suite('claudeInteractiveTools', () => {
 		test('flattens text, single-select with freeform, multi-select with freeform; drops skipped', () => {
 			const answers = flattenAskUserAnswers(askInput, {
 				name: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'Ada' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'Ada' },
 				},
 				one: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'A', freeformValues: ['extra'] },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'A', freeformValues: ['extra'] },
 				},
 				many: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['X', 'Y'], freeformValues: ['Z'] },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['X', 'Y'], freeformValues: ['Z'] },
 				},
 				skipped: {
-					state: SessionInputAnswerState.Skipped,
+					state: ChatInputAnswerState.Skipped,
 				},
 			});
 
@@ -169,7 +170,7 @@ suite('claudeInteractiveTools', () => {
 
 		test('returns empty object when every answer is skipped or missing', () => {
 			const answers = flattenAskUserAnswers(askInput, {
-				skipped: { state: SessionInputAnswerState.Skipped },
+				skipped: { state: ChatInputAnswerState.Skipped },
 			});
 
 			assert.deepStrictEqual(answers, {});
@@ -178,8 +179,8 @@ suite('claudeInteractiveTools', () => {
 		test('drops single-select answers with no value and no freeform', () => {
 			const answers = flattenAskUserAnswers(askInput, {
 				one: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: '' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: '' },
 				},
 			});
 
@@ -195,12 +196,12 @@ suite('claudeInteractiveTools', () => {
 			};
 			const answers = flattenAskUserAnswers(blankHeaderInput, {
 				'q-0': {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'one' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'one' },
 				},
 				named: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'two' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'two' },
 				},
 			});
 

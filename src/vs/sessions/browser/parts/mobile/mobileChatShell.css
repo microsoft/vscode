@@ -49,7 +49,7 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 	touch-action: manipulation;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	padding: 0;
 }
 
@@ -75,7 +75,7 @@
 	padding: 0 10px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
@@ -115,7 +115,7 @@
 	min-width: 0;
 	text-align: center;
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;

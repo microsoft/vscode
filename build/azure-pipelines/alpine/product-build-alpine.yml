@@ -48,6 +48,12 @@ jobs:
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/agent-sdk/tarballs
+          artifactName: agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          displayName: Publish agent SDK tarballs
+          sbomEnabled: false
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
     steps:
       - template: ../common/checkout.yml@self
 
@@ -61,9 +67,9 @@ jobs:
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -128,11 +134,20 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          gh release download "v${NODE_VERSION}-${BUILD_ID}" -R microsoft/vscode-node -p "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" --dir .build/nodejs-musl --clobber
+          az extension add --name azure-devops --upgrade --only-show-errors
+          az artifacts universal download \
+            --organization "https://dev.azure.com/monacotools" \
+            --project "Monaco" \
+            --scope project \
+            --feed "vscode-node" \
+            --name "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar" \
+            --version "${NODE_VERSION}-${BUILD_ID}" \
+            --path .build/nodejs-musl \
+            --only-show-errors
           tar -xzf ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" -C ".build/nodejs-musl" --strip-components=1
           rm ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz"
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -151,7 +166,7 @@ jobs:
           npm_config_arch: $(NPM_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
@@ -175,14 +190,20 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
+      - template: ../common/agent-sdk-produce.yml@self
+        parameters:
+          vscodePlatform: alpine
+
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX (background)
 
+      - template: ../common/mixin-vscode-capi.yml@self
+
       - script: npm run gulp core-ci
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile
 
       - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
@@ -202,7 +223,8 @@ jobs:
           echo "##vso[task.setvariable variable=SERVER_DIR_PATH]$DIR_PATH"
           echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server
 
       - script: |
@@ -217,5 +239,6 @@ jobs:
           echo "##vso[task.setvariable variable=WEB_DIR_PATH]$DIR_PATH"
           echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server (web)

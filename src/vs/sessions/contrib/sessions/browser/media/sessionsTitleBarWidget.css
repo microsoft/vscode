@@ -123,7 +123,7 @@
 	min-width: 14px;
 	height: 14px;
 	line-height: 14px;
-	padding: 0 3px;
+	padding: 0 4px;
 	box-sizing: border-box;
 	font-size: 9px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);

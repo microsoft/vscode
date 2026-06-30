@@ -335,8 +335,9 @@ class EditCodeStepFactory {
 		// We extract all files or selections from the chat variables
 		const otherChatVariables: ChatPromptReference[] = [];
 		for (const chatVariable of chatVariables) {
-			if (isInstructionFile(chatVariable) || isCustomizationsIndex(chatVariable)) {
-				otherChatVariables.push(chatVariable.reference);
+			const reference = chatVariable.reference;
+			if (isInstructionFile(reference) || isCustomizationsIndex(reference)) {
+				otherChatVariables.push(reference);
 				// take a snapshot of the prompt instruction file so we know if it changed
 				if (isUri(chatVariable.value)) {
 					const textDocument = await this._workspaceService.openTextDocument(chatVariable.value);
@@ -352,14 +353,14 @@ class EditCodeStepFactory {
 					await addWorkingSetEntry(notebook.uri, false);
 				}
 				if (chatVariable.value.scheme === Schemas.vscodeNotebookCellOutput) {
-					otherChatVariables.push(chatVariable.reference);
+					otherChatVariables.push(reference);
 				}
 			} else if (isUri(chatVariable.value)) {
 				await addWorkingSetEntry(chatVariable.value, chatVariable.isMarkedReadonly);
 			} else if (isLocation(chatVariable.value)) {
 				await addWorkingSetEntry(chatVariable.value.uri, chatVariable.isMarkedReadonly, chatVariable.value.range);
 			} else {
-				otherChatVariables.push(chatVariable.reference);
+				otherChatVariables.push(reference);
 			}
 		}
 		return {

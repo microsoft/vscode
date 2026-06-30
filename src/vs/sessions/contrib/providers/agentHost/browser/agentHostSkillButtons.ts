@@ -18,7 +18,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
@@ -41,13 +41,13 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._register(bindContextKey(IsAgentHostSession, contextKeyService, reader => {
-			const activeSession = sessionsManagementService.activeSession.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
@@ -92,6 +92,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'merge',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.IsMergeBaseBranchProtected.negate(),
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -106,6 +107,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -120,6 +122,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 2,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -134,6 +137,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest,
@@ -185,10 +189,10 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 		}
 
 		async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsService = accessor.get(ISessionsService);
 			const chatService = accessor.get(IChatService);
 
-			const activeSession = sessionsManagementService.activeSession.get();
+			const activeSession = sessionsService.activeSession.get();
 			if (!activeSession) {
 				return;
 			}

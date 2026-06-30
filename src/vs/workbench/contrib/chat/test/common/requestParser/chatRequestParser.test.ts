@@ -22,7 +22,7 @@ import { IChatSlashCommandService } from '../../../common/participants/chatSlash
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { IToolData, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
@@ -331,7 +331,7 @@ suite('ChatRequestParser', () => {
 		const forcedAgent = { ...getAgentWithSlashCommands([]), capabilities: { supportsPromptAttachments: true } } satisfies IChatAgentData;
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/skill plan run a quick plan',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot', forcedAgent, attachmentCapabilities: forcedAgent.capabilities },
@@ -356,7 +356,7 @@ suite('ChatRequestParser', () => {
 		const forcedAgent = { ...getAgentWithSlashCommands([]), capabilities: { supportsPromptAttachments: true } } satisfies IChatAgentData;
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/compact',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot', forcedAgent, attachmentCapabilities: forcedAgent.capabilities, mode: ChatModeKind.Agent },
@@ -380,7 +380,7 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/skill plan run a quick plan',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot' },
@@ -481,7 +481,7 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService);
 
-		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));
@@ -496,7 +496,7 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService);
 
-		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));

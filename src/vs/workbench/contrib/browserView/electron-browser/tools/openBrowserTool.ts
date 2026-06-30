@@ -23,8 +23,9 @@ import { IChatRequestModel } from '../../../chat/common/model/chatModel.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
-import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
+import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -68,6 +69,7 @@ export class OpenBrowserTool implements IToolImpl {
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -110,10 +112,11 @@ export class OpenBrowserTool implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 		const sessionId = getSessionId(invocation);
+		const activeSessionId = invocation.context?.sessionResource.toString();
 
 		// If no URL is specified, prompt the user for a page to share.
 		if (!params.url) {
-			const allPages = [...this.browserViewService.getKnownBrowserViews().values()];
+			const allPages = [...this.browserViewService.getContextualBrowserViews({ activeSessionId }).values()];
 			if (allPages.length === 0) {
 				return { content: [{ kind: 'text', value: 'No browser pages are currently open.' }] };
 			}
@@ -126,25 +129,35 @@ export class OpenBrowserTool implements IToolImpl {
 			}
 		}
 
+		// In a remote workspace without the remote proxy, the integrated browser
+		// runs locally and cannot reach the remote's localhost directly. Rewrite to
+		// the forwarded local address (if any) so the page can be reached.
+		const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
+		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(params.url, rewrite.url) : undefined;
+		params.url = rewrite.url;
+
+		const withNotice = (result: IToolResult): IToolResult =>
+			rewriteNotice ? { ...result, content: [rewriteNotice, ...result.content] } : result;
+
 		if (!params.forceNew) {
 			// If there are already-shared pages, tell the model to reuse them
-			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared });
+			const shared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (alreadyShared) {
-				return alreadyShared;
+				return withNotice(alreadyShared);
 			}
 
 			// If there are unshared (but shareable) pages on the same host, prompt user to share one
-			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, sharingState: BrowserViewSharingState.NotShared });
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, { includeBlank: false, sharingState: BrowserViewSharingState.NotShared, activeSessionId });
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
 				if (shareResult) {
-					return shareResult;
+					return withNotice(shareResult);
 				}
 			}
 		}
 
-		return this._openNewPage(sessionId, params.url);
+		return withNotice(await this._openNewPage(sessionId, params.url));
 	}
 
 	/**
@@ -203,7 +216,7 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		// User selected an existing tab
-		const editor = this.browserViewService.getKnownBrowserViews().get(selectedOptionId);
+		const editor = candidateEditors.find(e => e.id === selectedOptionId);
 		if (!editor) {
 			this.logService.warn(`[OpenBrowserTool] Selected option '${selectedOptionId}' not found.`);
 			return undefined;

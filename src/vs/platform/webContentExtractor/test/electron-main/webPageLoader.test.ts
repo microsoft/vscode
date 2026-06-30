@@ -1003,7 +1003,7 @@ suite('WebPageLoader', () => {
 
 	//#region Header Modification Tests
 
-	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+	test('onBeforeSendHeaders adds privacy headers for all requests', () => {
 		createWebPageLoader(URI.parse('https://example.com/page'));
 
 		// Get the callback passed to onBeforeSendHeaders
@@ -1016,10 +1016,10 @@ suite('WebPageLoader', () => {
 			modifiedHeaders = details.requestHeaders;
 		};
 
-		// Simulate a request to the same domain
+		// Simulate a sub-resource request (no resourceType)
 		callback(
 			{
-				url: 'https://example.com/page',
+				url: 'https://example.com/style.css',
 				requestHeaders: {
 					'TestHeader': 'TestValue'
 				}
@@ -1027,11 +1027,39 @@ suite('WebPageLoader', () => {
 			mockCallback
 		);
 
-		// Verify headers were added
+		// Verify privacy headers were added
 		assert.ok(modifiedHeaders);
 		assert.strictEqual(modifiedHeaders['DNT'], '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
 		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+		// Accept header should NOT be set for non-mainFrame requests
+		assert.strictEqual(modifiedHeaders['Accept'], undefined);
+	});
+
+	test('onBeforeSendHeaders adds Accept header preferring markdown for mainFrame requests', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
+
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
+
+		// Simulate a mainFrame navigation request
+		callback(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				requestHeaders: {}
+			},
+			mockCallback
+		);
+
+		assert.ok(modifiedHeaders);
+		assert.ok(modifiedHeaders['Accept']?.includes('text/markdown'));
+		assert.ok(modifiedHeaders['Accept']?.includes('text/html'));
 	});
 
 	//#endregion
@@ -1179,6 +1207,82 @@ suite('WebPageLoader', () => {
 			assert.ok(result.error.includes('repomd.xml'));
 		}
 	});
+
+	//#endregion
+
+	//#region Markdown Content Negotiation Tests
+
+	test('onHeadersReceived detects markdown content-type for mainFrame responses', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { cancel?: boolean } | undefined;
+		const mockCallback = (result: { cancel?: boolean }) => {
+			response = result;
+		};
+
+		// Simulate a markdown response for mainFrame
+		listener(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.cancel, false);
+	});
+
+	test('markdown content-type extraction uses raw body', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://learn.microsoft.com/en-us/docs');
+
+		const loader = createWebPageLoader(uri);
+		// Use AX nodes that exceed MIN_CONTENT_LENGTH so the test only passes
+		// if the markdown branch short-circuits before accessibility extraction.
+		const longAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'This is a long accessibility tree content that exceeds the minimum content length requirement of one hundred characters easily.' }
+			}
+		];
+		setupDebuggerMock({ axNodes: longAXNodes });
+
+		// Get the onHeadersReceived listener to simulate markdown response
+		const headersListener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		const loadPromise = loader.load();
+
+		// Simulate receiving a markdown content-type response
+		headersListener(
+			{
+				url: uri.toString(),
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			() => { }
+		);
+
+		// Make executeJavaScript return markdown content
+		window.webContents.executeJavaScript.resolves('# Hello World\n\nThis is markdown content.');
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('# Hello World'));
+		assert.ok(result.result.includes('This is markdown content.'));
+	}));
 
 	//#endregion
 

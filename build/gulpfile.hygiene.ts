@@ -7,7 +7,7 @@ import es from 'event-stream';
 import path from 'path';
 import fs from 'fs';
 import * as task from './lib/gulp/task.ts';
-import { checkCopilotEnginesVersion, hygiene } from './hygiene.ts';
+import { checkCopilotEnginesVersion, checkNoNewJavaScriptFiles, hygiene } from './hygiene.ts';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);
 
@@ -46,6 +46,10 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 			const copilotError = checkCopilotEnginesVersion(repoRoot);
 			if (copilotError) {
 				this.emit('error', copilotError);
+			}
+			const jsAllowlistError = checkNoNewJavaScriptFiles(repoRoot);
+			if (jsAllowlistError) {
+				this.emit('error', jsAllowlistError);
 			}
 		})
 	);

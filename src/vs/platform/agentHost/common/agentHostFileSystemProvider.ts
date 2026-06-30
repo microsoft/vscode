@@ -8,11 +8,12 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
+import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
+import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
 import { ROOT_STATE_URI } from './state/sessionState.js';
 
 /**
@@ -77,7 +78,7 @@ export async function createRemoteWatchHandle(
 		createResourceWatch(params: CreateResourceWatchParams): Promise<{ channel: string }>;
 		subscribe(channel: URI): Promise<unknown>;
 		unsubscribe(channel: URI): void;
-		onDidAction: Event<{ channel: string; action: { type: string; changes?: { items: readonly { uri: string; type: string }[] } } }>;
+		onDidAction: Event<ActionEnvelope>;
 	},
 	params: CreateResourceWatchParams,
 ): Promise<IRemoteWatchHandle> {
@@ -86,7 +87,7 @@ export async function createRemoteWatchHandle(
 	await primitives.subscribe(channelUri);
 	const onDidChangeEmitter = new Emitter<readonly IFileChange[]>();
 	const listener = primitives.onDidAction(envelope => {
-		if (envelope.channel !== channel || envelope.action.type !== 'resourceWatch/changed') {
+		if (envelope.channel !== channel || envelope.action.type !== ActionType.ResourceWatchChanged) {
 			return;
 		}
 		const items = envelope.action.changes?.items ?? [];
@@ -165,12 +166,13 @@ interface IAuthorityEntry {
  *
  * Individual connections are identified by the URI's authority component.
  */
-export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider {
+export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability {
 
 	readonly capabilities =
 		FileSystemProviderCapabilities.PathCaseSensitive |
 		FileSystemProviderCapabilities.FileReadWrite |
-		FileSystemProviderCapabilities.FileFolderCopy;
+		FileSystemProviderCapabilities.FileFolderCopy |
+		FileSystemProviderCapabilities.FileRealpath;
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
@@ -401,7 +403,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 
 		const connection = await this._getConnection(resource.authority);
 		try {
-			const resolved = await connection.resourceResolve({ channel: ROOT_STATE_URI, uri: decoded.toString() });
+			const resolved = await this._resolve(connection, decoded);
+
 			return {
 				type: resolved.type === 'directory' ? FileType.Directory
 					: resolved.type === 'symlink' ? FileType.SymbolicLink
@@ -409,8 +412,30 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				mtime: resolved.mtime ? Date.parse(resolved.mtime) : 0,
 				ctime: resolved.ctime ? Date.parse(resolved.ctime) : 0,
 				size: resolved.size ?? 0,
-				permissions: FilePermission.Readonly,
 			};
+		} catch (err) {
+			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
+		}
+	}
+
+	async realpath(resource: URI): Promise<string> {
+		const path = resource.path;
+		// Synthetic roots and virtual content schemes have no distinct
+		// canonical path — return the input path unchanged.
+		if (path === '/' || path === '') {
+			return path;
+		}
+		const decoded = this._decodeUri(resource);
+		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob' || decoded.path === '/' || decoded.path === '') {
+			return path;
+		}
+		const connection = await this._getConnection(resource.authority);
+		try {
+			const resolved = await this._resolve(connection, decoded);
+			// `resolved.uri` is the remote canonical (realpath) URI. Re-encode
+			// it back into provider space; the file service applies the
+			// returned path onto the original provider URI.
+			return this._encodeUri(URI.parse(resolved.uri), resource.authority).path;
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
 		}
@@ -583,6 +608,14 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			err instanceof Error ? err.message : String(err),
 			defaultCode,
 		);
+	}
+
+	/**
+	 * Resolve a decoded resource over {@link connection}. Shared by
+	 * {@link stat} and {@link realpath}.
+	 */
+	private _resolve(connection: IRemoteFilesystemConnection, decoded: URI): Promise<ResourceResolveResult> {
+		return connection.resourceResolve({ channel: ROOT_STATE_URI, uri: decoded.toString() });
 	}
 
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly DirectoryEntry[]> {

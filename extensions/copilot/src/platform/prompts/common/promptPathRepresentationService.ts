@@ -22,7 +22,7 @@ export interface IPromptPathRepresentationService {
 
 	_serviceBrand: undefined;
 
-	getFilePath(uri: Uri): string;
+	getFilePath(uri: Uri, makeRelative?: boolean): string;
 
 	resolveFilePath(filePath: string, predominantScheme?: string): Uri | undefined;
 
@@ -48,8 +48,17 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 
 	constructor(@IWorkspaceService private readonly workspaceService: IWorkspaceService) { }
 
-	getFilePath(uri: Uri): string {
+	getFilePath(uri: Uri, makeRelative?: boolean): string {
 		if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
+			if (makeRelative === true) {
+				const folders = this.workspaceService.getWorkspaceFolders();
+				if (folders.length === 1) {
+					const folder = folders[0];
+					if (uri.fsPath.startsWith(folder.fsPath)) {
+						return this.workspaceService.asRelativePath(uri, false);
+					}
+				}
+			}
 			return uri.fsPath;
 		}
 		return uri.toString();

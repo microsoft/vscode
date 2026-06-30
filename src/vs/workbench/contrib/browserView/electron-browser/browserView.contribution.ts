@@ -25,6 +25,7 @@ import './features/browserNavigationFeatures.js';
 import './features/browserWelcomeFeature.js';
 import './features/browserFavoritesFeature.js';
 import './features/browserHistoryFeature.js';
+import './features/browserPermissionsFeature.js';
 import './features/browserDataStorageFeatures.js';
 import './features/browserDevToolsFeature.js';
 import './features/browserEditorChatFeatures.js';

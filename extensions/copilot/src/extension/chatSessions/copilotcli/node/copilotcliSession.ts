@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
+import type { Attachment, SendOptions, SessionOptions, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
-import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
+import { IChatQuotaService, QuotaSnapshot, QuotaSnapshots } from '../../../../platform/chat/common/chatQuotaService';
 import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -911,7 +911,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		private readonly _agentName: string | undefined,
 		private readonly _sdkSession: Session,
 		private readonly _additionalWorkspaces: IWorkspaceInfo[],
-		private readonly _sandboxEnabled: boolean,
+		private readonly _sandboxConfig: SessionOptions['sandboxConfig'],
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IChatSessionMetadataStore private readonly _chatSessionMetadataStore: IChatSessionMetadataStore,
@@ -941,6 +941,33 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public setPermissionLevel(level: string | undefined): void {
 		this._permissionLevel = level;
+	}
+
+	/**
+	 * Whether the session was configured with the sandbox enabled. The sandbox
+	 * only actually applies to requests that run with default approvals — see
+	 * {@link _applyEffectiveSandboxConfig}.
+	 */
+	private get _sandboxEnabled(): boolean {
+		return !!this._sandboxConfig?.enabled;
+	}
+
+	/**
+	 * Apply the sandbox policy for the request that is about to be sent. The
+	 * sandbox enable setting only applies under default approvals; the sandbox
+	 * is explicitly disabled when the request runs with bypass approvals
+	 * (autopilot / autoApprove) or when no sandbox is configured for the
+	 * session. Pushing `{ enabled: false }` (rather than skipping the update)
+	 * ensures the SDK never retains a stale or auto-discovered sandbox.
+	 */
+	private _applyEffectiveSandboxConfig(bypassApprovals: boolean): void {
+		const base = this._sandboxConfig;
+		const sandboxConfig = (base?.enabled && !bypassApprovals) ? base : { enabled: false };
+		try {
+			this._sdkSession.updateOptions({ sandboxConfig });
+		} catch (error) {
+			this.logService.error(error, '[CopilotCLISession] Failed to update sandbox config for request');
+		}
 	}
 
 	// TODO: This should be pre-populated when we restore a session based on its original context.
@@ -1171,6 +1198,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editToolIds = new Set<string>();
 		const toolCalls = new Map<string, ToolCall>();
 		const toolStartTimes = new Map<string, number>();
+		// Synthesized `execute_tool` spans for native CLI tools (those that execute inside the SDK
+		// and therefore never reach the tools service). MCP/VS Code tools already emit `execute_tool`
+		// spans via the tools service, so we skip those here to avoid duplicate debug-log entries.
+		// Synthesizing these spans is what surfaces native tool calls (e.g. powershell, grep) in the
+		// chat debug logs view for the in-process Copilot CLI experience.
+		const syntheticToolSpans = new Map<string, ISpanHandle>();
+		// Per-model-turn usage reported by the SDK (`assistant.usage`). Used at request completion to
+		// synthesize one `chat` span per turn so the chat debug logs view shows the model turns, token
+		// metrics, and the agent response for the in-process Copilot CLI experience (the SDK performs
+		// the model call natively and never produces a JS span we could observe directly).
+		const modelTurnUsages: IModelTurnUsage[] = [];
+		const invokeAgentTraceContext = invokeAgentSpan.getSpanContext();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		let isQuotaError = false;
@@ -1264,14 +1303,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
 
+				const isSandboxBypassShell = permissionRequest.kind === 'shell' && permissionRequest.requestSandboxBypass === true;
+
 				// Auto-approve all requests when the permission level allows it.
-				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+				if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
-				if (permissionRequest.kind === 'shell' && this._sandboxEnabled) {
+				if (!isSandboxBypassShell && permissionRequest.kind === 'shell' && this._sandboxEnabled) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving shell request (sandbox is enabled)`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
@@ -1316,7 +1357,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
@@ -1423,13 +1464,30 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
-				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				const copilotUsage = (event.data as unknown as Record<string, unknown>).copilotUsage;
+				let copilotUsageNanoAiu: number | undefined;
 				if (copilotUsage && typeof copilotUsage === 'object') {
 					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
 					if (typeof totalNanoAiu === 'number') {
+						copilotUsageNanoAiu = totalNanoAiu;
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
 					}
 				}
+				// Sync the live per-category quota state the SDK reports (internal-only field) so the
+				// quota UI stays current without a separate `copilot_internal/user` fetch. This mirrors
+				// the extension-host chat path, which processes `copilot_quota_snapshots` from CAPI.
+				if (event.data.quotaSnapshots) {
+					this._chatQuotaService.processQuotaSnapshots(toChatQuotaSnapshots(event.data.quotaSnapshots));
+				}
+				// Record this model turn so we can synthesize a `chat` span for it at request completion.
+				modelTurnUsages.push({
+					model: event.data.model,
+					inputTokens: event.data.inputTokens,
+					outputTokens: event.data.outputTokens,
+					cacheReadTokens: event.data.cacheReadTokens,
+					copilotUsageNanoAiu,
+					parentToolCallId: event.data.parentToolCallId,
+				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1473,6 +1531,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_start', (event) => {
 				toolCalls.set(event.data.toolCallId, event.data as unknown as ToolCall);
 				toolStartTimes.set(event.data.toolCallId, Date.now());
+
+				// Only synthesize tool spans when the bridge is absent. If a future SDK registers its own
+				// JS OTel provider the bridge forwards native tool spans, and synthesizing would duplicate them.
+				if (!this._bridgeProcessor) {
+					this._startSyntheticToolSpan(event, syntheticToolSpans, invokeAgentTraceContext);
+				}
 
 				if (isCopilotCliEditToolCall(event.data)) {
 					flushPendingInvocationMessages();
@@ -1518,6 +1582,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const eventError = event.data.error ? { ...event.data.error, code: event.data.error.code || '' } : undefined;
 				const eventData = { ...event.data, error: eventError };
 				this._logToolCall(event.data.toolCallId, toolName, toolCall?.arguments, eventData);
+
+				// Complete the synthesized `execute_tool` span (native CLI tools only).
+				this._endSyntheticToolSpan(event, syntheticToolSpans);
 
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
@@ -1692,6 +1759,23 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', errorMessage);
 		} finally {
 			cancelCancellationAbort?.();
+
+			// Synthesize a `chat` span per model turn so the chat debug logs view shows the model
+			// turns, token metrics, and the agent response for the in-process Copilot CLI experience,
+			// where the model calls happen inside the SDK and never produce JS spans. Skip when the bridge
+			// is installed (a future SDK with its own JS provider), since it forwards the native chat spans.
+			if (!this._bridgeProcessor) {
+				this._injectModelTurnSpans(modelTurnUsages, assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, invokeAgentTraceContext);
+			}
+
+			// End any synthesized tool spans that never received a completion event (e.g. on abort)
+			// so they don't leak.
+			for (const toolSpan of syntheticToolSpans.values()) {
+				toolSpan.setStatus(SpanStatusCode.ERROR, 'incomplete');
+				toolSpan.end();
+			}
+			syntheticToolSpans.clear();
+
 			// End the invoke_agent wrapper span
 			const durationSec = (Date.now() - logStartTime) / 1000;
 			invokeAgentSpan.setAttribute('copilot_chat.duration_sec', durationSec);
@@ -1804,6 +1888,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it for
+			// this request when running in a bypass-approvals mode.
+			const bypassApprovals = remoteMode
+				? remoteMode === 'autopilot'
+				: this._permissionLevel === 'autopilot' || this._permissionLevel === 'autoApprove';
+			this._applyEffectiveSandboxConfig(bypassApprovals);
 			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
@@ -1841,6 +1931,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it when
+			// fleet runs in autopilot (a bypass-approvals mode).
+			this._applyEffectiveSandboxConfig(this._permissionLevel === 'autopilot');
 			const result = await this._sdkSession.fleet.start({ prompt });
 			if (!result.started) {
 				this.logService.info('[CopilotCLISession] Fleet mode not started');
@@ -2686,14 +2779,58 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _renderAttachments(attachments: Attachment[]): string[] {
 		const lines: string[] = [];
 		for (const attachment of attachments) {
-			if (attachment.type === 'github_reference') {
-				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
-			} else if (attachment.type === 'blob') {
-				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
-			} else if (attachment.type === 'extension_context') {
-				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
-			} else {
-				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+			switch (attachment.type) {
+				case 'github_reference': {
+					lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
+					break;
+				}
+				case 'github_actions_job': {
+					lines.push(`- ${attachment.jobName}: (${attachment.jobId}, ${attachment.type})`);
+					break;
+				}
+				case 'github_commit': {
+					lines.push(`- ${attachment.message}: (${attachment.oid}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file': {
+					lines.push(`- ${attachment.path}: (${attachment.ref}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file_diff': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_release': {
+					lines.push(`- ${attachment.name}: (${attachment.tagName}, ${attachment.type})`);
+					break;
+				}
+				case 'github_repository': {
+					lines.push(`- ${attachment.repo.name}: (${attachment.url}, ${attachment.type})`);
+					break;
+				}
+				case 'github_tree_comparison': {
+					lines.push(`- ${attachment.head}: (${attachment.base}, ${attachment.type})`);
+					break;
+				}
+				case 'github_url': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_snippet': {
+					lines.push(`- ${attachment.path}: (${attachment.type})`);
+					break;
+				}
+				case 'blob': {
+					lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+					break;
+				}
+				case 'extension_context': {
+					lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
+					break;
+				}
+				default: {
+					lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+				}
 			}
 		}
 		return lines;
@@ -2820,6 +2957,139 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		result.push(assistantResponse || '(no response)');
 		result.push(`~~~`);
 		return result.join('\n');
+	}
+
+	/**
+	 * Starts a synthesized `execute_tool` OTel span for a native CLI tool call.
+	 *
+	 * Native CLI tools (e.g. `powershell`, `bash`, `grep`, `task`) execute inside the SDK and never
+	 * reach the workbench tools service, so they don't otherwise produce `execute_tool` spans for the
+	 * chat debug logs view. MCP/VS Code tools (those carrying an `mcpServerName`) already emit spans
+	 * via the tools service and are skipped here to avoid duplicate entries.
+	 */
+	private _startSyntheticToolSpan(
+		event: ToolExecutionStartEvent,
+		syntheticToolSpans: Map<string, ISpanHandle>,
+		rootTraceContext: TraceContext | undefined,
+	): void {
+		const toolCall = event.data as unknown as ToolCall;
+		if (toolCall.mcpServerName) {
+			return;
+		}
+		// Nest tool calls made by a subagent under that subagent's tool span when we have it.
+		const parentToolCallId = event.data.parentToolCallId;
+		const parentContext = (parentToolCallId ? syntheticToolSpans.get(parentToolCallId)?.getSpanContext() : undefined) ?? rootTraceContext;
+		const toolSpan = this._otelService.startSpan(`execute_tool ${toolCall.toolName}`, {
+			kind: SpanKind.INTERNAL,
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				[GenAiAttr.TOOL_NAME]: toolCall.toolName,
+				[GenAiAttr.TOOL_CALL_ID]: toolCall.toolCallId,
+				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
+			},
+			parentTraceContext: parentContext,
+		});
+		if (toolCall.arguments !== undefined) {
+			try {
+				toolSpan.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(
+					typeof toolCall.arguments === 'string' ? toolCall.arguments : JSON.stringify(toolCall.arguments),
+					this._otelService.config.maxAttributeSizeChars,
+				));
+			} catch (err) {
+				this.logService.trace(`[CopilotCLISession] Failed to serialize tool arguments for ${toolCall.toolName}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+		syntheticToolSpans.set(toolCall.toolCallId, toolSpan);
+	}
+
+	/**
+	 * Completes the synthesized `execute_tool` span for a native CLI tool, recording the result and
+	 * status. No-op for tools that were not synthesized (e.g. MCP/VS Code tools).
+	 */
+	private _endSyntheticToolSpan(
+		event: ToolExecutionCompleteEvent,
+		syntheticToolSpans: Map<string, ISpanHandle>,
+	): void {
+		const toolSpan = syntheticToolSpans.get(event.data.toolCallId);
+		if (!toolSpan) {
+			return;
+		}
+		syntheticToolSpans.delete(event.data.toolCallId);
+		if (event.data.success) {
+			const content = event.data.result?.content;
+			if (content !== undefined) {
+				try {
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(
+						typeof content === 'string' ? content : JSON.stringify(content),
+						this._otelService.config.maxAttributeSizeChars,
+					));
+				} catch (err) {
+					this.logService.trace(`[CopilotCLISession] Failed to serialize tool result for ${event.data.toolCallId}: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+			toolSpan.setStatus(SpanStatusCode.OK);
+		} else {
+			const errorMessage = event.data.error
+				? `${event.data.error.code ?? ''} ${event.data.error.message ?? ''}`.trim() || 'tool error'
+				: 'tool error';
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errorMessage}`, this._otelService.config.maxAttributeSizeChars));
+			toolSpan.setStatus(SpanStatusCode.ERROR, errorMessage);
+		}
+		toolSpan.end();
+	}
+
+	/**
+	 * Synthesizes one `chat` OTel span per model turn reported by the SDK (`assistant.usage`), carrying
+	 * that turn's token usage and resolved model. The chat debug logs view derives an `llm_request`
+	 * (model turn) entry from each span and the `agent_response` from the final main-agent turn's output
+	 * messages. For the in-process Copilot CLI experience the model calls happen inside the SDK and never
+	 * produce JS spans, so without this the model turns, token metrics, and agent response would all be
+	 * missing from the debug logs.
+	 */
+	private _injectModelTurnSpans(turns: readonly IModelTurnUsage[], responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+		if (turns.length === 0) {
+			// No usage events were reported — still surface the response if we have one.
+			if (responseText) {
+				this._emitChatSpan({}, responseText, fallbackModelId, rootTraceContext);
+			}
+			return;
+		}
+		// The assistant response belongs to the final main-agent turn (one without a parent tool call;
+		// turns with a parent tool call originate from subagents).
+		let responseTurnIndex = -1;
+		for (let i = turns.length - 1; i >= 0; i--) {
+			if (!turns[i].parentToolCallId) {
+				responseTurnIndex = i;
+				break;
+			}
+		}
+		for (let i = 0; i < turns.length; i++) {
+			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', fallbackModelId, rootTraceContext);
+		}
+	}
+
+	/**
+	 * Emits a single synthesized `chat` span for one model turn. Token usage attributes are set only when
+	 * present, and the assistant response (`OUTPUT_MESSAGES`) is attached only to the turn that produced it.
+	 */
+	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+		const model = turn.model ?? fallbackModelId;
+		const chatSpan = this._otelService.startSpan(model ? `chat ${model}` : 'chat', {
+			kind: SpanKind.CLIENT,
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
+				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
+				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
+				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
+				...(typeof turn.outputTokens === 'number' ? { [GenAiAttr.USAGE_OUTPUT_TOKENS]: turn.outputTokens } : {}),
+				...(typeof turn.cacheReadTokens === 'number' ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: turn.cacheReadTokens } : {}),
+				...(typeof turn.copilotUsageNanoAiu === 'number' ? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: turn.copilotUsageNanoAiu } : {}),
+				...(responseText ? { [GenAiAttr.OUTPUT_MESSAGES]: truncateForOTel(JSON.stringify([{ role: 'assistant', parts: [{ type: 'text', content: responseText }] }]), this._otelService.config.maxAttributeSizeChars) } : {}),
+			},
+			parentTraceContext: rootTraceContext,
+		});
+		chatSpan.end();
 	}
 
 	private _logToolCall(toolCallId: string, toolName: string, args: unknown, eventData: { success: boolean; error?: { code: string; message: string }; result?: { content: string } }): void {
@@ -2952,6 +3222,68 @@ interface UsageInfoData {
 	readonly conversationTokens?: number;
 	readonly toolDefinitionsTokens?: number;
 	readonly tokenLimit?: number;
+}
+
+/**
+ * Token usage for a single model turn, captured from the SDK `assistant.usage` event. Used to
+ * synthesize per-turn `chat` spans for the in-process Copilot CLI chat debug logs view.
+ */
+interface IModelTurnUsage {
+	readonly model?: string;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
+	/** Set when the turn originates from a subagent (nested under a parent tool call). */
+	readonly parentToolCallId?: string;
+}
+
+/**
+ * Shape of a single quota snapshot on the SDK's `assistant.usage` event (`quotaSnapshots`). The
+ * field is marked internal-only by the SDK, so although the published types say `entitlementRequests`
+ * is a number and `resetDate` is a `Date`, the runtime shape can drift (e.g. a sibling SDK delivers
+ * `resetDate` as an ISO string). Mark the fields optional and validate at runtime below.
+ */
+interface ISdkQuotaSnapshot {
+	readonly isUnlimitedEntitlement?: boolean;
+	readonly entitlementRequests?: number;
+	readonly overage?: number;
+	readonly overageAllowedWithExhaustedQuota?: boolean;
+	readonly remainingPercentage?: number;
+	readonly resetDate?: Date | string;
+}
+
+/** Maps the SDK `assistant.usage` quota snapshots to the shared {@link QuotaSnapshots} shape. */
+function toChatQuotaSnapshots(snapshots: Record<string, ISdkQuotaSnapshot>): QuotaSnapshots {
+	const result: Record<string, QuotaSnapshot> = {};
+	for (const [key, snapshot] of Object.entries(snapshots)) {
+		if (!snapshot || typeof snapshot !== 'object') {
+			continue;
+		}
+		const unlimited = snapshot.isUnlimitedEntitlement === true;
+		const entitlement = unlimited
+			? '-1'
+			: typeof snapshot.entitlementRequests === 'number' ? String(snapshot.entitlementRequests) : undefined;
+		if (entitlement === undefined || typeof snapshot.remainingPercentage !== 'number') {
+			continue;
+		}
+		result[key] = {
+			entitlement,
+			percent_remaining: snapshot.remainingPercentage,
+			overage_permitted: snapshot.overageAllowedWithExhaustedQuota ?? false,
+			overage_count: typeof snapshot.overage === 'number' ? snapshot.overage : 0,
+			reset_date: toResetDateIsoString(snapshot.resetDate),
+		};
+	}
+	return result;
+}
+
+/** Coerces an SDK `resetDate` (a `Date` per the published type, but possibly an ISO string at runtime) to an ISO string. */
+function toResetDateIsoString(resetDate: Date | string | undefined): string | undefined {
+	if (resetDate instanceof Date) {
+		return resetDate.toISOString();
+	}
+	return typeof resetDate === 'string' ? resetDate : undefined;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {

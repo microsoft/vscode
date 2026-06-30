@@ -7,15 +7,16 @@ import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	BASELINE_TURN_ID,
 	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
+	parseChangesetUri,
+	ChangesetKind,
+	buildDefaultChangesetCatalog,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -27,57 +28,30 @@ import {
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
 	readSessionGitState,
+	isDefaultChatUri,
+	SessionLifecycle,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
-import { computeSessionDiffs, computeTurnDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
 import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
-
-/**
- * Metadata key under which the {@link ISessionFileDiff}[] for the
- * `<session>/changeset/uncommitted` changeset is persisted. Per-changeset
- * keys let `listSessions` / `restoreSession` reseed the catalogue without
- * recomputing, and keep static changesets independent of the legacy
- * `'diffs'` blob (which only ever covered the session-wide changeset).
- */
-export const META_CHANGESET_UNCOMMITTED = 'agentHost.changeset.uncommitted';
-
-/** Metadata key under which the branch changeset's diff list is persisted. */
-export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
-
-/** Metadata key under which the session-wide changeset's diff list is persisted. */
-export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
-
-/**
- * Legacy metadata key used by older builds to persist the session-wide
- * changeset's diff list. Read-only fallback for {@link META_CHANGESET_SESSION}.
- */
-export const META_LEGACY_DIFFS = 'diffs';
-
-/**
- * Metadata key under which the session's changes is persisted.
- */
-export const META_CHANGES_SUMMARY = 'agentHost.changes';
-
-/** The two static changeset kinds we publish by default. */
-export type StaticChangesetKind = 'branch' | 'uncommitted' | 'session';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
+import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
 		? buildBranchChangesetUri(session)
-		: kind === 'uncommitted'
-			? buildUncommittedChangesetUri(session)
-			: buildSessionChangesetUri(session);
+		: buildSessionChangesetUri(session);
 }
 
 function persistKeyFor(kind: StaticChangesetKind): string {
 	return kind === 'branch'
-		? META_CHANGESET_BRANCH :
-		kind === 'uncommitted'
-			? META_CHANGESET_UNCOMMITTED
-			: META_CHANGESET_SESSION;
+		? META_CHANGESET_BRANCH
+		: META_CHANGESET_SESSION;
 }
 
 /**
@@ -113,10 +87,10 @@ function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): Changes
  * Only the `changeKind: 'session'` entry feeds the summary; other kinds
  * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
  * the session-level footprint. The static catalogue itself (built by
- * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * {@link buildDefaultChangesetCatalog}) is independent of counts and
  * is seeded once at session creation.
  */
-export function computeChangesSummaryFromLiveState(
+function computeChangesSummaryFromLiveState(
 	session: ChangesetState | undefined,
 ): ChangesSummary | undefined {
 	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
@@ -129,7 +103,7 @@ export function computeChangesSummaryFromLiveState(
  * entry. Returns `undefined` when the session-wide blob is absent so
  * malformed metadata leaves `summary.changes` unset.
  */
-export function computeChangesSummaryFromPersistedDiffs(
+function computeChangesSummaryFromPersistedDiffs(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
 ): ChangesSummary | undefined {
 	return summariseDiffs(sessionDiffs);
@@ -141,7 +115,7 @@ export function computeChangesSummaryFromPersistedDiffs(
  * warning that names `sessionUri` and `kind` so operators can correlate the
  * failure with a specific session/changeset slot. Never throws.
  */
-export function tryParsePersistedDiffs(raw: string | undefined, sessionUri: string, kind: string, log: ILogService): ISessionFileDiff[] | undefined {
+function tryParsePersistedDiffs(raw: string | undefined, sessionUri: string, kind: string, log: ILogService): ISessionFileDiff[] | undefined {
 	if (!raw) {
 		return undefined;
 	}
@@ -151,198 +125,6 @@ export function tryParsePersistedDiffs(raw: string | undefined, sessionUri: stri
 		log.warn(`[AgentHostChangesetService] Failed to parse persisted ${kind} diffs for ${sessionUri}: ${toErrorMessage(err)}`);
 		return undefined;
 	}
-}
-
-/**
- * Raw metadata values for the three persisted changeset blobs, batch-read
- * by the caller (`AgentService.listSessions` / `AgentService.restoreSession`).
- * The caller owns the database read so multiple metadata keys can be
- * fetched in a single round-trip; the service owns parsing, applying,
- * and `seedIfEmpty` gating.
- */
-export interface IPersistedChangesetMetadata {
-	readonly branchRaw?: string;
-	readonly uncommittedRaw?: string;
-	readonly sessionRaw?: string;
-	readonly legacyRaw?: string;
-}
-
-/**
- * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
- * when the caller needs to synthesise a `summary.changes` aggregate for
- * the session-list overlay.
- */
-export interface IRestoredChangesetDiffs {
-	readonly branch?: readonly ISessionFileDiff[];
-	readonly uncommitted?: readonly ISessionFileDiff[];
-	readonly session?: readonly ISessionFileDiff[];
-}
-
-export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
-
-/**
- * Owns the lifecycle of static and per-turn changesets for the agent host:
- * registers the `<session>/changeset/{uncommitted,session,turn/<id>}` URIs
- * on the state manager, runs git-driven and edit-tracker-driven diff
- * computations, debounces mid-turn recomputes, publishes file lists
- * (`changeset/fileSet` / `changeset/fileRemoved`) and aggregate counts
- * (`session/summaryChanged`), and persists results to the session DB so
- * restarts can rehydrate without recomputing.
- *
- * Created locally by `AgentService` (not via `registerSingleton`) and
- * added to the local `ServiceCollection` so `AgentSideEffects` can
- * resolve it via `@IAgentHostChangesetService`. `AgentHostStateManager`
- * is passed as a plain ctor argument (it has no decorator today); the
- * git / log / session-data services are DI-injected.
- */
-export interface IAgentHostChangesetService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Registers the two static changeset URIs (`uncommitted`, `session`)
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`state.changesets`) is seeded
-	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
-	 * deals with the state-manager-side per-changeset entries.
-	 *
-	 * Idempotent; safe to call on every create and restore path.
-	 */
-	registerStaticChangesets(session: ProtocolURI): void;
-
-	/**
-	 * Re-seed a static changeset (`uncommitted` or `session`) from a
-	 * previously persisted file list (e.g. read out of the session DB on
-	 * restore / listSessions). Idempotently registers the changeset URI
-	 * on the state manager, fans the persisted files out as
-	 * `changeset/fileSet` actions, and transitions the status to `Ready`.
-	 */
-	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void;
-
-	/**
-	 * Parses the persisted changeset metadata blobs (`uncommitted`,
-	 * `session`, and the legacy `diffs` fallback for `session`) without
-	 * mutating live state. Intended for list overlays that only need
-	 * aggregate catalogue counts and should not pin full changeset state in
-	 * memory.
-	 */
-	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
-
-	/**
-	 * Applies parsed persisted changeset diffs to live state via
-	 * {@link restoreStaticChangeset}. This is the side-effectful half of
-	 * persisted restore and should only be used on real restore/subscribe
-	 * paths that need a subscribable changeset snapshot.
-	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state).
-	 */
-	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
-
-	/**
-	 * Compatibility wrapper that parses persisted changeset metadata and then
-	 * applies it to live state. New list-overlay callers should prefer
-	 * {@link parsePersistedStaticChangesets}; restore/subscribe callers can
-	 * use this method when they intentionally want both parse and seed.
-	 *
-	 * The `AgentService` orchestration boundary batches the metadata read
-	 * (custom title + read / archive flags + config values + these three
-	 * blobs) in a single database round-trip, then hands the raw values
-	 * here; the service does not open the database itself for this method.
-	 */
-	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
-
-	/**
-	 * Fire-and-forget persistence of the `summary.changes` aggregate to the
-	 * session DB under {@link META_CHANGES_SUMMARY}. Used both by the
-	 * happy-path turn-complete write and by the {@link ChangesetSessionCoordinator}
-	 * one-shot migration that reads the old `META_CHANGESET_SESSION` /
-	 * `META_LEGACY_DIFFS` blobs and projects them into the new key on
-	 * sessions written by older builds. Errors are logged, not thrown.
-	 */
-	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
-
-	/**
-	 * Returns true when the static changeset identified by `changesetUri` is
-	 * currently being recomputed. Used by cache eviction to avoid dropping a
-	 * slot while its producer is mid-flight.
-	 */
-	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean;
-
-	/**
-	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`.
-	 */
-	refreshBranchChangeset(session: ProtocolURI): void;
-
-	/**
-	 * Lazy refresh of the uncommitted changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/uncommitted`.
-	 */
-	refreshUncommittedChangeset(session: ProtocolURI): void;
-
-	/**
-	 * Lazy refresh of the session (branch) changeset, kicked off when a
-	 * client first subscribes to `<session>/changeset/session` or the
-	 * session URI itself (e.g. Agents Window observing the session). Mirrors
-	 * {@link refreshUncommittedChangeset} so the catalogue chip stays fresh
-	 * across session opens even when no turn has run since process start.
-	 */
-	refreshSessionChangeset(session: ProtocolURI): void;
-
-	/**
-	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
-	 * Per-turn changesets are not persisted.
-	 */
-	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;
-
-	/**
-	 * Computes and publishes the compare-turns changeset between
-	 * `originalTurnId` (the "from" endpoint) and `modifiedTurnId` (the
-	 * "to" endpoint) on `session`. Diff direction is
-	 * `originalTurnId.current → modifiedTurnId.current` — endpoint-to-
-	 * endpoint, so it captures what differs between the two turn states.
-	 *
-	 * Implemented via git: both refs come from the per-turn checkpoint
-	 * captured at the end of each turn. When either checkpoint is missing
-	 * (non-git session, baseline never captured, capture failure), the
-	 * changeset transitions to `status: Error` instead of rejecting; no
-	 * SDK edit-tracker fallback exists.
-	 *
-	 * Compare-turns changesets are not persisted and are computed once
-	 * on subscribe (no live recompute).
-	 */
-	computeCompareTurnsChangeset(session: ProtocolURI, originalTurnId: string, modifiedTurnId: string): Promise<ProtocolURI>;
-
-	/**
-	 * Hook called by `AgentSideEffects` after a tool call that produced
-	 * file edits completes. Schedules a debounced session-changeset recompute.
-	 */
-	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void;
-
-	/**
-	 * Hook called by `AgentSideEffects` when a turn completes. Cancels any
-	 * pending mid-turn debounce, then schedules a final session + uncommitted
-	 * recompute. Ordering matters — see implementation.
-	 */
-	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void;
-
-	/**
-	 * Hook called by `AgentSideEffects` when a session is truncated (turns
-	 * removed). Recomputes the session changeset from scratch (no
-	 * `changedTurnId`, no incremental reuse).
-	 */
-	onSessionTruncated(session: ProtocolURI): void;
-
-	/**
-	 * Installs a predicate the service consults before scheduling a
-	 * per-turn changeset recompute. Owned by {@link ChangesetSessionCoordinator},
-	 * which tracks per-turn subscribers via `onFirstSubscriber` /
-	 * `onLastSubscriber`. Called exactly once at coordinator construction.
-	 */
-	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
 }
 
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
@@ -360,18 +142,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	/**
-	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
-	 * `true` when at least one client is subscribed to
-	 * `<session>/changeset/turn/<turnId>`. Per-turn URIs carry no catalogue
-	 * chip aggregates, so recomputing for an unobserved turn is pure waste
-	 * — the service consults this probe in {@link onToolCallEditsApplied}
-	 * and {@link onTurnComplete} before scheduling a per-turn recompute.
+	 * Sessions whose static changeset refresh was requested before the
+	 * working directory was known (provisional / not-yet-materialized
+	 * sessions). Drained from {@link onWorkingDirectoryAvailable} once the
+	 * working directory is set, which recomputes every changeset still
+	 * subscribed for the session.
 	 *
-	 * Defaults to `() => false` so unwired test instances don't accidentally
-	 * fire per-turn computes; the coordinator overrides this in its
-	 * constructor.
+	 * Firing a refresh before the working directory is known would compute
+	 * against a missing directory and the git path would bail, so we defer
+	 * instead and re-run once materialization / restore populates it.
 	 */
-	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
+	private readonly _pendingMaterialization = new Set<ProtocolURI>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -379,13 +160,24 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
+		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 	}
 
-	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
-		this._hasTurnSubscribers = probe;
+	/**
+	 * Returns true when at least one client is subscribed to `changeset`
+	 * under `session`.
+	 */
+	private _hasSubscription(session: ProtocolURI, changeset: ProtocolURI): boolean {
+		return this._changesetSubscriptions.getSessionSubscriptions(session).has(changeset);
+	}
+
+	private _hasWorkingDirectory(session: ProtocolURI): boolean {
+		return !!this._configurationService.getEffectiveWorkingDirectory(session);
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -401,14 +193,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
 		const persistedBranch = tryParsePersistedDiffs(metadata.branchRaw, sessionUri, 'branch', this._logService);
-		const persistedUncommitted = tryParsePersistedDiffs(metadata.uncommittedRaw, sessionUri, 'uncommitted', this._logService);
 
 		// Legacy `diffs` is the migration fallback for the session-wide
 		// changeset only — it never carried uncommitted state.
 		const persistedSession = tryParsePersistedDiffs(metadata.sessionRaw, sessionUri, 'session', this._logService)
 			?? tryParsePersistedDiffs(metadata.legacyRaw, sessionUri, 'session (legacy)', this._logService);
 
-		return { branch: persistedBranch, uncommitted: persistedUncommitted, session: persistedSession };
+		return { branch: persistedBranch, session: persistedSession };
 	}
 
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void {
@@ -418,7 +209,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// potentially-stale persisted blob; without this guard a fresh
 		// `restorePersistedStaticChangesets` call would clobber it.
 		this._seedIfEmpty(sessionUri, 'branch', diffs.branch);
-		this._seedIfEmpty(sessionUri, 'uncommitted', diffs.uncommitted);
 		this._seedIfEmpty(sessionUri, 'session', diffs.session);
 	}
 
@@ -430,6 +220,75 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
 		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
+	}
+
+	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined {
+		// Fast path: a live `summary.changes` (loaded session) or a ready live
+		// `changeKind: 'session'` changeset state (registered but not-yet-
+		// restored session) is authoritative, so the caller can skip loading
+		// the potentially-large persisted diff blobs.
+		const liveSummaryChanges = this._stateManager.getSessionSummary(sessionUri)?.changes;
+		if (liveSummaryChanges) {
+			return undefined;
+		}
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
+		if (liveSession?.status === ChangesetStatus.Ready) {
+			return undefined;
+		}
+		return CHANGESET_DB_METADATA_KEYS;
+	}
+
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined {
+		// Loaded session: the caller has already projected
+		// `state.summary.changes` onto the entry. Nothing to overlay.
+		if (this._stateManager.getSessionState(sessionUri)) {
+			return undefined;
+		}
+
+		// Check if the metadata contains the changes summary. In the past we
+		// used to store the changesets in the session database but we have
+		// since moved to a more efficient storage mechanism by only storing
+		// the changes summary.
+		const changesSummary = metadata[META_CHANGES_SUMMARY];
+		if (changesSummary !== undefined) {
+			try {
+				return JSON.parse(changesSummary) as ChangesSummary;
+			} catch (error) {
+				return undefined;
+			}
+		}
+
+		// Read live state for an unopened session: synthesise the aggregate
+		// from the live `changeKind: 'session'` changeset state. Counts stay
+		// in lockstep with the actual changeset state for the session-list chip.
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
+		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
+		if (liveChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this.persistChangesSummary(sessionUri, liveChanges);
+			return liveChanges;
+		}
+
+		// No live source — try persisted blobs (if the caller batched them).
+		const sessionRaw = metadata[META_CHANGESET_SESSION];
+		const legacyRaw = metadata[META_LEGACY_DIFFS];
+		if (sessionRaw === undefined && legacyRaw === undefined) {
+			return undefined;
+		}
+		const restored = this.parsePersistedStaticChangesets(sessionUri, { sessionRaw, legacyRaw });
+
+		// `listSessions` must not seed full changeset state for every row; it
+		// only parses persisted blobs enough to render the chip aggregate.
+		// Once the session is opened via `restoreSession`, the live overlay in
+		// `AgentService.listSessions` replaces this parse-only aggregate.
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
+		if (persistedChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this.persistChangesSummary(sessionUri, persistedChanges);
+			return persistedChanges;
+		}
+
+		return undefined;
 	}
 
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
@@ -447,16 +306,92 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this.restoreStaticChangeset(session, kind, diffs);
 	}
 
+	refreshChangesetCatalog(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		if (state?.lifecycle !== SessionLifecycle.Ready) {
+			return;
+		}
+
+		const gitState = readSessionGitState(state?._meta);
+		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		this._stateManager.setSessionChangesets(session, changesets);
+	}
+
 	refreshBranchChangeset(session: ProtocolURI): void {
+		if (!this._hasWorkingDirectory(session)) {
+			this._pendingMaterialization.add(session);
+			return;
+		}
 		this._scheduleStaticRecompute(session, 'branch', undefined, this._markStaticChangesetComputing(session, 'branch'));
 	}
 
-	refreshUncommittedChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'uncommitted', undefined, this._markStaticChangesetComputing(session, 'uncommitted'));
+	refreshSessionChangeset(session: ProtocolURI): void {
+		if (!this._hasWorkingDirectory(session)) {
+			this._pendingMaterialization.add(session);
+			return;
+		}
+		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
 	}
 
-	refreshSessionChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
+	/**
+	 * Drains static changeset refreshes that were deferred because the
+	 * session's working directory was not yet known. Called by the
+	 * coordinator once a session is materialized or restored. Recomputes
+	 * every changeset still subscribed for the session; subscriptions that
+	 * dropped while the working directory was unknown are naturally skipped.
+	 */
+	onWorkingDirectoryAvailable(session: ProtocolURI): void {
+		if (this._pendingMaterialization.delete(session)) {
+			this.recomputeSubscribedChangesets(session);
+		}
+	}
+
+	/**
+	 * Recomputes every changeset currently subscribed for `session`. Each
+	 * subscribed changeset is dispatched to its kind-specific recompute; the
+	 * recomputes self-defer when the working directory is still unknown.
+	 */
+	recomputeSubscribedChangesets(session: ProtocolURI): void {
+		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
+		if (subscriptions.size === 0) {
+			return;
+		}
+		for (const changeset of subscriptions) {
+			const parsed = parseChangesetUri(changeset);
+			switch (parsed?.kind) {
+				case ChangesetKind.Branch:
+					this.refreshBranchChangeset(session);
+					break;
+				case ChangesetKind.Session:
+					this.refreshSessionChangeset(session);
+					break;
+				case ChangesetKind.Uncommitted:
+					void this.computeUncommittedChangeset(session);
+					break;
+				case ChangesetKind.Turn:
+					if (parsed.turnId !== undefined) {
+						void this.computeTurnChangeset(session, parsed.turnId);
+					}
+					break;
+				default:
+					// A plain session URI subscription (Agents Window list /
+					// detail observing the session) implicitly observes the
+					// catalogue's static changesets — refresh both.
+					if (changeset === session) {
+						this.refreshBranchChangeset(session);
+						this.refreshSessionChangeset(session);
+					}
+					break;
+			}
+		}
+	}
+
+	/**
+	 * Forgets any deferred static changeset refreshes queued for a session
+	 * that is being disposed.
+	 */
+	onSessionDisposed(session: ProtocolURI): void {
+		this._pendingMaterialization.delete(session);
 	}
 
 	async computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
@@ -510,11 +445,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		try {
 			const sessionUri = URI.parse(session);
-			const originalIsBaseline = originalTurnId === BASELINE_TURN_ID;
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				originalIsBaseline
-					? this._checkpointService.getBaselineCheckpointRef(sessionUri)
-					: this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
 				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
@@ -524,7 +456,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// exists for between-two-turns comparisons.
 				const missing = !originalCurrentRef && !modifiedPair
 					? 'both turns'
-					: !originalCurrentRef ? (originalIsBaseline ? 'baseline' : 'original turn') : 'modified turn';
+					: !originalCurrentRef
+						? 'original turn'
+						: 'modified turn';
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
 					status: ChangesetStatus.Error,
@@ -580,6 +514,75 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return compareUri;
 	}
 
+	async computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI> {
+		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
+		if (!this._hasSubscription(session, uncommittedUri)) {
+			return uncommittedUri;
+		}
+
+		// Defer until the working directory is known. Computing now would bail
+		// in the git path (there is no SDK edit-tracker fallback for the
+		// uncommitted slot); `onWorkingDirectoryAvailable` re-runs the refresh
+		// once materialization / restore populates the directory.
+		if (!this._hasWorkingDirectory(session)) {
+			this._pendingMaterialization.add(session);
+			return uncommittedUri;
+		}
+
+		const statusBeforeCompute = this._stateManager.getChangesetState(uncommittedUri)?.status;
+		if (statusBeforeCompute !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(uncommittedUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
+
+		try {
+			const diffs = await this._computeUncommittedDiffs(session);
+			if (diffs === undefined) {
+				// Git unavailable (no working directory, not a git work
+				// tree, or the git command returned nothing). Surface as
+				// Error rather than preserving cached state — no SDK
+				// edit-tracker fallback exists for the uncommitted slot.
+				this._stateManager.dispatchServerAction(uncommittedUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: 'Failed to compute uncommitted diff from git.' },
+				});
+				return uncommittedUri;
+			}
+
+			this._publishChangesetDiffs(session, uncommittedUri, diffs);
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to compute uncommitted diffs for ${session}`, err);
+			this._stateManager.dispatchServerAction(uncommittedUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Error,
+				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+			});
+		}
+
+		return uncommittedUri;
+	}
+
+	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		if (!workingDirectory) {
+			return undefined;
+		}
+
+		let workingDirectoryUri: URI;
+		try {
+			workingDirectoryUri = URI.parse(workingDirectory);
+		} catch {
+			return undefined;
+		}
+
+		return this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+			sessionUri: session,
+		});
+	}
+
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
 		if (pair && pair.parent !== pair.current) {
@@ -621,7 +624,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// recompute entirely when no client is observing this turn. The
 		// next subscriber will get a fresh snapshot from
 		// `tryHandleSubscribe → computeTurnChangeset`.
-		if (this._hasTurnSubscribers(session, turnId)) {
+		if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
 			this._scheduleDebouncedTurnDiffComputation(session, turnId);
 		}
 	}
@@ -631,20 +634,26 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// debounces first so the final turn-complete computes supersede
 		// them. After that, schedule the final recomputes for the turn
 		// (when observed), the session-wide changeset with the changed
-		// turn id, and the uncommitted changeset with no turn id.
+		// turn id, and the uncommitted changeset when it is observed.
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
-			if (this._hasTurnSubscribers(session, turnId)) {
+			if (this._hasSubscription(session, buildTurnChangesetUri(session, turnId))) {
 				this._scheduleTurnRecompute(session, turnId);
 			}
 		}
+
+		if (this._hasSubscription(session, buildUncommittedChangesetUri(session))) {
+			this._scheduleUncommittedRecompute(session);
+		}
+
+		this._scheduleStaticRecompute(session, 'branch', turnId);
 		this._scheduleStaticRecompute(session, 'session', turnId);
-		this._scheduleStaticRecompute(session, 'uncommitted');
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
+		this._scheduleStaticRecompute(session, 'branch');
 		this._scheduleStaticRecompute(session, 'session');
 	}
 
@@ -659,6 +668,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
 		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedDiffTimers.deleteAndDispose(session);
+			this._scheduleStaticRecompute(session, 'branch', turnId);
 			this._scheduleStaticRecompute(session, 'session', turnId);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
@@ -703,6 +713,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string): void {
 		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this.computeTurnChangeset(session, turnId).then(() => undefined));
+	}
+
+	private _scheduleUncommittedRecompute(session: ProtocolURI): void {
+		this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this.computeUncommittedChangeset(session).then(() => undefined));
 	}
 
 	/**
@@ -754,34 +768,48 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 					return;
 				}
-				if (kind === 'uncommitted') {
-					// Path B (edit-tracker aggregator) answers a different
-					// question than `git status` and must not be allowed to
-					// write into the uncommitted slot — doing so would
-					// silently rebrand SDK-tracked edits as uncommitted
-					// git changes and overwrite the legitimate persisted
-					// snapshot. Leave whatever live/persisted state is
-					// already there; the next successful path A will
-					// refresh it.
-					this._logService.debug(`[AgentHostChangesetService] Uncommitted git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
-					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
-					return;
-				}
 				// `session` kind: working-tree git is unavailable (no
 				// working dir or not a git work tree). Fall back to the
 				// edit-tracker aggregator — for the session changeset the
 				// SDK-tracked edits are the best available approximation.
-				let incremental: IIncrementalDiffOptions | undefined;
-				if (changedTurnId) {
-					const previousDiffs = this._readPreviousChangesetDiffs(changesetUri);
-					if (previousDiffs) {
-						incremental = { changedTurnId, previousDiffs: [...previousDiffs] };
+				//
+				// In multi-chat sessions each peer chat records its file
+				// edits into its OWN database (the chat URI is used as the
+				// session URI for that chat's edit tracker). Union the
+				// session DB with every peer chat DB so peer-chat edits roll
+				// up into the session-level changes.
+				const peerSources = this._openPeerChatSources(session);
+				try {
+					if (peerSources.length > 0) {
+						const sources: ISessionDiffSource[] = [
+							{ sessionUri: session, db: ref.object },
+							...peerSources.map(p => ({ sessionUri: p.sessionUri, db: p.ref.object })),
+						];
+						// TODO (debt): multi-chat always does a full recompute
+						// (the incremental `changedTurnId`/`previousDiffs` path is
+						// only used for single-chat below). A follow-up can make
+						// `computeUnionedDiffs` incremental — see its doc comment
+						// and the tracking issue.
+						diffs = await computeUnionedDiffs(sources, this._diffComputeService);
+					} else {
+						let incremental: IIncrementalDiffOptions | undefined;
+						if (changedTurnId) {
+							const previousDiffs = this._readPreviousChangesetDiffs(changesetUri);
+							if (previousDiffs) {
+								incremental = { changedTurnId, previousDiffs: [...previousDiffs] };
+							}
+						}
+						diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
+					}
+				} finally {
+					for (const peer of peerSources) {
+						peer.ref.dispose();
 					}
 				}
-				diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs);
+
 			// Persist the file list so a subsequent `listSessions` /
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
@@ -847,36 +875,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * fresh file list has been applied.
 	 */
 	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
-		const previous = this._stateManager.getChangesetState(changesetUri);
-		const previousIds = new Set<string>(previous?.files.map(f => f.id) ?? []);
+		// Get the available operations for this changeset. This call assumes that at this point
+		// the git state of the session is up-to-date as it is being used to determine the available
+		// operations. Long term this should be replaced with a more robust mechanism.
+		const operations = this._changesetOperationService.getOperations(session, changesetUri);
 
-		// Emit file upserts. Use `after.uri` as the stable id when available
-		// (covers creates and edits) and fall back to `before.uri` for
-		// deletions; this matches the spec's recommendation and avoids id
-		// collisions for renames (which carry distinct before/after URIs).
-		const nextFilesById = new Map<string, ISessionFileDiff>();
+		const files: ChangesetFile[] = [];
 		for (const edit of diffs) {
 			const id = edit.after?.uri ?? edit.before?.uri;
 			if (!id) {
 				continue;
 			}
-			nextFilesById.set(id, edit);
-			const file: ChangesetFile = { id, edit };
-			this._stateManager.dispatchServerAction(changesetUri, {
-				type: ActionType.ChangesetFileSet,
-				file,
-			});
+			files.push({ id, edit });
 		}
 
-		// Emit removals for any file that disappeared in this pass.
-		for (const id of previousIds) {
-			if (!nextFilesById.has(id)) {
-				this._stateManager.dispatchServerAction(changesetUri, {
-					type: ActionType.ChangesetFileRemoved,
-					fileId: id,
-				});
-			}
-		}
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetContentChanged,
+			files,
+			operations: operations
+				? [...operations]
+				: undefined,
+		});
 
 		// Move the changeset out of `computing` (or out of an earlier error)
 		// now that we have a fresh, complete file list.
@@ -890,40 +909,134 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
+	 * Opens the databases for every non-default (peer) chat in a multi-chat
+	 * session. Each peer chat records its file edits into its own database
+	 * keyed by the chat URI, so the session changeset must union those
+	 * databases with the session DB. Returns an empty array for single-chat
+	 * sessions. Callers MUST dispose every returned `ref`.
+	 */
+	private _openPeerChatSources(session: ProtocolURI): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
+		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		for (const chat of chats) {
+			if (isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			try {
+				const ref = this._sessionDataService.openDatabase(URI.parse(chat.resource));
+				sources.push({ sessionUri: chat.resource, ref });
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
+			}
+		}
+		return sources;
+	}
+
+	/**
+	 * Returns the turn id whose checkpoint best represents the latest state of
+	 * the session's shared working tree. For single-chat sessions this is the
+	 * default chat's last turn. For multi-chat sessions it is the last turn of
+	 * the most-recently-modified chat (peer-chat turn checkpoints are stored
+	 * under the session URI keyed by their turn id). Returns `undefined` when
+	 * no chat has any turns.
+	 */
+	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
+		const sessionState = this._stateManager.getSessionState(session);
+		if (!sessionState) {
+			return undefined;
+		}
+
+		const chats = sessionState.chats ?? [];
+		if (chats.length <= 1) {
+			return sessionState.turns.at(-1)?.id;
+		}
+
+		let bestTurnId: string | undefined;
+		let bestModifiedAt = '';
+		for (const chat of chats) {
+			const turns = isDefaultChatUri(chat.resource)
+				? sessionState.turns
+				: this._stateManager.getChatState(chat.resource)?.turns;
+			const lastTurnId = turns?.at(-1)?.id;
+			if (lastTurnId && chat.modifiedAt >= bestModifiedAt) {
+				bestModifiedAt = chat.modifiedAt;
+				bestTurnId = lastTurnId;
+			}
+		}
+		return bestTurnId;
+	}
+
+	/**
 	 * Computes diffs for a static changeset by shelling out to git.
 	 * Returns the diff list when the session has a working directory and
 	 * that directory is a git work tree; returns `undefined` otherwise so
-	 * the caller can fall back to the edit-tracker aggregator.
+	 * the caller can fall back to the edit-tracker aggregator (for
+	 * `kind: 'session'`) or preserve cached state (for `kind: 'branch'`).
 	 *
-	 * For `kind: 'uncommitted'` the diff is computed against `HEAD`
-	 * (modified + deleted + untracked).
-	 * For `kind: 'session'` the diff is computed against the merge-base
+	 * For `kind: 'session'` the diff is computed between the baseline
+	 * checkpoint ref and the latest turn checkpoint ref.
+	 * For `kind: 'branch'` the diff is computed against the merge-base
 	 * with {@link META_DIFF_BASE_BRANCH} when one is set; without a base
-	 * branch git falls back to `HEAD` (i.e. uncommitted) which is the
-	 * documented fallback.
+	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (!workingDirectory) {
 			return undefined;
 		}
+
 		let workingDirectoryUri: URI;
 		try {
 			workingDirectoryUri = URI.parse(workingDirectory);
 		} catch {
 			return undefined;
 		}
-		let baseBranch: string | undefined;
-		if (kind === 'branch' || kind === 'session') {
-			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
-			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
-			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
-			if (!persistedBaseBranch && gitStateBaseBranch) {
-				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+
+		// Session
+		if (kind === 'session') {
+			// Get session checkpoints. In multi-chat sessions the working tree
+			// is shared and each chat's turn checkpoints are stored under the
+			// session URI keyed by their turn id, so the most-recently-modified
+			// chat's last turn captures the full working-tree delta.
+			const latestTurnId = this._latestTurnIdAcrossChats(session);
+			if (!latestTurnId) {
+				return undefined;
+			}
+
+			const sessionUri = URI.parse(session);
+			const [baseline, pair] = await Promise.all([
+				this._checkpointService.getBaselineCheckpointRef(sessionUri),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+			]);
+			if (!baseline || !pair) {
+				return undefined;
+			}
+
+			try {
+				return await this._gitService.computeFileDiffsBetweenRefs(workingDirectoryUri, {
+					sessionUri: session,
+					fromRef: baseline,
+					toRef: pair.current
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
+				return undefined;
 			}
 		}
+
+		// Branch
+		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+		const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+		const baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
+		if (!persistedBaseBranch && gitStateBaseBranch) {
+			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+		}
+
 		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+				sessionUri: session,
+				baseBranch
+			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
 			return undefined;

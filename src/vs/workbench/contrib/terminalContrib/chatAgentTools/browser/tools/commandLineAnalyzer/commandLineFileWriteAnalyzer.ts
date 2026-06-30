@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { win32, posix } from '../../../../../../../base/common/path.js';
+import { extUri, normalizePath } from '../../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -96,13 +97,14 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	private _stripSurroundingQuotes(text: string): string {
-		if (
-			(text.startsWith('"') && text.endsWith('"')) ||
-			(text.startsWith('\'') && text.endsWith('\''))
+		let result = text;
+		while (
+			(result.startsWith('"') && result.endsWith('"')) ||
+			(result.startsWith('\'') && result.endsWith('\''))
 		) {
-			return text.slice(1, -1);
+			result = result.slice(1, -1);
 		}
-		return text;
+		return result;
 	}
 
 	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
@@ -143,7 +145,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 									break;
 								}
 							}
-							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							const fileUri = normalizePath(URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite));
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
@@ -153,13 +155,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// as inside the workspace while expanding at runtime to a location outside it.
 							if (fileUri.fsPath.match(/[$\(\){}`~%]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable, sub-command, or tilde expansion', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
 							}
 
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
-								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
+								extUri.isEqualOrParent(fileUri, folder.uri)
 							);
 							if (!isInsideWorkspace) {
 								// Allow writes to OS temp locations when the user has opted into
