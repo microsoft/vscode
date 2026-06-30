@@ -1392,7 +1392,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
-			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
+			// When the panel is positioned above the editor and visible, the editor is no longer
+			// adjacent to the title bar — reserve a top margin to match the inter-card gaps.
+			const panelAtTop = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.TOP;
+			height = Math.max(0, height - FLOATING_PANEL_MARGIN - (panelAtTop ? FLOATING_PANEL_MARGIN : 0));
 
 			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {

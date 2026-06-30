@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -655,7 +655,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
-		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		// Only the bottom-positioned panel needs a top margin (the gap between the editor and the
+		// panel card). Side bars and panels in all other positions are flush with the title bar.
+		const isBottomPanel = this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		const topMargin = isBottomPanel ? margin : 0;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
 		const rightMargin = outerGutter.right ? margin * 2 : margin;

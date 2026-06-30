@@ -48,6 +48,14 @@
 	margin-top: 0;
 }
 
+/* Panel at top position: also flush with the title bar (no top margin), like the side bars.
+ * The panel element itself carries the position class (e.g. `.top`). */
+.monaco-workbench.floating-panels .part.panel.top,
+.monaco-workbench.floating-panels .part.panel.left,
+.monaco-workbench.floating-panels .part.panel.right {
+	margin-top: 0;
+}
+
 /*
  * When a floating pane composite (primary side bar, secondary side bar or a vertical
  * panel) is the outermost card on a window edge, it adopts a doubled outer gutter so
@@ -66,6 +74,13 @@
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
 	margin: var(--vscode-spacing-size40);
 	margin-top: 0;
+}
+
+/* When the panel is at the top and visible the editor sits below it — give it a top margin
+ * so the inter-card gap matches the gaps between the other floating cards.
+ * Requires `.panel-position-top` on `.monaco-workbench` (set in layout.ts). */
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel) > .monaco-grid-view .part.editor {
+	margin-top: var(--vscode-spacing-size40);
 }
 
 /*

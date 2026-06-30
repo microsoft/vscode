@@ -1902,7 +1902,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
-			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			`panel-position-${positionToString(this.getPanelPosition())}`
 		]);
 	}
 
@@ -2366,6 +2367,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
+		this.mainContainer.classList.remove(`panel-position-${oldPositionValue}`);
+		this.mainContainer.classList.add(`panel-position-${newPositionValue}`);
 
 		// Update Styles
 		panelPart.updateStyles();
