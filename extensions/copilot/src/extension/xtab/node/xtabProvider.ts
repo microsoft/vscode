@@ -33,6 +33,7 @@ import { OptionalChatRequestParams, Prediction } from '../../../platform/network
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { ISimulationTestContext } from '../../../platform/simulationTestContext/common/simulationTestContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { raceFilter } from '../../../util/common/async';
 import { AsyncIterUtils, AsyncIterUtilsExt } from '../../../util/common/asyncIterableUtils';
@@ -177,6 +178,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
 		@IIgnoreService private readonly ignoreService: IIgnoreService,
 		@ISimilarFilesContextService private readonly similarFilesContextService: ISimilarFilesContextService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.userInteractionMonitor = this.instaService.createInstance(UserInteractionMonitor);
 		this.terminalMonitor = this.instaService.createInstance(TerminalMonitor);
@@ -1465,13 +1467,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			},
 			lintOptions: undefined,
 			includePostScript: true,
-			globalBudget: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, this.expService)
-				? {
-					totalTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, this.expService),
-					order: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_ORDER,
-					shares: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_SHARES,
-				}
-				: undefined,
+			globalBudget: this.getGlobalBudget(),
 		};
 
 		const selectedModelConfig = this.modelService.selectedModelConfiguration();
@@ -1480,6 +1476,36 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			promptOptions: overrideModelConfig(sourcedModelConfig, modelConfig),
 			modelServiceConfig: modelConfig
 		};
+	}
+
+	/**
+	 * Resolve the opt-in global budget from its single experiment-driven JSON
+	 * config string (mirrors `modelConfigurationString`). Returns `undefined`
+	 * — disabling the global budget, identical to prod — when the string is
+	 * unset, empty, or fails to parse/validate. Parse failures are reported via
+	 * telemetry so misconfigured experiments are observable.
+	 */
+	private getGlobalBudget(): xtabPromptOptions.GlobalBudgetOptions | undefined {
+		const configString = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, this.expService);
+		if (!configString) {
+			return undefined;
+		}
+
+		const result = xtabPromptOptions.GlobalBudgetOptions.fromConfigString(configString);
+		if (result.isError()) {
+			/* __GDPR__
+				"incorrectNesGlobalBudgetConfig" : {
+					"owner": "ulugbekna",
+					"comment": "Capture if the experiment-driven NES global budget config string is invalid or malformed, so the global budget was disabled.",
+					"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Error message from parsing or validation." },
+					"configValue": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The invalid config string so the bad experiment value can be identified." }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('incorrectNesGlobalBudgetConfig', { errorMessage: result.err, configValue: configString });
+			return undefined;
+		}
+
+		return result.val;
 	}
 
 	private getEndpointWithLogging(configuredModelName: string | undefined, logContext: InlineEditRequestLogContext, telemetry: StatelessNextEditTelemetryBuilder): ChatEndpoint {

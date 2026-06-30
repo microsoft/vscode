@@ -46,7 +46,7 @@ surplus and so donates to the first part in `order`. The set of parts that get a
 
 | Input | Description |
 | --- | --- |
-| `globalBudget.totalTokens` | The single pool size. Default `8000`. Configurable via experiment `chat.advanced.inlineEdits.xtabProvider.globalBudget.totalTokens`. |
+| `globalBudget.totalTokens` | The single pool size. Default `8000`. Set via the `totalTokens` field of the experiment JSON string `chat.advanced.inlineEdits.xtabProvider.globalBudget`. |
 | `globalBudget.order` | Ordered list of **rendered** parts. Earlier parts get budget first; their surplus flows to later parts. `currentFile` is not listed here. |
 | `globalBudget.shares` | `Record<GlobalBudgetSharePart, number>` — one fraction of `totalTokens` per rendered part **and** for `currentFile`. Must sum to `1 ± 1e-3` across `order` plus `currentFile`. |
 
@@ -185,34 +185,59 @@ is preferable to silent under/over-allocation.
 
 ## Wiring
 
-The cascade is enabled via `ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled`
-in `xtabProvider.ts` (\~L1444):
+The cascade is configured by a **single experiment-driven JSON string**,
+`ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget`, modelled after
+`modelConfigurationString`. `xtabProvider.ts` (`getGlobalBudget()`) reads it and
+parses it with `GlobalBudgetOptions.fromConfigString`:
 
 ```ts
-globalBudget: globalBudgetEnabled
-    ? {
-        totalTokens: configService.getExperimentBasedConfig(InlineEditsXtabGlobalBudgetTotalTokens, expService),
-        order: GlobalBudgetOptions.DEFAULT_ORDER,
-        shares: GlobalBudgetOptions.DEFAULT_SHARES,
+private getGlobalBudget(): GlobalBudgetOptions | undefined {
+    const configString = configService.getExperimentBasedConfig(InlineEditsXtabGlobalBudget, expService);
+    if (!configString) {
+        return undefined; // unset/empty → disabled, identical to prod
     }
-    : undefined,
+    const result = GlobalBudgetOptions.fromConfigString(configString);
+    if (result.isError()) {
+        telemetryService.sendMSFTTelemetryEvent('incorrectNesGlobalBudgetConfig', { errorMessage: result.err, configValue: configString });
+        return undefined; // bad config → disabled, never crashes
+    }
+    return result.val;
+}
 ```
 
-`order` and `shares` are always wired to the defaults; only `totalTokens` and the
-master switch are experiment-driven. When the budget is enabled, `xtabProvider`
-also overrides the current-file clip cap with `currentFileBudget(globalBudget)`
-before clipping, and feeds the leftover into the cascade as `initialSurplus`.
+The JSON value defines all three knobs together — `totalTokens`, `order`, and
+`shares` — and every field is optional. Omitted fields fall back to
+`DEFAULT_TOTAL_TOKENS` / `DEFAULT_ORDER` / `DEFAULT_SHARES`, so:
+
+- `undefined` / unset / `""` → global budget **disabled** (prod default, byte-identical legacy path).
+- `{}` → **enabled** with the volume-neutral defaults.
+- `{"totalTokens":6000}` → enabled, only the pool size overridden.
+- `{"totalTokens":12000,"order":[…],"shares":{…}}` → fully custom.
+
+`fromConfigString` structurally validates the JSON (via `GlobalBudgetOptions.VALIDATOR`),
+merges it over the defaults, then runs the semantic `GlobalBudgetOptions.validate`
+(see [Validation](#validation)); any parse, structural, or semantic failure
+returns a `Result.error` and disables the budget. When `shares` is provided it
+must list **every** part (the rendered parts plus `currentFile`) — partial
+`shares` objects are rejected so the pool stays fully allocated.
+
+When the budget is enabled, `xtabProvider` also overrides the current-file clip
+cap with `currentFileBudget(globalBudget)` before clipping, and feeds the leftover
+into the cascade as `initialSurplus`.
 
 Experiment-controlled settings:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `chat.advanced.inlineEdits.xtabProvider.globalBudget.enabled` | `false` | Master switch |
-| `chat.advanced.inlineEdits.xtabProvider.globalBudget.totalTokens` | `8000` | Pool size (covers current file + rendered parts) |
+| `chat.advanced.inlineEdits.xtabProvider.globalBudget` | `undefined` | JSON string defining `totalTokens`, `order`, and `shares`; unset/empty disables the budget |
 
-> **Migration note:** because `totalTokens` now also funds `currentFile`, any
-> live experiment treatment that pins `totalTokens` to the old `6000` would
-> shrink every part once this ships. Such treatments should move to `8000`.
+> **Migration note:** the old `globalBudget.enabled` (boolean) and
+> `globalBudget.totalTokens` (number) settings have been **replaced** by this
+> single JSON string. Any live experiment treatment that pinned those keys must
+> migrate: `enabled:true` + `totalTokens:N` becomes the JSON `{"totalTokens":N}`,
+> and a bare `enabled:true` becomes `{}`. Because `totalTokens` also funds
+> `currentFile`, treatments that pinned the old `6000` should move to `8000`
+> (or `{}`) to stay volume-neutral.
 
 ## Worked examples
 

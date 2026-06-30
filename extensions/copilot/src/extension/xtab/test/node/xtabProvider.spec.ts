@@ -1170,7 +1170,7 @@ describe('XtabProvider integration', () => {
 		it('reproduces the legacy current-file region when enabled at the default total budget', async () => {
 			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
 			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
 			const legacyStart = legacy.indexOf(PromptTags.CURRENT_FILE.start);
@@ -1184,12 +1184,10 @@ describe('XtabProvider integration', () => {
 		// share (floor(totalTokens * 2/8)), so a larger total budget keeps more of the
 		// file. A generous budget fits the whole file; the default budget clips it.
 		it('keeps more of the current file as the total budget grows', async () => {
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, true);
-
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, 20000);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 20000 }));
 			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, 8000);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
 			const defaultBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
 			expect(currentFileRegionLineCount(defaultBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));

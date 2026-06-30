@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Result } from '../../../../util/common/result';
 import { assertNever } from '../../../../util/vs/base/common/assert';
-import { IValidator, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { IValidator, vArray, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
 import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
@@ -196,6 +197,66 @@ export namespace GlobalBudgetOptions {
 		if (Math.abs(sharesSum - 1) > epsilon) {
 			throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
 		}
+	}
+
+	/**
+	 * Structural validator for the experiment-driven JSON config string. Every
+	 * top-level field is optional; omitted fields fall back to the defaults in
+	 * {@link fromConfigString}. When `shares` is provided it must list every
+	 * part (the rendered cascade parts plus `currentFile`) so the pool stays
+	 * fully allocated; partial `shares` objects are rejected.
+	 */
+	export const VALIDATOR = vObj({
+		'totalTokens': vUnion(vNumber(), vUndefined()),
+		'order': vUnion(vArray(vEnum<GlobalBudgetPart[]>('languageContext', 'recentlyViewedDocuments', 'neighborFiles', 'diffHistory')), vUndefined()),
+		'shares': vUnion(vObj({
+			'currentFile': vRequired(vNumber()),
+			'recentlyViewedDocuments': vRequired(vNumber()),
+			'languageContext': vRequired(vNumber()),
+			'neighborFiles': vRequired(vNumber()),
+			'diffHistory': vRequired(vNumber()),
+		}), vUndefined()),
+	});
+
+	/**
+	 * Parse the single experiment-driven JSON config string (modelled after
+	 * `modelConfigurationString`) into a fully-populated {@link GlobalBudgetOptions}.
+	 *
+	 * Any field absent from the JSON falls back to its `DEFAULT_*` value, so
+	 * `'{}'` enables the global budget with the volume-neutral defaults and
+	 * `'{"totalTokens":6000}'` only overrides the pool size. The merged result is
+	 * then run through {@link validate} so semantic misconfigurations (bad share
+	 * sums, duplicate/misordered parts) are reported.
+	 *
+	 * Returns a {@link Result.error} (never throws) so callers can fall back to a
+	 * disabled global budget and report the error via telemetry.
+	 */
+	export function fromConfigString(configString: string): Result<GlobalBudgetOptions, string> {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(configString);
+		} catch (e) {
+			return Result.error(`Failed to parse globalBudget config string: ${e instanceof Error ? e.message : String(e)}`);
+		}
+
+		const { content, error } = VALIDATOR.validate(parsed);
+		if (error) {
+			return Result.error(`globalBudget config validation failed: ${error.message}`);
+		}
+
+		const options: GlobalBudgetOptions = {
+			totalTokens: content.totalTokens ?? DEFAULT_TOTAL_TOKENS,
+			order: content.order ?? DEFAULT_ORDER,
+			shares: content.shares ?? DEFAULT_SHARES,
+		};
+
+		try {
+			validate(options);
+		} catch (e) {
+			return Result.error(e instanceof Error ? e.message : String(e));
+		}
+
+		return Result.ok(options);
 	}
 }
 

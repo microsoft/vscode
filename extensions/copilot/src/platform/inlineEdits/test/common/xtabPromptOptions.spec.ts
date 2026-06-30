@@ -186,4 +186,52 @@ describe('GlobalBudgetOptions', () => {
 			}))).toThrow(/must place 'recentlyViewedDocuments' before 'neighborFiles'/);
 		});
 	});
+
+	describe('fromConfigString', () => {
+		it('fills every omitted field with the defaults', () => {
+			const result = GlobalBudgetOptions.fromConfigString('{}');
+			expect(result.isOk() && result.val).toEqual({
+				totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+				order: GlobalBudgetOptions.DEFAULT_ORDER,
+				shares: GlobalBudgetOptions.DEFAULT_SHARES,
+			});
+		});
+
+		it('overrides only the fields present in the JSON', () => {
+			const result = GlobalBudgetOptions.fromConfigString(JSON.stringify({ totalTokens: 6000 }));
+			expect(result.isOk() && result.val).toEqual({
+				totalTokens: 6000,
+				order: GlobalBudgetOptions.DEFAULT_ORDER,
+				shares: GlobalBudgetOptions.DEFAULT_SHARES,
+			});
+		});
+
+		it('parses a fully-specified config and ignores unknown keys', () => {
+			const order: GlobalBudgetOptions['order'] = ['languageContext', 'recentlyViewedDocuments', 'neighborFiles', 'diffHistory'];
+			const shares: GlobalBudgetOptions['shares'] = { currentFile: 0.4, languageContext: 0.2, recentlyViewedDocuments: 0.2, neighborFiles: 0.1, diffHistory: 0.1 };
+			const result = GlobalBudgetOptions.fromConfigString(JSON.stringify({ totalTokens: 12000, order, shares, unknown: 'ignored' }));
+			expect(result.isOk() && result.val).toEqual({ totalTokens: 12000, order, shares });
+		});
+
+		it('errors on malformed JSON', () => {
+			expect(GlobalBudgetOptions.fromConfigString('{ not json').isError()).toBe(true);
+		});
+
+		it('errors when a field has the wrong type', () => {
+			expect(GlobalBudgetOptions.fromConfigString(JSON.stringify({ totalTokens: '6000' })).isError()).toBe(true);
+		});
+
+		it('errors on an unknown part in order', () => {
+			expect(GlobalBudgetOptions.fromConfigString(JSON.stringify({ order: ['languageContext', 'bogus'] })).isError()).toBe(true);
+		});
+
+		it('errors when shares are partial (every part is required)', () => {
+			expect(GlobalBudgetOptions.fromConfigString(JSON.stringify({ shares: { currentFile: 1 } })).isError()).toBe(true);
+		});
+
+		it('errors when the merged config is semantically invalid', () => {
+			const shares = { currentFile: 0.9, languageContext: 0.2, recentlyViewedDocuments: 0.2, neighborFiles: 0.1, diffHistory: 0.1 };
+			expect(GlobalBudgetOptions.fromConfigString(JSON.stringify({ shares })).isError()).toBe(true);
+		});
+	});
 });
