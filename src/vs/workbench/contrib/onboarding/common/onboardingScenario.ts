@@ -66,7 +66,9 @@ export const ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX = 'onb-';
  * with {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}. If either flag is missing or the id lacks
  * the required prefix, the experiment is **inactive** and the scenario does not run
  * automatically (it can still be started explicitly via a command/`runScenario`, which
- * bypasses experiment gating and does not open the telemetry gate).
+ * bypasses experiment gating and does not open the telemetry gate; or by enabling
+ * `onboarding.developerMode` for the scenario, which previews the tour without opening the
+ * telemetry gate).
  */
 export interface IOnboardingExperiment {
 	/**

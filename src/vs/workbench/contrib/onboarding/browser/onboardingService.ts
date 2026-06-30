@@ -181,6 +181,13 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	//#region Eligibility & scheduling
 
+	/**
+	 * The master switch for *automatic* onboarding. When `onboarding.enabled` is
+	 * explicitly `false`, no scenario ever runs automatically (developer mode does
+	 * NOT override this — see {@link _evaluate}). Any other value (including unset)
+	 * is treated as enabled. On-demand {@link runScenario} is intentionally exempt
+	 * from this switch.
+	 */
 	private get _enabled(): boolean {
 		return this.configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) !== false;
 	}
@@ -193,10 +200,22 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	 * Re-evaluate every scenario and enqueue any that are eligible to run
 	 * automatically. Idempotent: already shown / queued scenarios are skipped.
 	 *
+	 * The automatic eligibility rules are:
+	 * 1. If `onboarding.enabled` is `false`, nothing runs automatically — this
+	 *    method returns immediately, and developer mode does NOT override it.
+	 * 2. If a scenario declares an `experiment`, it only runs when the experiment
+	 *    is active AND the user is in the treatment arm (see below) — OR when
+	 *    developer mode is enabled for that scenario, which bypasses the experiment
+	 *    gate so the tour can be previewed locally.
+	 * 3. If a scenario has no `experiment`, it runs for every user that meets its
+	 *    `when`/trigger criteria (the typical state once an experiment has graduated
+	 *    and the tour is rolled out to everyone).
+	 *
 	 * For an experiment-active scenario, reaching eligibility *is* the "would-show"
 	 * moment: the telemetry gate is opened for the experiment's assignment-context id
 	 * (in both arms), and then only the treatment arm is enqueued to actually show the
-	 * tour. Control opens the gate but renders nothing and is not marked as shown.
+	 * tour. Control opens the gate but renders nothing and is not marked as shown
+	 * (unless developer mode forces the preview).
 	 */
 	private _evaluate(): void {
 		if (!this._enabled || this._stopped) {
@@ -232,9 +251,11 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			if (experiment?.active) {
 				// Would-show reached: start emitting the assignment-context id from now on.
 				this._openGate(experiment.assignmentContextId);
-				if (!experiment.behavior) {
+				if (!experiment.behavior && !this._isDeveloperMode(scenario.id)) {
 					// Control arm: the identifier now flows, but no tour is shown and the
 					// scenario is left un-shown so the user stays eligible to see it later.
+					// Developer mode overrides this so the tour can still be previewed even
+					// when the user landed in the control arm.
 					continue;
 				}
 			}
@@ -267,7 +288,12 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// Experiment-driven scenarios only run once the experiment is active (both treatment
 		// flags resolved). The behavior flag does NOT gate eligibility — control still reaches
 		// the would-show moment so the gate opens for it too.
-		if (scenario.experiment && this._experimentStates.get(scenario.id)?.active !== true) {
+		//
+		// Developer mode for this scenario bypasses the experiment gate entirely so the tour
+		// can be tested locally without the experiment running (or being assigned to the
+		// user). No assignment-context gate is opened in that case because the experiment is
+		// not actually active, so a developer preview never pollutes the scorecard.
+		if (scenario.experiment && this._experimentStates.get(scenario.id)?.active !== true && !this._isDeveloperMode(scenario.id)) {
 			return false;
 		}
 
