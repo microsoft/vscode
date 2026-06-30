@@ -103,7 +103,7 @@ export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCom
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
-	readonly triggerCharacters = [CompletionTriggerCharacter.Slash, ' '] as const;
+	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
 
 	constructor(
 		private readonly copilotcliId: string,
@@ -142,7 +142,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				// we have a separate completion provider for skills.
 				continue;
 			}
-			if (HIDDEN_RUNTIME_COMMANDS.has(command.name)) {
+			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
 				continue;
 			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
@@ -163,8 +163,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
-			const aliasses = Array.from(new Set([command.name].concat(command.aliases ?? [])));
-			aliasses
+			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
+			aliases
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
 					(Array.from(new Set(options.length ? options : [''])))

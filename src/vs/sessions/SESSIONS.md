@@ -224,6 +224,24 @@ replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
 
+Per-session view state (the last active chat, the set of closed chats, grid
+order, stickiness, and which slot was active) is held in `SessionsService`'s
+`_sessionStates` map and serialized to workspace-scoped machine storage. The
+grid order / stickiness / active-slot flags are snapshotted from the live grid
+at save time (`onWillSaveState`), the last active chat is tracked reactively,
+and the closed-chat set is maintained **deterministically** in
+`closeChat`/`openChat` (`_setChatClosedState`) — adding the chat's resource when
+it is closed and removing it when reopened. This matters because switching to
+another session disposes the previous session's `VisibleSession` wrapper (and
+its in-memory closed set) before the next storage flush; keeping
+`_sessionStates` current means switching back re-seeds the wrapper
+(`_restoreClosedChats`) with the right closed chats, so closed tabs stay hidden
+across both reloads and session switches. The set is updated on the close/open
+action itself rather than derived from the `closedChats` observable (which
+intersects with the session's *loaded* chats), so it never depends on chats
+having loaded or on autorun timing. Stale URIs for chats that were later deleted
+are harmless: restore intersects the persisted set with the live chat list.
+
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via
 `openNewSession`) **before** creating and sending the session, and skips the

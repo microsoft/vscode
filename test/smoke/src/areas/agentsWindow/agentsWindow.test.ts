@@ -661,6 +661,15 @@ export function setup(logger: Logger) {
 				// turns the sandbox on for the auto-approve path used by the sandbox test.
 				'chat.agentHost.customTerminalTool.enabled': true,
 				'chat.agent.sandbox.enabled': 'on',
+				// CI macOS runners commonly resolve the default shell as /bin/sh, which
+				// exercises the sentinel-based completion parser path. Force the same
+				// profile on macOS so local runs cover the same branch.
+				...(process.platform === 'darwin' ? {
+					'terminal.integrated.profiles.osx': {
+						'Smoke AgentHost Sandbox sh': { path: '/bin/sh' },
+					},
+					'terminal.integrated.defaultProfile.osx': 'Smoke AgentHost Sandbox sh',
+				} : {}),
 			},
 		});
 
@@ -761,6 +770,13 @@ export function setup(logger: Logger) {
 					engineShellRun,
 					`expected the AgentHost's own shell engine ([ShellManager]) to have run the command in ${agentHostLogPath}`
 				);
+				if (process.platform === 'darwin') {
+					assert.match(
+						agentHostLog,
+						/\[ShellManager\] Created \w+ shell .*executable=\/bin\/sh\)/,
+						`expected the macOS AgentHost sandbox smoke test to run under /bin/sh (CI parity and sentinel-parser coverage), in ${agentHostLogPath}`
+					);
+				}
 				assert.doesNotMatch(
 					agentHostLog,
 					/Applied SDK sandboxConfig/,

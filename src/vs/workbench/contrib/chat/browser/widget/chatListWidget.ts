@@ -176,6 +176,7 @@ export class ChatListWidget extends Disposable {
 	//#region Private fields
 
 	private readonly _tree: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
+	private readonly _delegate: ChatListDelegate;
 	private readonly _renderer: ChatListItemRenderer;
 
 	private _viewModel: IChatViewModel | undefined;
@@ -297,7 +298,7 @@ export class ChatListWidget extends Disposable {
 		));
 
 		// Create delegate
-		const delegate = scopedInstantiationService.createInstance(
+		this._delegate = scopedInstantiationService.createInstance(
 			ChatListDelegate,
 			options.defaultElementHeight ?? 200
 		);
@@ -364,7 +365,7 @@ export class ChatListWidget extends Disposable {
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
 			this._container,
-			delegate,
+			this._delegate,
 			[this._renderer],
 			{
 				identityProvider: { getId: (e: ChatTreeItem) => e.id },
@@ -531,6 +532,8 @@ export class ChatListWidget extends Disposable {
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
+		const previousItem = items.at(-2);
+		const needsInitialPreviousItemHeight = (isRequestVM(previousItem) || isResponseVM(previousItem)) && previousItem.currentRenderedHeight === undefined;
 
 		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
 			element: item,
@@ -572,6 +575,10 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
+
+		if (needsInitialPreviousItemHeight) {
+			this.updateLastItemMinHeight();
+		}
 	}
 
 	/**
@@ -876,7 +883,7 @@ export class ChatListWidget extends Disposable {
 			const maxRequestShownHeight = 200;
 			const secondToLastItemHeight = Math.min(
 				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
-					secondToLastItem.currentRenderedHeight ?? 150 : 150,
+					secondToLastItem.currentRenderedHeight ?? this._delegate.getMeasuredHeight(secondToLastItem) ?? 150 : 150,
 				maxRequestShownHeight);
 			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
 			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -22,14 +22,14 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ResponsePartKind, SESSION_META_GITHUB_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -53,7 +53,7 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
-import { AgentHostGitStateService, META_GITHUB_STATE } from './agentHostGitStateService.js';
+import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -62,7 +62,7 @@ import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agen
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
-import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
@@ -192,11 +192,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
 
-	/**
-	 * Sequences git state updates by session resource.
-	 */
-	private readonly _gitStateSequencer = new SequencerByKey<string>();
-
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
@@ -322,9 +317,13 @@ export class AgentService extends Disposable implements IAgentService {
 					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
 				});
 			},
-			onTurnComplete: session => {
+			onTurnComplete: async session => {
+				// Refresh the git state for the session.
 				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectory;
-				void this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
+				void this._gitStateService.refreshSessionGitState(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
+
+				// Check for a GitHub pull request associated with the session's branch.
+				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
 			},
 		}));
 
@@ -432,8 +431,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, isRead: true, isArchived: true, isDone: true, [META_GITHUB_STATE]: true, ...changesetKeys }
-						: { customTitle: true, isRead: true, isArchived: true, isDone: true, [META_GITHUB_STATE]: true };
+						? { customTitle: true, isRead: true, isArchived: true, isDone: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, isRead: true, isArchived: true, isDone: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					let updated = s;
 					if (m.customTitle) {
@@ -446,6 +445,14 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, isArchived: m.isArchived === 'true' };
 					} else if (m.isDone !== undefined) {
 						updated = { ...updated, isArchived: m.isDone === 'true' };
+					}
+					if (m[META_GIT_STATE]) {
+						try {
+							const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
+							updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
+						} catch (e) {
+							this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${s.session}`, e);
+						}
 					}
 					if (m[META_GITHUB_STATE]) {
 						try {
@@ -681,19 +688,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._persistConfigValues(session, sessionConfig.values);
 		}
 
-		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the catalogue
-		// is seeded on `state.changesets` via `setSessionChangesets` right
-		// after `createSession`; (2) the backing per-changeset states are
-		// registered by `_changesetCoordinator.onSessionCreated` here. Both
-		// run before `SessionReady` is dispatched. Any future change must
-		// keep both halves at create time so client subscriptions resolve
-		// `_attachGitState` strips them once the git probe confirms the
-		// resolved working directory is not a git repo. Pinned by item-2
-		// regression tests in `agentService.test.ts`.
-		const changesets = buildDefaultChangesetCatalogue(session.toString());
-		this._stateManager.setSessionChangesets(session.toString(), changesets);
-
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -704,9 +698,9 @@ export class AgentService extends Disposable implements IAgentService {
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 
-			// Lazily compute git state for sessions with a working directory;
-			// attaches under `state._meta.git` once ready.
-			void this._attachGitState(session, created.workingDirectory ?? config?.workingDirectory);
+			// Refresh the git state for the session.
+			const workingDirectory = created.workingDirectory ?? config?.workingDirectory;
+			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 		}
 
 		return session;
@@ -839,70 +833,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 
 		// Attach git state for the working directory (if present)
-		void this._attachGitState(e.session, e.workingDirectory);
-
-		// Initialize the session's changesets from the catalogue
-		const changesets = buildDefaultChangesetCatalogue(sessionKey);
-		this._stateManager.setSessionChangesets(sessionKey, changesets);
+		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectory);
 
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
-	}
-
-	/**
-	 * Fire-and-forget probe that resolves the session's git state for its
-	 * working directory (if any) and merges it into `state._meta.git` via
-	 * the state manager. Failures are logged; sessions simply remain without
-	 * git state.
-	 *
-	 * Also gates the two git-only default catalogue entries
-	 * (`Branch Changes`, `Uncommitted Changes`): when the working
-	 * directory is resolved AND the git probe confirms it is not a git
-	 * repo, those entries are stripped from `summary.changesets`, leaving
-	 * only `This Turn`. An absent working directory is treated as
-	 * transient (provisional / pre-materialize / pre-restore) — we do NOT
-	 * strip in that case because there is no path that re-adds the
-	 * entries when a subsequent `onSessionMaterialized` / restore call
-	 * resolves the working directory and the probe succeeds. The
-	 * entries' counts remain unset until a real compute lands, so chip
-	 * rendering naturally skips them in the meantime.
-	 */
-	private async _attachGitState(sessionOrChat: URI, workingDirectory: URI | undefined): Promise<void> {
-		const sessionKey = sessionOrChat.toString();
-
-		// If this is a chat channel, we don't need to attach git state since
-		// the git state is being attached when this method is called for the
-		// session resource.
-		if (isAhpChatChannel(sessionKey)) {
-			return;
-		}
-
-		return this._gitStateSequencer.queue(sessionKey, async () => {
-			try {
-				const gitState = await this._gitStateService.refreshSessionGitState(sessionKey, workingDirectory);
-
-				if (gitState === null) {
-					// No git repository — nothing to
-					// attach and no PR to look for.
-					return;
-				}
-
-				if (gitState) {
-					// Git state has changed
-					this._changesetCoordinator.onSessionGitStateChanged(sessionKey, gitState);
-				}
-
-				// The git state was just (re)computed — covers a cold first subscribe
-				// (via restore) as well as turn completion (via `onTurnComplete`). With
-				// the repository coordinates now known, check whether a pull request is
-				// already associated with the session's branch and persist it.
-				await this._gitStateService.attachSessionGitHubPullRequest(sessionKey);
-			} catch (error) {
-				this._logService.warn(`[AgentService] Failed to compute git state for ${sessionOrChat}`, error);
-			}
-		});
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -1066,9 +1002,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// is async and updates `_meta.git` once ready, which clients see via
 			// the normal state-update stream.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
-			if (sessionState && readSessionGitState(sessionState._meta) === undefined) {
-				const wd = sessionState.workingDirectory;
-				void this._attachGitState(resource, wd ? URI.parse(wd) : undefined);
+			if (!isAhpChatChannel(resourceStr) && sessionState && readSessionGitState(sessionState._meta) === undefined) {
+				const workingDirectory = sessionState.workingDirectory
+					? URI.parse(sessionState.workingDirectory)
+					: undefined;
+				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
 
 			return snapshot;
@@ -1327,7 +1265,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
-		this._sideEffects.handleAction(channel, action);
+		this._sideEffects.handleAction(channel, action, clientId);
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
@@ -1560,8 +1498,9 @@ export class AgentService extends Disposable implements IAgentService {
 		let isArchived: boolean | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
 		let changes: ChangesSummary | undefined;
+		let gitMetadata: Record<string, string | undefined> | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
-		let summaryMetadata: Record<string, unknown> | undefined;
+		let sessionMetadata: Record<string, unknown> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -1574,7 +1513,7 @@ export class AgentService extends Disposable implements IAgentService {
 							isArchived: true,
 							isDone: true,
 							configValues: true,
-							[META_GITHUB_STATE]: true,
+							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
 						if (m.customTitle) {
@@ -1598,10 +1537,24 @@ export class AgentService extends Disposable implements IAgentService {
 							}
 						}
 
-						if (m[META_GITHUB_STATE]) {
+						gitMetadata = m as Record<string, string | undefined>;
+
+						if (gitMetadata[META_GIT_STATE]) {
 							try {
-								const githubState = JSON.parse(m[META_GITHUB_STATE]);
-								summaryMetadata = { [SESSION_META_GITHUB_KEY]: githubState };
+								const gitState = JSON.parse(gitMetadata[META_GIT_STATE]);
+								sessionMetadata = { [SESSION_META_GIT_KEY]: gitState };
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse Git state for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
+						if (gitMetadata[META_GITHUB_STATE]) {
+							try {
+								const githubState = JSON.parse(gitMetadata[META_GITHUB_STATE]);
+								sessionMetadata = {
+									...(sessionMetadata ? sessionMetadata : {}),
+									[SESSION_META_GITHUB_KEY]: githubState
+								};
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
@@ -1642,7 +1595,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
-			_meta: summaryMetadata
+			_meta: sessionMetadata
 		};
 
 		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
@@ -1672,9 +1625,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// persisted for this session, seeding each with its own history and
 		// persisted title so they reappear after a process restart.
 		promises.push(this._restorePeerChats(agent, session));
-
-		const changesets = buildDefaultChangesetCatalogue(sessionStr);
-		this._stateManager.setSessionChangesets(sessionStr, changesets);
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
@@ -1724,9 +1674,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 
-		// Lazily compute git state for sessions with a working directory;
-		// attaches under `state._meta.git` once ready.
-		void this._attachGitState(session, meta.workingDirectory);
+		// Refresh the git state for the session.
+		void this._gitStateService.refreshSessionGitState(sessionStr, meta.workingDirectory);
+
+		// Check for a GitHub pull request associated with the session's branch.
+		void this._gitStateService.attachSessionGitHubPullRequest(sessionStr);
 	}
 
 	/**
@@ -1750,7 +1702,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats.length === 0) {
 			return;
 		}
-		await Promise.all(chats.map(async (chatUri) => {
+		// Load each chat's data in parallel but restore in the order `getChats`
+		// returned (creation order), so the catalog never reorders by which
+		// chat's history/title happened to resolve first.
+		const restored = await Promise.all(chats.map(async (chatUri) => {
 			let turns: readonly Turn[] = [];
 			try {
 				turns = await agent.getSessionMessages(chatUri);
@@ -1761,8 +1716,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns: [...turns], draft });
+			return { chatUri, title, turns: [...turns], draft };
 		}));
+		for (const { chatUri, title, turns, draft } of restored) {
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns, draft });
+		}
 	}
 
 	/** Reads a peer chat's persisted custom title, if any. */

@@ -130,6 +130,8 @@ jobs:
         timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests"
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
@@ -181,6 +183,8 @@ jobs:
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
@@ -193,6 +197,8 @@ jobs:
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-remote-integration.bat
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
         if: ${{ inputs.unit_and_integration_tests && always() }}

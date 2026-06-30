@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -128,6 +128,58 @@ suite('Sessions - SessionsList Helpers', () => {
 			const groups = groupByWorkspace(sessions);
 
 			assert.strictEqual(groups[0].id, 'workspace:MyProject');
+		});
+	});
+
+	suite('groupByDate', () => {
+
+		const DAY_MS = 86_400_000;
+
+		// `groupByDate` expects sessions pre-sorted most-recent-first.
+		function minutesAgo(minutes: number): Date {
+			return new Date(Date.now() - minutes * 60_000);
+		}
+
+		function daysAgo(days: number): Date {
+			return new Date(Date.now() - days * DAY_MS);
+		}
+
+		test('sessions within the last 7 days go to "Recent", older ones to "Older"', () => {
+			const sessions = [
+				createSession('recent-1', { createdAt: minutesAgo(5) }),
+				createSession('recent-2', { createdAt: daysAgo(3) }),
+				createSession('old-1', { createdAt: daysAgo(10) }),
+				createSession('old-2', { createdAt: daysAgo(30) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['recent-1', 'recent-2'] },
+				{ id: 'older', sessions: ['old-1', 'old-2'] },
+			]);
+		});
+
+		test('"Recent" is capped at 10 sessions; the overflow within 7 days falls into "Older"', () => {
+			const sessions = Array.from({ length: 13 }, (_, i) =>
+				createSession(`s${i}`, { createdAt: minutesAgo(i + 1) }));
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] },
+				{ id: 'older', sessions: ['s10', 's11', 's12'] },
+			]);
+		});
+
+		test('empty sections are omitted', () => {
+			const sessions = [
+				createSession('only-old', { createdAt: daysAgo(20) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => s.id), ['older']);
 		});
 	});
 
