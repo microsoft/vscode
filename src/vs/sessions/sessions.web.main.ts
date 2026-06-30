@@ -19,7 +19,9 @@ import './sessions.common.main.js';
 
 //#region --- workbench parts
 
-import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
+// Agents window uses a phone-aware dialog handler (bottom sheets on phone)
+// in place of the standard web dialog handler.
+import './browser/parts/dialogs/mobileDialog.web.contribution.js';
 
 //#endregion
 
