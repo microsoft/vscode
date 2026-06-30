@@ -129,7 +129,15 @@ export class OpenSessionTerminalsActionViewItem extends SessionHeaderMetaActionV
 	}
 
 	protected override getAriaLabel(): string {
-		return this.getTooltip();
+		const { total, active } = this._countsObs.get();
+		const totalLabel = total === 1
+			? localize('agentSessions.terminals.one', "{0} terminal", total)
+			: localize('agentSessions.terminals.many', "{0} terminals", total);
+		const activeLabel = active === 1
+			? localize('agentSessions.terminals.tooltip.one', "{0} active terminal", active)
+			: localize('agentSessions.terminals.tooltip.many', "{0} active terminals", active);
+		// e.g. "Open Terminals: 3 terminals, 1 active terminal"
+		return localize('agentSessions.terminals.ariaLabel', "Open Terminals: {0}, {1}", totalLabel, activeLabel);
 	}
 }
 

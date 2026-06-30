@@ -69,7 +69,11 @@ export interface ISessionTerminalsService {
 	 */
 	getTerminalCounts(sessionId: string): ISessionTerminalCounts;
 
-	/** Registers the backing provider. Only one provider is supported. */
+	/**
+	 * Registers the backing provider. Only one provider is supported at a time;
+	 * registering a second provider while one is active throws. Dispose the
+	 * returned disposable to unregister.
+	 */
 	registerProvider(provider: ISessionTerminalsProvider): IDisposable;
 }
 
@@ -87,6 +91,9 @@ export class SessionTerminalsService extends Disposable implements ISessionTermi
 	}
 
 	registerProvider(provider: ISessionTerminalsProvider): IDisposable {
+		if (this._provider) {
+			throw new Error('A session terminals provider is already registered');
+		}
 		this._provider = provider;
 		const listener = provider.onDidChangeTerminals(() => this._onDidChangeTerminals.fire());
 
