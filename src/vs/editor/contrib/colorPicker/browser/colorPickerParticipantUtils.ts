@@ -42,10 +42,18 @@ export async function createColorHover(editorModel: ITextModel, colorInfo: IColo
 	};
 }
 
-export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
-	const textEdits: ISingleEditOperation[] = [];
+export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, insertionRanges?: readonly Range[]): Range {
 	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
-	textEdits.push(edit);
+	const ranges = insertionRanges && insertionRanges.length > 1 ? insertionRanges : undefined;
+
+	if (!model.presentation.additionalTextEdits && ranges) {
+		const trackedRange = editor.getModel()._setTrackedRange(null, range, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+		editor.executeEdits('colorpicker', ranges.map(insertionRange => ({ range: insertionRange, text: edit.text, forceMoveMarkers: false })));
+		editor.pushUndoStop();
+		return editor.getModel()._getTrackedRange(trackedRange) ?? range;
+	}
+
+	const textEdits: ISingleEditOperation[] = [edit];
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits.push(...model.presentation.additionalTextEdits);

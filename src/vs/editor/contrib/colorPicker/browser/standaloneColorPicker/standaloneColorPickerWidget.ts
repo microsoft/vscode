@@ -53,6 +53,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	private readonly _renderedHoverParts: MutableDisposable<StandaloneColorPickerRenderedParts> = this._register(new MutableDisposable());
 	private readonly _renderedStatusBar: MutableDisposable<EditorHoverStatusBar> = this._register(new MutableDisposable());
+	private readonly _initialSelections: readonly IRange[];
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -69,6 +70,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		this._standaloneColorPickerParticipant = _instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
 		this._position = this._editor._getViewModel()?.getPrimaryCursorState().modelState.position;
 		const editorSelection = this._editor.getSelection();
+		const editorSelections = this._editor.getSelections();
+		this._initialSelections = editorSelections?.length ? editorSelections : editorSelection ? [editorSelection] : [];
 		const selection = editorSelection ?
 			{
 				startLineNumber: editorSelection.startLineNumber,
@@ -108,7 +111,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	public updateEditor() {
 		if (this._colorHover) {
-			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover);
+			const insertionRanges = this._initialSelections.length > 1 ? this._initialSelections : undefined;
+			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover, insertionRanges);
 		}
 	}
 
@@ -216,11 +220,13 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		});
 		// When found in the editor, highlight the selection in the editor
 		if (foundInEditor) {
-			if (enterButton) {
+			if (enterButton && this._initialSelections.length <= 1) {
 				enterButton.button.textContent = 'Replace';
 			}
-			this._selectionSetInEditor = true;
-			this._editor.setSelection(colorHover.range);
+			if (this._initialSelections.length <= 1) {
+				this._selectionSetInEditor = true;
+				this._editor.setSelection(colorHover.range);
+			}
 		}
 		this._editor.layoutContentWidget(this);
 	}
