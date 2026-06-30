@@ -14,6 +14,7 @@ import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/commo
 import { IChatGenerativeUIInset } from '../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { deregisterInset, registerInset } from './chatGenerativeUIInsetRegistry.js';
 
 // Wire-protocol message shapes (mirrors @copilot/a2ui-runtime/src/protocol.ts; core must not import the runtime package).
 type HostToInsetMessage = { type: 'RENDER' | 'STATE_DELTA' | 'DISPOSE';[k: string]: unknown };
@@ -74,6 +75,13 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		// worker) and the source directory must be in `localResourceRoots` (above).
 		const runtimeSrc = asWebviewUri(this._content.runtimeUri).toString(true);
 		this._webview.setHtml(this._buildHtml(runtimeSrc));
+
+		// Register in the cross-fork transport registry so the extension can push
+		// post-render messages (STATE_DELTA / DISPOSE) to THIS inset by surfaceId
+		// via the `_a2ui.postToSurface` command. Deregister on dispose.
+		const surfaceId = this._content.surfaceId;
+		registerInset(surfaceId, this);
+		this._register({ dispose: () => deregisterInset(surfaceId, this) });
 	}
 
 	public postToInset(msg: HostToInsetMessage): void {
