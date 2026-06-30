@@ -10,7 +10,7 @@ import { ResponsePartKind, type ResponsePart, type Turn } from './state/sessionS
  * context. Sized to stay well within the small model's context window while
  * leaving room for prompt scaffolding.
  */
-export const AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS = 20000;
+export const MAX_UTILITY_CONTEXT_CHARS = 20000;
 
 /**
  * Options for {@link buildConversationContext}.

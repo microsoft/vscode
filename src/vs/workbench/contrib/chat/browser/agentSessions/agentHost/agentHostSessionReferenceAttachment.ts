@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS, truncateMiddle } from '../../../../../../platform/agentHost/common/agentHostConversationContext.js';
+import { MAX_UTILITY_CONTEXT_CHARS, truncateMiddle } from '../../../../../../platform/agentHost/common/agentHostConversationContext.js';
 import { type SimpleMessageAttachment } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatRequestSessionReferenceVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IChatDebugEvent, type IChatDebugMessageSection, type IChatDebugResolvedEventContent } from '../../../common/chatDebugService.js';
@@ -150,7 +150,7 @@ function toSessionReferenceTranscript(blocks: readonly string[]): string | undef
 	if (!transcript) {
 		return undefined;
 	}
-	return transcript.length > AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS ? truncateMiddle(transcript, AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS) : transcript;
+	return transcript.length > MAX_UTILITY_CONTEXT_CHARS ? truncateMiddle(transcript, MAX_UTILITY_CONTEXT_CHARS) : transcript;
 }
 
 function toSessionReferenceResponse(parts: readonly IChatProgress[]): string | undefined {
