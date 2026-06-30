@@ -159,9 +159,12 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = 'off';
+	const isPersistentCoTModel = isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint);
+	// Only send summary: 'off' for models that support it (gpt-5.4, gpt-5.5, hidden model M).
+	// Other models (e.g. gpt-5-mini) reject 'off' as an invalid value.
+	const summary = isPersistentCoTModel ? 'off' : undefined;
 	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
-		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
+		&& isPersistentCoTModel;
 	if (effort || summary || persistentCoTEnabled) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
