@@ -337,8 +337,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly models = this._models;
 	/**
 	 * The two sources merged into {@link _models}: CAPI models from the CLI's
-	 * `models.list` and BYOK models aggregated across all connected renderer
-	 * bridges. Tracked separately so each can refresh independently without
+	 * `models.list` and BYOK models from the renderer bridge registry's serving
+	 * window. Tracked separately so each can refresh independently without
 	 * clobbering the other; {@link _publishModels} concatenates them for the
 	 * picker.
 	 */
