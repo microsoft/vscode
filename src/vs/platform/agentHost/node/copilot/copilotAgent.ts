@@ -709,6 +709,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (key === 'ELECTRON_RUN_AS_NODE') {
 					continue;
 				}
+				if (key === 'VSCODE_COPILOT_CHAT_TOKEN' || key === 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE') {
+					// used for running the CLI in a test harness aganist a mock CAPI server, don't strip these
+					continue;
+				}
 				if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
 					delete env[key];
 				}
