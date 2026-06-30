@@ -6,7 +6,7 @@
 import { mkdir } from 'fs/promises';
 import { dirname, join } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -21,6 +21,7 @@ import {
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelSpanConsumer } from '../../common/otel/agentHostOTelSpanConsumer.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -116,9 +117,11 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 
 	private readonly _config: ResolvedConfig;
 	private readonly _spansDbPath: string;
+	private readonly _consumers = new Set<IAgentHostOTelSpanConsumer>();
 
 	private _receiver: ILocalOtlpHttpReceiver | undefined;
 	private _forwarder: IOutboundForwarder | undefined;
+	private _spanStore: OTelSqliteStore | undefined;
 	private _startPromise: Promise<void> | undefined;
 
 	constructor(
@@ -130,12 +133,21 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
 	}
 
+	registerSpanConsumer(consumer: IAgentHostOTelSpanConsumer): IDisposable {
+		this._consumers.add(consumer);
+		return toDisposable(() => {
+			this._consumers.delete(consumer);
+		});
+	}
+
 	async getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined> {
-		if (!this._config.enabled) {
+		const wantLoopback = this._config.dbSpanExporter || this._consumers.size > 0;
+
+		if (!this._config.enabled && !wantLoopback) {
 			return undefined;
 		}
 
-		if (this._config.dbSpanExporter) {
+		if (wantLoopback) {
 			await this._ensureStarted();
 			if (!this._receiver) {
 				// Start failed; we already logged. Fall through to pass-through if
@@ -199,10 +211,14 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private async _start(): Promise<void> {
-		// 1. Persistent SQLite store.
-		await mkdir(dirname(this._spansDbPath), { recursive: true });
-		const store = new OTelSqliteStore(this._spansDbPath);
-		this._register(toDisposable(() => store.close()));
+		// 1. Persistent SQLite store — only when DB mode is on. Span consumers
+		//    that only need in-memory inspection (e.g. telemetry routing) should
+		//    not force disk usage on every user.
+		if (this._config.dbSpanExporter) {
+			await mkdir(dirname(this._spansDbPath), { recursive: true });
+			this._spanStore = new OTelSqliteStore(this._spansDbPath);
+			this._register(toDisposable(() => this._spanStore?.close()));
+		}
 
 		// 2. Optional outbound forwarder when the user *also* wants an external sink.
 		this._forwarder = this._buildOutboundForwarder();
@@ -212,10 +228,22 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			{
 				onSpans: result => {
 					for (const span of result.spans) {
-						try {
-							store.insertSpan(span);
-						} catch (err) {
-							this._logService.warn('[agentHost.otel] failed to insert span', err);
+						if (this._spanStore) {
+							try {
+								this._spanStore.insertSpan(span);
+							} catch (err) {
+								this._logService.warn('[agentHost.otel] failed to insert span', err);
+							}
+						}
+						// Fan out to in-process consumers. Each consumer is
+						// responsible for swallowing its own errors so a bad
+						// consumer cannot stall the receiver loop.
+						for (const consumer of this._consumers) {
+							try {
+								consumer.onSpan(span);
+							} catch (err) {
+								this._logService.warn('[agentHost.otel] span consumer threw', err);
+							}
 						}
 					}
 					// Also feed decoded spans to forwarders that consume IDecodeResult
@@ -235,7 +263,8 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			this._register(this._forwarder);
 		}
 
-		this._logService.info(`[agentHost.otel] loopback receiver at ${receiver.baseUrl}, db ${this._spansDbPath}`);
+		const dbDesc = this._spanStore ? `, db ${this._spansDbPath}` : ' (in-memory only)';
+		this._logService.info(`[agentHost.otel] loopback receiver at ${receiver.baseUrl}${dbDesc}, consumers=${this._consumers.size}`);
 	}
 
 	private _buildOutboundForwarder(): IOutboundForwarder | undefined {

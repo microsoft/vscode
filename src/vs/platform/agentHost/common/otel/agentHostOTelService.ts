@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { TelemetryConfig } from '@github/copilot-sdk';
+import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import type { IAgentHostOTelSpanConsumer } from './agentHostOTelSpanConsumer.js';
 
 
 /**
@@ -41,6 +43,16 @@ export interface IAgentHostOTelService {
 	 * ongoing ingestion.
 	 */
 	flush(): Promise<void>;
+
+	/**
+	 * Register an in-process consumer for decoded spans. When at least one
+	 * consumer is registered, the loopback OTLP/HTTP receiver is started
+	 * unconditionally so the SDK's spans flow through process-local inspection
+	 * regardless of whether `dbSpanExporter` is on. Dispose the returned handle
+	 * to remove the consumer; the receiver stays up so the SDK does not see a
+	 * mid-flight endpoint change.
+	 */
+	registerSpanConsumer(consumer: IAgentHostOTelSpanConsumer): IDisposable;
 }
 
 export const IAgentHostOTelService = createDecorator<IAgentHostOTelService>('agentHostOTelService');
