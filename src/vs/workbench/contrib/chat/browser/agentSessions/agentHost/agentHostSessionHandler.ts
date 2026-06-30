@@ -1134,12 +1134,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		// Measure turn timings on the workbench side so the core
-		// `interactiveSessionProviderInvoked` telemetry event is populated for
-		// agent-host providers. `firstProgress` mirrors the agent host's own
-		// "first visible progress" definition (text delta, response part, tool
-		// call start, or reasoning), which maps to `markdownContent`, `thinking`,
-		// and `toolInvocation` parts on this side.
+		// Measure turn timings so the core `interactiveSessionProviderInvoked`
+		// telemetry event is populated for agent-host providers.
 		const stopWatch = StopWatch.create(false);
 		let firstProgress: number | undefined;
 		const measuredProgress = (parts: IChatProgress[]) => {
