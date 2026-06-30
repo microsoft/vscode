@@ -125,6 +125,7 @@ function makeAgentSession(opts: {
 		sticky: observableValue('test.sticky', false),
 		openChats: observableValue('test.openChats', [chat]),
 		closedChats: constObservable([]),
+		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
 	} satisfies TestActiveSession;
 	return session;
