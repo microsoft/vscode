@@ -37,6 +37,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	computeListEntryChanges() { return undefined; }
 	refreshBranchChangeset(): void { }
 	refreshSessionChangeset(): void { }
+	refreshChangesetCatalog(): void { }
 	onWorkingDirectoryAvailable(): void { }
 	recomputeSubscribedChangesets(): void { }
 	onSessionDisposed(): void { }
