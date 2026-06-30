@@ -175,9 +175,16 @@ class AMDModuleImporter {
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (await import(/* webpackIgnore: true */ /* @vite-ignore */ `${'fs'}`)).default;
-			const vm = (await import(/* webpackIgnore: true */ /* @vite-ignore */ `${'vm'}`)).default;
+			// `import('module')` is not remapped (only `fs` is), so it yields the real
+			// `module` builtin. We use its `createRequire` to obtain `fs`/`vm`: the ESM
+			// resolution hook maps `import('fs')` to the ASAR-unaware `original-fs`, but
+			// `scriptSrc` may point inside the `node_modules.asar` archive. The `fs`
+			// returned by `require` stays ASAR-aware in Electron, so it can read module
+			// files from within the archive.
 			const module = (await import(/* webpackIgnore: true */ /* @vite-ignore */ `${'module'}`)).default;
+			const nodeRequire = module.createRequire(import.meta.url);
+			const fs = nodeRequire('fs');
+			const vm = nodeRequire('vm');
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();

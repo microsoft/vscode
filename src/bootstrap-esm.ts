@@ -23,11 +23,12 @@ globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 // The archive keeps the same top-level layout as `node_modules`
 // (`node_modules.asar/<module>`). Node's default ESM resolver only ever looks
 // into directories literally named `node_modules`, so it cannot find modules at
-// the archive's top level on its own. We therefore resolve the specifier with a
-// CommonJS `require` rooted at the archive, which yields the same top-level path
-// that the CommonJS hook and our packaged native modules already use. Keeping a
-// single, top-level layout is what allows extensions (e.g. Dev Containers) that
-// reach into `${appRoot}/node_modules.asar/<module>` to keep working.
+// the archive's top level on its own. We therefore locate the target package
+// inside the archive (via its `package.json`) and re-run the default resolution
+// rooted inside that package so Node resolves it as a package self-reference,
+// applying the package's real `exports`/`main` fields and ESM conditions. This
+// top-level layout is what allows extensions (e.g. Dev Containers) that reach
+// into `${appRoot}/node_modules.asar/<module>` to keep working.
 function enableASARSupport(): void {
 	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
 		return; // only on Electron / Electron-as-node
@@ -60,12 +61,25 @@ function enableASARSupport(): void {
 		return path;
 	}
 
+	// Extract the package name from a bare specifier, e.g.
+	// 'foo/lib/x.js' -> 'foo', '@scope/bar/baz' -> '@scope/bar'.
+	function packageNameOf(specifier) {
+		if (specifier[0] === '@') {
+			const firstSlash = specifier.indexOf('/');
+			if (firstSlash === -1) { return specifier; }
+			const secondSlash = specifier.indexOf('/', firstSlash + 1);
+			return secondSlash === -1 ? specifier : specifier.slice(0, secondSlash);
+		}
+		const slash = specifier.indexOf('/');
+		return slash === -1 ? specifier : specifier.slice(0, slash);
+	}
+
 	export async function initialize({ resourcesPath: resPath, asarPath }) {
 		if (asarPath) {
 			resourcesPath = normalizeDriveLetter(resPath);
-			// A require rooted at the archive: 'require.resolve('./<module>')'
-			// resolves to '<asarPath>/<module>' (top-level), honoring package.json
-			// 'main'/'exports' and extension resolution via the CommonJS resolver.
+			// A require rooted at the archive: 'require.resolve(...)' resolves into
+			// '<asarPath>/<module>' (top-level), and 'require.resolve(<pkg>/package.json)'
+			// lets us locate a package's root inside the archive.
 			asarRequire = createRequire(asarPath + '/x.js');
 		}
 	}
@@ -83,11 +97,33 @@ function enableASARSupport(): void {
 			let parentPath;
 			try { parentPath = normalizeDriveLetter(fileURLToPath(context.parentURL)); } catch { parentPath = undefined; }
 			if (parentPath && parentPath.startsWith(resourcesPath)) {
+				// Locate the package inside the archive via its package.json (this is
+				// resolution-condition independent). Then re-run the default ESM
+				// resolution rooted *inside* that package so Node resolves the request
+				// as a package self-reference. This applies the real 'exports'/'main'
+				// fields and ESM conditions ('import' over 'require'), which is required
+				// for dual CJS/ESM packages (e.g. 'playwright-core') to load their ESM
+				// entry and expose their named exports.
+				let packageJsonPath;
 				try {
-					const resolved = asarRequire.resolve('./' + specifier);
-					return nextResolve(pathToFileURL(resolved).href, context);
+					packageJsonPath = asarRequire.resolve(packageNameOf(specifier) + '/package.json');
 				} catch {
 					// Not part of the archive: fall through to default resolution.
+				}
+				if (packageJsonPath) {
+					try {
+						return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(packageJsonPath).href });
+					} catch {
+						// The package has no matching 'exports' entry (or no 'exports' at
+						// all). Fall back to direct resolution, which honors 'main' and
+						// explicit file subpaths.
+						try {
+							const resolved = asarRequire.resolve(specifier);
+							return { url: pathToFileURL(resolved).href, shortCircuit: true };
+						} catch {
+							// Not resolvable in the archive: fall through.
+						}
+					}
 				}
 			}
 		}
