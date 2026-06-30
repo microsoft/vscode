@@ -7,7 +7,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { INotebookDocumentService } from '../../../../../workbench/services/notebook/common/notebookDocumentService.js';
+import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionFile, SessionFileOperation } from '../../../../services/sessions/common/session.js';
 import { ISessionFilesInput, SessionFilesWidget } from '../../browser/sessionFilesWidget.js';
@@ -30,6 +34,11 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { files?: readonly
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			// Services required by ResourceLabels (file labels in the list).
+			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
+			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
 				override readonly onDidActiveEditorChange = Event.None;
