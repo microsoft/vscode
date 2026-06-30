@@ -1392,7 +1392,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
 
 			width = Math.max(0, width - leftMargin - rightMargin);
-			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
+			const { topMargin, bottomMargin } = this.getFloatingPanelHeightInsets();
+			height = Math.max(0, height - topMargin - bottomMargin);
 
 			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {
@@ -1411,6 +1412,26 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Layout editor container
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
+	}
+
+	/**
+	 * Returns the top and bottom margins (in pixels) to subtract from the editor height
+	 * when the floating panels experiment is active. Accounts for panel position (a top
+	 * panel pushes the editor down) and status bar visibility (hidden status bar means
+	 * the editor is at the window bottom edge and gets a doubled bottom margin).
+	 */
+	private getFloatingPanelHeightInsets(): { topMargin: number; bottomMargin: number } {
+		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
+		// When the panel is positioned above the editor and visible, the editor is no longer
+		// adjacent to the title bar — reserve a top margin to match the inter-card gaps.
+		const panelAtTop = panelVisible && this.layoutService.getPanelPosition() === Position.TOP;
+		// When the status bar is hidden, the editor is at the window bottom edge — double the
+		// margin. Exception: when a bottom panel is visible the editor's bottom faces the panel
+		// card (not the window edge), so keep the normal inter-card gap.
+		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
+			? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+		return { topMargin: panelAtTop ? FLOATING_PANEL_MARGIN : 0, bottomMargin };
 	}
 
 	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {
@@ -1533,8 +1554,16 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Recreate grid widget from state
 		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse, options);
 
-		// Layout
-		this.doLayout(this._contentDimension);
+		// Layout, but only if the part has already been laid out at least once.
+		// When restoring a working set into an editor part that has never been
+		// shown (e.g. on reload with the editor area hidden), `_contentDimension`
+		// is still undefined; laying out here would throw and abort before the
+		// `onDidAddGroup` events below are fired (leaving the restored groups
+		// unregistered with the editor service). The grid is laid out later when
+		// the part is first shown.
+		if (this._contentDimension) {
+			this.doLayout(this._contentDimension);
+		}
 
 		// Update container
 		this.updateContainer();

@@ -51,6 +51,8 @@ const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-tog
 export interface ISessionViewState {
 	readonly auxiliaryBarVisible: boolean;
 	readonly auxiliaryBarActiveViewContainerId: string | undefined;
+	/** [D9] Marks an aux-bar hide caused only by collapsing the whole side pane. */
+	readonly auxiliaryBarHiddenByCollapse?: boolean;
 }
 
 /**
@@ -367,7 +369,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			// Let subclasses record the resulting side-pane state ([D2] capture is suppressed while toggling).
-			this._onSidePaneToggled();
+			this._onSidePaneToggled(isCurrentlyVisible, auxiliaryBarVisible);
 
 			return !isCurrentlyVisible;
 		} finally {
@@ -379,9 +381,11 @@ export abstract class BaseLayoutController extends Disposable {
 	 * Hook invoked at the end of {@link toggleSidePane}, while
 	 * {@link _togglingSidePane} is still set, so subclasses can record the
 	 * resulting side-pane state (which the [D2] capture listener deliberately
-	 * ignores). The base implementation does nothing.
+	 * ignores). `collapsed` is `true` when the toggle just hid the whole side
+	 * pane; `previousAuxiliaryBarVisible` is the aux bar's visibility before the
+	 * toggle. The base implementation does nothing.
 	 */
-	protected _onSidePaneToggled(): void { }
+	protected _onSidePaneToggled(_collapsed: boolean, _previousAuxiliaryBarVisible: boolean): void { }
 
 	/**
 	 * [B4] Hook that lets a subclass snapshot the active session's view state when

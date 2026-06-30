@@ -16,7 +16,7 @@ import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHo
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CustomizationLoadStatus, CustomizationType, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,6 +25,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -39,7 +40,6 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter } from '../../browser/baseAgentHostSessionsProvider.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from '../../browser/agentHostChangesetConstants.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -51,7 +51,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 
-type SubscriptionState = SessionState | ChangesetState;
+type SubscriptionState = SessionState | ChangesetState | ChatState;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -235,6 +235,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessionStateEmitters.get(changesetUri)?.fire(state);
 	}
 
+	setChatState(chatUri: string, state: ChatState): void {
+		this._sessionStateValues.set(chatUri, state);
+		this._sessionStateEmitters.get(chatUri)?.fire(state);
+	}
+
 	setAgents(agents: AgentInfo[]): void {
 		this._rootStateValue = { agents };
 		this._onDidRootStateChange.fire(this._rootStateValue);
@@ -340,6 +345,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
@@ -1020,6 +1026,150 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(session!.mode.get(), undefined);
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
+	});
+
+	test('restores the selected agent from the default chat draft on resume', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'resume-agent', { title: 'Resume Agent Session' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Resume Agent Session');
+		assert.ok(session);
+		assert.strictEqual(session!.mode.get(), undefined);
+
+		// `getSessionConfig` opens the session-state subscription, which also opens
+		// the default chat subscription used to read the persisted draft agent.
+		provider.getSessionConfig(session!.sessionId);
+
+		const defaultChatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'resume-agent'));
+		agentHost.setChatState(defaultChatUri, {
+			resource: defaultChatUri,
+			title: 'Resume Agent Session',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [],
+			draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'agent://resumed' } },
+		});
+
+		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://resumed', kind: 'agent' });
+	});
+
+	test('does not override a live agent selection with the persisted draft agent', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'resume-nooverride', { title: 'Resume No Override' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Resume No Override');
+		assert.ok(session);
+
+		// A live pick wins; a later draft snapshot must not clobber it.
+		provider.setAgent?.(session!.sessionId, { uri: 'agent://live', name: 'live' });
+		provider.getSessionConfig(session!.sessionId);
+
+		const defaultChatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'resume-nooverride'));
+		agentHost.setChatState(defaultChatUri, {
+			resource: defaultChatUri,
+			title: 'Resume No Override',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [],
+			draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: 'agent://resumed' } },
+		});
+
+		assert.deepStrictEqual(session!.mode.get(), { id: 'agent://live', kind: 'agent' });
+	});
+
+	test('rebases the selected agent to its worktree twin from the agent list before the working directory flips', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'rebase-worktree', { title: 'Rebase Worktree', workingDirectory: 'file:///Users/me/vscode' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Rebase Worktree');
+		assert.ok(session);
+
+		// A folder agent is picked while the session still runs in the repo.
+		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
+		const worktreeAgent = 'file:///Users/me/vscode.worktrees/rebase-worktree/.github/agents/sessions.md';
+		provider.setAgent?.(session!.sessionId, { uri: folderAgent, name: 'sessions' });
+
+		// The host reports the worktree-pathed agents (the folder twin is gone)
+		// well before the working directory flips to the worktree. The rebase
+		// must derive the worktree root from the agent list, not the (still
+		// folder) working directory, so the selection is re-pointed in time.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('rebase-worktree', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Rebase Worktree',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'plugin://worktree',
+				uri: 'plugin://worktree',
+				name: 'worktree plugin',
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [{ type: CustomizationType.Agent, id: worktreeAgent, uri: worktreeAgent, name: 'sessions' }],
+			}],
+		});
+
+		assert.deepStrictEqual(session!.mode.get(), { id: worktreeAgent, kind: 'agent' });
+	});
+
+	test('leaves the selected agent untouched when the agent list has no relocated twin', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'rebase-none', { title: 'Rebase None', workingDirectory: 'file:///Users/me/vscode' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Rebase None');
+		assert.ok(session);
+
+		const folderAgent = 'file:///Users/me/vscode/.github/agents/sessions.md';
+		provider.setAgent?.(session!.sessionId, { uri: folderAgent, name: 'sessions' });
+
+		// An unrelated agent (different repo-relative file) must not be treated
+		// as a relocation of the selection.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('rebase-none', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Rebase None',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'plugin://other',
+				uri: 'plugin://other',
+				name: 'other plugin',
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				children: [{ type: CustomizationType.Agent, id: 'file:///Users/me/vscode.worktrees/rebase-none/.github/agents/other.md', uri: 'file:///Users/me/vscode.worktrees/rebase-none/.github/agents/other.md', name: 'other' }],
+			}],
+		});
+
+		assert.deepStrictEqual(session!.mode.get(), { id: folderAgent, kind: 'agent' });
+	});
+
+	test('carries the picked custom agent onto the committed session when a new session graduates', async () => {
+		// Part 1 regression: when a new (untitled) session graduates into a real
+		// running session on first send, the picked agent must travel onto the
+		// committed session's `mode`. Otherwise the picker — which mirrors
+		// `session.mode` — resets to the default the moment the active session is
+		// swapped for the freshly committed one.
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => {
+				agentHost.addSession(createSession('graduated', { summary: 'Graduated Session' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		provider.setAgent?.(session.sessionId, { uri: 'agent://picked', name: 'picked' });
+
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual(committed.mode.get(), { id: 'agent://picked', kind: 'agent' });
 	});
 
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
@@ -1890,6 +2040,60 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				createdModel: { id: 'selected-model' },
 				peerInputSelectedModels: ['agent-host-copilotcli:selected-model'],
+			});
+		});
+
+		test('sendRequest keeps a peer chat model loaded while dispatching', async () => {
+			const loadedResources = new Set<string>();
+			const disposedResources: string[] = [];
+			const sendSawLoaded: boolean[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async resource => {
+					const resourceKey = resource.toString();
+					loadedResources.add(resourceKey);
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(_state: Partial<IChatModelInputState>): void { }
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return {
+						object: chatModel,
+						dispose() {
+							loadedResources.delete(resourceKey);
+							disposedResources.push(resourceKey);
+						},
+					} satisfies IChatModelReference;
+				},
+				sendRequest: async (resource): Promise<ChatSendResult> => {
+					sendSawLoaded.push(loadedResources.has(resource.toString()));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-send-peer');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-send-peer').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('multi-send-peer', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat }));
+			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
+			assert.ok(peer);
+
+			await provider.sendRequest(session.sessionId, peer.resource, { query: 'hello' });
+
+			assert.deepStrictEqual({
+				sendSawLoaded,
+				loadedResources: [...loadedResources],
+				disposedResources,
+			}, {
+				sendSawLoaded: [true],
+				loadedResources: [],
+				disposedResources: [peer.resource.toString()],
 			});
 		});
 
@@ -3027,7 +3231,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 				},
 			}],
 		});
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // let the changeset throttle flush
 
 		const changes = session.changes.get();
 		assert.deepStrictEqual(changes.map(change => {
@@ -3121,7 +3324,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			files.push(makeChangesetFile(i, 0));
 		}
 		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 		let previous = session.changes.get();
 		assert.strictEqual(previous.length, FILE_COUNT, 'every file should surface as a change');
@@ -3130,7 +3332,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			const changedIndex = update % FILE_COUNT;
 			files[changedIndex] = makeChangesetFile(changedIndex, update + 1);
 			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-			await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 			const next = session.changes.get();
 
@@ -3164,7 +3365,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			files.push(makeChangesetFile(i, 0));
 		}
 		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 		// Index 0 is never touched; only the last file "streams" updates.
 		const untouchedChangeBefore = session.changes.get()[0];
@@ -3174,61 +3374,10 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		for (let update = 0; update < UPDATE_COUNT; update++) {
 			files[lastIndex] = makeChangesetFile(lastIndex, update + 1);
 			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-			await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 			session.changes.get(); // force the derived chain to recompute
 		}
 
 		const untouchedChangeAfter = session.changes.get()[0];
 		assert.strictEqual(untouchedChangeAfter, untouchedChangeBefore, 'an unchanged file must reuse its change object across all updates');
-	}));
-
-	// Performance-regression guard for the changeset update throttle
-	//
-	// While an agent streams edits, the host emits many envelopes per second. Each
-	// envelope fires the subscription's `onDidChange`; without throttling, each one
-	// would drive a full recompute of the `changes` list (and a relayout). The
-	// throttle must collapse a burst that arrives within one window into a single
-	// recompute carrying the final state.
-	//
-	// Reverting the throttle makes the burst recompute the list ~BURST times, so
-	// the `recomputes === 0` assertion (before the window elapses) fails.
-	test('coalesces a burst of changeset envelopes into a single changes recompute', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-		const session = addAndObserve(provider, 'sess-A');
-		activeSession.set(makeActive('sess-A'), undefined);
-
-		const FILE_COUNT = 20;
-		const BURST = 50;
-		const key = branchChangesKeyFor('sess-A');
-
-		const files: ChangesetState['files'] = [];
-		for (let i = 0; i < FILE_COUNT; i++) {
-			files.push(makeChangesetFile(i, 0));
-		}
-		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // settle the initial state
-
-		let recomputes = 0;
-		disposables.add(autorun(reader => {
-			session.changes.read(reader);
-			recomputes++;
-		}));
-		recomputes = 0; // ignore the autorun's initial run
-
-		// Fire a burst of single-file updates with NO time passing in between, so
-		// they all land within one throttle window.
-		for (let i = 0; i < BURST; i++) {
-			files[0] = makeChangesetFile(0, i + 1);
-			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		}
-		assert.strictEqual(recomputes, 0, `a burst of ${BURST} envelopes within one window must not recompute the list yet`);
-
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the throttle
-		assert.strictEqual(recomputes, 1, 'the burst should collapse into exactly one recompute with the final state');
-
-		// And that single recompute carries the latest state.
-		const change0 = session.changes.get()[0];
-		assert.ok(change0 && isIChatSessionFileChange2(change0));
-		assert.strictEqual(change0.insertions, BURST, 'the coalesced update must reflect the final envelope');
 	}));
 });

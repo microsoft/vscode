@@ -23,7 +23,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -33,6 +33,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -68,7 +69,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -154,7 +155,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				workingDirectory: (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state: SessionState = {
-				...createSessionState(summary),
+				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [config.activeClient],
 			};
@@ -182,7 +183,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
 		if (existingState) {
-			return { resource: resourceStr, state: existingState, fromSeq: 0 };
+			return { resource: resourceStr, state: this._withDefaultChatCatalog(existingState, resourceStr), fromSeq: 0 };
 		}
 		// Root state subscription
 		if (isAhpRootChannel(resourceStr)) {
@@ -205,7 +206,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 		return {
 			resource: resourceStr,
-			state: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready },
+			state: { ...this._withDefaultChatCatalog(createSessionState(summary), resourceStr), lifecycle: SessionLifecycle.Ready },
 			fromSeq: 0,
 		};
 	}
@@ -278,7 +279,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		} else {
 			const existingState = this.sessionStates.get(resourceStr);
 			if (existingState) {
-				initialState = existingState;
+				initialState = this._withDefaultChatCatalog(existingState, resourceStr);
 			} else {
 				const summary: SessionSummary = {
 					resource: resourceStr,
@@ -288,7 +289,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
 				};
-				initialState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+				initialState = { ...this._withDefaultChatCatalog(createSessionState(summary), resourceStr), lifecycle: SessionLifecycle.Ready };
 			}
 		}
 
@@ -392,7 +393,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * conversation fields a test attached to the session's {@link SeededSessionState}.
 	 */
 	private _buildDefaultChatState(sessionUriStr: string, chatUriStr: string): ChatState {
-		const seeded = this.sessionStates.get(sessionUriStr);
+		const seeded = this.sessionStates.get(chatUriStr) ?? this.sessionStates.get(sessionUriStr);
 		const sessionSummary: SessionSummary = {
 			resource: sessionUriStr,
 			provider: seeded?.provider ?? 'copilot',
@@ -412,6 +413,31 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			queuedMessages: seeded?.queuedMessages,
 			inputRequests: seeded?.inputRequests,
 			draft: seeded?.draft,
+		};
+	}
+
+	private _withDefaultChatCatalog<T extends SessionState>(state: T, resource: string): T {
+		if (state.defaultChat && state.chats.length > 0) {
+			return state;
+		}
+		const summary: SessionSummary = {
+			resource,
+			provider: state.provider,
+			title: state.title,
+			status: state.status,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectory: state.workingDirectory,
+			project: state.project,
+		};
+		const chatUri = buildDefaultChatUri(resource);
+		const additionalChats = [...this.sessionStates.keys()]
+			.filter(uri => uri !== chatUri && parseDefaultChatUri(uri) === resource)
+			.map(uri => createDefaultChatSummary(summary, uri));
+		return {
+			...state,
+			defaultChat: chatUri,
+			chats: [createDefaultChatSummary(summary, chatUri), ...additionalChats],
 		};
 	}
 
@@ -471,7 +497,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -535,6 +561,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidChangeTools: Event.None,
 		getTools: () => [],
 		_serviceBrand: undefined,
+		...languageModelToolsServiceOverride,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
@@ -551,6 +578,9 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
+	});
+	instantiationService.stub(IChatResponseFileChangesService, {
+		registerProvider: () => toDisposable(() => { }),
 	});
 	const chatModels = new Map<string, IChatModel>();
 	const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
@@ -669,8 +699,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -950,6 +980,46 @@ suite('AgentHostChatContribution', () => {
 				label: 'Previous conversation',
 				modelRepresentation: 'Transcript text',
 			}]);
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('preserves workspace context as a hidden workspace variable on history replay', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue',
+				variables: {
+					variables: [{
+						kind: 'workspace',
+						id: 'workspace',
+						name: 'workspace',
+						value: 'Workspace context',
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const attachments = turnStarted.message.attachments;
+			const replayedVariables = messageAttachmentsToVariableData(attachments, 'test')?.variables;
+			assert.deepStrictEqual({
+				attachments,
+				replayedVariables,
+			}, {
+				attachments: [{
+					type: MessageAttachmentKind.Simple,
+					label: 'workspace',
+					modelRepresentation: 'Workspace context',
+					displayKind: 'workspace',
+				}],
+				replayedVariables: [{
+					kind: 'workspace',
+					id: 'workspace',
+					name: 'workspace',
+					value: 'Workspace context',
+					_meta: undefined,
+				}],
+			});
 
 			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
@@ -1446,6 +1516,24 @@ suite('AgentHostChatContribution', () => {
 			const backendSession = AgentSession.uri('copilot', 'multi');
 			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/multi', fragment: 'peer-1' });
 			const peerChatUri = URI.parse(buildChatUri(backendSession.toString(), 'peer-1'));
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			const defaultChatUri = buildDefaultChatUri(backendSession.toString());
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [
+					createDefaultChatSummary(summary, defaultChatUri),
+					createDefaultChatSummary(summary, peerChatUri.toString()),
+				],
+			});
 
 			// Open the session's default chat and an additional peer chat.
 			const defaultSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2224,7 +2312,9 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			assert.strictEqual(agentHostService.turnActions[0].action.type, 'chat/turnStarted');
 			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.text, 'Hello');
-			assert.strictEqual(AgentSession.id(URI.parse(session)), 'new-turntest');
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'new-turntest');
 		}));
 
 		test('reuses SDK session for same resource on second message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2281,7 +2371,9 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
-			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			assert.strictEqual(AgentSession.id(URI.parse(parentSession)), 'existing-session-42');
 		}));
 
 		test('recovers from stale failed subscription before first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2514,6 +2606,43 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Opus 4.7 • 0 credits');
 		}));
 
+		test('slug-normalised billed id resolves without suffix (e.g. claude-sonnet-4-6 → claude-sonnet-4.6)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// The Claude SDK reports dashed slugs (4-6) but models register with dotted versions (4.6).
+			// The lookup normalises the last -digit segment so it resolves directly — no "(billed-id)" suffix.
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6', pricing: '1x' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Claude Sonnet 4.6 • 1 credit');
+		}));
+
+		test('unregistered billed id shows model-id suffix (e.g. Auto billed as raptor-mini)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Free accounts only have "Auto" registered; usage.model reports the concrete model.
+			// The billed id "raptor-mini" is unregistered so the suffix appears.
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables,
+				{ userSelectedModelId: 'agent-host-copilot:auto' });
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Auto (raptor-mini) • 1 credit');
+		}));
+
 		test('live turn emits token usage as chat usage progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -2543,7 +2672,9 @@ suite('AgentHostChatContribution', () => {
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			fire({
 				type: 'chat/toolCallStart', session, turnId,
 				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
@@ -2553,6 +2684,15 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallReady', session, turnId,
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId: parentToolCallId,
+				result: { success: true, pastTenseMessage: 'Spawned subagent' },
 			} as ChatAction);
 
 			await timeout(50);
@@ -6440,7 +6580,7 @@ suite('AgentHostChatContribution', () => {
 		/**
 		 * Build a child session state containing a single inner tool call in the running state.
 		 */
-		function makeChildState(childUri: string, innerToolCallId: string): SeededSessionState {
+		function makeChildState(childUri: string, innerToolCallId: string, contributor?: ToolCallState['contributor']): SeededSessionState {
 			const summary: SessionSummary = {
 				resource: childUri,
 				provider: 'copilot',
@@ -6457,6 +6597,7 @@ suite('AgentHostChatContribution', () => {
 				invocationMessage: 'Reading file',
 				toolInput: '{}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				contributor,
 			} as ToolCallState;
 			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work', origin: { kind: MessageKind.User } });
 			activeTurn.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall: innerTool });
@@ -6476,7 +6617,9 @@ suite('AgentHostChatContribution', () => {
 			// call fires, so that when the handler subscribes to it the inner tool
 			// is already present.
 			const parentToolCallId = 'tc-parent-task';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
 			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
 
 			// Fire the parent task tool call with toolKind=subagent metadata.
@@ -6490,12 +6633,14 @@ suite('AgentHostChatContribution', () => {
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
 			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
 
 			// Allow the throttler/observation flow to flush.
 			await timeout(50);
-
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
-			await turnPromise;
 
 			// Flatten all progress emissions and find tool invocations.
 			const allParts = collected.flat();
@@ -6507,9 +6652,22 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(parent, 'parent task tool invocation should be emitted');
 			assert.strictEqual(parent!.toolSpecificData?.kind, 'subagent', 'parent should have subagent toolSpecificData');
 			assert.strictEqual(parent!.subAgentInvocationId, undefined, 'parent should not have a subAgentInvocationId');
+			assert.strictEqual((parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive, true);
 
 			assert.ok(child, 'inner child tool invocation should be forwarded into parent session progress');
 			assert.strictEqual(child!.subAgentInvocationId, parentToolCallId, 'child should be tagged with parent tool call id for grouping');
+
+			agentHostService.fireAction({
+				channel: childSessionUri,
+				action: { type: 'chat/turnComplete', turnId: 'child-turn-1' } as ChatAction,
+				serverSeq: 1001,
+				origin: undefined,
+			});
+			await timeout(50);
+			assert.strictEqual((parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive, false);
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
 		}));
 
 		test('inner subagent tool calls fired AFTER parent observation are also grouped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -6518,7 +6676,10 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			const parentToolCallId = 'tc-parent-task';
-			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
+			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
 
 			// Fire the parent task tool — this should cause the handler to subscribe
 			// to the (still-empty) child subagent session.
@@ -6531,6 +6692,11 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallReady', session, turnId,
 				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
 				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
 			} as ChatAction);
 
 			// Allow the subscription to be set up.
@@ -6576,6 +6742,50 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(child!.subAgentInvocationId, parentToolCallId, 'child should be tagged for grouping');
 		}));
 
+		test('client-provided subagent tool calls retain the parent grouping id', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let capturedSubagentInvocationId: string | undefined;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				languageModelToolsServiceOverride: {
+					getToolByName: () => ({ id: 'vscode_readSkill', source: ToolDataSource.Internal, displayName: 'Read skill', modelDescription: 'Reads a skill' }),
+					beginToolCall: options => {
+						capturedSubagentInvocationId = options.subagentInvocationId;
+						return undefined;
+					},
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentToolCallId = 'tc-parent-task';
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
+			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-skill', {
+				kind: ToolCallContributorKind.Client,
+				clientId: agentHostService.clientId,
+			}));
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'review code' },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
+				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
+
+			await timeout(50);
+			assert.strictEqual(capturedSubagentInvocationId, parentToolCallId);
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('parent subagent agentName is updated when subagent content arrives later', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Repro for the missing-agent-name bug: when the parent task tool
 			// fires without `subagentAgentName` in `_meta` (e.g. the agent host
@@ -6603,12 +6813,14 @@ suite('AgentHostChatContribution', () => {
 
 			// Now the SDK emits subagent_started → handler dispatches a content
 			// change with a Subagent content block carrying the agent name.
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
 			fire({
 				type: 'chat/toolCallContentChanged', session, turnId,
 				toolCallId: parentToolCallId,
 				content: [{
 					type: ToolResultContentType.Subagent,
-					resource: buildSubagentSessionUri(session.toString(), parentToolCallId),
+					resource: buildSubagentChatUri(parentSession, parentToolCallId),
 					title: 'Subagent',
 					agentName: 'explore',
 				}],

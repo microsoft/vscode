@@ -5,7 +5,7 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {

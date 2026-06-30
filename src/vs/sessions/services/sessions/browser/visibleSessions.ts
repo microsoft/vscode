@@ -8,7 +8,7 @@ import { IObservable, ISettableObservable, ITransaction, autorun, derived, obser
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -36,6 +36,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
 
 	constructor(
 		private readonly _session: ISession,
@@ -72,6 +73,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			}
 			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
 		});
+		// Tab strip contents: the open chats with tool-origin chats (subagents)
+		// hidden, in the provider's order.
+		this.visibleChatTabs = derived(this, reader =>
+			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
+		);
 	}
 
 	setActiveChat(chat: IChat): void {

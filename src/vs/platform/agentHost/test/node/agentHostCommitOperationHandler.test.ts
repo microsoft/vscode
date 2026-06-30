@@ -110,6 +110,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	isStaticChangesetComputeActive(): boolean { return false; }
 	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
 	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
+	refreshChangesetCatalog(session: string): void { this.calls.push(`refreshChangesets:${session}`); }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
 	onWorkingDirectoryAvailable(_session: string): void { }
@@ -153,7 +154,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
+		}, createAgentService('gh-repo-token'), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};

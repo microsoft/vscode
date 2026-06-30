@@ -269,7 +269,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -416,7 +416,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			if (!hideDetails) {
-				timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
+				timeDate = element.updatedAt.read(reader);
 			}
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -956,8 +956,8 @@ class SessionsAccessibilityProvider {
 				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
-		const created = fromNow(element.createdAt, true);
-		return localize('sessionItemAria', "{0}, created {1}", title, created);
+		const updated = fromNow(element.updatedAt.get(), true);
+		return localize('sessionItemAria', "{0}, updated {1}", title, updated);
 	}
 }
 
@@ -1477,7 +1477,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -1686,9 +1686,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			updateFindPatternState();
 		}));
 
-		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			if (this.visible) {
 				this.refresh();
+			}
+			// A removed session may have been the last one in its workspace.
+			// Garbage-collect manual order / promotion entries for identities
+			// that no longer exist. This runs only on removals (never on
+			// additions or the initial load) so that asynchronous session
+			// loading on a window reload can never prune the user's manual
+			// ordering of workspaces relative to groups before their sessions
+			// have loaded.
+			if (e.removed.length > 0) {
+				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
 		}));
 
@@ -1698,9 +1708,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		this._register(this._sessionGroupsService.onDidChange(() => {
+		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
+			}
+			// Garbage-collect manual order / promotion entries when groups are
+			// deleted or evicted. Group changes are user-driven and happen after
+			// sessions have loaded, so pruning here is safe (unlike at render
+			// time during the asynchronous initial load).
+			if (e.groupsChanged) {
+				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
 		}));
 
@@ -1801,10 +1818,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sorting = this.options.sorting();
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
 
-		// Garbage-collect manual order/promotion entries for groups and
-		// workspaces that no longer exist (does not affect the visible order).
-		this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
-
 		// Pull regular (non-pinned, non-archived) grouped sessions out of the
 		// normal date/workspace sectioning so they render under their group.
 		// Pinned and archived sessions keep their precedence and stay in their
@@ -1851,7 +1864,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
 
-		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
+		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
 		// when grouping by workspace. An active find pattern bypasses partitioning
@@ -1932,8 +1945,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
-			if (grouping === SessionsGrouping.Date && hasTodaySessions) {
-				const olderSections = ['yesterday', 'thisWeek', 'older', 'archived'];
+			if (grouping === SessionsGrouping.Date && hasRecentSessions) {
+				const olderSections = ['older', 'archived'];
 				if (olderSections.includes(section.id)) {
 					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 				}
@@ -2230,9 +2243,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (groupSessions.length === 0) {
 			return;
 		}
+		this._sessionsListModelService.unpinSessions(groupSessions);
 		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), groupSessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
+		this.revealGroup(group.id);
+	}
+
+	/** Scroll the group's header into view so its inline name editor is visible. */
+	private revealGroup(groupId: string): void {
+		const root = this.tree.getNode();
+		for (const node of root.children) {
+			const element = node.element;
+			if (element && isSessionGroupItem(element) && element.group.id === groupId) {
+				if (this.tree.hasElement(element) && this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				}
+				return;
+			}
+		}
 	}
 
 	/** Begin inline renaming of the group's header. */
@@ -2246,9 +2275,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
-		for (const session of groupSessions) {
-			this._sessionGroupsService.addToGroup(session.sessionId, groupId);
-		}
+		this._sessionsListModelService.unpinSessions(groupSessions);
+		this._sessionGroupsService.addToGroup(groupSessions.map(s => s.sessionId), groupId);
 		if (target && position) {
 			this.reorderSessions(groupSessions, target, position);
 		}
@@ -2299,14 +2327,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * The set of top-level reorder identities that currently exist (every group,
 	 * plus every workspace label present across all sessions, regardless of
 	 * grouping mode or capping). Used to garbage-collect stale manual order and
-	 * promotion entries.
+	 * promotion entries. Reads sessions fresh from the management service so it
+	 * reflects the latest loaded state even when the list is not visible.
 	 */
 	private liveSectionOrderIds(): Set<string> {
 		const ids = new Set<string>();
 		for (const group of this._sessionGroupsService.getGroups()) {
 			ids.add(`group:${group.id}`);
 		}
-		for (const session of this.sessions) {
+		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 		}
 		return ids;
@@ -2916,27 +2945,26 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	return result;
 }
 
+/** Maximum number of sessions shown in the "Recent" date section. */
+const RECENT_SESSIONS_LIMIT = 10;
+
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-	const startOfYesterday = startOfToday - 86_400_000;
 	const startOfWeek = startOfToday - 7 * 86_400_000;
 
-	const today: ISession[] = [];
-	const yesterday: ISession[] = [];
-	const week: ISession[] = [];
+	const recent: ISession[] = [];
 	const older: ISession[] = [];
 
+	// `sessions` arrive sorted most-recent-first, so the first sessions within
+	// the last 7 days (capped at RECENT_SESSIONS_LIMIT) form the "Recent"
+	// section; everything else falls into "Older".
 	for (const session of sessions) {
 		const time = key(session, sorting);
 
-		if (time >= startOfToday) {
-			today.push(session);
-		} else if (time >= startOfYesterday) {
-			yesterday.push(session);
-		} else if (time >= startOfWeek) {
-			week.push(session);
+		if (time >= startOfWeek && recent.length < RECENT_SESSIONS_LIMIT) {
+			recent.push(session);
 		} else {
 			older.push(session);
 		}
@@ -2949,9 +2977,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 		}
 	};
 
-	addGroup('today', localize('today', "Today"), today);
-	addGroup('yesterday', localize('yesterday', "Yesterday"), yesterday);
-	addGroup('thisWeek', localize('lastSevenDays', "Last 7 Days"), week);
+	addGroup('recent', localize('recent', "Recent"), recent);
 	addGroup('older', localize('older', "Older"), older);
 
 	return sections;

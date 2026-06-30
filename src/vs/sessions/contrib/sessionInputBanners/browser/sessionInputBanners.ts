@@ -102,6 +102,11 @@ export class SessionInputBanners extends Disposable {
 		if (!ciModel) {
 			return undefined;
 		}
+		// Once the user has requested a CI fix for the current PR head commit,
+		// hide the entire banner until a new commit lands on the PR.
+		if (ciModel.fixRequested.read(reader)) {
+			return undefined;
+		}
 		const checks = ciModel.checks.read(reader);
 		const failed = getFailedChecks(checks).length;
 		if (failed === 0) {

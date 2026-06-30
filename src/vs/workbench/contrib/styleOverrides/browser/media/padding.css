@@ -33,14 +33,15 @@
 
 /* Header: inset the section title / actions to line up with the rows below. */
 .style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
-	padding-left: var(--vscode-spacing-size80, 8px);
-	padding-right: var(--vscode-spacing-size40, 4px);
+	padding-left: var(--vscode-spacing-size40, 4px);
+	padding-right: 0;
+	margin: 0 var(--vscode-spacing-size40, 4px);
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
 .style-override .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
-	left: var(--vscode-spacing-size80, 8px);
-	right: var(--vscode-spacing-size80, 8px);
+	left: var(--vscode-spacing-size40, 4px);
+	right: var(--vscode-spacing-size40, 4px);
 	width: auto;
 }
 
@@ -71,4 +72,25 @@
 
 .style-override.monaco-workbench .monaco-pane-view .pane > .pane-header > .actions {
 	margin-right: 0px;
+}
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
+	.agent-sessions-title-container {
+		padding-left: 12px;
+		padding-right: 0;
+	}
+}
+
+/* Give the settings / profile (global) actions at the bottom of the default
+ * vertical activity bar a 4px bottom margin so they sit consistently above the
+ * window edge, matching the pane header margins. */
+.style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
+	margin-bottom: calc(var(--vscode-spacing-size20, 2px) + var(--vscode-strokeThickness, 1px));
+}
+
+.style-override.monaco-workbench .part.basepanel.bottom .composite.title,
+.style-override.monaco-workbench .part.basepanel.top .composite.title,
+.style-override.monaco-workbench .part.basepanel.left .composite.title,
+.style-override.monaco-workbench .part.basepanel.right .composite.title {
+	padding-right: 0;
 }
