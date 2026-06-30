@@ -478,11 +478,12 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 		await timeout(0);
 
-		// Experiment is genuinely active (control arm), so the gate opens as usual, but
-		// developer mode overrides the control-arm suppression and the tour is shown.
+		// Developer mode shows the tour unconditionally and never opens the telemetry
+		// gate, so the assignment-context id stays excluded even though the user is in
+		// the (active) control arm — a local preview can't affect the scorecard.
 		assert.deepStrictEqual(
 			{ runs: presentation.runs, excluded: assignment.isExcluded('onb-tour-q3') },
-			{ runs: ['exp-dev-control'], excluded: false }
+			{ runs: ['exp-dev-control'], excluded: true }
 		);
 	});
 

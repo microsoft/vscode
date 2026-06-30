@@ -214,8 +214,11 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	 * For an experiment-active scenario, reaching eligibility *is* the "would-show"
 	 * moment: the telemetry gate is opened for the experiment's assignment-context id
 	 * (in both arms), and then only the treatment arm is enqueued to actually show the
-	 * tour. Control opens the gate but renders nothing and is not marked as shown
-	 * (unless developer mode forces the preview).
+	 * tour. Control opens the gate but renders nothing and is not marked as shown.
+	 *
+	 * Developer mode is the exception: it shows the tour unconditionally and never
+	 * opens the telemetry gate, so a local preview can never affect the experiment
+	 * scorecard regardless of which arm the developer happens to be assigned to.
 	 */
 	private _evaluate(): void {
 		if (!this._enabled || this._stopped) {
@@ -248,14 +251,15 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			}
 
 			const experiment = scenario.experiment ? this._experimentStates.get(scenario.id) : undefined;
-			if (experiment?.active) {
+			if (experiment?.active && !this._isDeveloperMode(scenario.id)) {
 				// Would-show reached: start emitting the assignment-context id from now on.
+				// Skipped entirely in developer mode so a local preview never opens the
+				// telemetry gate and never affects the experiment scorecard (the tour is
+				// shown unconditionally below instead).
 				this._openGate(experiment.assignmentContextId);
-				if (!experiment.behavior && !this._isDeveloperMode(scenario.id)) {
+				if (!experiment.behavior) {
 					// Control arm: the identifier now flows, but no tour is shown and the
 					// scenario is left un-shown so the user stays eligible to see it later.
-					// Developer mode overrides this so the tour can still be previewed even
-					// when the user landed in the control arm.
 					continue;
 				}
 			}
@@ -291,8 +295,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		//
 		// Developer mode for this scenario bypasses the experiment gate entirely so the tour
 		// can be tested locally without the experiment running (or being assigned to the
-		// user). No assignment-context gate is opened in that case because the experiment is
-		// not actually active, so a developer preview never pollutes the scorecard.
+		// user). A developer-mode preview never opens the assignment-context gate (see
+		// `_evaluate`), so it never pollutes the scorecard.
 		if (scenario.experiment && this._experimentStates.get(scenario.id)?.active !== true && !this._isDeveloperMode(scenario.id)) {
 			return false;
 		}
