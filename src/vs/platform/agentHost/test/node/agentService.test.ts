@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -2602,6 +2602,196 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				forkForwarded: false,
 				newTurnCount: 0,
+			});
+		});
+	});
+
+	// ---- peer-chat catalog persistence (B2: orchestrator-owned) ---------
+
+	suite('peer chat catalog persistence', () => {
+
+		/** Polls the persisted peer-chat catalog blob until it appears or times out. */
+		async function readCatalog(db: TestSessionDatabase): Promise<{ uri: string; providerData?: string }[]> {
+			for (let i = 0; i < 50; i++) {
+				const raw = await db.getMetadata('peerChats');
+				if (raw !== undefined) {
+					return JSON.parse(raw);
+				}
+				await timeout(0);
+			}
+			return [];
+		}
+
+		test('createChat persists providerData; restore re-materializes from the orchestrator catalog before reading history', async () => {
+			const materializeOrder: { call: string; uri: string; providerData?: string }[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+					return { providerData: 'blob-1' };
+				}
+				async materializeConversation(conversation: URI, providerData: string | undefined): Promise<void> {
+					materializeOrder.push({ call: 'materialize', uri: conversation.toString(), providerData });
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (session.scheme === 'ahp-chat') {
+						materializeOrder.push({ call: 'getMessages', uri: session.toString() });
+						return [{
+							id: 'peer-turn-1',
+							state: TurnState.Complete,
+							message: { text: 'hi peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}];
+					}
+					return [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerUri);
+			await readCatalog(db);
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			const peerChatState = localService.stateManager.getChatState(peerUri.toString());
+			assert.deepStrictEqual({
+				order: materializeOrder.map(o => o.call),
+				materializedWith: materializeOrder.find(o => o.call === 'materialize')?.providerData,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri.toString()),
+				restoredProviderData: localService.stateManager.getChatProviderData(peerUri.toString()),
+				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
+			}, {
+				// materialize must precede the history read on restore.
+				order: ['materialize', 'getMessages'],
+				materializedWith: 'blob-1',
+				inCatalog: true,
+				restoredProviderData: 'blob-1',
+				peerTurnIds: ['peer-turn-1'],
+			});
+		});
+
+		test('legacy migration: no catalog falls back to getChats once, materializes with undefined, then seeds the catalog', async () => {
+			let getChatsCalls = 0;
+			const materializeCalls: { uri: string; providerData: string | undefined }[] = [];
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					getChatsCalls++;
+					return [URI.parse(buildChatUri(session, 'legacy-1'))];
+				}
+				async materializeConversation(conversation: URI, providerData: string | undefined): Promise<void> {
+					materializeCalls.push({ uri: conversation.toString(), providerData });
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+
+			// First restore: legacy fallback enumerates via getChats and seeds the catalog.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			await readCatalog(db);
+
+			// Second restore: the orchestrator catalog now exists, so getChats is NOT consulted again.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const legacyUri = buildChatUri(session, 'legacy-1');
+			const state = localService.stateManager.getSessionState(session.toString());
+			const catalog = await readCatalog(db);
+			assert.deepStrictEqual({
+				getChatsCalls,
+				firstMaterializeProviderData: materializeCalls[0]?.providerData,
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === legacyUri),
+				catalogUris: catalog.map(e => e.uri),
+			}, {
+				// getChats consulted exactly once across both restores.
+				getChatsCalls: 1,
+				firstMaterializeProviderData: undefined,
+				inCatalog: true,
+				catalogUris: [legacyUri],
+			});
+		});
+
+		test('onDidChangeConversationData re-persists the updated providerData blob', async () => {
+			const onDidChangeConversationData = disposables.add(new Emitter<IAgentConversationDataChange>());
+			class MultiChatAgent extends MockAgent {
+				readonly onDidChangeConversationData = onDidChangeConversationData.event;
+				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+					return { providerData: 'v1' };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerUri);
+			const afterCreate = await readCatalog(db);
+
+			onDidChangeConversationData.fire({ conversation: peerUri, providerData: 'v2' });
+			// Wait for the re-persist write to flush.
+			let updated = afterCreate;
+			for (let i = 0; i < 50; i++) {
+				updated = await readCatalog(db);
+				if (updated.find(e => e.uri === peerUri.toString())?.providerData === 'v2') {
+					break;
+				}
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				afterCreate: afterCreate.find(e => e.uri === peerUri.toString())?.providerData,
+				afterChange: updated.find(e => e.uri === peerUri.toString())?.providerData,
+			}, {
+				afterCreate: 'v1',
+				afterChange: 'v2',
+			});
+		});
+
+		test('disposeChat removes the chat from the persisted catalog', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+					return { providerData: 'blob-1' };
+				}
+				async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerUri);
+			const afterCreate = await readCatalog(db);
+
+			await localService.disposeChat(session, peerUri);
+			let afterDispose = afterCreate;
+			for (let i = 0; i < 50; i++) {
+				afterDispose = await readCatalog(db);
+				if (!afterDispose.some(e => e.uri === peerUri.toString())) {
+					break;
+				}
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				afterCreate: afterCreate.map(e => e.uri),
+				afterDispose: afterDispose.map(e => e.uri),
+			}, {
+				afterCreate: [peerUri.toString()],
+				afterDispose: [],
 			});
 		});
 	});

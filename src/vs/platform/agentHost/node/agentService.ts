@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -87,6 +87,31 @@ const SESSION_GC_GRACE_MS = 30_000;
 const RESOURCE_WATCH_GRACE_MS = 30_000;
 
 /**
+ * Session-database metadata key under which the orchestrator persists its own
+ * catalog of additional (non-default) peer chats for a session. The value is a
+ * JSON array of {@link IPersistedPeerChat}. This is the orchestrator's single
+ * source of truth for peer-chat enumeration on restore — it replaces re-asking
+ * the agent via {@link IAgent.getChats}. When the key is absent the session
+ * predates orchestrator-owned persistence and the restore path falls back to
+ * the agent's legacy enumeration once (see {@link AgentService._restorePeerChats}).
+ */
+const PEER_CHATS_METADATA_KEY = 'peerChats';
+
+/**
+ * A single entry in the orchestrator's persisted peer-chat catalog. `uri` is
+ * the peer chat's channel URI; `providerData` is the opaque, agent-owned blob
+ * (see {@link IAgentCreateChatResult.providerData}) handed back to the agent on
+ * restore — the orchestrator never parses it. `providerData` is omitted for
+ * legacy entries seeded during migration, in which case the agent recovers its
+ * backing from its own legacy persistence on {@link IAgent.materializeConversation}.
+ */
+interface IPersistedPeerChat {
+	readonly uri: string;
+	readonly providerData?: string;
+}
+
+
+/**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
  * on the provider identifier in the session configuration.
@@ -133,6 +158,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _downloadProgressInterest = new Map<AgentProvider, Set<string>>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
+	/**
+	 * Per-session tail of in-flight persisted peer-chat catalog writes, keyed by
+	 * session URI string. Read-modify-write updates to the {@link
+	 * PEER_CHATS_METADATA_KEY} blob are chained per session so a `createChat`,
+	 * `disposeChat`, and `onDidChangeConversationData` racing for the same
+	 * session can't clobber each other's edits.
+	 */
+	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
@@ -365,6 +398,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
+		}
+		if (provider.onDidChangeConversationData) {
+			this._providerSubscriptions.add(provider.onDidChangeConversationData(e => this._onConversationDataChanged(e)));
 		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
@@ -779,12 +815,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Spin up the backing conversation in the harness first, then register
 		// the chat in the catalog so a `session/chatAdded` only reaches
-		// subscribers once the chat can actually receive messages.
-		await provider.createChat(session, chat, createOptions);
+		// subscribers once the chat can actually receive messages. The agent
+		// returns the opaque `providerData` blob the orchestrator persists for
+		// restore (it never parses it); single-chat-only agents return `void`.
+		const createResult = await provider.createChat(session, chat, createOptions);
+		const providerData = createResult?.providerData;
 		this._stateManager.addChat(sessionKey, chat.toString(), {
 			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
 			...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
+			...(providerData !== undefined ? { providerData } : {}),
 		});
+
+		// Persist the new peer chat into the orchestrator-owned catalog so it is
+		// re-enumerated and re-materialized on the next restore without asking
+		// the agent.
+		void this._persistPeerChat(session, chat, providerData);
 
 		// Refine the forked chat's placeholder `Forked: …` title into one
 		// derived from the inherited conversation. Forks seed pre-existing
@@ -799,6 +844,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
 		this._stateManager.removeChat(sessionKey, chat.toString());
+		// Drop the chat from the orchestrator-owned catalog so it isn't
+		// re-materialized on the next restore.
+		void this._removePersistedPeerChat(session, chat);
 		await provider?.disposeChat?.(session, chat);
 	}
 
@@ -1757,13 +1805,33 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Restores the additional (non-default) peer chats persisted for a session.
-	 * For each chat returned by the provider, loads its history and persisted
-	 * title and re-registers it in the state manager so it reappears in the
-	 * session's chat catalog after a process restart. Best-effort: a chat whose
-	 * history fails to load is restored with no turns rather than dropped.
+	 * Restores the additional (non-default) peer chats for a session.
+	 *
+	 * Enumeration is driven by the orchestrator's OWN persisted catalog (the
+	 * {@link PEER_CHATS_METADATA_KEY} blob) rather than by re-asking the agent.
+	 * For each catalog entry the agent's in-memory backing is re-attached via
+	 * {@link IAgent.materializeConversation} (handing back the opaque
+	 * `providerData` blob) BEFORE its history is read, then the chat is
+	 * re-registered in the state manager with its persisted title and draft so
+	 * it reappears after a process restart. Best-effort: a chat whose history
+	 * fails to load is restored with no turns rather than dropped.
+	 *
+	 * Legacy sessions created before orchestrator-owned persistence have no
+	 * catalog blob. For them we fall back ONCE to the agent's own enumeration
+	 * ({@link IAgent.getChats}), materialize each with an `undefined` blob (the
+	 * agent recovers its backing from its own legacy persistence), and then seed
+	 * the orchestrator catalog so subsequent restarts use it.
 	 */
 	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
+		const persisted = await this._readPersistedPeerChatCatalog(session);
+		if (persisted !== undefined) {
+			// The orchestrator owns the catalog: enumerate from it.
+			await this._restorePeerChatsFromCatalog(agent, session, persisted);
+			return;
+		}
+
+		// Legacy migration: no orchestrator catalog yet. Recover the peer-chat
+		// list from the agent once, restoring each with an `undefined` blob.
 		if (!agent.getChats) {
 			return;
 		}
@@ -1777,10 +1845,40 @@ export class AgentService extends Disposable implements IAgentService {
 		if (chats.length === 0) {
 			return;
 		}
-		// Load each chat's data in parallel but restore in the order `getChats`
-		// returned (creation order), so the catalog never reorders by which
-		// chat's history/title happened to resolve first.
-		const restored = await Promise.all(chats.map(async (chatUri) => {
+		const entries: IPersistedPeerChat[] = chats.map(chatUri => ({ uri: chatUri.toString() }));
+		await this._restorePeerChatsFromCatalog(agent, session, entries);
+		// Seed the orchestrator catalog so the next restore reads it instead of
+		// re-asking the agent.
+		await this._seedPersistedPeerChatCatalog(session, entries);
+	}
+
+	/**
+	 * Restores a set of peer chats from an enumerated catalog. Loads each
+	 * chat's history in parallel (after re-attaching its backing) but restores
+	 * them in catalog order, so the catalog never reorders by which chat's
+	 * history/title happened to resolve first.
+	 */
+	private async _restorePeerChatsFromCatalog(agent: IAgent, session: URI, entries: readonly IPersistedPeerChat[]): Promise<void> {
+		const restored = await Promise.all(entries.map(async (entry) => {
+			let chatUri: URI;
+			try {
+				chatUri = URI.parse(entry.uri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Skipping malformed persisted peer chat URI '${entry.uri}': ${toErrorMessage(err)}`);
+				return undefined;
+			}
+			// Re-attach the agent's in-memory backing for the chat BEFORE
+			// reading its history, so `getSessionMessages` can resolve the
+			// conversation. Best-effort: a corrupt/unknown blob must not abort
+			// the restore — the chat is then surfaced with history but no live
+			// backing.
+			if (agent.materializeConversation) {
+				try {
+					await agent.materializeConversation(chatUri, entry.providerData);
+				} catch (err) {
+					this._logService.warn(`[AgentService] Failed to materialize peer chat ${entry.uri}: ${toErrorMessage(err)}`);
+				}
+			}
 			let turns: readonly Turn[] = [];
 			try {
 				turns = await agent.getSessionMessages(chatUri);
@@ -1791,10 +1889,153 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			return { chatUri, title, turns: [...turns], draft };
+			return { chatUri, title, turns: [...turns], draft, providerData: entry.providerData };
 		}));
-		for (const { chatUri, title, turns, draft } of restored) {
-			this._stateManager.restoreChat(session.toString(), chatUri.toString(), { title, turns, draft });
+		for (const item of restored) {
+			if (!item) {
+				continue;
+			}
+			const { chatUri, title, turns, draft, providerData } = item;
+			this._stateManager.restoreChat(session.toString(), chatUri.toString(), {
+				title,
+				turns,
+				draft,
+				...(providerData !== undefined ? { providerData } : {}),
+			});
+		}
+	}
+
+	/**
+	 * Re-persists a peer chat's opaque `providerData` blob when the agent
+	 * reports it changed (e.g. per-chat model switch, fork remap). The
+	 * orchestrator never parses the blob; it stores whatever it is handed.
+	 */
+	private _onConversationDataChanged(e: IAgentConversationDataChange): void {
+		const sessionStr = parseDefaultChatUri(e.conversation);
+		if (sessionStr === undefined) {
+			this._logService.warn(`[AgentService] onDidChangeConversationData for malformed chat URI: ${e.conversation.toString()}`);
+			return;
+		}
+		void this._persistPeerChat(URI.parse(sessionStr), e.conversation, e.providerData);
+	}
+
+	/**
+	 * Reads the orchestrator's persisted peer-chat catalog for a session, or
+	 * `undefined` when the session has no catalog (legacy session predating
+	 * orchestrator-owned persistence, or a corrupt blob — both fall back to the
+	 * agent's own enumeration). An empty array means the session is known to
+	 * have no peer chats and the legacy fallback is skipped.
+	 */
+	private async _readPersistedPeerChatCatalog(session: URI): Promise<IPersistedPeerChat[] | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const raw = await ref.object.getMetadata(PEER_CHATS_METADATA_KEY);
+			if (raw === undefined) {
+				return undefined;
+			}
+			const parsed = JSON.parse(raw);
+			if (!Array.isArray(parsed)) {
+				this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}`);
+				return undefined;
+			}
+			return parsed
+				.filter((entry): entry is IPersistedPeerChat => typeof entry?.uri === 'string')
+				.map(entry => ({ uri: entry.uri, ...(typeof entry.providerData === 'string' ? { providerData: entry.providerData } : {}) }));
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to read peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
+			return undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
+	 * Inserts or updates a single peer chat in the orchestrator's persisted
+	 * catalog, recording its opaque `providerData` verbatim (or clearing it when
+	 * `undefined`). Serialized per session via {@link _enqueuePeerChatCatalogWrite}.
+	 */
+	private _persistPeerChat(session: URI, chat: URI, providerData: string | undefined): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueuePeerChatCatalogWrite(session, entries => {
+			const next = entries.filter(entry => entry.uri !== chatUri);
+			next.push({ uri: chatUri, ...(providerData !== undefined ? { providerData } : {}) });
+			return next;
+		});
+	}
+
+	/**
+	 * Removes a peer chat from the orchestrator's persisted catalog. Serialized
+	 * per session via {@link _enqueuePeerChatCatalogWrite}.
+	 */
+	private _removePersistedPeerChat(session: URI, chat: URI): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueuePeerChatCatalogWrite(session, entries => entries.filter(entry => entry.uri !== chatUri));
+	}
+
+	/**
+	 * Seeds the orchestrator's persisted catalog with a full set of entries
+	 * during legacy migration. Serialized per session via
+	 * {@link _enqueuePeerChatCatalogWrite}; existing entries are preserved.
+	 */
+	private _seedPersistedPeerChatCatalog(session: URI, entries: readonly IPersistedPeerChat[]): Promise<void> {
+		return this._enqueuePeerChatCatalogWrite(session, current => {
+			const merged = [...current];
+			const known = new Set(merged.map(entry => entry.uri));
+			for (const entry of entries) {
+				if (!known.has(entry.uri)) {
+					merged.push(entry);
+				}
+			}
+			return merged;
+		});
+	}
+
+	/**
+	 * Chains a read-modify-write of a session's persisted peer-chat catalog
+	 * behind any in-flight write for the same session, so concurrent
+	 * create/dispose/data-change updates can't clobber each other.
+	 */
+	private _enqueuePeerChatCatalogWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
+		const key = session.toString();
+		const previous = this._peerChatCatalogWrites.get(key) ?? Promise.resolve();
+		const next = previous
+			.catch(() => { /* a failed prior write must not block later ones */ })
+			.then(() => this._applyPeerChatCatalogWrite(session, mutate));
+		this._peerChatCatalogWrites.set(key, next.finally(() => {
+			if (this._peerChatCatalogWrites.get(key) === next) {
+				this._peerChatCatalogWrites.delete(key);
+			}
+		}));
+		return next;
+	}
+
+	private async _applyPeerChatCatalogWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
+		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
+		if (!ref) {
+			return;
+		}
+		try {
+			let current: IPersistedPeerChat[] = [];
+			try {
+				const raw = await ref.object.getMetadata(PEER_CHATS_METADATA_KEY);
+				if (raw !== undefined) {
+					const parsed = JSON.parse(raw);
+					if (Array.isArray(parsed)) {
+						current = parsed.filter((entry): entry is IPersistedPeerChat => typeof entry?.uri === 'string');
+					}
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentService] Replacing malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
+			}
+			const updated = mutate(current);
+			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(updated));
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to persist peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
+		} finally {
+			ref.dispose();
 		}
 	}
 

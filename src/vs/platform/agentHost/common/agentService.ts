@@ -833,6 +833,25 @@ export interface IAgentCreateChatForkSource {
 	readonly turnIdMapping?: ReadonlyMap<string, string>;
 }
 
+/** Result of {@link IAgent.createChat}: the opaque blob to persist for restore. */
+export interface IAgentCreateChatResult {
+	/**
+	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
+	 * catalog and hands back to {@link IAgent.materializeConversation} on
+	 * restore. The orchestrator never parses it. `undefined` means nothing to
+	 * persist (e.g. the agent keeps no resumable backing).
+	 */
+	readonly providerData?: string;
+}
+
+/** Payload of {@link IAgent.onDidChangeConversationData}. */
+export interface IAgentConversationDataChange {
+	/** The peer chat whose backing conversation's blob changed. */
+	readonly conversation: URI;
+	/** The new opaque blob to persist (replaces any previously stored value). */
+	readonly providerData: string;
+}
+
 export interface IAgentResolveSessionConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -1108,8 +1127,33 @@ export interface IAgent {
 	 * agent, customizations). Optional: harnesses that do not support multiple
 	 * concurrent chats simply omit it. The `chat` URI is the client-chosen
 	 * channel the new chat will be addressed by.
+	 *
+	 * Returns an {@link IAgentCreateChatResult} carrying the opaque, agent-owned
+	 * `providerData` blob the orchestrator persists for restore (or `void` when
+	 * the agent keeps no resumable backing).
 	 */
-	createChat?(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void>;
+	createChat?(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+
+	/**
+	 * Re-attach an agent's in-memory backing for a peer chat on session
+	 * restore, decoding the opaque `providerData` produced earlier by
+	 * {@link createChat} (or the latest {@link onDidChangeConversationData}).
+	 * After this resolves the agent MUST be able to serve
+	 * {@link getSessionMessages}/{@link sendMessage} for `conversation`.
+	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
+	 * log and no-op so the orchestrator restores the chat with history but no
+	 * live backing. `providerData` is `undefined` only for legacy entries with
+	 * no stored blob, in which case the agent MAY consult its own legacy
+	 * persistence once to recover the backing.
+	 */
+	materializeConversation?(conversation: URI, providerData: string | undefined): Promise<void>;
+
+	/**
+	 * Fires when a peer chat's opaque `providerData` changes after creation
+	 * (e.g. per-chat model switch, fork remap). The orchestrator re-persists the
+	 * blob. Agents whose blob is immutable never fire this.
+	 */
+	readonly onDidChangeConversationData?: Event<IAgentConversationDataChange>;
 
 	/**
 	 * Dispose an additional chat created via {@link createChat}, freeing its

@@ -40,10 +40,10 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { IAgentConversationDataChange, IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -6233,10 +6233,12 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('restart round-trip: a forked peer chat\'s catalog, model, and history reappear on a fresh agent backed by the same database', async () => {
+	test('restart round-trip: a forked peer chat re-materializes from the orchestrator\'s providerData on a fresh agent backed by the same database', async () => {
 		const database = new TestSessionDatabase();
 
-		// --- First "process": create a forked peer chat with a model override. ---
+		// --- First "process": create a forked peer chat with a model override.
+		// `createChat` now hands the orchestrator an opaque `providerData` blob
+		// to persist instead of the agent writing its own `claude.chats`. ---
 		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctxA.agent.createSession({ workingDirectory: URI.file('/work') });
@@ -6245,15 +6247,18 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		ctxA.sdk.forkSessionResult = { sessionId: 'forked-1' };
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await ctxA.agent.createChat!(created.session, chatUri, {
+		const createResult = await ctxA.agent.createChat!(created.session, chatUri, {
 			model: { id: 'claude-opus-4.6' },
 			fork: { source: created.session, turnId: 'u1' },
 		});
+		const providerData = createResult?.providerData;
 		const catalogBefore = (await ctxA.agent.getChats!(created.session)).map(u => u.toString());
 
 		// --- Simulate a restart: a brand-new agent over the SAME database.
 		// Nothing carries over in memory; the parent + forked transcripts
-		// survive on disk, staged in the fresh SDK's session list. ---
+		// survive on disk, staged in the fresh SDK's session list. The
+		// orchestrator hands the persisted `providerData` back via
+		// `materializeConversation` to re-attach the chat's backing. ---
 		const ctxB = createTestContext(disposables, { database });
 		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		ctxB.sdk.sessionList = [
@@ -6261,7 +6266,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath },
 		];
 
-		// Catalog reappears from the persisted store without any SDK contact.
+		await ctxB.agent.materializeConversation!(chatUri, providerData);
+		// Catalog reappears from the re-attached live backing without SDK contact.
 		const catalogAfter = (await ctxB.agent.getChats!(created.session)).map(u => u.toString());
 
 		// First send on the restored chat resumes its forked conversation with
@@ -6270,16 +6276,69 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await ctxB.agent.sendMessage(created.session, chatUri, 'after restart', undefined, 'turn-1');
 
 		assert.deepStrictEqual({
+			providerData: providerData && JSON.parse(providerData),
 			catalogBefore,
 			catalogAfter,
 			resume: ctxB.sdk.capturedStartupOptions[0]?.resume,
 			model: ctxB.sdk.capturedStartupOptions[0]?.model,
 		}, {
+			providerData: { sdkSessionId: 'forked-1', model: { id: 'claude-opus-4.6' } },
 			catalogBefore: [chatUri.toString()],
 			catalogAfter: [chatUri.toString()],
 			resume: 'forked-1',
 			model: 'claude-opus-4-6',
 		});
+	});
+
+	test('materializeConversation falls back to the legacy claude.chats blob when providerData is undefined', async () => {
+		const database = new TestSessionDatabase();
+
+		// Seed a legacy session: write the agent's old `claude.chats` catalog
+		// directly (as a pre-migration process would have) with no orchestrator
+		// `providerData`. The new agent must drain it on `materializeConversation`.
+		const ctx = createTestContext(disposables, { database });
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'legacy-1'));
+		const chatId = parseChatUri(chatUri)!.chatId;
+		const db = ctx.sessionData.openDatabase(created.session);
+		await db.object.setMetadata('claude.chats', JSON.stringify({ [chatId]: { sdkSessionId: 'legacy-sdk' } }));
+		db.dispose();
+
+		// `undefined` providerData ⇒ one-time legacy read seeds the live backing.
+		await ctx.agent.materializeConversation!(chatUri, undefined);
+		const catalog = (await ctx.agent.getChats!(created.session)).map(u => u.toString());
+
+		ctx.sdk.sessionList = [{ sessionId: 'legacy-sdk', summary: 'legacy', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage('legacy-sdk'), makeResultSuccess('legacy-sdk')];
+		await ctx.agent.sendMessage(created.session, chatUri, 'hi', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			catalog,
+			resume: ctx.sdk.capturedStartupOptions[0]?.resume,
+		}, {
+			catalog: [chatUri.toString()],
+			resume: 'legacy-sdk',
+		});
+	});
+
+	test('changeModel on a peer chat fires onDidChangeConversationData with the refreshed providerData', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		const createResult = await agent.createChat!(created.session, chatUri);
+		const sdkSessionId = JSON.parse(createResult!.providerData!).sdkSessionId as string;
+
+		const changes: IAgentConversationDataChange[] = [];
+		disposables.add(agent.onDidChangeConversationData!(e => changes.push(e)));
+
+		await agent.changeModel(created.session, { id: 'claude-opus-4.6' }, chatUri);
+
+		assert.deepStrictEqual(changes.map(c => ({ conversation: c.conversation.toString(), providerData: JSON.parse(c.providerData) })), [
+			{ conversation: chatUri.toString(), providerData: { sdkSessionId, model: { id: 'claude-opus-4.6' } } },
+		]);
 	});
 
 	// #endregion
