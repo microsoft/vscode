@@ -136,7 +136,17 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	}
 
 	get lastClosedChat(): IChat | undefined {
-		return this._closedChatOrder.at(-1);
+		// Filter out stale entries whose chat has since been deleted from the session.
+		const currentChats = this._session.chats.get();
+		const closed = this._closedChatUris.get();
+		for (let i = this._closedChatOrder.length - 1; i >= 0; i--) {
+			const chat = this._closedChatOrder[i];
+			const uri = chat.resource.toString();
+			if (closed.has(uri) && currentChats.some(c => c.resource.toString() === uri)) {
+				return chat;
+			}
+		}
+		return undefined;
 	}
 
 	setSticky(value: boolean): void {
