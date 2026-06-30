@@ -82,7 +82,7 @@ suite('git push', function () {
 		}
 	});
 
-	test('sync confirmation says it pushes any outgoing commits', async function () {
+	test('sync confirmation omits the push target when there are no outgoing commits', async function () {
 		// Arrange
 		const context = await createTestContext({ createFeatureCommit: false, pushDefault: 'simple', remotePushDefault: 'fork' });
 		const config = workspace.getConfiguration('git');
@@ -100,7 +100,33 @@ suite('git push', function () {
 			await commands.executeCommand('git.sync', context.repository);
 
 			// Assert
-			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main" and push any outgoing commits using your configured Git push target.']);
+			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main".']);
+		} finally {
+			showWarningMessage.restore();
+			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
+			await context.dispose();
+		}
+	});
+
+	test('sync confirmation includes the push target when there are outgoing commits', async function () {
+		// Arrange
+		const context = await createTestContext({ pushDefault: 'simple', remotePushDefault: 'fork' });
+		const config = workspace.getConfiguration('git');
+		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
+		const messages: string[] = [];
+		const showWarningMessage = sinon.stub(window, 'showWarningMessage').callsFake(async (message, _options, yes) => {
+			messages.push(message);
+			return yes;
+		});
+
+		await config.update('confirmSync', true, ConfigurationTarget.Workspace);
+
+		try {
+			// Act
+			await commands.executeCommand('git.sync', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main" and push outgoing commits using your configured Git push target.']);
 		} finally {
 			showWarningMessage.restore();
 			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
