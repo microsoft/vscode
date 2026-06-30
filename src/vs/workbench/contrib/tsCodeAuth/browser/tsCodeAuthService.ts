@@ -14,7 +14,6 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import {
 	ITsCodeAuthService,
 	ITsCodeTokenStore,
-	StoredToken,
 	TokenResponse,
 	TSCODE_BASE_URL,
 	TSCODE_GATEWAY_BASE_URL,
@@ -123,22 +122,13 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 					const data = await response.json() as TokenResponse;
 					if (data.returnCode === 'SUC0000' && data.body) {
 						this.stopPolling();
-						const storedToken: StoredToken = {
-							token: data.body.token,
-							refreshToken: data.body.refreshToken,
-							idToken: data.body.idToken,
-							userName: data.body.userName,
-							employeeId: data.body.employeeId,
-							rtcId: data.body.rtcId,
-							pathId: data.body.pathId,
-							pathName: data.body.pathName,
-						};
-						await this.tokenStore.saveToken(storedToken);
-						this._syncEmployeeIdForUpdateService(storedToken.employeeId); // test-workbench_change
-						this._sendLoginTelemetry(storedToken.employeeId, storedToken.userName); // test-workbench_change
-						this.telemetryService.setCommonProperty('common.userId', storedToken.employeeId ?? ''); // test-workbench_change
-						this.telemetryService.setCommonProperty('common.userName', storedToken.userName ?? ''); // test-workbench_change
-						this.telemetryService.setCommonProperty('common.pathName', storedToken.pathName ?? ''); // test-workbench_change
+						// data.body 已经是 StoredToken 类型，可以直接使用
+						await this.tokenStore.saveToken(data.body);
+						this._syncEmployeeIdForUpdateService(data.body.employeeId); // test-workbench_change
+						this._sendLoginTelemetry(data.body.employeeId, data.body.userName); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.userId', data.body.employeeId ?? ''); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.userName', data.body.userName ?? ''); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.pathName', data.body.pathName ?? ''); // test-workbench_change
 						this._onDidLogin.fire();
 						return;
 					}

@@ -12,7 +12,14 @@ import {
 	AuthenticationSession,
 	AuthenticationSessionsChangeEvent,
 } from '../../../services/authentication/common/authentication.js';
-import { ITsCodeAuthService, ITsCodeTokenStore } from '../common/tsCodeAuth.js';
+import { ITsCodeAuthService, ITsCodeTokenStore, StoredToken } from '../common/tsCodeAuth.js';
+
+// test-workbench_change start
+interface TsCodeAuthenticationSession extends AuthenticationSession {
+	// 扩展字段：包含完整的 TsCode 用户信息
+	metadata?: StoredToken;
+}
+// test-workbench_change end
 
 export class TsCodeOAuthProvider extends Disposable implements IAuthenticationProvider {
 	readonly id = 'tscode-oauth';
@@ -49,7 +56,7 @@ export class TsCodeOAuthProvider extends Disposable implements IAuthenticationPr
 		const token = await this.tokenStore.getToken();
 
 		if (token) {
-			const session: AuthenticationSession = {
+			const session: TsCodeAuthenticationSession = {
 				id: token.employeeId ?? token.userName ?? 'tscode-user',
 				accessToken: token.token,
 				account: {
@@ -58,6 +65,8 @@ export class TsCodeOAuthProvider extends Disposable implements IAuthenticationPr
 				},
 				scopes: scopes ?? [],
 				idToken: token.idToken,
+				// 扩展字段：包含完整的 TsCode 用户信息
+				metadata: token,
 			};
 			return [session];
 		}

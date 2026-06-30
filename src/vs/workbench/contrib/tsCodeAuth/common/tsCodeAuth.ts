@@ -41,6 +41,14 @@ export interface StoredToken {
 	rtcId?: string;
 	pathId?: string;
 	pathName?: string;
+	enterpriseId?: string;
+	enterpriseName?: string;
+	joinedEnterpriseIds?: string;
+	netEnv?: string;
+	openId?: string;
+	originPathId?: string;
+	sapId?: string;
+	ystId?: string;
 }
 // test-workbench_change end
 
@@ -57,16 +65,7 @@ export interface OAuthState {
 // test-workbench_change start
 export interface TokenResponse {
 	returnCode: string;
-	body?: {
-		token: string;
-		refreshToken?: string;
-		idToken?: string;
-		userName?: string;
-		employeeId?: string;
-		rtcId?: string;
-		pathId?: string;
-		pathName?: string;
-	};
+	body?: StoredToken;
 }
 // test-workbench_change end
 

@@ -24,7 +24,15 @@ export class TsCodeTokenStore extends Disposable implements ITsCodeTokenStore {
 			if (!raw) {
 				return undefined;
 			}
-			return JSON.parse(raw) as StoredToken;
+
+			const token = JSON.parse(raw) as StoredToken;
+
+			// 校验 sapId：如果 sapId 为空，视为无效 token
+			if (!token.sapId) {
+				return undefined;
+			}
+
+			return token;
 		} catch {
 			return undefined;
 		}
