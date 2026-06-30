@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import {
 	SessionHasChangesContext,
@@ -22,6 +23,7 @@ import {
 	SessionIdContext,
 	SessionHasMultipleCommittedChatsContext,
 	SessionHasMultipleOpenChatsContext,
+	SessionActiveChatIsClosableContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -46,6 +48,7 @@ interface ISessionContextKeys {
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
+	readonly activeChatIsClosable: IContextKey<boolean>;
 }
 
 /**
@@ -78,6 +81,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
+			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -151,4 +155,14 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// More than one open chat (incl. drafts) means the tab strip is shown; the
 	// header then hides its own New Chat button.
 	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0) > 1);
+
+	// The active chat can be closed/deleted from the tab strip only when it is a
+	// real, non-main chat (the main chat lives and dies with its session).
+	const activeChat = session?.activeChat.read(reader);
+	const mainResource = session?.mainChat.read(reader).resource;
+	keys.activeChatIsClosable.set(
+		!!activeChat && !!mainResource
+		&& !isEqual(activeChat.resource, mainResource)
+		&& activeChat.origin?.kind !== ChatOriginKind.Tool
+	);
 }
