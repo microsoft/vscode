@@ -24,7 +24,7 @@ import { ChatTreeItem } from '../chat.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
-	const contextKeyService = accessor.get(IContextKeyService);
+	const contextKeyService = accessor.get(IContextKeyService);d
 
 	const acceptKb = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId, contextKeyService)?.getAriaLabel();
 	const cancelKb = keybindingService.lookupKeybinding(CancelChatActionId, contextKeyService)?.getAriaLabel();

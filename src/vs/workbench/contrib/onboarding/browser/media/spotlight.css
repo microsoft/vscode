@@ -130,12 +130,12 @@
 
 .spotlight-callout-actions {
 	display: flex;
-	flex-shrink: 0;
+	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
 }
 
 .spotlight-callout-actions .monaco-button {
-	flex-shrink: 0;
+	width: fit-content;
 	white-space: nowrap;
 }
 
