@@ -61,7 +61,16 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		}));
 		this._webview.mountTo(this.domNode, dom.getWindow(this.domNode));
 
-		this._register(this._webview.onMessage(({ message }) => this._onDidPostMessage.fire(message as InsetToHostMessage)));
+		this._register(this._webview.onMessage(({ message }) => {
+			const msg = message as InsetToHostMessage;
+			// When the runtime signals it has mounted, push the initial document so
+			// it has something to render. (Post-render updates arrive via STATE_DELTA
+			// through the registry/command path.)
+			if (msg.type === 'READY' && this._content.initialDoc !== undefined) {
+				this.postToInset({ type: 'RENDER', doc: this._content.initialDoc as object });
+			}
+			this._onDidPostMessage.fire(msg);
+		}));
 		this._register(autorun(reader => {
 			const size = this._webview.intrinsicContentSize.read(reader);
 			if (size) {
