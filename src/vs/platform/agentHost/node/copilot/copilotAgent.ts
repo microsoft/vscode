@@ -710,7 +710,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					continue;
 				}
 				if (key === 'VSCODE_COPILOT_CHAT_TOKEN' || key === 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE') {
-					// used for running the CLI in a test harness aganist a mock CAPI server, don't strip these
+				// used for running the CLI in a test harness against a mock CAPI server, don't strip these
 					continue;
 				}
 				if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
