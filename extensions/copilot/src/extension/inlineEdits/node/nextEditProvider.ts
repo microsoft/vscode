@@ -739,7 +739,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	 * Orchestration that differs between the two paths (resolving `firstEdit`, advancing
 	 * `docContents`, stream-end handling) stays with the callers.
 	 */
-	private _cacheStreamedEdit(
+	private _rebaseAndCacheStreamedEdit(
 		statePerDoc: CachedFunction<DocumentId, DocState>,
 		streamedEdit: StreamedEdit,
 		ithEdit: number,
@@ -912,7 +912,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			myLogger.trace('resetting shouldExpandEditWindow to false due to receiving an edit');
 			this._shouldExpandEditWindow = false;
 
-			const cached = this._cacheStreamedEdit(statePerDoc, streamedEdit, ithEdit, curDocId, nextEditRequest.documentBeforeEdits, activeDocSelection?.start, nextEditRequest.intermediateUserEdit, req, myLogger);
+			const cached = this._rebaseAndCacheStreamedEdit(statePerDoc, streamedEdit, ithEdit, curDocId, nextEditRequest.documentBeforeEdits, activeDocSelection?.start, nextEditRequest.intermediateUserEdit, req, myLogger);
 
 			if (cached === undefined) {
 				myLogger.trace(`edit ${ithEdit} is undefined after rebasing`);
@@ -1444,7 +1444,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						++ithEdit;
 						const streamedEdit = res.value.v;
 
-						const cached = this._cacheStreamedEdit(statePerDoc, streamedEdit, ithEdit, curDocId, nextEditRequest.documentBeforeEdits, cursorOffset, undefined, req, logger);
+						const cached = this._rebaseAndCacheStreamedEdit(statePerDoc, streamedEdit, ithEdit, curDocId, nextEditRequest.documentBeforeEdits, cursorOffset, undefined, req, logger);
 
 						if (cached === undefined) {
 							logger.trace(`speculative edit ${ithEdit} rebasing failed`);
