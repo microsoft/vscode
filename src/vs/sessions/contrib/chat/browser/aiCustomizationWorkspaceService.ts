@@ -7,9 +7,8 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
@@ -47,7 +46,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
@@ -264,11 +262,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
-		const allCommands = await this.promptsService.getPromptSlashCommands(token);
-		return allCommands.filter(cmd => {
-			const filter = this.harnessService.getActiveDescriptor().getStorageSourceFilter(cmd.type);
-			return applyStorageSourceFilter([cmd], filter).length > 0;
-		});
+		return await this.promptsService.getPromptSlashCommands(token);
 	}
 
 	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([

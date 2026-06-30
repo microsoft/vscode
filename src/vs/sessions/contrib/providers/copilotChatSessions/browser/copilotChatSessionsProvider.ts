@@ -43,7 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -1438,28 +1438,50 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _onDidGroupMembershipChange = this._register(new Emitter<{ sessionId: string }>());
 
 	private readonly _multiChatEnabled: boolean;
-	private _claudeEnabled: boolean;
-	private _preferAgentHostClaude: boolean;
-	private _hideExtensionHostCopilotCli: boolean;
+
+	/** Whether the agent host is enabled via `chat.agentHost.enabled`. */
+	private _isAgentHostEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
+	}
 
 	/**
 	 * Claude is offered by this (Copilot Chat sessions) provider only when the
 	 * underlying `claudeAgent.enabled` setting is on AND the user has not opted
 	 * the agent-host implementation in via `chat.agents.claude.preferAgentHost`.
 	 * When the latter is true, the agent host registers Claude itself and this
-	 * provider stays out of the way so the picker shows a single entry.
+	 * provider stays out of the way so the picker shows a single entry. Stepping
+	 * aside only makes sense when the agent host is enabled to register Claude in
+	 * its place, so the preference is not respected unless `chat.agentHost.enabled`
+	 * is also on.
 	 */
 	private _isClaudeAvailable(): boolean {
-		return this._claudeEnabled && !this._preferAgentHostClaude;
+		const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
+		if (!claudeEnabled) {
+			return false;
+		}
+		const isAgentHostEnabled = this._isAgentHostEnabled();
+		const preferAgentHost = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
+		if (isAgentHostEnabled && preferAgentHost) {
+			return false;
+		}
+		return true;
 	}
 
 	/**
 	 * The Extension Host Copilot CLI is offered by this provider unless the user
 	 * has hidden it via `chat.agents.copilotCli.hideExtensionHost`, in which case
 	 * the Agents window picker only surfaces the Agent Host Copilot CLI entry.
+	 * Hiding it only makes sense when the agent host is enabled to surface the
+	 * Agent Host Copilot CLI in its place, so the setting is not respected unless
+	 * `chat.agentHost.enabled` is also on.
 	 */
 	private _isCopilotCliAvailable(): boolean {
-		return !this._hideExtensionHostCopilotCli;
+		const isAgentHostEnabled = this._isAgentHostEnabled();
+		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
+		if (isAgentHostEnabled && hideExtensionHost) {
+			return false;
+		}
+		return true;
 	}
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -1483,32 +1505,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		super();
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
-		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
-		this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
-		this._hideExtensionHostCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			const claudeEnabledChanged = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING);
-			const preferAgentHostChanged = e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId);
-			const hideCopilotCliChanged = e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents);
-			if (!claudeEnabledChanged && !preferAgentHostChanged && !hideCopilotCliChanged) {
+			const affectsSessionTypes = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)
+				|| e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId)
+				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents)
+				|| e.affectsConfiguration(AgentHostEnabledSettingId);
+			if (!affectsSessionTypes) {
 				return;
 			}
-			const wasClaudeAvailable = this._isClaudeAvailable();
-			const wasCopilotCliAvailable = this._isCopilotCliAvailable();
-			if (claudeEnabledChanged) {
-				this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
-			}
-			if (preferAgentHostChanged) {
-				this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
-			}
-			if (hideCopilotCliChanged) {
-				this._hideExtensionHostCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-			}
-			if (this._isClaudeAvailable() !== wasClaudeAvailable || this._isCopilotCliAvailable() !== wasCopilotCliAvailable) {
-				this._onDidChangeSessionTypes.fire();
-				this._refreshSessionCache();
-			}
+			this._onDidChangeSessionTypes.fire();
+			this._refreshSessionCache();
 		}));
 
 		this.browseActions = [

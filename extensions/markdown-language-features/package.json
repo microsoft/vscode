@@ -10,7 +10,8 @@
   "enabledApiProposals": [
     "customEditorDiffs",
     "documentDiff",
-    "documentSyntaxHighlighting"
+    "documentSyntaxHighlighting",
+    "textEditorDiffInformation"
   ],
   "engines": {
     "vscode": "^1.70.0"
@@ -902,7 +903,7 @@
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",
     "katex": "^0.16.33",
-    "markdown-it": "^12.3.2",
+    "markdown-it": "^14.2.0",
     "mermaid": "^11.15.0",
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",

@@ -49,6 +49,7 @@ export const enum TerminalContribSettingId {
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
 	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
 	AgentSandboxWindowsEnabled = AgentSandboxSettingId.AgentSandboxWindowsEnabled,
+	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
 	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,

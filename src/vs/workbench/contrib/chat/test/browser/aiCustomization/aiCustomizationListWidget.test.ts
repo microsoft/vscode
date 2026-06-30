@@ -16,12 +16,12 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -164,7 +164,6 @@ suite('aiCustomizationListWidget', () => {
 			id: 'test',
 			label: 'Test',
 			icon: Codicon.settingsGear,
-			getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 			itemProvider: {
 				onDidChange: Event.None,
 				provideChatSessionCustomizations: (sessionResource: URI, token: CancellationToken) => Promise.resolve(undefined),

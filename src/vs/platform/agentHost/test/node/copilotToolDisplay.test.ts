@@ -66,6 +66,11 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['tool_search_tool_regex', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
+			['addComment', 'Add Comment'],
+			['listComments', 'List Comments'],
+			['deleteComments', 'Delete Comments'],
+			['resolveComments', 'Resolve Comments'],
+			['viewUnreviewedComments', 'View Comments'],
 		];
 
 		for (const [toolName, displayName] of cases) {
@@ -440,6 +445,34 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		test('write_bash failure returns a non-empty error message', () => {
 			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, false);
 			assert.ok(getText(msg).length > 0);
+		});
+	});
+
+	suite('feedback comment tools (delegated to the shared server-tool group)', () => {
+
+		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		// Exhaustive per-tool/count coverage lives in serverToolGroups.test.ts.
+		// These smoke checks only assert that the Copilot display functions
+		// delegate to the shared group instead of falling through to the
+		// generic `Using/Used "<tool>"` fallback.
+		test('Copilot display delegates to the shared group', () => {
+			const listResult = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] });
+			assert.deepStrictEqual({
+				displayName: getToolDisplayName('listComments'),
+				invoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
+			}, {
+				displayName: 'List Comments',
+				invoke: 'Checking comments',
+				past: 'Checked 2 comments',
+			});
+		});
+
+		test('failed feedback tool still uses the generic failure message', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, false)), '"List Comments" failed');
 		});
 	});
 

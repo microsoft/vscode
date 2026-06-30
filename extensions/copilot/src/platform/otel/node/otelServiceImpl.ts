@@ -241,11 +241,30 @@ export class NodeOTelService implements IOTelService {
 				import('@opentelemetry/exporter-logs-otlp-grpc'),
 				import('@opentelemetry/exporter-metrics-otlp-grpc'),
 			]);
-			const opts = { url: config.otlpEndpoint };
+			const opts = { url: config.otlpEndpoint, headers: config.headers };
 			return {
 				spanExporter: new OTLPTraceExporter(opts),
 				logExporter: new OTLPLogExporter(opts),
 				metricExporter: new OTLPMetricExporter(opts),
+			};
+		}
+
+		// otlp-http with protobuf wire encoding
+		if (config.otlpProtocol === 'http/protobuf' && !dbOnlyMode) {
+			const [
+				{ OTLPTraceExporter },
+				{ OTLPLogExporter },
+				{ OTLPMetricExporter },
+			] = await Promise.all([
+				import('@opentelemetry/exporter-trace-otlp-proto'),
+				import('@opentelemetry/exporter-logs-otlp-proto'),
+				import('@opentelemetry/exporter-metrics-otlp-proto'),
+			]);
+			const base = config.otlpEndpoint.replace(/\/$/, '');
+			return {
+				spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces`, headers: config.headers }),
+				logExporter: new OTLPLogExporter({ url: `${base}/v1/logs`, headers: config.headers }),
+				metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics`, headers: config.headers }),
 			};
 		}
 
@@ -270,9 +289,9 @@ export class NodeOTelService implements IOTelService {
 		]);
 		const base = config.otlpEndpoint.replace(/\/$/, '');
 		return {
-			spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces` }),
-			logExporter: new OTLPLogExporter({ url: `${base}/v1/logs` }),
-			metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics` }),
+			spanExporter: new OTLPTraceExporter({ url: `${base}/v1/traces`, headers: config.headers }),
+			logExporter: new OTLPLogExporter({ url: `${base}/v1/logs`, headers: config.headers }),
+			metricExporter: new OTLPMetricExporter({ url: `${base}/v1/metrics`, headers: config.headers }),
 		};
 	}
 

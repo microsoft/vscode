@@ -1828,6 +1828,7 @@ export interface IChatSessionCustomizationItemDto {
 export interface IChatSessionCustomizationSourceFolderDto {
 	readonly uri: UriComponents;
 	readonly label: string;
+	readonly source: IChatResourceSourceDto;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -2194,6 +2195,8 @@ export interface MainThreadSCMShape extends IDisposable {
 export interface MainThreadQuickDiffShape extends IDisposable {
 	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
+	$createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void>;
+	$disposeSourceControlDiffInformation(handle: number): Promise<void>;
 }
 
 export interface IDocumentDiffLineChangeDto {
@@ -3190,6 +3193,7 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostQuickDiffShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
+	$acceptSourceControlDiffInformation(handle: number, diffInformation: ITextEditorDiffInformation | undefined): void;
 }
 
 export interface ExtHostShareShape {

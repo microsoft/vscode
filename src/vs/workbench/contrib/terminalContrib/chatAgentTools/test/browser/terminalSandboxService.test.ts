@@ -1431,7 +1431,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1475,7 +1476,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting is enabled', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,

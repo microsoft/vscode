@@ -56,6 +56,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
+import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -574,6 +575,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
+		));
+
+		// Session reference completions (#session)
+		this._register(this.instantiationService.createInstance(
+			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
 		));
 
 		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(

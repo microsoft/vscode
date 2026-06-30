@@ -19,6 +19,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -55,6 +56,7 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		URI.parse('claude:/sess-1'),
+		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		dbRef,
 		subagents,
 		undefined,

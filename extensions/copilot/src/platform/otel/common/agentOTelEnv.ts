@@ -75,7 +75,7 @@ export function deriveClaudeOTelEnv(config: OTelConfig, env: Record<string, stri
 		result['OTEL_EXPORTER_OTLP_ENDPOINT'] = config.otlpEndpoint;
 	}
 	if (!env['OTEL_EXPORTER_OTLP_PROTOCOL']) {
-		result['OTEL_EXPORTER_OTLP_PROTOCOL'] = config.otlpProtocol === 'grpc' ? 'grpc' : 'http/json';
+		result['OTEL_EXPORTER_OTLP_PROTOCOL'] = config.otlpProtocol;
 	}
 	if (config.captureContent) {
 		if (!env['OTEL_LOG_USER_PROMPTS']) {

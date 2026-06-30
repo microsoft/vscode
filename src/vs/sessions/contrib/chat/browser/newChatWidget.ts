@@ -10,6 +10,7 @@ import { constObservable, derived, derivedObservableWithCache, IObservable, obse
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -27,6 +28,7 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 
 // #region --- New Chat Widget ---
 
@@ -57,9 +59,17 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
+	/**
+	 * Tracks whether the workspace picker is currently rendered (vs replaced by
+	 * the no-agent-host empty state on web). Consumed by the new-session-view
+	 * onboarding tour to skip the workspace step when the picker is not shown.
+	 */
+	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -69,6 +79,8 @@ export class NewChatWidget extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
@@ -275,6 +287,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		this._workspacePickerVisibleKey.set(true);
 		const pickersRow = dom.append(container, dom.$('.session-workspace-picker'));
 		const pickersLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label'));
 		pickersLabel.textContent = this._workspacePicker.selectedFolderUri
@@ -297,6 +310,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
+		this._workspacePickerVisibleKey.set(false);
 		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
 		emptyState.render(container);
 		this._activeEmptyState = emptyState;

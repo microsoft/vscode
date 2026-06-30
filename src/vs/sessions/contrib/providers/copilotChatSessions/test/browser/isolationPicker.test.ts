@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -77,6 +79,7 @@ function createPicker(
 		getProvider: () => provider,
 	} as unknown as ISessionsProvidersService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	return disposables.add(instantiationService.createInstance(IsolationPicker, sessionObs));
 }

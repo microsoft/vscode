@@ -2040,6 +2040,42 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.activeGroup.isEmpty, true);
 	});
 
+	test('working sets - apply state when the part has never been laid out does not throw and registers restored groups', async function () {
+		const [part] = await createPart();
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await part.activeGroup.openEditor(input, { pinned: true });
+		await part.sideGroup.openEditor(input2, { pinned: true });
+
+		const state = part.createState();
+
+		for (const group of part.groups) {
+			await group.closeAllEditors();
+		}
+
+		// Simulate an editor part that has never been laid out (e.g. it stayed
+		// hidden since the window opened, like the Agents window editor area
+		// after a reload with the side pane closed). In that state
+		// `_contentDimension` is still undefined and laying out during the
+		// restore would throw, aborting before the `onDidAddGroup` events fire.
+		(part as unknown as { _contentDimension: unknown })._contentDimension = undefined;
+
+		let addedGroups = 0;
+		const listener = part.onDidAddGroup(() => addedGroups++);
+
+		// Must not throw, must restore the groups, and must fire `onDidAddGroup`
+		// for them so listeners (e.g. the editor service) register them.
+		await part.applyState(state);
+		listener.dispose();
+
+		assert.strictEqual(part.count, 2);
+		assert.strictEqual(part.groups[0].contains(input), true);
+		assert.strictEqual(part.groups[1].contains(input2), true);
+		assert.strictEqual(addedGroups, 2, `expected exactly 2 onDidAddGroup events, got ${addedGroups}`);
+	});
+
 	test('context key provider', async function () {
 		const disposables = new DisposableStore();
 

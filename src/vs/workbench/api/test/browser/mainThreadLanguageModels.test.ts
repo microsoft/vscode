@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,7 +14,7 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { ILanguageModelIgnoredFilesService } from '../../../contrib/chat/common/ignoredFiles.js';
-import { ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
@@ -164,5 +164,47 @@ suite('MainThreadLanguageModels', function () {
 
 		// Should not throw
 		mainThread.$cancelLanguageModelChatRequest(999999);
+	});
+
+	test('disposes the provider request cancellation listener when the response completes', async () => {
+		const store = disposables.add(new DisposableStore());
+		let provider: ILanguageModelChatProvider | undefined;
+		let requestId: number | undefined;
+		let cancelCount = 0;
+		const proxy: Partial<ExtHostLanguageModelsShape> = {
+			$startChatRequest: async (_modelId, id) => {
+				requestId = id;
+			},
+			$cancelLanguageModelChatRequest: () => {
+				cancelCount++;
+			},
+		};
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = store.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return []; }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				provider = value;
+				return Disposable.None;
+			}
+		};
+
+		const mainThread = store.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol(proxy),
+			languageModelsService,
+			new NullLogService(),
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		mainThread.$registerLanguageModelProvider('test');
+
+		const cts = store.add(new CancellationTokenSource());
+		const response = await provider!.sendChatRequest('model-1', [], undefined, {}, cts.token);
+		await mainThread.$reportResponseDone(requestId!, undefined);
+		await response.result;
+		cts.cancel();
+
+		assert.strictEqual(cancelCount, 0);
 	});
 });

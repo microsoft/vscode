@@ -8,7 +8,7 @@
 	display: flex;
 	flex-direction: column;
 	width: 520px;
-	max-width: calc(100vw - var(--vscode-spacing-size320));
+	max-width: 100%;
 	color: var(--vscode-editorHoverWidget-foreground);
 }
 
@@ -39,6 +39,7 @@
 	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	line-height: 1.25;
+	overflow-wrap: anywhere;
 }
 
 .sessions-pr-hover-description {
@@ -47,11 +48,12 @@
 	-webkit-line-clamp: 3;
 	line-clamp: 3;
 	overflow: hidden;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0 var(--vscode-spacing-size160);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
 }
 
 .sessions-pr-hover-branches {
@@ -59,7 +61,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
-	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 }
 
 .sessions-pr-hover-branch {

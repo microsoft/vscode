@@ -310,6 +310,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 		});
 
 		this._register(autorun(reader => {
+			const isLoading = changesViewService.activeSessionIsLoadingObs.read(reader);
+			if (isLoading) {
+				return;
+			}
+
 			const operationActionGroups = operationActionGroupsObs.read(reader);
 			const menuActions = menuActionsObs.read(reader);
 

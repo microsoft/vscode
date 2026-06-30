@@ -48,7 +48,7 @@ Sessions are organized into sections with fixed priority:
 Two grouping modes (user-switchable):
 
 - **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
-- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Today, Yesterday, Last 7 Days, Older). Groups never mix into the date sections.
+- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
 User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions).
 
@@ -101,7 +101,7 @@ Regular sessions can be reordered by dragging them up or down within the list. P
 - **Storage** — reordering stores a synthetic numeric *sort key* per session in `ISessionsListModelService` (persisted locally, not synced). It is used **only** for sorting; the provider's real `createdAt`/`updatedAt` are never modified. A separate override map is kept for each sort mode (Created vs Updated).
 - **Sort key** — on drop, the new key is the midpoint between the effective keys of the sessions immediately above and below the drop point. Dropping above the first session uses the current time (so it sorts to the top). Dropping below the last session steps below the last key.
 - **Dropping the fake value** — if a session's natural timestamp already sorts it into the dropped slot (e.g. after dragging it down and back), the stored override is removed so the list falls back to natural ordering.
-- **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Today").
+- **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Recent").
 - **Grouping by Workspace** — reordering is restricted to within the same workspace group; drops onto another workspace are rejected.
 - **Pinned** — dropping a non-archived session on the Pinned header pins it and lets it sort naturally. Dropping it on a pinned session shows an insertion line, pins it, and stores the sort key needed to place it at that location.
 - **User groups** — dropping a non-archived session on a group header adds or moves it into the group and lets it sort naturally. Dropping it on a session inside the group shows an insertion line for the exact slot and highlights only the group header to indicate the receiving group.
@@ -133,7 +133,7 @@ Archived sessions do not show the session group context menu actions ("Create Gr
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
-- **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
+- **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl/Cmd+PageUp` / `Ctrl/Cmd+PageDown` navigates the visible list (`Cmd+Alt+Left` / `Cmd+Alt+Right` and `Cmd+Shift+[` / `Cmd+Shift+]` on macOS); `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
 
 ### Mobile
@@ -220,7 +220,7 @@ Context keys available for `when` clauses when contributing to session list menu
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `sessionSection.type` | string | `'pinned'`, `'archived'`, `'workspace:<label>'`, `'today'`, etc. |
+| `sessionSection.type` | string | `'pinned'`, `'archived'`, `'workspace:<label>'`, `'recent'`, etc. |
 
 ### View-Level
 

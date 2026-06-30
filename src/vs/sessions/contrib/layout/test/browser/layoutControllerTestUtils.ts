@@ -100,6 +100,7 @@ export function makeSession(resource: URI, opts?: {
 		sticky: observableValue('sticky', false),
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),
+		visibleChatTabs: constObservable([chat]),
 	};
 }
 

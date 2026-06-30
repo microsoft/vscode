@@ -1533,8 +1533,16 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Recreate grid widget from state
 		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse, options);
 
-		// Layout
-		this.doLayout(this._contentDimension);
+		// Layout, but only if the part has already been laid out at least once.
+		// When restoring a working set into an editor part that has never been
+		// shown (e.g. on reload with the editor area hidden), `_contentDimension`
+		// is still undefined; laying out here would throw and abort before the
+		// `onDidAddGroup` events below are fired (leaving the restored groups
+		// unregistered with the editor service). The grid is laid out later when
+		// the part is first shown.
+		if (this._contentDimension) {
+			this.doLayout(this._contentDimension);
+		}
 
 		// Update container
 		this.updateContainer();

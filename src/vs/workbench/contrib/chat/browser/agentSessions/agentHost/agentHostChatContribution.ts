@@ -29,7 +29,7 @@ import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthent
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -249,9 +249,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			// The Tools section is surfaced for the Copilot CLI agent host only.
-			hiddenSections: agent.provider === 'copilotcli' ? [] : [AICustomizationManagementSection.Tools],
+			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 			syncProvider,
 			itemProvider,
 		}));

@@ -21,6 +21,7 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -121,6 +122,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return true; // Always show active session type
 		}
 		if (this._isSessionsWindow && type === AgentSessionProviders.Background && this.chatSessionsService.getChatSessionContribution(AgentSessionProviders.AgentHostCopilot)) {
+			return false;
+		}
+
+		// Apply the same visibility guards as the new-session picker (e.g. Local hidden when chat.editor.localAgent.enabled is false).
+		if (!isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService)) {
 			return false;
 		}
 

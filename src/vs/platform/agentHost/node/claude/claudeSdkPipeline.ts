@@ -204,6 +204,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
+		readonly chatChannelUri: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
@@ -222,12 +223,12 @@ export class ClaudeSdkPipeline extends Disposable {
 			() => this._abortController.signal,
 			(pendingId: string) => this._onDidProduceSignal.fire({
 				kind: 'steering_consumed',
-				session: this.sessionUri,
+				chat: this.chatChannelUri,
 				id: pendingId,
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -615,7 +616,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					if (completed && this._queue.isEmpty) {
 						this._onDidProduceSignal.fire({
 							kind: 'action',
-							session: this.sessionUri,
+							resource: this.chatChannelUri,
 							action: {
 								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,

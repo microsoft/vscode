@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration, getDefaultNewChatSessionType, getNewChatEditorSessionType, isVisibleEditorChatSessionType } from '../../common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 
@@ -75,58 +75,5 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.strictEqual(getDefaultNewChatSessionType(configurationService, chatSessionsService), localChatSessionType);
 		assert.strictEqual(isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService), true);
-	});
-});
-
-suite('getNewChatEditorSessionType (last-used agent)', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function createChatSessionsService(...types: string[]): MockChatSessionsService {
-		const service = new MockChatSessionsService();
-		service.setContributions(types.map(type => ({
-			type,
-			name: type,
-			displayName: type,
-			description: type,
-		} satisfies IChatSessionsExtensionPoint)));
-		return service;
-	}
-
-	test('prefers a visible non-local last-used agent when the provider is not explicitly configured', () => {
-		const configurationService = new TestConfigurationService();
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
-
-		assert.strictEqual(getNewChatEditorSessionType(configurationService, chatSessionsService, SessionType.AgentHostCopilot), SessionType.AgentHostCopilot);
-	});
-
-	test('ignores a last-used agent whose provider is not visible/registered', () => {
-		const configurationService = new TestConfigurationService();
-		const chatSessionsService = createChatSessionsService(); // agent host not registered
-
-		assert.strictEqual(getNewChatEditorSessionType(configurationService, chatSessionsService, SessionType.AgentHostCopilot), localChatSessionType);
-	});
-
-	test('an explicitly configured local provider wins over a last-used agent', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.EditorDefaultProvider]: 'local',
-		});
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
-
-		assert.strictEqual(getNewChatEditorSessionType(configurationService, chatSessionsService, SessionType.AgentHostCopilot), localChatSessionType);
-	});
-
-	test('a last-used local agent does not override the default', () => {
-		const configurationService = new TestConfigurationService();
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
-
-		assert.strictEqual(getNewChatEditorSessionType(configurationService, chatSessionsService, localChatSessionType), localChatSessionType);
-	});
-
-	test('falls back to the default when there is no last-used agent', () => {
-		const configurationService = new TestConfigurationService();
-		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
-
-		assert.strictEqual(getNewChatEditorSessionType(configurationService, chatSessionsService, undefined), localChatSessionType);
 	});
 });

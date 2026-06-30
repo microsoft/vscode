@@ -11,14 +11,11 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatLastUsedEditorSessionTypeStorageKey } from '../../common/constants.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -51,7 +48,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 	}
@@ -237,28 +233,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		this._lastFocusedWidget = widget;
-		this.recordLastUsedSessionType(widget);
 		this._onDidChangeFocusedWidget.fire(widget);
 		this._onDidChangeFocusedSession.fire();
-	}
-
-	/**
-	 * Stores the session type (agent) of the last-focused user-facing chat so new chat editors can reuse it (excluding Quick Chat).
-	 */
-	private recordLastUsedSessionType(widget: IChatWidget | undefined): void {
-		const sessionResource = widget?.viewModel?.sessionResource;
-		if (!sessionResource) {
-			return;
-		}
-		if (this.quickChatService.sessionResource && isEqual(sessionResource, this.quickChatService.sessionResource)) {
-			return;
-		}
-		const sessionType = getChatSessionType(sessionResource);
-		// Only remember non-local agents to avoid clobbering the user's last-used agent.
-		if (sessionType === localChatSessionType) {
-			return;
-		}
-		this.storageService.store(ChatLastUsedEditorSessionTypeStorageKey, sessionType, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	register(newWidget: IChatWidget): IDisposable {
@@ -277,7 +253,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
 			newWidget.onDidChangeViewModel(({ previousSessionResource, currentSessionResource }) => {
 				if (this._lastFocusedWidget === newWidget && !isEqual(previousSessionResource, currentSessionResource)) {
-					this.recordLastUsedSessionType(newWidget);
 					this._onDidChangeFocusedSession.fire();
 				}
 

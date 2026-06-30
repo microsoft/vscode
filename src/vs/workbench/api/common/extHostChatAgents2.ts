@@ -875,6 +875,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return folders.map(folder => ({
 				uri: folder.uri,
 				label: folder.label,
+				source: folder.source,
 			} satisfies IChatSessionCustomizationSourceFolderDto));
 		} catch (err) {
 			return undefined;

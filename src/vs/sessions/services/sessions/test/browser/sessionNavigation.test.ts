@@ -123,6 +123,7 @@ class MockSessionStore implements ISessionsManagementService {
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
 				openChats: session.chats,
 				closedChats: constObservable([]),
+				visibleChatTabs: session.chats,
 			};
 			this.activeSession.set(active, undefined);
 		} else {

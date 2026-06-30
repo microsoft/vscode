@@ -471,6 +471,38 @@ function getProxyEnvVariables() {
 	return res.length ? `\n\nEnvironment Variables:${res.join('')}` : '';
 }
 
+/**
+ * Resolves the proxy type for a URL using the bundled `@vscode/proxy-agent` module.
+ * Returns one of `DIRECT`, `PROXY`, `HTTPS`, `SOCKS` or `UNKNOWN`.
+ */
+async function resolveProxyType(url: string, logService: ILogService): Promise<string> {
+	try {
+		const proxyAgent = loadVSCodeModule<ProxyAgent>('@vscode/proxy-agent');
+		if (!proxyAgent?.resolveProxyURL) {
+			return 'UNKNOWN';
+		}
+		const proxyURL = await Promise.race([proxyAgent.resolveProxyURL(url), timeoutAfter(5000)]);
+		if (proxyURL === 'timeout') {
+			return 'UNKNOWN';
+		}
+		if (!proxyURL) {
+			return 'DIRECT';
+		}
+		const scheme = proxyURL.split(':', 1)[0].toLowerCase();
+		switch (scheme) {
+			case 'http': return 'PROXY';
+			case 'https': return 'HTTPS';
+			case 'socks':
+			case 'socks4':
+			case 'socks5': return 'SOCKS';
+			default: return 'UNKNOWN';
+		}
+	} catch (err) {
+		logService.debug(`Fetcher telemetry: Failed to resolve proxy type: ${err?.message}`);
+		return 'UNKNOWN';
+	}
+}
+
 export class FetcherTelemetryContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -485,6 +517,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 	const logService = accessor.get(ILogService);
 	const configurationService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
+	const capiClientService = accessor.get(ICAPIClientService);
 
 	if (!vscode.env.isTelemetryEnabled || extensionContext.extensionMode !== vscode.ExtensionMode.Production || isScenarioAutomation) {
 		return;
@@ -539,6 +572,9 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 			}
 		}
 
+		// Resolve the proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTPS, SOCKS).
+		const proxyType = await resolveProxyType(capiClientService.capiPingURL, logService);
+
 		// Second loop: send the actual telemetry event including probe results.
 		const requestGroupId = generateUuid();
 		const extensionKind = extensionContext.extension.extensionKind === vscode.ExtensionKind.UI ? 'local' : 'remote';
@@ -553,6 +589,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 						"clientLibrary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher library used for this request." },
 						"extensionKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the extension runs locally or remotely." },
 						"remoteName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The remote name, if any." },
+						"proxyType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The resolved proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTPS, SOCKS, UNKNOWN)." },
 						"electronfetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the electron-fetch fetcher." },
 						"nodefetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-fetch fetcher." },
 						"nodehttp": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-http fetcher." }
@@ -563,6 +600,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 					clientLibrary: fetcher.getUserAgentLibrary(),
 					extensionKind,
 					remoteName: vscode.env.remoteName ?? 'none',
+					proxyType,
 					...probeResults,
 				};
 				const response = await sendRawTelemetry(fetcher, envService, oneCollectorTelemetryUrl, extensionContext, 'GitHub.copilot-chat/fetcherTelemetry', properties);

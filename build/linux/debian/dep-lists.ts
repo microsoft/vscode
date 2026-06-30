@@ -40,6 +40,7 @@ export const referenceGeneratedDepsByArch = {
 		'libdbus-1-3 (>= 1.9.14)',
 		'libexpat1 (>= 2.1~beta3)',
 		'libgbm1 (>= 17.1.0~rc2)',
+		'libglib2.0-0 (>= 2.12.0)',
 		'libglib2.0-0 (>= 2.39.4)',
 		'libgtk-3-0 (>= 3.9.10)',
 		'libgtk-3-0 (>= 3.9.10) | libgtk-4-1',

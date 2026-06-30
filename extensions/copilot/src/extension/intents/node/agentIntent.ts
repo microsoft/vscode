@@ -245,12 +245,16 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// The specialized subagents must only run when
-	// the main agent is on CAPI.
+	// The specialized subagents and semantic search only work when the main
+	// agent is on CAPI. semantic_search relies on embeddings that require a
+	// Copilot token source, so on BYOK / custom endpoints it can abort the chat
+	// turn (e.g. when the GitHub auth provider is unavailable). Keep it off
+	// there. See https://github.com/microsoft/vscode/issues/322525.
 	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
+		allowTools[ToolName.Codebase] = false;
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);

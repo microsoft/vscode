@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -27,7 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -129,6 +130,10 @@ function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+function getSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
+	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
+}
+
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
@@ -183,9 +188,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const policyRestricted = isAutoApprovePolicyRestricted();
 				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
-					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 					if (this.isSandboxingEnabled() !== enableSandbox) {
-						await configurationService.updateValue(AgentSandboxSettingId.AgentSandboxEnabled, target);
+						const value = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+						await configurationService.updateValue(getSandboxEnabledSettingId(), value);
 					}
 				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -258,15 +263,15 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if ((e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
+			if ((e.affectsConfiguration(getSandboxEnabledSettingId()) || e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)) && this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
 	}
 
 	private isSandboxingEnabled(): boolean {
-		const value = this.configurationService.getValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled);
-		return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue | undefined>(getSandboxEnabledSettingId());
+		return isAgentSandboxEnabledValue(value);
 	}
 
 	private isSandboxToggleSettingEnabled(): boolean {

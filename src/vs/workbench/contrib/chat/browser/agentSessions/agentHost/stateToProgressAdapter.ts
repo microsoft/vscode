@@ -17,7 +17,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -165,6 +165,46 @@ export interface TurnModelLookup {
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+}
+
+/** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
+export interface ITurnResponseModel {
+	readonly name: string;
+	readonly pricing?: string;
+}
+
+/**
+ * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
+ * `model` is the resolved model; `billedModelId` is the turn's `usage.model` when it didn't resolve to a
+ * registered model (e.g. an "Auto" pick billed as `raptor-mini`), shown inline as `Auto (raptor-mini)`.
+ * Returns `undefined` when the model is unknown.
+ */
+export function formatTurnResponseDetails(
+	model: ITurnResponseModel | undefined,
+	billedModelId: string | undefined,
+	usage: UsageInfo | undefined,
+): string | undefined {
+	if (!model) {
+		return undefined;
+	}
+	const displayName = formatTurnModelName(model, billedModelId);
+	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
+	if (credits !== undefined) {
+		const formatted = formatCopilotCredits(credits);
+		const creditDetails = formatted === '1'
+			? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
+			: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
+		return [displayName, creditDetails].join(' • ');
+	}
+	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/** Appends the billed model id (e.g. `Auto (raptor-mini)`) when one is supplied. */
+function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | undefined): string {
+	if (billedModelId) {
+		return localize('agentHost.responseDetails.resolvedModel', "{0} ({1})", model.name, billedModelId);
+	}
+	return model.name;
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
@@ -529,6 +569,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
+		return {
+			kind: 'workspace',
+			id: attachment.label,
+			name: attachment.label,
+			value: modelRepresentation,
+			_meta: attachment._meta,
+		};
+	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
 		displayKind: attachment.displayKind,

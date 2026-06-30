@@ -419,20 +419,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// Validate both refs resolve before invoking `git diff` so a missing
-		// ref returns undefined rather than producing a confusing error.
-		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
-		const toOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.toRef]))?.trim();
-		if (!fromOid || !toOid) {
+		try {
+			const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', options.fromRef, options.toRef, '--']);
+			if (raw === undefined) {
+				return undefined;
+			}
+
+			return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, options.fromRef, options.toRef);
+		} catch (err) {
+			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}: ${err}`);
 			return undefined;
 		}
-
-		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
-		if (raw === undefined) {
-			return undefined;
-		}
-
-		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {

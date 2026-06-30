@@ -144,7 +144,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test.skip('attaches a text blob and reads its function names', async function () {
+	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());

@@ -21,6 +21,8 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
+	isAhpChatChannel,
+	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
@@ -364,9 +366,13 @@ export class SessionPermissionManager extends Disposable {
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */
-	handleToolCallConfirmed(sessionKey: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+		if (!isAhpChatChannel(chatChannel)) {
+			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
+		}
+		const sessionKey = parseRequiredSessionUriFromChatUri(chatChannel);
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
-			const toolName = this._getToolNameForToolCall(sessionKey, toolCallId);
+			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
 				this._addToolToSessionPermissions(sessionKey, toolName);
 			}

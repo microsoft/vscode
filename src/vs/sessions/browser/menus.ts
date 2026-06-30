@@ -37,6 +37,8 @@ export const Menus = {
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
+	SessionChatTab: new MenuId('SessionsSessionChatTab'),
+	SessionChatTabBar: new MenuId('SessionsSessionChatTabBar'),
 	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 } as const;

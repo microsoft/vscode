@@ -220,6 +220,13 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	private readonly _canGoForwardContext: IContextKey<boolean>;
 	private readonly _pendingTryFocus = this._register(new MutableDisposable());
 
+	/**
+	 * Whether a navigation has been initiated on the current tab. Once true,
+	 * an empty URL means "navigation in flight" rather than "fresh tab", so
+	 * {@link tryFocus} keeps focus on the page instead of reopening the picker.
+	 */
+	private _hasInitiatedNavigation = false;
+
 	constructor(
 		editor: BrowserEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -262,12 +269,19 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
+		// A model that is already loading on attach (e.g. switching back to a
+		// tab mid-navigation) counts as having initiated navigation.
+		this._hasInitiatedNavigation = model.loading;
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
-		store.add(model.onWillNavigate(url => this._navbar.previewUrl(url)));
+		store.add(model.onWillNavigate(url => {
+			this._hasInitiatedNavigation = true;
+			this._navbar.previewUrl(url);
+		}));
 	}
 
 	override onModelDetached(): void {
+		this._hasInitiatedNavigation = false;
 		this._navbar.clear();
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
@@ -283,16 +297,13 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 				return;
 			}
 
-			// A new tab (no URL loaded) auto-opens the picker so the user can
-			// immediately type / browse suggestions. For tabs that already have a
-			// URL (e.g. error or loading state — page-renderer focus didn't claim
-			// us, or input is still prerendering before the model attaches) we
-			// just focus the display so the URL stays visible.
+			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
+			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
 			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-			if (!url) {
+			if (!url && !this._hasInitiatedNavigation) {
 				this._navbar.openUrlPicker();
 			} else {
-				this._navbar.focusUrlInput();
+				this.editor.ensureBrowserFocus();
 			}
 		}, 0);
 		return true;
@@ -528,7 +539,7 @@ class OpenBrowserSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const ids = ['workbench.browser.*', 'chat.sendElementsToChat.*'];
+		const ids = ['workbench.browser.*'];
 		if (IsSessionsWindowContext.getValue(contextKeyService)) {
 			ids.push(AgentHostChatToolsEnabledSettingId);
 		}

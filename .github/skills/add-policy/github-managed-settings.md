@@ -52,8 +52,8 @@ described delivery slots (native MDM, server-managed, and file-based).
 
 All three VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
-**Precedence: server-delivered managed settings win over native MDM, which in turn win
-over the file-based channel** (`selectManagedSettings` in `copilotManagedSettings.ts`).
+**Precedence: native MDM managed settings win over the server-delivered channel, which in
+turn wins over the file-based channel** (`selectManagedSettings` in `copilotManagedSettings.ts`).
 There is a single authoritative source at any point in time — the channels are **not**
 merged. The highest-precedence non-empty channel wins outright and the rest are ignored.
 Rationale: the server is harder to bypass than local MDM, and a local file is the most
@@ -201,7 +201,7 @@ delivery slot for the managed value.
 | `collectManagedSettingsDefinitions(policyDefinitions)` | Aggregates every policy's `managedSettings` into one `key → { type }` map. **Single source of truth** for which keys (and types) are honored; drives both the MDM watcher and the server projection. |
 | `hasManagedSettingsDefinitions(policyDefinitions)` | Cheap short-circuiting existence check (does *any* policy declare a managed key?) — used to decide whether the native MDM watcher is needed at all, without building the full aggregate. |
 | `projectManagedSettings(values, definitions, onWarn?)` | Keeps only declared keys whose runtime value **matches the declared type**. Undeclared keys and type mismatches are **dropped (validated, never coerced)**, with an optional warning. |
-| `selectManagedSettings(server, nativeMdm, file)` | Picks the single authoritative channel by precedence (server → native MDM → file); never merges. **The extension point when adding a new channel** — extend the `ManagedSettingsSource` union and this function together. |
+| `selectManagedSettings(nativeMdm, server, file)` | Picks the single authoritative channel by precedence (native MDM → server → file); never merges. **The extension point when adding a new channel** — extend the `ManagedSettingsSource` union and this function together. |
 | `managedSettingValue(key)` | Builds the standard pass-through `value` callback `policyData => policyData.managedSettings?.[key]`. Use for the common "lock to the managed value, else fall through" case (see [Declaring a managed setting](#declaring-a-managed-setting-on-a-policy)). |
 
 ### Normalization: the structured-key descriptor table

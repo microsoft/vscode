@@ -77,8 +77,10 @@ The workbench-side starter translates the settings above into the following env 
 | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | `chat.agentHost.otel.captureContent` | |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | `chat.agentHost.otel.outfile` | |
 | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` | `chat.agentHost.otel.dbSpanExporter.enabled` | |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | (inherited) | `grpc` selects gRPC; any other value uses HTTP. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (e.g., `Authorization=Bearer …`). |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | (inherited or enterprise policy) | `grpc` selects gRPC; any other value uses HTTP. Set from the managed `telemetry.protocol` when configured. |
+| `OTEL_SERVICE_NAME` | (inherited or enterprise policy) | `service.name` resource attribute; set from the managed `telemetry.serviceName`. |
+| `OTEL_RESOURCE_ATTRIBUTES` | (inherited or enterprise policy) | Extra resource attributes (`k=v,k2=v2`); set from the managed `telemetry.resourceAttributes`. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (e.g., `Authorization=Bearer …`). **Not** delivered from managed settings — env delivery would leak the secret to tool subprocesses; managed headers apply to the Copilot Chat extension only. |
 
 > **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
 
@@ -134,7 +136,7 @@ src/vs/platform/otel/
 
 ## Settings → Env Var Translation
 
-`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv)`, and merges the result into the spawned process's environment. Parent-env values always win.
+`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv)`, and merges the result into the spawned process's environment. Parent-env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over parent env**.
 
 | Setting | Env var |
 |---|---|
@@ -145,7 +147,7 @@ src/vs/platform/otel/
 | `chat.agentHost.otel.outfile` | `COPILOT_OTEL_FILE_EXPORTER_PATH` |
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |
 
-`OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_RESOURCE_ATTRIBUTES` flow via env inheritance — they are not translated from settings.
+`OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
 
 `readAgentHostOTelEnv()` ([node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) is the inverse: it reads `process.env` inside the agent host and produces the `ResolvedConfig` that drives mode selection and outbound forwarding.
 

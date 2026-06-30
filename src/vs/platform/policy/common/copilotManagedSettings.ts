@@ -38,6 +38,40 @@ export const COPILOT_STRICT_MARKETPLACES_KEY = 'strictKnownMarketplaces';
 /** Managed-settings key for the default chat model (carried as a plain string: `auto`, a model family name, or a full model id). */
 export const COPILOT_MODEL_KEY = 'model';
 
+/**
+ * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
+ * `telemetry` block from the cross-client managed-settings schema (see the CLI
+ * `ManagedTelemetrySettings`); they flatten to dot-path bag keys via
+ * {@link normalizeManagedSettings}, so no {@link STRUCTURED_MANAGED_SETTINGS} entry is needed.
+ * The `telemetry.resourceAttributes` and `telemetry.headers` map fields are structured
+ * ({@link STRUCTURED_MANAGED_SETTINGS} rows carry them as JSON-encoded objects under their nested
+ * keys); `telemetry.serviceName` is a scalar.
+ */
+
+/** Managed-settings key for enterprise OTel enablement. */
+export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
+
+/** Managed-settings key for the enterprise OTLP collector endpoint. */
+export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
+
+/** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
+export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
+
+/** Managed-settings key for enterprise OTel content capture. */
+export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
+
+/** Managed-settings key that prevents users from enabling OTel content capture themselves. */
+export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
+
+/** Managed-settings key for the OTel `service.name` resource attribute. */
+export const COPILOT_OTEL_SERVICE_NAME_KEY = 'telemetry.serviceName';
+
+/** Managed-settings key for additional OTel resource attributes (a `{ [k]: string }` map). */
+export const COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttributes';
+
+/** Managed-settings key for extra OTLP exporter headers (a `{ [k]: string }` map). */
+export const COPILOT_OTEL_HEADERS_KEY = 'telemetry.headers';
+
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
 /**
@@ -57,6 +91,31 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 		managedSettingValueCallbacks.set(key, callback);
 	}
 	return callback;
+}
+
+let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
+
+/**
+ * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
+ * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
+ * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
+ * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
+ * an empty string. The model-specific normalization lives here, alongside the other managed-settings
+ * handling, rather than inline at the policy declaration, so every managed-settings control is wired
+ * the same way.
+ *
+ * Memoized (single key) so repeated calls return the SAME function reference, matching the
+ * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
+ */
+export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
+	if (!managedModelValueCallback) {
+		managedModelValueCallback = policyData => {
+			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+			const trimmed = typeof model === 'string' ? model.trim() : undefined;
+			return trimmed ? trimmed : undefined;
+		};
+	}
+	return managedModelValueCallback;
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
@@ -188,19 +247,19 @@ export interface IManagedSettingsSelection {
 /**
  * Select the authoritative managed-settings bag from the available delivery channels.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
+ * Precedence (highest first): native MDM → server-delivered → file on disk. The channels are
  * never merged — managed settings have a single authoritative source, so the first non-empty bag
- * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
- * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
- * report from drifting apart, and gives one obvious place to extend when a new channel is
- * introduced.
+ * wins outright. The parameter order matches that precedence so call sites read top-to-bottom.
+ * Centralizing the precedence here (rather than inlining it at each call site) keeps policy
+ * evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics report from
+ * drifting apart, and gives one obvious place to extend when a new channel is introduced.
  */
-export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
-	}
+export function selectManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
 	if (nativeMdm && !isEmptyObject(nativeMdm)) {
 		return { source: 'nativeMdm', values: nativeMdm };
+	}
+	if (server && !isEmptyObject(server)) {
+		return { source: 'server', values: server };
 	}
 	if (file && !isEmptyObject(file)) {
 		return { source: 'file', values: file };
@@ -244,20 +303,110 @@ interface IStructuredManagedSetting {
 	readonly encode: (value: unknown, onWarn?: (msg: string) => void) => unknown;
 }
 
+/**
+ * Encode a managed-settings value into a canonical `{ [k]: string }` map: keeps string values
+ * as-is and coerces number/boolean values to strings; drops keys with non-primitive values.
+ * Returns `undefined` for a non-object input so the structured key is omitted.
+ */
+function encodeStringMap(value: unknown): Record<string, string> | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+	const out: Record<string, string> = {};
+	for (const [k, v] of Object.entries(value)) {
+		if (k === '__proto__' || k === 'constructor' || k === 'prototype') {
+			continue; // defend the shared normalizer against prototype pollution
+		}
+		if (isString(v)) {
+			out[k] = v;
+		} else if (typeof v === 'number' || typeof v === 'boolean') {
+			out[k] = String(v);
+		}
+	}
+	return out;
+}
+
+/** Pass an object value through unchanged; omit the key for any non-object value. */
+function encodeObject(value: unknown): object | undefined {
+	return isObject(value) ? value : undefined;
+}
+
+/** Pass an array value through unchanged (including an empty array); omit the key otherwise. */
+function encodeArray(value: unknown): unknown[] | undefined {
+	return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
+ * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
+ * the key when there are none.
+ */
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): Record<string, string> | undefined {
+	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
-		encode: value => isObject(value) ? value : undefined,
+		encode: encodeObject,
 	},
 	{
 		key: COPILOT_STRICT_MARKETPLACES_KEY,
-		encode: value => Array.isArray(value) ? value : undefined,
+		encode: encodeArray,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
-		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+		encode: encodeExtraMarketplaces,
+	},
+	{
+		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
+		// primitive values are coerced to strings; non-primitive values are dropped.
+		key: COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY,
+		encode: encodeStringMap,
+	},
+	{
+		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map of OTLP headers.
+		key: COPILOT_OTEL_HEADERS_KEY,
+		encode: encodeStringMap,
 	},
 ];
+
+/**
+ * Read a (possibly nested) dot-separated key from a parsed managed-settings object, e.g.
+ * `telemetry.resourceAttributes`. Returns `undefined` if any path segment is missing or not an
+ * object. Single-segment keys behave like a plain property read.
+ */
+function readNestedManagedKey(obj: Record<string, unknown>, dottedKey: string): unknown {
+	let current: unknown = obj;
+	for (const segment of dottedKey.split('.')) {
+		if (!isObject(current)) {
+			return undefined;
+		}
+		current = (current as Record<string, unknown>)[segment];
+	}
+	return current;
+}
+
+/**
+ * Return a copy of `obj` with the (possibly nested) dot-separated key removed, cloning only the
+ * objects along the touched path so the original (and any shared sub-objects) stay untouched. The
+ * spread-then-`delete` shape matches a destructuring rest: it copies own enumerable keys (including
+ * an own `__proto__`) without triggering the inherited `__proto__` setter.
+ */
+function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: string): Record<string, unknown> {
+	const dot = dottedKey.indexOf('.');
+	if (dot === -1) {
+		const clone = { ...obj };
+		delete clone[dottedKey];
+		return clone;
+	}
+	const head = dottedKey.slice(0, dot);
+	const child = obj[head];
+	if (!isObject(child)) {
+		return obj;
+	}
+	return { ...obj, [head]: withNestedManagedKeyDeleted(child as Record<string, unknown>, dottedKey.slice(dot + 1)) };
+}
 
 /**
  * Normalize a parsed managed-settings object (from the server `managed_settings` API, a file on
@@ -282,16 +431,17 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn?: (msg: string) => void): ManagedSettingsData {
 	// Spread + delete (not for..in + assignment) so the scalar remainder keeps exact `{ ...rest }`
 	// semantics: it never triggers the inherited `__proto__` setter for a source-sent own
-	// `__proto__` key, matching a destructuring rest.
-	const scalarRest: Record<string, unknown> = { ...parsed };
+	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
+	// `telemetry.resourceAttributes`), so removal clones only the touched path.
+	let scalarRest: Record<string, unknown> = { ...parsed };
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
-		delete scalarRest[setting.key];
+		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
 
 	const result: Record<string, ManagedSettingValue> = { ...flattenManagedSettings(scalarRest) };
 
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
-		const encoded = setting.encode(parsed[setting.key], onWarn);
+		const encoded = setting.encode(readNestedManagedKey(parsed, setting.key), onWarn);
 		if (encoded !== undefined) {
 			result[setting.key] = JSON.stringify(encoded);
 		}

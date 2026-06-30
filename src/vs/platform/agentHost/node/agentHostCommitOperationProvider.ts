@@ -32,8 +32,12 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	getOperations({ changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
 		if ((gitState?.uncommittedChanges ?? 0) <= 0) {
+			return undefined;
+		}
+
+		if (!gitHubState?.pullRequestUrl && changesetKind !== 'uncommitted') {
 			return undefined;
 		}
 

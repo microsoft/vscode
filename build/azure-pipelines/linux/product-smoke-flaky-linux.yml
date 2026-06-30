@@ -1,0 +1,76 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: iterations
+    type: object
+
+jobs:
+  - job: LinuxSmokeFlaky
+    displayName: Linux (Electron)
+    timeoutInMinutes: 300
+    variables:
+      DISPLAY: ":10"
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/crashes
+          artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+          displayName: Publish Crash Reports
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/logs
+          artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+          displayName: Publish Log Files
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+    steps:
+      # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
+      # compile template builds the client/server but skips compiling the test
+      # suites and skips the unit/integration/smoke test template entirely — we
+      # run only the smoke tests below, nothing else.
+      - template: ./steps/product-build-linux-compile.yml@self
+        parameters:
+          VSCODE_ARCH: x64
+          VSCODE_CIBUILD: true
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+
+      - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+        env:
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+          AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+        displayName: Download Electron and Playwright
+        retryCountOnTaskFailure: 3
+
+      - script: |
+          set -e
+          APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+          ELECTRON_ROOT=.build/electron
+          sudo chown root $APP_ROOT/chrome-sandbox
+          sudo chown root $ELECTRON_ROOT/chrome-sandbox
+          sudo chmod 4755 $APP_ROOT/chrome-sandbox
+          sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+        displayName: Change setuid helper binary permission
+
+      # The compile template only compiles the smoke suite when a test flag is
+      # set; since we pass none, compile it explicitly here.
+      - script: npm run compile --prefix test/smoke
+        displayName: Compile smoke tests
+
+      # Run the Electron smoke test once per iteration. continueOnError lets every
+      # iteration run even if some fail, and gives each run its own timeline record
+      # so the SmokeFlaky function can tally passes vs. failures.
+      - ${{ each i in parameters.iterations }}:
+        - script: |
+            set -e
+            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+          env:
+            TMPDIR: $(Agent.TempDirectory)
+          displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+          continueOnError: true
+          timeoutInMinutes: 20

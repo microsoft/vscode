@@ -121,11 +121,13 @@ steps:
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
-  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
-    displayName: Pull CG NOTICE (background)
+  # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+      displayName: Pull CG NOTICE (background)
 
   - template: ../../common/install-builtin-extensions.yml@self
 
@@ -169,11 +171,14 @@ steps:
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # before gulp packages it (and before any later signing/notarization).
   # Non-fatal: falls back to legacy on any problem.
-  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
-    displayName: Apply CG NOTICE
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+      displayName: Apply CG NOTICE
+      # deemon --attach can exit non-zero if the background daemon died; never fail for that.
+      continueOnError: true
 
   - script: |
       set -e
