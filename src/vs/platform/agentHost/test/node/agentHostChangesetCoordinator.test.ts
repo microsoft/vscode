@@ -68,7 +68,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const operationContributionService: IAgentHostChangesetOperationService = {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
-			getOperations: () => undefined,
+			getOperations: () => [],
 			updateOperations: () => { },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
