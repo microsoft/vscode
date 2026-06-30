@@ -1,6 +1,6 @@
 ---
 name: integrated-browser
-description: Architecture and mental model for VS Code's native integrated browser ("browserView") — a real Chromium browser embedded as an editor tab and driven by agent tools. Use when planning, implementing, fixing, or reviewing work under `src/vs/platform/browserView` or `src/vs/workbench/contrib/browserView`.
+description: Use this when working on the VS Code integrated browser ("browserView") to understand its architecture and mental model. Covers the embedded Chromium browser, its editor tab, navigation, overlay/layout, sessions, and agent browser tools under `src/vs/platform/browserView` and `src/vs/workbench/contrib/browserView`.
 ---
 
 # Integrated Browser Architecture
