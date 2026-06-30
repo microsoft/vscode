@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
+import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('LayoutService - getFloatingOuterEdgeOwners', () => {
