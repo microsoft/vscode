@@ -11,6 +11,16 @@ import type { ChatGenerativeUIInsetPart } from './chatGenerativeUIInsetPart.js';
 type HostToInsetMessage = { type: 'RENDER' | 'STATE_DELTA' | 'DISPOSE';[k: string]: unknown };
 
 /**
+ * Upper bound on the number of `STATE_DELTA` messages recorded per surface
+ * between full `RENDER`s. Deltas accumulate until a `RENDER` (which clears
+ * them) or `DISPOSE` arrives; without a cap a long-lived surface that only ever
+ * receives deltas would grow this list without limit. When exceeded we drop the
+ * oldest deltas (the latest `RENDER` is preserved separately as `initialDoc`,
+ * and the most recent deltas dominate current state).
+ */
+const MAX_RECORDED_DELTAS = 1000;
+
+/**
  * Module-level registry of live generative-UI insets, keyed by `surfaceId`.
  *
  * This is the cross-fork transport target: the extension pushes post-render
@@ -138,6 +148,12 @@ function recordSurfaceMessage(surfaceId: string, msg: HostToInsetMessage): void 
 				surfaceStates.set(surfaceId, state);
 			}
 			state.deltas.push(msg);
+			// Bound unbounded growth: a surface that only ever receives deltas
+			// (no intervening RENDER) would otherwise accumulate forever. Drop the
+			// oldest deltas once over the cap; the most recent ones dominate state.
+			if (state.deltas.length > MAX_RECORDED_DELTAS) {
+				state.deltas.splice(0, state.deltas.length - MAX_RECORDED_DELTAS);
+			}
 			break;
 		}
 		case 'DISPOSE': {
@@ -147,6 +163,9 @@ function recordSurfaceMessage(surfaceId: string, msg: HostToInsetMessage): void 
 	}
 }
 
+/** Recognized host→inset message types accepted by {@link postToSurface}. */
+const VALID_MESSAGE_TYPES = new Set<HostToInsetMessage['type']>(['RENDER', 'STATE_DELTA', 'DISPOSE']);
+
 /**
  * INTERNAL command (underscore = not in the command palette).
  *
@@ -154,8 +173,21 @@ function recordSurfaceMessage(surfaceId: string, msg: HostToInsetMessage): void 
  * after scroll-out can rebuild) and forward it to the live inset (if any) via
  * `postToInset`. No A2UI logic lives here. Forwarding is a no-op if the surface
  * is offscreen/disposed, which is harmless — the recorded state carries it.
+ *
+ * The payload is untrusted (the caller is a separate fork's extension), so the
+ * message shape is validated before it is recorded or forwarded: it must be an
+ * object with a recognized `type`; anything else is ignored.
+ *
+ * NOTE (scoping): this command is keyed by `surfaceId` ALONE — it does not
+ * verify that the caller owns the targeted surface or session. Full owner/
+ * session scoping (e.g. a per-surface capability token issued at render time
+ * and required on every push) is a known follow-up and intentionally out of
+ * scope for this change.
  */
 CommandsRegistry.registerCommand('_a2ui.postToSurface', (_accessor, surfaceId: string, msg: HostToInsetMessage): void => {
+	if (typeof msg !== 'object' || msg === null || !VALID_MESSAGE_TYPES.has((msg as HostToInsetMessage).type)) {
+		return;
+	}
 	recordSurfaceMessage(surfaceId, msg);
 	insets.get(surfaceId)?.postToInset(msg);
 });

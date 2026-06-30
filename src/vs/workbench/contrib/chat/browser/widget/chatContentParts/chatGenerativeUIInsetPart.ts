@@ -5,9 +5,11 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
+import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IWebviewService, WebviewContentPurpose, IWebviewElement } from '../../../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
@@ -40,14 +42,22 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 	) {
 		super();
 		this.domNode = dom.append(context.container, dom.$('div.a2ui-inset'));
+		// First-step accessibility: announce the inset as a labelled group so the
+		// interactive region is discoverable. A fuller accessible-view provider
+		// (exposing the rendered document's semantics to screen readers) is a
+		// known follow-up.
+		this.domNode.setAttribute('role', 'group');
+		this.domNode.setAttribute('aria-label', localize('chat.generativeUIInset.aria', "Interactive generative UI"));
 
 		this._webview = this._register(webviewService.createWebviewElement({
 			// Stable origin keyed by surfaceId (not a fresh uuid): when the chat
 			// list recycles this row, the part is disposed and reconstructed, and
 			// a stable origin lets the new webview reuse the same storage
-			// partition as the prior one for this surface.
-			origin: 'a2ui-' + this._content.surfaceId,
-			title: 'Generative UI',
+			// partition as the prior one for this surface. The surfaceId is
+			// untrusted (cross-fork) and could collide with the raw-string scheme,
+			// so derive a short stable hash rather than embedding it directly.
+			origin: 'a2ui-' + hash(this._content.surfaceId).toString(16),
+			title: localize('chat.generativeUIInset.title', "Generative UI"),
 			options: {
 				purpose: WebviewContentPurpose.ChatOutputItem,
 				enableFindWidget: false,

@@ -232,7 +232,7 @@ export interface IChatGenerativeUIInset {
 	/** Resource URI of the bundled a2ui-runtime asset to load into the inset webview. */
 	runtimeUri: URI;
 	/** Optional initial A2UI document to RENDER once the inset signals READY. */
-	initialDoc?: unknown;
+	initialDoc?: object;
 	version: number;
 }
 
