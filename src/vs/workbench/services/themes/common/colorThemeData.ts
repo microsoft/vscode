@@ -767,7 +767,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			// new JSON color themes format
 			for (const colorId in colors) {
 				const colorVal = colors[colorId];
-				if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) { // ignore colors that are set to to default
+				if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) { // ignore colors that are set to default
 					delete result.colors[colorId];
 				} else if (typeof colorVal === 'string') {
 					result.colors[colorId] = Color.fromHex(colors[colorId]);
