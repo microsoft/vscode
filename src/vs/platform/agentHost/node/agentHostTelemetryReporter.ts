@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -70,6 +72,15 @@ export interface IAgentHostTurnCompletedReport {
 	permissionLevel: string | undefined;
 }
 
+export interface IAgentHostToolInvokedReport {
+	provider: string;
+	session: string;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	invocationTimeMs: number;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
@@ -103,6 +114,22 @@ export class AgentHostTelemetryReporter {
 			result: report.result,
 			model: report.model,
 			permissionLevel: report.permissionLevel,
+		});
+	}
+
+	toolInvoked(report: IAgentHostToolInvokedReport): void {
+		// `chatSessionId` is the full session URI string (matching the value
+		// previously emitted by `CopilotAgentSession`). Action signals are keyed
+		// by their chat-channel URI, so normalize it back to the session URI.
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
+			result: report.result,
+			chatSessionId: session,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
 		});
 	}
 }
