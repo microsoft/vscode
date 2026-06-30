@@ -200,11 +200,6 @@
 .monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
 	margin-bottom: var(--vscode-spacing-size40);
 }
-/* Editor exception for center alignment: panel is within the editor column, so editor
- * still faces it from above (top row) — override the above back to 4px. */
-.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-center > .monaco-grid-view .part.editor {
-	margin-bottom: var(--vscode-spacing-size40);
-}
 
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
 	margin-bottom: calc(var(--vscode-spacing-size40) * 2);

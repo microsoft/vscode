@@ -641,6 +641,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
+	 * Returns true when this sidebar/aux bar is in the same grid row as the editor
+	 * (a sibling), meaning it abuts the panel above or below rather than the window edge.
+	 * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula in
+	 * adjustPartPositions() in layout.ts.
+	 */
+	private isSidebarSiblingToEditor(): boolean {
+		const alignment = this.layoutService.getPanelAlignment();
+		const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
+		return this.partId === Parts.SIDEBAR_PART
+			? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
+			: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
+	}
+
+	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
@@ -667,12 +681,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.layoutService.isVisible(Parts.PANEL_PART) &&
 			this.layoutService.getPanelPosition() === Position.TOP &&
 			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
-			const alignment = this.layoutService.getPanelAlignment();
-			const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
-			const isSiblingToEditor = this.partId === Parts.SIDEBAR_PART
-				? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
-				: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
-			if (isSiblingToEditor) {
+			if (this.isSidebarSiblingToEditor()) {
 				topMargin = margin;
 			}
 		}
@@ -686,14 +695,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		if (isAtWindowBottom && panelAtBottom &&
 			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
-			const alignment = this.layoutService.getPanelAlignment();
-			const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
-			// isSiblingToEditor mirrors adjustPartPositions: sidebar/aux is in the same row as the
-			// editor (and therefore faces the panel below, not the window edge).
-			const isSiblingToEditor = this.partId === Parts.SIDEBAR_PART
-				? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
-				: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
-			if (isSiblingToEditor) {
+			if (this.isSidebarSiblingToEditor()) {
 				isAtWindowBottom = false;
 			}
 		}
