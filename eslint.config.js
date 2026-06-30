@@ -1577,6 +1577,7 @@ export default defineConfig(
 						'undici',
 						'undici-types',
 						'url',
+						'module',
 						'util',
 						'vscode-regexpp',
 						'vscode-textmate',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
@@ -239,10 +240,7 @@ function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'f
 
 async function startEchoMockLlmServer(): Promise<IMockLlmServerHandle> {
 	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
-	const nodeRequire = (globalThis as typeof globalThis & { require?: NodeRequire }).require;
-	if (!nodeRequire) {
-		throw new Error('Node require is unavailable while starting the mock LLM server');
-	}
+	const nodeRequire = createRequire(import.meta.url);
 	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
 	mockModule.registerScenario('text-only', {
 		type: 'multi-turn',
