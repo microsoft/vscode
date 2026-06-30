@@ -146,6 +146,10 @@ export class ExplorerService implements IExplorerService {
 		return this.model.roots;
 	}
 
+	get customOrder(): String[] {
+		return this.config.customOrder;
+	}
+
 	get sortOrderConfiguration(): ISortOrderConfiguration {
 		return {
 			sortOrder: this.config.sortOrder,
