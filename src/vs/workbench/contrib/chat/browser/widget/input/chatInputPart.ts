@@ -89,6 +89,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
+import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { chatSessionResourceToId, getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -213,9 +214,9 @@ export interface IChatWidgetLocationInfo {
 const emptyInputState = observableMemento<IChatModelInputState | undefined>({
 	defaultValue: undefined,
 	key: 'chat.untitledInputState',
-	toStorage: JSON.stringify,
+	toStorage: serializeUntitledInputState,
 	fromStorage(value) {
-		const obj = JSON.parse(value) as IChatModelInputState;
+		const obj = deserializeUntitledInputState(value);
 		if (obj.selectedModel && !obj.selectedModel.metadata.isDefaultForLocation) {
 			// Migrate old `isDefault` to `isDefaultForLocation`
 			type OldILanguageModelChatMetadata = ILanguageModelChatMetadata & { isDefault?: boolean };
@@ -226,6 +227,13 @@ const emptyInputState = observableMemento<IChatModelInputState | undefined>({
 		}
 		return obj;
 	},
+});
+
+const emptyInputAttachments = observableMemento<readonly IChatRequestVariableEntry[]>({
+	defaultValue: [],
+	key: 'chat.untitledInputAttachments',
+	toStorage: serializeUntitledInputAttachments,
+	fromStorage: deserializeUntitledInputAttachments,
 });
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -564,6 +572,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
 
 	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
+	private _emptyInputAttachments: ObservableMemento<readonly IChatRequestVariableEntry[]>;
 	private _chatSessionIsEmpty = false;
 	/**
 	 * Whether the user has explicitly picked a model for the current session
@@ -628,6 +637,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		}, 150));
 		this._emptyInputState = this._register(emptyInputState(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
+		this._emptyInputAttachments = this._register(emptyInputAttachments(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
@@ -679,7 +689,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
-		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
+		this._register(this._attachmentModel.onDidChange(() => {
+			if (this._chatSessionIsEmpty) {
+				this._emptyInputAttachments.set(this._attachmentModel.attachments, undefined);
+			}
+			this._syncInputStateToModel();
+		}));
 		// Capture model-configuration changes into the draft input state immediately,
 		// mirroring how a model selection is synced in `setCurrentLanguageModel`. Without
 		// this, a config-only change would not reach the draft state until some other
@@ -1294,6 +1309,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._userExplicitlySelectedModel = false;
 
 		if (chatSessionIsEmpty) {
+			const persistedState = model.state.get() ? undefined : this._getPersistedEmptyInputState();
+			if (persistedState) {
+				model.setState(persistedState);
+				this._syncFromModel(persistedState, forSessionResource);
+			}
 			logChangesToStateModel(this._inputModel, `(1) setting empty model state for ${forSessionResource.toString()}`, undefined, undefined, this.logService);
 			this._setEmptyModelState();
 
@@ -1326,33 +1346,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			let state = model.state.read(reader);
 			let message = `syncing from model for ${forSessionResource.toString()} in ${this._currentSessionKey}`;
 			if (!state && this._chatSessionIsEmpty) {
-				state = this._emptyInputState.read(undefined);
+				state = this._getPersistedEmptyInputState();
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
-				// A configured default model (e.g. set by enterprise policy via
-				// `chat.defaultModel`) starts every NEW conversation and
-				// must win over the remembered empty-input draft model. `initSelectedModel`
-				// only re-runs at construction and on session-type changes, so plain local
-				// sessions (whose type never changes) would otherwise keep the draft model.
-				// This override only applies while seeding from the draft — once the user
-				// switches the model, `model.state` is set and this branch is skipped, so
-				// the in-conversation selection is preserved.
-				if (state && this.getConfiguredModelValue()) {
-					const configuredModel = this.getConfiguredDefaultModel(this.getModels());
-					if (configuredModel) {
-						if (configuredModel.identifier !== state.selectedModel?.identifier) {
-							state = { ...state, selectedModel: configuredModel, modelConfiguration: undefined };
-						}
-					} else if (state.selectedModel) {
-						// A configured default is set but its model is not registered yet
-						// (e.g. the Copilot extension is still fetching its model list, so
-						// the synthetic "Auto" model is not in the pool). Drop the remembered
-						// draft model so `_syncFromModel` is a no-op rather than applying the
-						// draft and clearing the configured-default wait set up in
-						// `initSelectedModel`. The wait then applies the configured default
-						// once the model list settles.
-						state = { ...state, selectedModel: undefined, modelConfiguration: undefined };
-					}
-				}
 			}
 			// Detect autorun firing for a session that is no longer the widget's
 			// active session - indicates a late/stale model.state.read() landed for
@@ -1377,6 +1372,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			this._syncFromModel(state, forSessionResource);
 		}));
+	}
+
+	private _getPersistedEmptyInputState(): IChatModelInputState | undefined {
+		let state = this._emptyInputState.read(undefined);
+		if (!state) {
+			return undefined;
+		}
+
+		const persistedAttachments = this._emptyInputAttachments.read(undefined);
+		state = {
+			...state,
+			attachments: persistedAttachments.length > 0 ? persistedAttachments : state.attachments,
+		};
+
+		// A configured default model starts every new conversation and wins over the remembered draft model.
+		if (this.getConfiguredModelValue()) {
+			const configuredModel = this.getConfiguredDefaultModel(this.getModels());
+			if (configuredModel) {
+				if (configuredModel.identifier !== state.selectedModel?.identifier) {
+					state = { ...state, selectedModel: configuredModel, modelConfiguration: undefined };
+				}
+			} else if (state.selectedModel) {
+				// Keep the configured-default wait active until its model is registered.
+				state = { ...state, selectedModel: undefined, modelConfiguration: undefined };
+			}
+		}
+
+		return state;
 	}
 
 	private _setEmptyModelState() {
@@ -2171,6 +2194,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
 			this._emptyInputState.set(undefined, undefined);
+			this._emptyInputAttachments.set([], undefined);
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
@@ -3525,7 +3549,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
-			const options = { shouldFocusClearButton, supportsDeletion: true };
+			const options = { shouldFocusClearButton, supportsDeletion: true, isCurrentInput: true };
 			const lm = this._currentLanguageModel.get();
 			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
 				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
