@@ -32,9 +32,10 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatDebugService, type IChatDebugEvent } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -78,6 +79,7 @@ import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../.
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -469,7 +471,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -516,6 +518,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			chatSessionContributions.push(contribution);
 			return toDisposable(() => { });
 		},
+		...chatSessionsServiceOverride,
+	});
+	instantiationService.stub(IChatDebugService, {
+		getEvents: () => [],
+		invokeProviders: async () => { },
+		resolveEvent: async () => undefined,
+		...chatDebugServiceOverride,
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
@@ -667,8 +676,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, undefined, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1142,6 +1151,53 @@ suite('AgentHostChatContribution', () => {
 				language: undefined,
 				pastedLines: undefined,
 				fileName: undefined,
+			}]);
+		});
+
+		test('restores session reference simple attachments as session reference variable entries', () => {
+			const sessionResource = URI.from({ scheme: 'copilotcli', path: '/session-123' });
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Review session',
+				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
+				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionResource),
+				_meta: {
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						sessionID: sessionResource.toString(),
+					},
+				},
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				id: variable.id,
+				name: variable.name,
+				value: URI.isUri(variable.value) ? variable.value.toString() : variable.value,
+			})), [{
+				kind: 'sessionReference',
+				id: sessionResource.toString(),
+				name: 'Review session',
+				value: sessionResource.toString(),
+			}]);
+		});
+
+		test('session reference simple attachments without metadata restore as generic variable entries', () => {
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Simple,
+				label: 'Review session',
+				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
+				modelRepresentation: 'session text',
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				name: variable.name,
+				value: variable.value,
+			})), [{
+				kind: 'generic',
+				name: 'Review session',
+				value: 'session text',
 			}]);
 		});
 	});
@@ -4322,6 +4378,198 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/test.ts').toString(), label: 'test.ts', displayKind: 'document', _meta: { provider: 'fs', score: 0.42 } },
 			]);
+		}));
+
+		test('session reference variable becomes a simple attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionReference = URI.from({ scheme: 'copilotcli', path: '/session-123' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue #review',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'sessionReference',
+							id: sessionReference.toString(),
+							name: 'Review session',
+							value: sessionReference,
+							range: { start: 9, endExclusive: 16 },
+							_meta: { source: 'test' },
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Review session',
+				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionReference),
+				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
+				range: {
+					start: { line: 0, character: 9 },
+					end: { line: 0, character: 16 },
+				},
+				_meta: {
+					source: 'test',
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionReference.toString(),
+						sessionID: sessionReference.toString(),
+					},
+				},
+			}]);
+		}));
+
+		test('session reference attachment includes hydrated session transcript when available', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const sessionReference = URI.from({ scheme: 'agent-host-copilotcli', path: '/referenced-session' });
+			const referencedSession = upcastPartial<IChatSession>({
+				sessionResource: sessionReference,
+				onWillDispose: Event.None,
+				history: [
+					{
+						type: 'request',
+						prompt: 'What did we decide about the terminal output?',
+						participant: 'agent-host-copilot',
+					},
+					{
+						type: 'response',
+						participant: 'agent-host-copilot',
+						parts: [{
+							kind: 'markdownContent',
+							content: { value: 'We decided to preserve the rendered output and avoid duplicate stale chunks.' },
+						}],
+					},
+				],
+				dispose: () => { },
+			});
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				chatSessionsServiceOverride: {
+					getOrCreateChatSession: async resource => {
+						assert.strictEqual(resource.toString(), sessionReference.toString());
+						return referencedSession;
+					},
+				},
+			});
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue #review',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'sessionReference',
+							id: sessionReference.toString(),
+							name: 'Review session',
+							value: sessionReference,
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const attachment = turnAction.message.attachments?.[0];
+			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
+			assert.strictEqual(attachment.label, 'Review session');
+			assert.strictEqual(attachment.displayKind, AgentHostSessionReferenceAttachmentDisplayKind);
+			assert.ok(attachment.modelRepresentation?.includes('Attached session transcript:'));
+			assert.ok(attachment.modelRepresentation?.includes('User:\nWhat did we decide about the terminal output?'));
+			assert.ok(attachment.modelRepresentation?.includes('Assistant:\nWe decided to preserve the rendered output and avoid duplicate stale chunks.'));
+		}));
+
+		test('session reference attachment falls back to debug events when chat history is empty', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const sessionReference = URI.from({ scheme: 'agent-host-copilotcli', path: '/debug-session' });
+			const referencedSession = upcastPartial<IChatSession>({
+				sessionResource: sessionReference,
+				onWillDispose: Event.None,
+				history: [],
+				dispose: () => { },
+			});
+			let invoked = false;
+			const debugEvents: IChatDebugEvent[] = [
+				{
+					kind: 'userMessage',
+					id: 'user-1',
+					sessionResource: sessionReference,
+					created: new Date(0),
+					message: 'Fastest car in the world?',
+					sections: [],
+				},
+				{
+					kind: 'modelTurn',
+					id: 'assistant-1',
+					sessionResource: sessionReference,
+					created: new Date(1),
+					requestName: 'copilotcli',
+				},
+			];
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				chatSessionsServiceOverride: {
+					getOrCreateChatSession: async resource => {
+						assert.strictEqual(resource.toString(), sessionReference.toString());
+						return referencedSession;
+					},
+				},
+				chatDebugServiceOverride: {
+					getEvents: resource => invoked && resource?.toString() === sessionReference.toString() ? debugEvents : [],
+					invokeProviders: async resource => {
+						assert.strictEqual(resource.toString(), sessionReference.toString());
+						invoked = true;
+					},
+					resolveEvent: async eventId => eventId === 'assistant-1'
+						? {
+							kind: 'modelTurn',
+							requestName: 'copilotcli',
+							sections: [{ name: 'Response', content: 'The session answered that the current production-car record belongs to the Koenigsegg Jesko Absolut.' }],
+						}
+						: undefined,
+				},
+			});
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue #review',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'sessionReference',
+							id: sessionReference.toString(),
+							name: 'Review session',
+							value: sessionReference,
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const attachment = turnAction.message.attachments?.[0];
+			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
+			assert.ok(attachment.modelRepresentation?.includes('User:\nFastest car in the world?'));
+			assert.ok(attachment.modelRepresentation?.includes('Assistant:\nThe session answered that the current production-car record belongs to the Koenigsegg Jesko Absolut.'));
+		}));
+
+		test('malformed session reference variable is dropped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue this',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'sessionReference', id: 'bad-session', name: 'Bad session', value: 'not a uri' as never }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('agent feedback variable becomes a simple attachment when no annotations channel is known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

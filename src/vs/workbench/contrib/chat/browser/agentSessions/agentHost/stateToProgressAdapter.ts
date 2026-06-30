@@ -28,6 +28,7 @@ import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, isObject, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
+import { restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -528,6 +529,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (attachment.type === MessageAttachmentKind.Simple) {
+		const sessionReferenceEntry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
+		if (sessionReferenceEntry) {
+			return sessionReferenceEntry;
+		}
+	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
 		displayKind: attachment.displayKind,
