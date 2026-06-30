@@ -6,7 +6,7 @@
 import { IntervalTimer, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { stringHash } from '../../../../base/common/hash.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -193,24 +193,48 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 
 	static readonly ID = 'workbench.contrib.automationScheduler';
 
+	private readonly _core = this._register(new MutableDisposable<AutomationSchedulerCore>());
+
 	constructor(
-		@IAutomationService automationService: IAutomationService,
-		@IAutomationRunner runner: IAutomationRunner,
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAutomationService private readonly _automationService: IAutomationService,
+		@IAutomationRunner private readonly _runner: IAutomationRunner,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(new AutomationSchedulerCore(automationService, runner, storageService, logService, {
-			isFeatureEnabled: () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
+		if (this._isEnabled()) {
+			this._createCore();
+		}
+		this._register(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				if (this._isEnabled()) {
+					this._createCore();
+				} else {
+					this._core.clear();
+				}
+			}
+		}));
+	}
+
+	private _isEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	}
+
+	private _createCore(): void {
+		if (this._core.value) {
+			return;
+		}
+		this._core.value = new AutomationSchedulerCore(this._automationService, this._runner, this._storageService, this._logService, {
+			isFeatureEnabled: () => this._isEnabled(),
 			getRunTimeoutMs: () => {
-				const minutes = configurationService.getValue<number>(CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING);
+				const minutes = this._configurationService.getValue<number>(CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING);
 				const sane = typeof minutes === 'number' && Number.isFinite(minutes) && minutes >= 1
 					? minutes
 					: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES;
 				return sane * 60_000;
 			},
-		}));
+		});
 	}
 }
 
