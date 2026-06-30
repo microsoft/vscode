@@ -28,10 +28,10 @@
 		// Number of open→work→reset cycles
 		"iterations": 3,
 
-		// Max acceptable total residual heap growth in MB.
-		// Each iteration cycles through ALL scenarios (text, code blocks,
-		// tool calls, thinking, terminal, multi-turn, etc.), so this needs
-		// to account for V8 internal caches that aren't immediately reclaimed.
+		// Max acceptable steady-state residual heap growth in MB, measured
+		// AFTER the first (warm-up) iteration. The first iteration's growth is
+		// dominated by one-time V8/JIT/module caches that aren't reclaimed and
+		// is excluded; a real leak keeps growing every subsequent iteration.
 		"leakThresholdMB": 10
 	}
 }
