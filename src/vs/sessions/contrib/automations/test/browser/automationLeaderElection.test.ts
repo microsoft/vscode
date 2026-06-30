@@ -97,7 +97,7 @@ suite('AutomationLeaderElection', () => {
 		assert.ok(raw, 'tombstone should be present after release');
 		const parsed = JSON.parse(raw!);
 		assert.strictEqual(parsed.instanceId, '');
-		// Any subsequent claim — even at the same wall clock — should
+		// Any subsequent claim, even at the same wall clock, should
 		// succeed without waiting for staleAfterMs.
 		const b = createElection(storage, () => 1_000, 'window-b');
 		assert.strictEqual(b.isLeader.get(), true);

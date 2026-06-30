@@ -67,7 +67,7 @@ suite('AutomationService', () => {
 				name: 'X',
 				prompt: 'p',
 				schedule: dailySchedule(),
-				// Cast to bypass type check — simulates a runtime caller
+				// Cast to bypass type check. Simulates a runtime caller
 				// forgetting the required field.
 				folderUri: undefined as unknown as URI,
 			}),
@@ -187,7 +187,7 @@ suite('AutomationService', () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
-		// Push 60 runs for a (cap is 50) and 5 for b — each automation's
+		// Push 60 runs for a (cap is 50) and 5 for b. Each automation's
 		// history should be bounded independently.
 		for (let i = 0; i < 60; i++) {
 			await service.recordRunStart(a.id, 'manual', 1);
@@ -261,7 +261,7 @@ suite('AutomationService', () => {
 		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, revision: 99, automations: [], runs: [] }), -1, 1);
 
 		// The onDidChangeValue refresh must NOT clear our observables to
-		// empty — we keep displaying what we last knew about.
+		// empty. We keep displaying what we last knew about.
 		assert.strictEqual(service.automations.get().length, 1);
 	});
 

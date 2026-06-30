@@ -99,7 +99,7 @@ export class AutomationSchedulerCore extends Disposable {
 		if (this._store.isDisposed) {
 			return;
 		}
-		// Serialized: only one dispatch at a time — runs execute sequentially by design.
+		// Serialized: only one dispatch at a time. Runs execute sequentially by design.
 		this._pendingRuns = this._pendingRuns.then(task).catch(err => {
 			this.logService.error('[AutomationScheduler] tick failed', err);
 		});
@@ -192,7 +192,7 @@ export class AutomationSchedulerCore extends Disposable {
 	}
 }
 
-// DI wrapper; tests construct AutomationSchedulerCore directly.
+// DI wrapper. Tests construct AutomationSchedulerCore directly.
 export class AutomationScheduler extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.automationScheduler';

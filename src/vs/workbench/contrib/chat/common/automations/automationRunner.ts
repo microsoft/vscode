@@ -19,7 +19,7 @@ export interface IAutomationRunner {
 
 	/**
 	 * Runs `automation` once (skips if another run for it is already in flight).
-	 * Never throws — failures are recorded on the run row in {@link IAutomationService}.
+	 * Never throws. Failures are recorded on the run row in {@link IAutomationService}.
 	 */
 	runOnce(
 		automation: IAutomation,

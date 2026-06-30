@@ -59,7 +59,7 @@ export interface IUpdateAutomationRunOptions {
 
 /**
  * Persistent store for automations and their run history, and the single
- * mutation point — scheduler, runner, and UI all flow through it to keep
+ * mutation point. Scheduler, runner, and UI all flow through it to keep
  * cross-window propagation, persistence, and observables consistent.
  */
 export interface IAutomationService {

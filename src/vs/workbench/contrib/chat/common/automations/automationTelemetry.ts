@@ -12,7 +12,7 @@ import { AutomationInterval, AutomationRunTrigger, IAutomation } from './automat
  * Events capture cadence (`intervalKind`, `trigger`) and low-cardinality
  * enum values (`permissionLevel`, `isolationMode`) only.
  * Prompt text, automation names, folder URIs, and model identifiers are
- * never sent — they are user content / workspace-specific information.
+ * never sent. They are user content / workspace-specific information.
  */
 
 type AutomationCreateEvent = {

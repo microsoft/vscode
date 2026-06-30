@@ -26,7 +26,7 @@ import { AutomationService } from './automationService.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 
-// Stub runner for Layer 1 — the real implementation (Layer 2) replaces this registration.
+// Stub runner for Layer 1. The real implementation (Layer 2) replaces this registration.
 
 class StubAutomationRunner implements IAutomationRunner {
 	declare readonly _serviceBrand: undefined;

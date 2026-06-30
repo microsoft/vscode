@@ -14,13 +14,13 @@ const LEADER_KEY = 'chat.automations.leader';
 
 export const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 
-// 3× heartbeat interval — tolerates one missed write before failover.
+// 3x heartbeat interval. Tolerates one missed write before failover.
 export const DEFAULT_STALE_AFTER_MS = 90_000;
 
 interface ILeaderRecord {
 	readonly instanceId: string;
 	readonly heartbeatAt: number;
-	// Per-write nonce to detect TOCTOU races during leader claims.
+	// Per-write nonce to detect races during leader claims.
 	readonly nonce: string;
 }
 
@@ -129,7 +129,7 @@ export class AutomationLeaderElection extends Disposable {
 			if (typeof parsed?.instanceId !== 'string' || typeof parsed?.heartbeatAt !== 'number') {
 				return undefined;
 			}
-			// `nonce` is optional in older persisted records; coerce.
+			// `nonce` is optional in older persisted records. Coerce to empty string.
 			return { instanceId: parsed.instanceId, heartbeatAt: parsed.heartbeatAt, nonce: typeof parsed.nonce === 'string' ? parsed.nonce : '' };
 		} catch {
 			return undefined;

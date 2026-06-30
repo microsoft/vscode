@@ -6,7 +6,7 @@
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 /**
- * Gates the entire Automations feature — sidebar entry, editor section,
+ * Gates the entire Automations feature: sidebar entry, editor section,
  * session composer option, and scheduled execution. Default `false`.
  */
 export const CHAT_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.enabled';

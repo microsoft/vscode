@@ -264,7 +264,7 @@ suite('AutomationSchedulerCore', () => {
 		enabled = true;
 		await core.tickForTesting();
 
-		// The in-flight run must still be running — the feature toggle
+		// The in-flight run must still be running. The feature toggle
 		// must NOT have re-triggered crash recovery.
 		const after = service.runs.get().find(r => r.id === inFlight.id);
 		assert.strictEqual(after?.status, 'running', 'feature-toggle off/on must not fail in-flight runs');

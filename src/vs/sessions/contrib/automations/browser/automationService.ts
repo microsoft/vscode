@@ -56,7 +56,7 @@ interface ISerializedAutomation {
 
 interface ISerializedLedger {
 	readonly schemaVersion: number;
-	// Optimistic-concurrency counter; 0 for legacy blobs without this field.
+	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
 	readonly runs: readonly IAutomationRun[];
@@ -82,7 +82,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
-	// Set when on-disk schema is newer than this build; prevents writes that would destroy data.
+	// Set when on-disk schema is newer than this build. Prevents writes that would destroy data.
 	private _unsupportedSchema = false;
 
 	private _lastSeenRevision = 0;
