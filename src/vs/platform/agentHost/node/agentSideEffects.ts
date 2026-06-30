@@ -49,6 +49,7 @@ import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -123,6 +124,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSubagentSignals = new NKeyMap<IPendingSubagentSignal[], [ProtocolURI, string]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
+	private readonly _toolCallTracker: AgentHostToolCallTracker;
 	private readonly _titleController: AgentHostSessionTitleController;
 
 	constructor(
@@ -137,6 +139,7 @@ export class AgentSideEffects extends Disposable {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
+		this._toolCallTracker = new AgentHostToolCallTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
@@ -414,6 +417,11 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
+			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
+			// Only the start action carries the tool name and contributor, so the
+			// source kind must be captured here rather than on completion. The
+			// provider comes from the agent that emitted the signal.
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		}
 
 		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -449,6 +457,11 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallComplete) {
+			// Emit `languageModelToolInvoked` telemetry for the completed tool
+			// call. `action.result` carries `success`/`error.code` even after the
+			// subagent-content merge above (which only touches `result.content`).
+			this._toolCallTracker.toolCallCompleted(sessionKey, action.toolCallId, action.result);
+
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
 			// before the subagent was created). The actual subagent session
@@ -463,15 +476,18 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatTurnComplete) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'success');
+			this._toolCallTracker.clearSession(sessionKey);
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
 		}
 
 		if (action.type === ActionType.ChatTurnCancelled) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
+			this._toolCallTracker.clearSession(sessionKey);
 		}
 
 		if (action.type === ActionType.ChatError) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
+			this._toolCallTracker.clearSession(sessionKey);
 		}
 	}
 
@@ -635,6 +651,7 @@ export class AgentSideEffects extends Disposable {
 				});
 				this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'cancelled');
 			}
+			this._toolCallTracker.clearSession(subagent.chatUri);
 		}
 		this._subagentChats.deleteAll(parentChatURI);
 		// Drop any buffered events targeted at subagents that never started.
@@ -678,6 +695,7 @@ export class AgentSideEffects extends Disposable {
 		for (const subagent of this._subagentChats.values()) {
 			if (subagent.sessionUri === parentSession) {
 				this._stateManager.removeChat(subagent.sessionUri, subagent.chatUri);
+				this._toolCallTracker.clearSession(subagent.chatUri);
 				parentChatURIs.add(subagent.parentChatUri);
 			}
 		}
@@ -844,6 +862,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
 				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
+				this._toolCallTracker.clearSession(channel);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
@@ -1220,12 +1239,14 @@ export class AgentSideEffects extends Disposable {
 				error: buildSendFailedError(err),
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._toolCallTracker.clearSession(turnChannel);
 		});
 	}
 
 
 	override dispose(): void {
 		this._toolCallAgents.clear();
+		this._toolCallTracker.clear();
 		super.dispose();
 	}
 }

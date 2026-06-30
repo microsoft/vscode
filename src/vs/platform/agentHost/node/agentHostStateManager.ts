@@ -625,7 +625,7 @@ export class AgentHostStateManager extends Disposable {
 	 * notification because the session is already known to clients via
 	 * `listSessions`.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -638,7 +638,7 @@ export class AgentHostStateManager extends Disposable {
 			lifecycle: SessionLifecycle.Ready,
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary));
-		this._ensureDefaultChat(key, summary, turns, options?.draft);
+		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
 		this._summaryNotifier.announce(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
@@ -658,13 +658,11 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
-		// The default chat starts with an empty title so it inherits the session
-		// title for display. It only gets its own title when renamed independently
-		// (via a per-chat `SessionChatUpdated`). This keeps the session title and
-		// the default chat tab title independent.
-		const chatSummary: ChatSummary = { ...createDefaultChatSummary(summary, chatUri), title: '' };
+		// Empty title means "inherit the session title"; a persisted independent
+		// rename (`defaultChatTitle`) is seeded back here so it survives restore.
+		const chatSummary: ChatSummary = { ...createDefaultChatSummary(summary, chatUri), title: defaultChatTitle ?? '' };
 		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: turns ?? [], draft });
 		const entry = this._sessionStates.get(sessionKey);
 		if (entry) {

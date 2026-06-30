@@ -22,7 +22,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
@@ -34,6 +34,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
+import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
@@ -267,6 +268,29 @@ export class ClaudeAgentSession extends Disposable {
 		};
 	}
 
+	/**
+	 * Stamps the MCP {@link ToolCallContributor} onto a `ChatToolCallStart` for
+	 * an external `mcp__<server>__<tool>` call, resolved from this session's
+	 * cached customization snapshot. Owned here because the session owns the
+	 * customization data; the stream mapper stays free of it. (The in-process
+	 * `mcp__client__` server already carries a Client contributor from the mapper.)
+	 */
+	private _enrichSignalWithMcpContributor(signal: AgentSignal): AgentSignal {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatToolCallStart || signal.action.contributor !== undefined) {
+			return signal;
+		}
+		const toolName = signal.action.toolName;
+		if (!toolName.startsWith('mcp__')) {
+			return signal;
+		}
+		const serverName = toolName.split('__')[1];
+		const customizationId = serverName ? findMcpChildId(this._lastCustomizations, serverName) : undefined;
+		if (customizationId === undefined) {
+			return signal;
+		}
+		return { ...signal, action: { ...signal.action, contributor: { kind: ToolCallContributorKind.MCP, customizationId } } };
+	}
+
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
@@ -433,7 +457,7 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
@@ -932,6 +956,9 @@ export class ClaudeAgentSession extends Disposable {
 		return this.clientCustomizationsDiff.model.state.get().synced;
 	}
 
+	/** Snapshot of the last {@link getSessionCustomizations} result, read by {@link _enrichSignalWithMcpContributor}. */
+	private _lastCustomizations: readonly Customization[] = [];
+
 	/**
 	 * Project the union of (a) **client-pushed** customizations and
 	 * (b) the **server-side** (SDK-discovered) view (commands / agents
@@ -983,6 +1010,9 @@ export class ClaudeAgentSession extends Disposable {
 			enabled: enablement.get(item.customization.id) ?? item.customization.enabled,
 		}));
 		result.push(...discoveredCustomizations);
+		// Cache for the MCP-contributor signal enrichment (see
+		// {@link _enrichSignalWithMcpContributor}).
+		this._lastCustomizations = result;
 		return result;
 	}
 

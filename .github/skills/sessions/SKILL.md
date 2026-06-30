@@ -61,6 +61,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 Whenever the user flags a wrong pattern, rejects an approach, or gives design/rules feedback, **automatically add it** as a concise pitfall/learning to this `Common Pitfalls` section (or the most relevant spec doc) in the same change — without being asked again. Keep each entry 1–3 sentences: the anti-pattern, why it is wrong, and the preferred pattern.
 
+- **Default/main chat title persistence differs per provider — don't unify them**: For the **agent host**, the default (main) chat title is independent of the session title (`AgentHostSessionAdapter._defaultChatTitleOverride`, persisted on the host as `customChatTitle:<defaultChatUri>`); it must be seeded back on restore via `restoreSession`/`_ensureDefaultChat` (mirroring `_restorePeerChats`), or it reverts to the session title after a process restart / idle eviction. For the **local chat sessions provider** (`localChatSessionsProvider`), the primary chat and the session intentionally **share one `_title` observable**, so renaming the first/main chat updates the session title live — this is by design; do not "fix" it to be independent. Only additional (non-primary) local chats have their own title.
+
 ## Validating Changes
 
 You **must** run these checks before declaring work complete:
