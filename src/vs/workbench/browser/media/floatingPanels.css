@@ -48,6 +48,21 @@
 	margin-top: 0;
 }
 
+/*
+ * When panel is at TOP and sidebars are in the same grid row as the editor (sibling),
+ * give them a top margin matching the editor's gap from the panel. Alignment determines
+ * which bars are sibling — mirrors adjustPartPositions() in layout.ts.
+ * Uses `.panel-alignment-*` and `.left`/`.right` classes set in layout.ts.
+ */
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.sidebar,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.sidebar.left,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.sidebar.right,
+.monaco-workbench.floating-panels.panel-position-top:not(.nopanel).panel-alignment-right .part.auxiliarybar.right {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 /* Panel at top position: also flush with the title bar (no top margin), like the side bars.
  * The panel element itself carries the position class (e.g. `.top`). */
 .monaco-workbench.floating-panels .part.panel.top,

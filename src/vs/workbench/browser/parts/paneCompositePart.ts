@@ -657,9 +657,25 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
 		// Only the bottom-positioned panel needs a top margin (the gap between the editor and the
-		// panel card). Side bars and panels in all other positions are flush with the title bar.
+		// panel card). Side bars and panels in all other positions are flush with the title bar —
+		// unless a sidebar is in the same grid row as the editor with panel at TOP, in which case
+		// it needs a top margin matching the editor's gap (mirrors adjustPartPositions() logic).
 		const isBottomPanel = this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		const topMargin = isBottomPanel ? margin : 0;
+		let topMargin = isBottomPanel ? margin : 0;
+
+		if (topMargin === 0 &&
+			this.layoutService.isVisible(Parts.PANEL_PART) &&
+			this.layoutService.getPanelPosition() === Position.TOP &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
+			const alignment = this.layoutService.getPanelAlignment();
+			const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
+			const isSiblingToEditor = this.partId === Parts.SIDEBAR_PART
+				? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
+				: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
+			if (isSiblingToEditor) {
+				topMargin = margin;
+			}
+		}
 		// When status bar is hidden, cards at the window bottom edge get a doubled bottom margin.
 		// Whether a sidebar/aux bar faces the window edge or a bottom panel row depends on panel
 		// alignment — this mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor logic
