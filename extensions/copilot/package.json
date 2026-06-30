@@ -4351,6 +4351,24 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
+            "type": "number",
+            "default": 20,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.maxResultsCap": {
+            "type": "number",
+            "default": 200,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
