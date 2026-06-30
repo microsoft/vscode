@@ -102,8 +102,6 @@ export interface AgentCapabilities {
 	supportsMultipleChats?: boolean;
 	/** Agent can fork a chat from a turn. */
 	supportsFork?: boolean;
-	/** Agent can spawn and track sub-agent "team" conversations. */
-	supportsTeams?: boolean;
 }
 
 /**

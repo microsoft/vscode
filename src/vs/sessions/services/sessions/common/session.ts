@@ -442,12 +442,6 @@ export interface ISessionCapabilities {
 	 */
 	readonly supportsFork?: boolean;
 	/**
-	 * Whether this session's agent can spawn and track sub-agent "team"
-	 * conversations. UI that surfaces sub-agent affordances gates on this flag
-	 * rather than on the provider id. Defaults to falsy when omitted.
-	 */
-	readonly supportsTeams?: boolean;
-	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates
 	 * editing on this flag rather than on the provider id, so that rename is

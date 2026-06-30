@@ -316,7 +316,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return {
 			supportsMultipleChats: agentCapabilities?.supportsMultipleChats ?? false,
 			supportsFork: agentCapabilities?.supportsFork ?? false,
-			supportsTeams: agentCapabilities?.supportsTeams ?? false,
 			supportsRename: true,
 			supportsDelete: true,
 		};

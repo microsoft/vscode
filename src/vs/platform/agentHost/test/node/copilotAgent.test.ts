@@ -571,7 +571,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in a dedicated process',
-				capabilities: { supportsMultipleChats: true, supportsFork: true, supportsTeams: true },
+				capabilities: { supportsMultipleChats: true, supportsFork: true },
 			});
 		} finally {
 			await disposeAgent(agent);

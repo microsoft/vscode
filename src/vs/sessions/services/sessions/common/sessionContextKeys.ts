@@ -18,7 +18,6 @@ import {
 	SessionSupportsDeleteContext,
 	SessionSupportsMultipleChatsContext,
 	SessionSupportsForkContext,
-	SessionSupportsTeamsContext,
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
@@ -41,7 +40,6 @@ interface ISessionContextKeys {
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
 	readonly supportsFork: IContextKey<boolean>;
-	readonly supportsTeams: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
@@ -76,7 +74,6 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
 			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
-			supportsTeams: SessionSupportsTeamsContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
@@ -117,7 +114,6 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
 	keys.supportsMultipleChats.set(session?.capabilities.supportsMultipleChats ?? false);
 	keys.supportsFork.set(session?.capabilities.supportsFork ?? false);
-	keys.supportsTeams.set(session?.capabilities.supportsTeams ?? false);
 	keys.supportsRename.set(session?.capabilities.supportsRename ?? false);
 	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
 	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
