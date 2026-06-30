@@ -203,7 +203,14 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			await this.disable(policyDisablesUpdates ? DisablementReason.Policy : DisablementReason.ManuallyDisabled);
+			const reason = policyDisablesUpdates ? DisablementReason.Policy : DisablementReason.ManuallyDisabled;
+
+			// Skip if already disabled for this reason, so a repeated write or policy refresh is a no-op.
+			if (this._state.type === StateType.Disabled && this._state.reason === reason) {
+				return;
+			}
+
+			await this.disable(reason);
 			return;
 		}
 

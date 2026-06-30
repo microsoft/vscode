@@ -499,17 +499,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	protected override async cancelUpdate(): Promise<void> {
 		// Abort an in-flight check/download so it never reaches the background installer.
+		const hadInFlightCheck = !!this.checkCancellationTokenSource;
 		this.checkCancellationTokenSource?.dispose(true);
 		this.checkCancellationTokenSource = undefined;
 
-		// Wait for the aborted chain to unwind (releasing the partial file handle), then remove
-		// any partially-downloaded `*.tmp` installer it left behind in the cache.
-		try {
-			await this.checkPromise;
-		} catch {
-			// the chain swallows its own errors; ignore
+		// Only clean up if a check/download was in flight; avoids creating the cache dir when just disabled.
+		if (hadInFlightCheck) {
+			try {
+				await this.checkPromise;
+			} catch {
+				// the chain swallows its own errors; ignore
+			}
+			await this.cleanupTempFiles();
 		}
-		await this.cleanupTempFiles();
 
 		// Tear down any pending (downloaded/applying) update.
 		await this.cancelPendingUpdate();

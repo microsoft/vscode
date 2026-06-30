@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -222,5 +222,23 @@ suite('AbstractUpdateService', () => {
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
 
 		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.NotBuilt });
+	});
+
+	test('redundant update.mode write does not re-disable', async () => {
+		const service = createService('none');
+		await service.whenInitialized;
+		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.ManuallyDisabled });
+
+		const cancelsAfterInit = service.cancelCount;
+		let stateChanges = 0;
+		store.add(service.onStateChange(() => stateChanges++));
+
+		// Re-write the same 'none' value: this affects `update.mode` but does not change the outcome.
+		configurationService.setUserConfiguration('update.mode', 'none');
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+		await timeout(0);
+
+		assert.strictEqual(service.cancelCount, cancelsAfterInit, 'should not cancel again while already disabled');
+		assert.strictEqual(stateChanges, 0, 'should not re-fire the Disabled state');
 	});
 });
