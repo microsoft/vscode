@@ -3762,7 +3762,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		justify-content: center;
 	}
 
-	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning {
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
 		border-color: var(--vscode-notificationsWarningIcon-foreground);
 	}
 
