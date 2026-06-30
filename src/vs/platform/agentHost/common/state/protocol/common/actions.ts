@@ -12,7 +12,7 @@ import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerm
 
 import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction } from '../channels-chat/actions.js';
+import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatActivityChangedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction } from '../channels-chat/actions.js';
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
@@ -51,6 +51,7 @@ export const enum ActionType {
 	ChatTurnComplete = 'chat/turnComplete',
 	ChatTurnCancelled = 'chat/turnCancelled',
 	ChatError = 'chat/error',
+	ChatActivityChanged = 'chat/activityChanged',
 	SessionTitleChanged = 'session/titleChanged',
 	ChatUsage = 'chat/usage',
 	ChatReasoning = 'chat/reasoning',
@@ -176,6 +177,7 @@ export type StateAction =
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction
+	| ChatActivityChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatPendingMessageSetAction

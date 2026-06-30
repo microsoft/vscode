@@ -25,6 +25,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -39,7 +40,6 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter } from '../../browser/baseAgentHostSessionsProvider.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from '../../browser/agentHostChangesetConstants.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -345,6 +345,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
@@ -3230,7 +3231,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 				},
 			}],
 		});
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // let the changeset throttle flush
 
 		const changes = session.changes.get();
 		assert.deepStrictEqual(changes.map(change => {
@@ -3324,7 +3324,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			files.push(makeChangesetFile(i, 0));
 		}
 		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 		let previous = session.changes.get();
 		assert.strictEqual(previous.length, FILE_COUNT, 'every file should surface as a change');
@@ -3333,7 +3332,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			const changedIndex = update % FILE_COUNT;
 			files[changedIndex] = makeChangesetFile(changedIndex, update + 1);
 			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-			await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 			const next = session.changes.get();
 
@@ -3367,7 +3365,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			files.push(makeChangesetFile(i, 0));
 		}
 		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 
 		// Index 0 is never touched; only the last file "streams" updates.
 		const untouchedChangeBefore = session.changes.get()[0];
@@ -3377,61 +3374,10 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		for (let update = 0; update < UPDATE_COUNT; update++) {
 			files[lastIndex] = makeChangesetFile(lastIndex, update + 1);
 			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-			await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the changeset throttle
 			session.changes.get(); // force the derived chain to recompute
 		}
 
 		const untouchedChangeAfter = session.changes.get()[0];
 		assert.strictEqual(untouchedChangeAfter, untouchedChangeBefore, 'an unchanged file must reuse its change object across all updates');
-	}));
-
-	// Performance-regression guard for the changeset update throttle
-	//
-	// While an agent streams edits, the host emits many envelopes per second. Each
-	// envelope fires the subscription's `onDidChange`; without throttling, each one
-	// would drive a full recompute of the `changes` list (and a relayout). The
-	// throttle must collapse a burst that arrives within one window into a single
-	// recompute carrying the final state.
-	//
-	// Reverting the throttle makes the burst recompute the list ~BURST times, so
-	// the `recomputes === 0` assertion (before the window elapses) fails.
-	test('coalesces a burst of changeset envelopes into a single changes recompute', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
-		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-		const session = addAndObserve(provider, 'sess-A');
-		activeSession.set(makeActive('sess-A'), undefined);
-
-		const FILE_COUNT = 20;
-		const BURST = 50;
-		const key = branchChangesKeyFor('sess-A');
-
-		const files: ChangesetState['files'] = [];
-		for (let i = 0; i < FILE_COUNT; i++) {
-			files.push(makeChangesetFile(i, 0));
-		}
-		agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // settle the initial state
-
-		let recomputes = 0;
-		disposables.add(autorun(reader => {
-			session.changes.read(reader);
-			recomputes++;
-		}));
-		recomputes = 0; // ignore the autorun's initial run
-
-		// Fire a burst of single-file updates with NO time passing in between, so
-		// they all land within one throttle window.
-		for (let i = 0; i < BURST; i++) {
-			files[0] = makeChangesetFile(0, i + 1);
-			agentHost.setChangesetState(key, { status: ChangesetStatus.Ready, files: [...files] });
-		}
-		assert.strictEqual(recomputes, 0, `a burst of ${BURST} envelopes within one window must not recompute the list yet`);
-
-		await timeout(CHANGESET_UPDATE_THROTTLE_MS); // flush the throttle
-		assert.strictEqual(recomputes, 1, 'the burst should collapse into exactly one recompute with the final state');
-
-		// And that single recompute carries the latest state.
-		const change0 = session.changes.get()[0];
-		assert.ok(change0 && isIChatSessionFileChange2(change0));
-		assert.strictEqual(change0.insertions, BURST, 'the coalesced update must reflect the final envelope');
 	}));
 });

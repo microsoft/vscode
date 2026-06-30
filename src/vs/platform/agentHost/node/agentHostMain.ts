@@ -7,7 +7,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -29,7 +29,7 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
-import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
+import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -132,6 +132,9 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	// Hoisted out of the `try` below so the protocol handlers (constructed
+	// after the block) can forward agent-SDK download progress to clients.
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -162,8 +165,9 @@ async function startAgentHost(): Promise<void> {
 		// Register the agent SDK downloader BEFORE any service that injects it
 		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
 		// dev-override env var → on-disk cache → product.agentSdks download.
-		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
 		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
@@ -227,6 +231,23 @@ async function startAgentHost(): Promise<void> {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Surface agent-SDK download progress to clients as generic `progress`
+	// notifications. The downloader fires process-global frames keyed by package
+	// id; the agent service fans each out to the `createSession` progress tokens
+	// of the sessions waiting on that provider's SDK, routed through the state
+	// manager so both the local (IPC) and any external (WebSocket) renderer
+	// receive them via the same path as session updates.
+	if (sdkDownloadProgress) {
+		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
+			p.packageId,
+			p.displayName,
+			p.receivedBytes,
+			p.totalBytes,
+			p.phase === 'completed' || p.phase === 'failed',
+		)));
+	}
+
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 

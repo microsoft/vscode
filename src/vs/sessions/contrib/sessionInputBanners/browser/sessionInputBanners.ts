@@ -40,8 +40,6 @@ interface ICIBannerState {
 	readonly completed: number;
 	/** Number of checks still running or queued. */
 	readonly pending: number;
-	/** Whether the user already requested a CI fix for the current PR head commit. */
-	readonly fixRequested: boolean;
 }
 
 interface ICommentsBannerState {
@@ -104,6 +102,11 @@ export class SessionInputBanners extends Disposable {
 		if (!ciModel) {
 			return undefined;
 		}
+		// Once the user has requested a CI fix for the current PR head commit,
+		// hide the entire banner until a new commit lands on the PR.
+		if (ciModel.fixRequested.read(reader)) {
+			return undefined;
+		}
 		const checks = ciModel.checks.read(reader);
 		const failed = getFailedChecks(checks).length;
 		if (failed === 0) {
@@ -111,7 +114,7 @@ export class SessionInputBanners extends Disposable {
 		}
 		const completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
 		const pending = checks.length - completed;
-		return { sessionId: session.sessionId, failed, completed, pending, fixRequested: ciModel.fixRequested.read(reader) };
+		return { sessionId: session.sessionId, failed, completed, pending };
 	});
 
 	private readonly _commentsState: IObservable<ICommentsBannerState | undefined> = derived(this, reader => {
@@ -188,11 +191,11 @@ export class SessionInputBanners extends Disposable {
 			ariaLabel: text,
 			dismissTooltip: localize('ci.dismiss', "Hide for this session"),
 			actions: [
-				...(state.fixRequested ? [] : [{
+				{
 					label: localize('ci.fixChecks', "Fix Checks"),
 					primary: true,
 					run: () => this._executeCommand(FIX_CI_CHECKS_COMMAND_ID),
-				}]),
+				},
 				{
 					label: localize('ci.revealChecks', "Reveal Checks"),
 					run: () => this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID),

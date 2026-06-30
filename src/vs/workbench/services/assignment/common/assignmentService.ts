@@ -20,6 +20,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -270,7 +271,15 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await importAMDNodeModule<typeof import('tas-client')>('tas-client', 'dist/tas-client.min.js')).ExperimentationService({
+
+		const tasClientModule = await importAMDNodeModule<typeof import('tas-client')>('tas-client', 'dist/tas-client.min.js');
+
+		// Measure the client-side latency of the first network call to the
+		// Treatment Assignment Service. The fetch is triggered by constructing
+		// the client, so start timing right before construction to exclude
+		// module loading time from the measurement.
+		const fetchStopWatch = StopWatch.create();
+		const tasClient = new tasClientModule.ExperimentationService({
 			filterProviders: [filterProvider, extensionsFilterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
@@ -284,9 +293,29 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
 			this.networkInitialized = true;
-		});
+			this.logFetchLatency('initial', fetchStopWatch.elapsed());
+		}).catch(() => undefined);
 
 		return tasClient;
+	}
+
+	private logFetchLatency(fetchType: 'initial' | 'refetch', durationMs: number): void {
+		type TASClientFetchLatencyData = {
+			fetchType: string;
+			durationMs: number;
+		};
+
+		type TASClientFetchLatencyClassification = {
+			owner: 'sbatten';
+			comment: 'Measures the client-side latency of fetching treatment assignments from the experiment service (TAS)';
+			fetchType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this was the initial fetch or a refetch' };
+			durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the fetch took to complete' };
+		};
+
+		this.telemetryService.publicLog2<TASClientFetchLatencyData, TASClientFetchLatencyClassification>('tasClientFetchLatency', {
+			fetchType,
+			durationMs
+		});
 	}
 
 	private async refetchAssignments(): Promise<void> {
@@ -298,8 +327,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const tasClient = await this.tasClient;
 		await tasClient.initialFetch;
 
-		// Refresh the assignments
+		// Refresh the assignments and measure the network latency of the refetch.
+		const refetchStopWatch = StopWatch.create();
 		await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
+		this.logFetchLatency('refetch', refetchStopWatch.elapsed());
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
