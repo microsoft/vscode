@@ -4281,7 +4281,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = l10n.t('This action will pull commits from "{0}/{1}" and push commits using your configured Git push target.', HEAD.upstream.remote, HEAD.upstream.name);
+			const message = l10n.t('This action will pull commits from "{0}/{1}" and push any outgoing commits using your configured Git push target.', HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = l10n.t('OK');
 			const neverAgain = l10n.t('OK, Don\'t Show Again');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
