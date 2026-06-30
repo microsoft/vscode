@@ -24,6 +24,7 @@ export function createMockToken(): StoredToken {
 		token: `mock-access-token-${id}`,
 		userName: `Mock User (${id})`,
 		employeeId: `mock-${id}`,
+		sapId: `mock-sap-id-${id}`,
 		pathName: `mock-path-${id}`, // test-workbench_change
 	};
 }
