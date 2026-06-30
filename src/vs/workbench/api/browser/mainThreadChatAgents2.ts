@@ -562,6 +562,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				revivedProgress.uri = this._uriIdentityService.asCanonicalUri(revivedProgress.uri);
 			}
 
+			if (revivedProgress.kind === 'generativeUIRuntimeInset') {
+				// Revive the runtime asset URI from its serialized UriComponents so the
+				// model carries a real URI for the inset renderer (Phase 1).
+				revivedProgress.runtimeUri = URI.revive(revivedProgress.runtimeUri);
+			}
+
 			if (responsePartHandle !== undefined) {
 
 				if (revivedProgress.kind === 'progressTask') {
