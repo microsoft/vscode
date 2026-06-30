@@ -144,3 +144,53 @@
 .monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
 	margin-top: var(--vscode-spacing-size20);
 }
+
+/*
+ * When the status bar is hidden every floating card sits directly against the window
+ * bottom edge. Double the bottom margin (4px → 8px) to match the doubled outer gutter
+ * applied to other window-edge sides, so all gaps look consistent.
+ * Exceptions:
+ *   - Panel at TOP: its bottom faces the editor (not the window edge) — keep 4px.
+ *   - Editor when a bottom panel is visible: it abuts the panel card — keep 4px.
+ * The code-side insets in AbstractPaneCompositePart and EditorPart are kept in sync.
+ */
+.monaco-workbench.floating-panels.nostatusbar .part.panel.bottom,
+.monaco-workbench.floating-panels.nostatusbar .part.panel.left,
+.monaco-workbench.floating-panels.nostatusbar .part.panel.right,
+.monaco-workbench.floating-panels.nostatusbar .part.sidebar,
+.monaco-workbench.floating-panels.nostatusbar .part.auxiliarybar {
+	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
+}
+
+.monaco-workbench.floating-panels.nostatusbar > .monaco-grid-view .part.editor {
+	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
+}
+
+/*
+ * When a visible bottom panel directly abuts the sidebars and/or editor (they share
+ * the same grid row), keep the normal 4px inter-card gap instead of the doubled 8px.
+ * Which bars are in the same row as the editor depends on panel alignment:
+ *   justify  → both sidebars are in the top row (above the full-width panel)
+ *   left     → the bar on the LEFT is in the top row; the bar on the RIGHT is full-height
+ *   right    → the bar on the RIGHT is in the top row; the bar on the LEFT is full-height
+ *   center   → neither sidebar is in the top row (both span full height)
+ * Uses `.panel-alignment-*` and `.left`/`.right` position classes set in layout.ts.
+ */
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.sidebar,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-justify .part.auxiliarybar,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-left .part.sidebar.left,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-left .part.auxiliarybar.left,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.sidebar.right,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-right .part.auxiliarybar.right,
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel) > .monaco-grid-view .part.editor {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+/* Editor exception for center alignment: panel is within the editor column, so editor
+ * still faces it from above (top row) — override the above back to 4px. */
+.monaco-workbench.floating-panels.nostatusbar.panel-position-bottom:not(.nopanel).panel-alignment-center > .monaco-grid-view .part.editor {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels.nostatusbar .part.activitybar {
+	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
+}

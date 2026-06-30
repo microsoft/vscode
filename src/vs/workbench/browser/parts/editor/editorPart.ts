@@ -1395,7 +1395,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			// When the panel is positioned above the editor and visible, the editor is no longer
 			// adjacent to the title bar — reserve a top margin to match the inter-card gaps.
 			const panelAtTop = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.TOP;
-			height = Math.max(0, height - FLOATING_PANEL_MARGIN - (panelAtTop ? FLOATING_PANEL_MARGIN : 0));
+			// When the status bar is hidden, the editor is at the window bottom edge — double the
+			// margin. Exception: when a bottom panel is visible the editor's bottom faces the panel
+			// card (not the window edge), so keep the normal inter-card gap.
+			const panelAtBottom = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.BOTTOM;
+			const bottomEditorMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && !panelAtBottom
+				? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			height = Math.max(0, height - (panelAtTop ? FLOATING_PANEL_MARGIN : 0) - bottomEditorMargin);
 
 			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
 			if (!this.element.classList.contains('modal-editor-part')) {

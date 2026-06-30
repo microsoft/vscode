@@ -13,6 +13,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../common/view
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -659,12 +660,36 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		// panel card). Side bars and panels in all other positions are flush with the title bar.
 		const isBottomPanel = this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM;
 		const topMargin = isBottomPanel ? margin : 0;
+		// When status bar is hidden, cards at the window bottom edge get a doubled bottom margin.
+		// Whether a sidebar/aux bar faces the window edge or a bottom panel row depends on panel
+		// alignment — this mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor logic
+		// in adjustPartPositions() in layout.ts.
+		const panelAtBottom = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		let isAtWindowBottom =
+			!(this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP); // panel at TOP: bottom faces editor
+
+		if (isAtWindowBottom && panelAtBottom &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
+			const alignment = this.layoutService.getPanelAlignment();
+			const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
+			// isSiblingToEditor mirrors adjustPartPositions: sidebar/aux is in the same row as the
+			// editor (and therefore faces the panel below, not the window edge).
+			const isSiblingToEditor = this.partId === Parts.SIDEBAR_PART
+				? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
+				: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
+			if (isSiblingToEditor) {
+				isAtWindowBottom = false;
+			}
+		}
+
+		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) && isAtWindowBottom
+			? margin * 2 : margin;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
 		const rightMargin = outerGutter.right ? margin * 2 : margin;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
-			height: topMargin + margin + borderTotal
+			height: topMargin + bottomMargin + borderTotal
 		};
 	}
 
