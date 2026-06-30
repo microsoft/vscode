@@ -2233,6 +2233,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), groupSessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
+		this.revealGroup(group.id);
+	}
+
+	/** Scroll the group's header into view so its inline name editor is visible. */
+	private revealGroup(groupId: string): void {
+		const root = this.tree.getNode();
+		for (const node of root.children) {
+			const element = node.element;
+			if (element && isSessionGroupItem(element) && element.group.id === groupId) {
+				if (this.tree.hasElement(element) && this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				}
+				return;
+			}
+		}
 	}
 
 	/** Begin inline renaming of the group's header. */
