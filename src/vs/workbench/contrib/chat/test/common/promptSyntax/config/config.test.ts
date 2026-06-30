@@ -428,7 +428,7 @@ suite('PromptsConfig', () => {
 			test('empty object returns default skill folders', () => {
 				assert.deepStrictEqual(
 					getPaths(PromptsConfig.promptSourceFolders(createMock({}), PromptsType.skill)),
-					['.github/skills', '.claude/skills', '~/.copilot/skills', '~/.claude/skills'],
+					['.agents/skills', '.github/skills', '.claude/skills', '~/.agents/skills', '~/.copilot/skills', '~/.claude/skills'],
 					'Must return default skill folders.',
 				);
 			});
@@ -440,8 +440,10 @@ suite('PromptsConfig', () => {
 						'./local/skills': true,
 					}), PromptsType.skill)),
 					[
+						'.agents/skills',
 						'.github/skills',
 						'.claude/skills',
+						'~/.agents/skills',
 						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/custom/skills',
@@ -458,7 +460,9 @@ suite('PromptsConfig', () => {
 						'/custom/skills': true,
 					}), PromptsType.skill)),
 					[
+						'.agents/skills',
 						'.claude/skills',
+						'~/.agents/skills',
 						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/custom/skills',
@@ -471,8 +475,10 @@ suite('PromptsConfig', () => {
 				assert.deepStrictEqual(
 					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 						'/only/custom/skills': true,
 					}), PromptsType.skill)),
@@ -493,8 +499,10 @@ suite('PromptsConfig', () => {
 						'\n': true,
 					}), PromptsType.skill)),
 					[
+						'.agents/skills',
 						'.github/skills',
 						'.claude/skills',
+						'~/.agents/skills',
 						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/valid/skills',
@@ -508,14 +516,18 @@ suite('PromptsConfig', () => {
 				assert.deepStrictEqual(
 					getPaths(PromptsConfig.promptSourceFolders(createMock({
 						'.github/skills': true,
+						'.agents/skills': true,
 						'.claude/skills': true,
 						'~/.copilot/skills': true,
+						'~/.agents/skills': true,
 						'~/.claude/skills': true,
 						'/extra/skills': true,
 					}), PromptsType.skill)),
 					[
+						'.agents/skills',
 						'.github/skills',
 						'.claude/skills',
+						'~/.agents/skills',
 						'~/.copilot/skills',
 						'~/.claude/skills',
 						'/extra/skills',

@@ -65,7 +65,7 @@ class ListTestItemElement extends TestItemTreeElement {
  * Projection that lists tests in their traditional tree view.
  */
 export class ListProjection extends Disposable implements ITestTreeProjection {
-	private readonly updateEmitter = new Emitter<void>();
+	private readonly updateEmitter = this._register(new Emitter<void>());
 	private readonly items = new Map<string, ListTestItemElement>();
 
 	/**

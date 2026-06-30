@@ -14,6 +14,12 @@ import { URI } from '../../../../base/common/uri.js';
  */
 export interface IWorkbenchUIElementFactory {
 	createResourceLabel?(element: HTMLElement): IResourceLabel;
+
+	/**
+	 * When true, the entire header area is clickable to toggle collapse/expand
+	 * and receives keyboard activation (Enter/Space) and ARIA button semantics.
+	 */
+	readonly headerClickToCollapse?: boolean;
 }
 
 export interface IResourceLabel extends IDisposable {

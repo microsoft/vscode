@@ -26,18 +26,19 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 
 	private _checkImport(context: eslint.Rule.RuleContext, node: TSESTree.Node, path: string) {
 
-		if (path !== TranslationRemind.NLS_MODULE) {
+		if (path !== TranslationRemind.NLS_MODULE && !path.endsWith('/nls.js')) {
 			return;
 		}
 
 		const currentFile = context.getFilename();
 		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
 		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
-		if (!matchService && !matchPart) {
+		const matchSessionsPart = currentFile.match(/vs\/sessions\/contrib\/\w+/);
+		if (!matchService && !matchPart && !matchSessionsPart) {
 			return;
 		}
 
-		const resource = matchService ? matchService[0] : matchPart![0];
+		const resource = matchService ? matchService[0] : matchPart ? matchPart[0] : matchSessionsPart![0];
 		let resourceDefined = false;
 
 		let json;
@@ -47,9 +48,10 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 			console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
 			return;
 		}
-		const workbenchResources = JSON.parse(json).workbench;
+		const parsed = JSON.parse(json);
+		const resources = [...parsed.workbench, ...parsed.sessions];
 
-		workbenchResources.forEach((existingResource: any) => {
+		resources.forEach((existingResource: any) => {
 			if (existingResource.name === resource) {
 				resourceDefined = true;
 				return;

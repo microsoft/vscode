@@ -170,7 +170,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// to schedule sufficiently after Parcel.
 	//
 	// Note: since Parcel 2.0.7, the very first event is
-	// emitted without delay if no events occured over a
+	// emitted without delay if no events occurred over a
 	// duration of 500ms. But we always want to aggregate
 	// events to apply our coleasing logic.
 	//
@@ -618,7 +618,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
-		// Restart watcher delayed to accomodate for
+		// Restart watcher delayed to accommodate for
 		// changes on disk that have triggered the
 		// need for a restart in the first place.
 		const scheduler = new RunOnceScheduler(async () => {

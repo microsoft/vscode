@@ -1,0 +1,88 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Padding".
+ *
+ * Adjusts the internal padding of common workbench surfaces to give content
+ * more breathing room.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+/*
+ * Inset view pane content (sidebar / panel / auxiliary bar sections) by a
+ * horizontal amount matching the Agents window panel padding
+ * (8px / --vscode-spacing-size80) so content has breathing room from the edges.
+ *
+ * The pane *header* is padded, and each list/tree *row* box is inset so there is
+ * a real margin between the row (including its hover / selection highlight) and
+ * the pane edge. Rows are `position: absolute; width: 100%`, so insetting them
+ * with `left` / `right` (and `width: auto`) leaves a gap on both sides. The
+ * vertical scrollbar is a sibling of the rows inside `.monaco-scrollable-element`
+ * (not a child of the rows), so it stays pinned to the pane edge.
+ *
+ * The chat & agent-sessions UI is excluded: `ChatViewPane` adds the
+ * `chat-viewpane` class directly onto its `.pane-body`.
+ */
+
+/* Header: inset the section title / actions to line up with the rows below. */
+.style-override .monaco-pane-view .pane:not(:has(> .pane-body.chat-viewpane)) > .pane-header {
+	padding-left: var(--vscode-spacing-size40, 4px);
+	padding-right: 0;
+	margin: 0 var(--vscode-spacing-size40, 4px);
+}
+
+/* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
+.style-override .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+	left: var(--vscode-spacing-size40, 4px);
+	right: var(--vscode-spacing-size40, 4px);
+	width: auto;
+}
+
+/* Tighten the part title bar gutters: flush-left, small right inset. */
+.style-override.monaco-workbench .part > .title {
+	padding-left: var(--vscode-spacing-size40, 4px);
+	padding-right: var(--vscode-spacing-size40, 4px);
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	padding: 0 4px;
+}
+
+/* Inset the part title label (e.g. "Explorer") to align with the content below. */
+.style-override.monaco-workbench .part > .title > .title-label {
+	padding-left: var(--vscode-spacing-size80, 8px);
+}
+
+.style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
+	padding: 0 6px;
+}
+
+.style-override.monaco-workbench .chat-viewpane {
+	.agent-session-item .agent-session-title-toolbar .actions-container {
+		gap: 4px;
+	}
+}
+
+.style-override.monaco-workbench .monaco-pane-view .pane > .pane-header > .actions {
+	margin-right: 0px;
+}
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
+	.agent-sessions-title-container {
+		padding-left: 12px;
+	}
+}
+
+/* Give the settings / profile (global) actions at the bottom of the default
+ * vertical activity bar a 4px bottom margin so they sit consistently above the
+ * window edge, matching the pane header margins. */
+.style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
+	margin-bottom: calc(var(--vscode-spacing-size20, 2px) + var(--vscode-strokeThickness, 1px));
+}

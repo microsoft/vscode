@@ -85,7 +85,7 @@ export class UserDataProfileInitializer implements IUserDataInitializer {
 				promises.push(this.initialize(new McpResourceInitializer(this.userDataProfileService, this.fileService, this.logService), profileTemplate.mcp, ProfileResourceType.Mcp));
 			}
 			if (profileTemplate?.snippets) {
-				promises.push(this.initialize(new SnippetsResourceInitializer(this.userDataProfileService, this.fileService, this.uriIdentityService), profileTemplate.snippets, ProfileResourceType.Snippets));
+				promises.push(this.initialize(new SnippetsResourceInitializer(this.userDataProfileService, this.fileService, this.uriIdentityService, this.logService), profileTemplate.snippets, ProfileResourceType.Snippets));
 			}
 			promises.push(this.initializeInstalledExtensions(instantiationService));
 			await Promises.settled(promises);
@@ -130,7 +130,7 @@ export class UserDataProfileInitializer implements IUserDataInitializer {
 		}
 		try {
 			const url = URI.revive(this.environmentService.options.profile.contents).toString(true);
-			const context = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url, callSite: 'userDataProfileInit.initializeProfile' }, CancellationToken.None);
 			if (context.res.statusCode === 200) {
 				return await asJson(context);
 			} else {

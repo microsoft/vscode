@@ -436,12 +436,12 @@ export class ActionViewItem extends BaseActionViewItem {
 				if (this.options.isTabList) {
 					this.label.setAttribute('aria-selected', this.action.checked ? 'true' : 'false');
 				} else {
-					this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
-					this.label.setAttribute('role', 'checkbox');
+					this.label.setAttribute('aria-pressed', this.action.checked ? 'true' : 'false');
+					this.label.setAttribute('role', 'button');
 				}
 			} else {
 				this.label.classList.remove('checked');
-				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-checked');
+				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-pressed');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

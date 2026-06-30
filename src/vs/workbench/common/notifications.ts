@@ -12,6 +12,7 @@ import { Action } from '../../base/common/actions.js';
 import { equals } from '../../base/common/arrays.js';
 import { parseLinkedText, LinkedText } from '../../base/common/linkedText.js';
 import { mapsStrictEqualIgnoreOrder } from '../../base/common/map.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
 export interface INotificationsModel {
 
@@ -793,4 +794,25 @@ class StatusMessageViewItem {
 
 		return { message, options };
 	}
+}
+
+export const enum NotificationsSettings {
+	NOTIFICATIONS_POSITION = 'workbench.notifications.position',
+	NOTIFICATIONS_BUTTON = 'workbench.notifications.showInTitleBar'
+}
+
+export const enum NotificationsPosition {
+	BOTTOM_RIGHT = 'bottom-right',
+	BOTTOM_LEFT = 'bottom-left',
+	TOP_RIGHT = 'top-right'
+}
+
+export function getNotificationsPosition(configurationService: IConfigurationService): NotificationsPosition {
+	const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION);
+
+	if (position === NotificationsPosition.BOTTOM_LEFT || position === NotificationsPosition.TOP_RIGHT) {
+		return position;
+	}
+
+	return NotificationsPosition.BOTTOM_RIGHT;
 }

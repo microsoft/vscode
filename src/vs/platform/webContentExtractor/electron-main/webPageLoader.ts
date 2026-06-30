@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, HeadersReceivedResponse, OnBeforeSendHeadersListenerDetails, OnHeadersReceivedListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 
@@ -51,6 +52,7 @@ export class WebPageLoader extends Disposable {
 	private readonly _idleDebounceTimer = this._register(new TimeoutTimer());
 	private _onResult = (_result: WebContentExtractResult) => { };
 	private _didFinishLoad = false;
+	private _receivedMarkdown = false;
 
 	constructor(
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -58,6 +60,7 @@ export class WebPageLoader extends Disposable {
 		private readonly _uri: URI,
 		private readonly _options: IWebContentExtractorOptions | undefined,
 		private readonly _isTrustedDomain: (uri: URI) => boolean,
+		private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 
@@ -84,12 +87,17 @@ export class WebPageLoader extends Disposable {
 			.once('did-start-loading', this.onStartLoading.bind(this))
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
-			.once('will-navigate', this.onRedirect.bind(this))
-			.once('will-redirect', this.onRedirect.bind(this))
+			.on('will-navigate', this.onRedirect.bind(this))
+			.on('will-redirect', this.onRedirect.bind(this))
 			.on('select-client-certificate', (event) => event.preventDefault());
 
 		this._window.webContents.session.webRequest.onBeforeSendHeaders(
 			this.onBeforeSendHeaders.bind(this));
+
+		this._window.webContents.session.webRequest.onHeadersReceived(
+			this.onHeadersReceived.bind(this));
+
+		this._window.webContents.session.on('will-download', this.onDownload.bind(this));
 	}
 
 	private trace(message: string) {
@@ -154,7 +162,80 @@ export class WebPageLoader extends Disposable {
 		headers['DNT'] = '1';
 		headers['Sec-GPC'] = '1';
 
+		// For the main document request, prefer markdown responses from sites that
+		// support agent-friendly content negotiation (e.g. Microsoft Learn, Cloudflare docs).
+		if (details.resourceType === 'mainFrame') {
+			headers['Accept'] = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
+		}
+
 		callback({ requestHeaders: headers });
+	}
+
+	/**
+	 * Checks response headers for download-triggering Content-Disposition.
+	 * For text-based content types, replaces it with 'inline' so the content
+	 * is rendered and can be extracted. For binary content, cancels the response.
+	 */
+	private onHeadersReceived(details: OnHeadersReceivedListenerDetails, callback: (headersReceivedResponse: HeadersReceivedResponse) => void) {
+		const headers = details.responseHeaders;
+		if (headers) {
+			let hasAttachment = false;
+			let attachmentHeaderName: string | undefined;
+			let contentType: string | undefined;
+
+			for (const name of Object.keys(headers)) {
+				const lowerName = name.toLowerCase();
+				if (lowerName === 'content-disposition' && headers[name]?.some(v => v.toLowerCase().includes('attachment'))) {
+					hasAttachment = true;
+					attachmentHeaderName = name;
+				}
+				if (lowerName === 'content-type') {
+					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			// Track whether the current main-frame response is markdown (redirects can change content-type)
+			if (details.resourceType === 'mainFrame') {
+				this._receivedMarkdown = contentType?.split(';')[0].trim() === 'text/markdown';
+				if (this._receivedMarkdown) {
+					this.trace('Received text/markdown response, will extract document text content directly');
+				}
+			}
+
+			if (hasAttachment && attachmentHeaderName) {
+				if (this.isTextMimeType(contentType)) {
+					this.trace(`Replacing Content-Disposition: attachment with inline for ${details.url} (content-type: ${contentType})`);
+					headers[attachmentHeaderName] = ['inline'];
+					callback({ responseHeaders: headers, cancel: false });
+				} else {
+					this.trace(`Blocked binary download (Content-Disposition: attachment, content-type: ${contentType}) for ${details.url}`);
+					callback({ cancel: true });
+				}
+				return;
+			}
+		}
+		callback({ cancel: false });
+	}
+
+	/**
+	 * Returns whether the given MIME type represents text-based content
+	 * that can be meaningfully rendered and extracted.
+	 */
+	private static readonly TEXT_MIME_TYPE_RE = /^(?:text\/|application\/(?:json|xml|xhtml\+xml|rss\+xml|atom\+xml|svg\+xml|javascript|ecmascript|x-yaml|yaml|toml|.*\+(?:xml|json))$)/;
+
+	private isTextMimeType(contentType: string | undefined): boolean {
+		const mimeType = contentType?.split(';')[0].trim();
+		return !!mimeType && WebPageLoader.TEXT_MIME_TYPE_RE.test(mimeType);
+	}
+
+	/**
+	 * Handles the 'will-download' event, blocking any downloads.
+	 */
+	private onDownload(_event: Event, item: Electron.DownloadItem) {
+		const filename = item.getFilename();
+		this.trace(`Blocked download: ${filename}`);
+		item.cancel();
+		void this._queue.queue(() => this.extractContent({ status: 'error', error: `Download not allowed: ${filename}` }));
 	}
 
 	/**
@@ -198,6 +279,9 @@ export class WebPageLoader extends Disposable {
 		if (statusCode === -3) {
 			this.trace(`Ignoring ERR_ABORTED (-3) as it may be caused by CSP or other measures`);
 			void this._queue.queue(() => this.extractContent());
+		} else if (statusCode === -27) {
+			this.trace(`Ignoring ERR_BLOCKED_BY_CLIENT (-27) as it may be caused by ad-blockers or similar extensions`);
+			void this._queue.queue(() => this.extractContent());
 		} else {
 			void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
 		}
@@ -212,9 +296,17 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
-		if (!this._options?.followRedirects) {
-			const toURI = URI.parse(url);
 
+		// Check domain filter policy first — this applies regardless of followRedirects
+		const toURI = URI.parse(url);
+		if (!this._agentNetworkFilterService.isUriAllowed(toURI)) {
+			this.trace(`Blocking navigation to ${url} (blocked by domain filter policy)`);
+			event.preventDefault();
+			this._onResult({ status: 'error', error: this._agentNetworkFilterService.formatError(toURI) });
+			return;
+		}
+
+		if (!this._options?.followRedirects) {
 			// Allow redirect if authority is the same when ignoring www prefix
 			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
 				return;
@@ -222,6 +314,13 @@ export class WebPageLoader extends Disposable {
 
 			// Allow redirect if target is a trusted domain
 			if (this._isTrustedDomain(toURI)) {
+				return;
+			}
+
+			// Ignore script-initiated navigation (ads/trackers etc)
+			if (this._didFinishLoad) {
+				this.trace(`Blocking post-load navigation to ${url} (likely ad/tracker script)`);
+				event.preventDefault();
 				return;
 			}
 
@@ -346,6 +445,14 @@ export class WebPageLoader extends Disposable {
 			const cts = new CancellationTokenSource();
 			try {
 				await raceTimeout((async () => {
+					// If the server returned text/markdown, the document is already plain text.
+					// Extract it directly from the document instead of running accessibility/DOM heuristics.
+					if (this._receivedMarkdown) {
+						this.trace('Extracting markdown text content from document');
+						result = await this._window.webContents.executeJavaScript('document.body?.textContent ?? document.documentElement?.textContent ?? ""') ?? '';
+						return;
+					}
+
 					if (!cts.token.isCancellationRequested) {
 						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
 					}

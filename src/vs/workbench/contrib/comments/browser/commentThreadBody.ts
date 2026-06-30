@@ -25,7 +25,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	private _commentElements: CommentNode<T>[] = [];
 	private _resizeObserver: MutationObserver | null = null;
 	private _focusedComment: number | undefined = undefined;
-	private _onDidResize = new Emitter<dom.Dimension>();
+	private _onDidResize = this._register(new Emitter<dom.Dimension>());
 	onDidResize = this._onDidResize.event;
 
 	private _commentDisposable = new DisposableMap<CommentNode<T>, DisposableStore>();

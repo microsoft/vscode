@@ -4,52 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ChatManagementEditor, ModelsManagementEditor } from './chatManagementEditor.js';
-import { ChatManagementEditorInput, ModelsManagementEditorInput } from './chatManagementEditorInput.js';
+import { ModelsManagementEditor } from './chatManagementEditor.js';
+import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settings', Codicon.goToFile, localize('languageModelsOpenSettings', 'Icon for open language models settings commands.'));
 
 const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
+	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
 	ChatContextKeys.Entitlement.planProPlus,
+	ChatContextKeys.Entitlement.planMax,
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
-	ChatContextKeys.Entitlement.internal
+	ChatContextKeys.Entitlement.internal,
+	ChatEntitlementContextKeys.clientByokEnabled
 ));
-
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		ChatManagementEditor,
-		ChatManagementEditor.ID,
-		localize('chatManagementEditor', "Chat Management Editor")
-	),
-	[
-		new SyncDescriptor(ChatManagementEditorInput)
-	]
-);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -61,21 +57,6 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(ModelsManagementEditorInput)
 	]
 );
-
-class ChatManagementEditorInputSerializer implements IEditorSerializer {
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(input: ChatManagementEditorInput): string {
-		return '';
-	}
-
-	deserialize(instantiationService: IInstantiationService): ChatManagementEditorInput {
-		return instantiationService.createInstance(ChatManagementEditorInput);
-	}
-}
 
 class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 
@@ -92,29 +73,34 @@ class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatManagementEditorInput.ID, ChatManagementEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ModelsManagementEditorInput.ID, ModelsManagementEditorInputSerializer);
 
-interface IOpenManageCopilotEditorActionOptions {
-	query?: string;
-	section?: string;
-}
-
-function sanitizeString(arg: unknown): string | undefined {
-	return isString(arg) ? arg : undefined;
-}
-
-function sanitizeOpenManageCopilotEditorArgs(input: unknown): IOpenManageCopilotEditorActionOptions {
-	if (!isObject(input)) {
-		input = {};
+/**
+ * Enable + activate the Copilot Chat extension if installed but disabled.
+ */
+async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<void> {
+	const chatExtensionId = accessor.get(IProductService).defaultChatAgent?.chatExtensionId;
+	if (!chatExtensionId) {
+		return;
 	}
 
-	const args = <IOpenManageCopilotEditorActionOptions>input;
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
+	const progressService = accessor.get(IProgressService);
 
-	return {
-		query: sanitizeString(args?.query),
-		section: sanitizeString(args?.section)
-	};
+	const localExtensions = await extensionsWorkbenchService.queryLocal();
+	const chatExtension = localExtensions.find(e => ExtensionIdentifier.equals(e.identifier.id, chatExtensionId));
+	if (!chatExtension?.local || extensionEnablementService.isEnabled(chatExtension.local)) {
+		return;
+	}
+
+	await progressService.withProgress(
+		{ location: ProgressLocation.Window, title: localize('enableChatForByok', "Enabling AI features…") },
+		async () => {
+			await extensionsWorkbenchService.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+			await extensionsWorkbenchService.updateRunningExtensions(localize('enableChatForByokReason', "Enabling AI features"));
+		}
+	);
 }
 
 class ChatManagementActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -140,10 +126,10 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					f1: true,
 				});
 			}
-			async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
-				const editorGroupsService = accessor.get(IEditorGroupsService);
-				args = sanitizeOpenManageCopilotEditorArgs(args);
-				return editorGroupsService.activeGroup.openEditor(new ModelsManagementEditorInput(), { pinned: true });
+			async run(accessor: ServicesAccessor) {
+				const editorService = accessor.get(IEditorService);
+				await ensureChatExtensionEnabled(accessor);
+				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 			}
 		}));
 
@@ -170,6 +156,10 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			}
 		}));
 
+		const openLanguageModelsJsonWhen = ContextKeyExpr.and(
+			CONTEXT_MODELS_EDITOR,
+			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
+		);
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -177,7 +167,19 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
 					category: CHAT_CATEGORY,
 					precondition: LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION,
+					icon: languageModelsOpenSettingsIcon,
 					f1: true,
+					menu: [{
+						id: MenuId.EditorTitle,
+						when: openLanguageModelsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
+						when: openLanguageModelsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}]
 				});
 			}
 
@@ -204,22 +206,6 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 				icon: languageModelsOpenSettingsIcon
 			},
 			when: openModelsManagementEditorWhen,
-			group: 'navigation',
-			order: 1
-		});
-
-		const openLanguageModelsJsonWhen = ContextKeyExpr.and(
-			CONTEXT_MODELS_EDITOR,
-			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
-		);
-
-		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-			command: {
-				id: 'workbench.action.openLanguageModelsJson',
-				title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
-				icon: languageModelsOpenSettingsIcon
-			},
-			when: openLanguageModelsJsonWhen,
 			group: 'navigation',
 			order: 1
 		});

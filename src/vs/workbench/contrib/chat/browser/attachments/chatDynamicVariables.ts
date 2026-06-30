@@ -5,7 +5,7 @@
 
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, dispose, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
@@ -37,20 +37,30 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private decorationData: { id: string; text: string }[] = [];
 
+	private readonly _editorListener = this._register(new MutableDisposable());
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
-		this._register(widget.inputEditor.onDidChangeModelContent(e => {
+		this._subscribeToEditor();
+		this._register(widget.onDidChangeActiveInputEditor(() => {
+			this._subscribeToEditor();
+			this.updateDecorations();
+		}));
+	}
+
+	private _subscribeToEditor(): void {
+		this._editorListener.value = this.widget.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
 			let didChange = false;
 
 			// Don't mutate entries in _variables, since they will be returned from the getter
 			this._variables = coalesce(this._variables.map((ref, idx): IDynamicVariable | null => {
-				const model = widget.inputEditor.getModel();
+				const model = this.widget.inputEditor.getModel();
 
 				if (!model) {
 					removed.push(ref);
@@ -58,6 +68,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				}
 
 				const data = this.decorationData[idx];
+				if (!data) {
+					removed.push(ref);
+					return null;
+				}
 				const newRange = model.getDecorationRange(data.id);
 
 				if (!newRange) {
@@ -97,7 +111,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			}
 
 			this.updateDecorations();
-		}));
+		});
 	}
 
 	getInputState(contrib: Record<string, unknown>): void {
@@ -123,23 +137,34 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	addReference(ref: IDynamicVariable): void {
+		if (!isValidEditorRange(ref.range)) {
+			return;
+		}
+
 		this._variables.push(ref);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
 	}
 
 	private updateDecorations(): void {
+		const model = this.widget.inputEditor.getModel();
+		if (!model) {
+			this.decorationData = [];
+			return;
+		}
 
-		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
+		const validVariables = this._variables.filter(v => isValidEditorRange(v.range));
+		const decorationIds = this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, validVariables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 
+		this._variables = validVariables.slice(0, decorationIds.length);
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
 			this.decorationData.push({
 				id: decorationIds[i],
-				text: this.widget.inputEditor.getModel()!.getValueInRange(this._variables[i].range)
+				text: model.getValueInRange(this._variables[i].range)
 			});
 		}
 	}
@@ -182,7 +207,24 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 	return obj &&
 		typeof obj.id === 'string' &&
 		Range.isIRange(obj.range) &&
+		isValidEditorRange(obj.range) &&
 		'data' in obj;
+}
+
+function isValidEditorRange(range: IRange): boolean {
+	if (range.startLineNumber < 1 || range.endLineNumber < 1 || range.startColumn < 1 || range.endColumn < 1) {
+		return false;
+	}
+
+	if (range.startLineNumber > range.endLineNumber) {
+		return false;
+	}
+
+	if (range.startLineNumber === range.endLineNumber && range.startColumn >= range.endColumn) {
+		return false;
+	}
+
+	return true;
 }
 
 

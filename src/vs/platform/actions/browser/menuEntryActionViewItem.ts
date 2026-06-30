@@ -31,6 +31,7 @@ import { INotificationService } from '../../notification/common/notification.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
+import { ClickAnimation, triggerClickAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../window/common/window.js';
@@ -173,6 +174,7 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly keybinding?: string | null;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
+	readonly onClickAnimation?: ClickAnimation;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -206,6 +208,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
+
+		if (this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
+			const icon = this._menuItemAction.item.icon;
+			triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+		}
 
 		try {
 			await this.actionRunner.run(this._commandAction, this._context);
@@ -427,6 +434,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private readonly _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private readonly _storageKey: string;
+	private readonly _primaryActionListener = this._register(new MutableDisposable());
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;
@@ -456,7 +464,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			defaultAction = submenuAction.actions[0];
 		}
 
-		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) }));
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction), hoverDelegate: options?.hoverDelegate }));
 
 		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
 			keybindingProvider: action => this._keybindingService.lookupKeybinding(action.id),
@@ -468,12 +476,16 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
 		if (options?.togglePrimaryAction) {
-			this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
-				if (e.action instanceof MenuItemAction) {
-					this.update(e.action);
-				}
-			}));
+			this.registerTogglePrimaryActionListener();
 		}
+	}
+
+	private registerTogglePrimaryActionListener(): void {
+		this._primaryActionListener.value = this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			if (e.action instanceof MenuItemAction) {
+				this.update(e.action);
+			}
+		});
 	}
 
 	private update(lastAction: MenuItemAction): void {
@@ -482,7 +494,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		}
 
 		this._defaultActionDisposables.clear();
-		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) }));
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction), hoverDelegate: this._options?.hoverDelegate }));
 		this._defaultAction.actionRunner = this._defaultActionDisposables.add(new class extends ActionRunner {
 			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
@@ -515,7 +527,15 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		super.actionRunner = actionRunner;
 
 		this._defaultAction.actionRunner = actionRunner;
-		this._dropdown.actionRunner = actionRunner;
+		// When togglePrimaryAction is enabled, keep the dropdown's private
+		// action runner so that the onDidRun listener only fires for actions
+		// originating from the dropdown, not from unrelated toolbar buttons.
+		if (!this._options?.togglePrimaryAction) {
+			this._dropdown.actionRunner = actionRunner;
+		}
+		if (this._primaryActionListener.value) {
+			this.registerTogglePrimaryActionListener();
+		}
 	}
 
 	override get actionRunner(): IActionRunner {

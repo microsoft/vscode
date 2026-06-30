@@ -5,6 +5,125 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { localize } from '../../../nls.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
+
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	// Tab management
+	Open = `${commandPrefix}.open`,
+	OpenFile = `${commandPrefix}.openFile`,
+	NewTab = `${commandPrefix}.newTab`,
+	QuickOpen = `${commandPrefix}.quickOpen`,
+	OpenOrList = `${commandPrefix}.openOrList`,
+	CloseAll = `${commandPrefix}.closeAll`,
+	CloseAllInGroup = `${commandPrefix}.closeAllInGroup`,
+
+	// Navigation
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+
+	// Editor actions
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+
+	// Favorites
+	ToggleFavorite = `${commandPrefix}.toggleFavorite`,
+
+	// History
+	ShowHistory = `${commandPrefix}.showHistory`,
+
+	// Permissions
+	ManagePermissions = `${commandPrefix}.managePermissions`,
+
+	// Chat actions
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
+	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
+	AddFullPageScreenshotToChat = `${commandPrefix}.addFullPageScreenshotToChat`,
+
+	// Dev Tools
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+
+	// Storage
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+
+	// Find in page
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
+
+export interface IElementAncestor {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
+export interface IElementData {
+	readonly url?: string;
+	readonly outerHTML: string;
+	readonly computedStyle: string;
+	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+	readonly ancestors?: IElementAncestor[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
+}
+
+export interface IBrowserViewRect {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
+export interface IBrowserViewTheme {
+	readonly focusBorder?: string;
+	readonly buttonBackground?: string;
+	readonly buttonForeground?: string;
+	readonly font?: string;
+}
+
+/**
+ * The full set of configuration a window contributes for the browser views it
+ * owns. Sent as a single unit by the owning window.
+ */
+export interface IBrowserViewWindowConfiguration {
+	/** Theme variables for injected UI. */
+	readonly theme: IBrowserViewTheme;
+	/** Map of command ID to accelerator label for context menus. */
+	readonly keybindings: { [commandId: string]: string };
+
+	/** Whether AI features are disabled for this window. */
+	readonly aiFeaturesDisabled?: boolean;
+	/** Maximum number of entries to retain per browser session history. */
+	readonly maxHistoryEntries?: number;
+	/**
+	 * Resolved tunnel-proxy credentials for the window's remote browser views,
+	 * produced by the window's local node extension host (which hosts the HTTPS
+	 * tunnel proxy). `undefined` until the proxy has started, or when no proxy
+	 * is used. Applied to the Electron sessions of the window's remote views.
+	 */
+	readonly proxyInfo?: ITunnelProxyInfo;
+	/**
+	 * The window's contribution to the `file://` allowlist used by integrated
+	 * browser sessions. Main unions every window's contribution into a
+	 * process-wide allowlist; entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
+	 * workspace folder paths.
+	 */
+	readonly trustedFileRoots: readonly string[];
+}
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -13,11 +132,93 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
+	emulation?: {
+		scale: number;
+	};
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
+	/**
+	 * JPEG quality from 0-100. Only applies when `format` is `'jpeg'`.
+	 */
 	quality?: number;
-	rect?: { x: number; y: number; width: number; height: number };
+	/**
+	 * Encoding for the captured image. Defaults to `'jpeg'`.
+	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
+	 */
+	format?: 'jpeg' | 'png';
+	screenRect?: IBrowserViewRect;
+	pageRect?: IBrowserViewRect;
+	/**
+	 * When true, capture the full scrollable document, not just the visible viewport.
+	 * Ignored when `screenRect` or `pageRect` is set.
+	 */
+	fullPage?: boolean;
+	/**
+	 * When true, wait for the next compositor frame to be presented before capturing.
+	 * Use this when the caller has just torn down an in-page overlay (e.g. the area
+	 * picker's dashed selection rectangle) that would otherwise still be present in
+	 * the GPU surface that `capturePage` reads.
+	 *
+	 * Adds ~1 frame of latency (bounded by a short timeout fallback), so leave off
+	 * for captures that don't follow a DOM teardown.
+	 */
+	awaitNextPaint?: boolean;
+}
+
+/**
+ * Identifies who owns a browser view's lifecycle.
+ * The owner is set at creation time and never changes.
+ */
+export interface IBrowserViewOwner {
+	/** The main code window ID that owns this view's lifecycle. */
+	readonly mainWindowId: number;
+	/** Optional session ID identifying the agent session that created this view. */
+	readonly sessionId?: string;
+}
+
+/**
+ * Summary information about a browser view, including its current state and
+ * ownership. Returned by the main service when listing or creating views.
+ */
+export interface IBrowserViewInfo {
+	readonly id: string;
+	readonly owner: IBrowserViewOwner;
+	readonly state: IBrowserViewState;
+}
+
+/**
+ * Editor opening hints passed from the main process to the workbench.
+ */
+export interface IBrowserViewOpenOptions {
+	readonly preserveFocus?: boolean;
+	readonly background?: boolean;
+	readonly pinned?: boolean;
+	/** The parent view ID. Used by the workbench to place the new tab in the same editor group. */
+	readonly parentViewId?: string;
+	/** When set, open in an auxiliary (new) window with these bounds. */
+	readonly auxiliaryWindow?: { x?: number; y?: number; width?: number; height?: number };
+}
+
+export interface IBrowserViewCreatedEvent {
+	readonly info: IBrowserViewInfo;
+
+	// May be omitted to create the view without opening an editor.
+	readonly openOptions?: IBrowserViewOpenOptions;
+}
+
+export interface IBrowserViewCreateOptions {
+	readonly owner: IBrowserViewOwner;
+	readonly sessionOptions: IBrowserSessionOptions;
+	readonly initialState?: Partial<IBrowserViewState>;
+}
+
+/** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
+export interface IBrowserViewStorageKeys {
+	readonly history?: string;
+	readonly favicons?: string;
+	readonly permissions?: string;
 }
 
 export interface IBrowserViewState {
@@ -27,17 +228,28 @@ export interface IBrowserViewState {
 	canGoForward: boolean;
 	loading: boolean;
 	focused: boolean;
+	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
+	storageKeys: IBrowserViewStorageKeys;
+	permissions: ISerializedBrowserPermissionsSnapshot;
+	browserZoomIndex: number;
+	isElementSelectionActive: boolean;
+	isRemoteSession: boolean;
+	isAreaSelectionActive: boolean;
+	device: IBrowserDeviceProfile | undefined;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	certificateError: IBrowserViewCertificateError | undefined;
 }
 
 export interface IBrowserViewLoadingEvent {
@@ -49,10 +261,27 @@ export interface IBrowserViewLoadError {
 	url: string;
 	errorCode: number;
 	errorDescription: string;
+	certificateError?: IBrowserViewCertificateError;
+}
+
+export interface IBrowserViewCertificateError {
+	host: string;
+	fingerprint: string;
+	error: string;
+	url: string;
+	hasTrustedException: boolean;
+	issuerName: string;
+	subjectName: string;
+	validStart: number;
+	validExpiry: number;
 }
 
 export interface IBrowserViewFocusEvent {
 	focused: boolean;
+}
+
+export interface IBrowserViewVisibilityEvent {
+	visible: boolean;
 }
 
 export interface IBrowserViewDevToolsStateEvent {
@@ -75,13 +304,19 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
-export interface IBrowserViewNewPageRequest {
-	url: string;
-	name?: string;
-	background: boolean;
+export interface IBrowserViewPermissionRequestEvent {
+	origin: string;
+	category: PermissionCategory;
+	device?: IBrowserViewDeviceRequest;
+}
+
+export interface IBrowserViewDeviceRequest {
+	requestId: string;
+	deviceType: BrowserDeviceType;
+	devices: IBrowserDeviceCandidate[];
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -93,7 +328,7 @@ export interface IBrowserViewFindInPageOptions {
 export interface IBrowserViewFindInPageResult {
 	activeMatchOrdinal: number;
 	matches: number;
-	selectionArea?: { x: number; y: number; width: number; height: number };
+	selectionArea?: IBrowserViewRect;
 	finalUpdate: boolean;
 }
 
@@ -103,36 +338,96 @@ export enum BrowserViewStorageScope {
 	Ephemeral = 'ephemeral'
 }
 
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
+}
+
 export const ipcBrowserViewChannelName = 'browserView';
 
+/**
+ * Discrete zoom levels matching Edge/Chrome.
+ * Note: When those browsers say "33%" and "67%" zoom, they really mean 33.33...% and 66.66...%
+ */
+export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
+export function browserZoomLabel(zoomFactor: number): string {
+	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
+}
+export function browserZoomAccessibilityLabel(zoomFactor: number): string {
+	return localize('browserZoomAccessibilityLabel', "Page Zoom: {0}%", Math.round(zoomFactor * 100));
+}
+
+/**
+ * The active device emulation profile. `undefined` fields mean "use the host default" for that property.
+ */
+export interface IBrowserDeviceProfile {
+	readonly width?: number;
+	readonly height?: number;
+	readonly mobile?: boolean;
+	readonly userAgent?: string;
+	readonly deviceScaleFactor?: number;
+}
+
+/**
+ * This should match the isolated world ID defined in `preload-browserView.ts`.
+ */
+export const browserViewIsolatedWorldId = 999;
+
 export interface IBrowserViewService {
+	/**
+	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).
+	 */
+	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
+
 	/**
 	 * Dynamic events that return an Event for a specific browser view ID.
 	 */
 	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
 	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
 	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
+	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
 	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
-	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
+	onDynamicDidSelectElement(id: string): Event<IElementData>;
+	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
+	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
+	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
+	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
+	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
+	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
 	/**
-	 * Get or create a browser view instance
-	 * @param id The browser view identifier
-	 * @param scope The storage scope for the browser view. Ignored if the view already exists.
-	 * @param workspaceId Workspace identifier for session isolation. Only used if scope is 'workspace'.
+	 * Get all known browser views with their ownership and state information.
 	 */
-	getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState>;
+	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
+
+	/**
+	 * Get or create a browser view instance. Does not fire `onDidCreateBrowserView`.
+	 *
+	 * @param id The browser view identifier
+	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
+	 */
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -176,8 +471,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -206,17 +502,11 @@ export interface IBrowserViewService {
 	captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 
 	/**
-	 * Dispatch a key event to the browser view
-	 * @param id The browser view identifier
-	 * @param keyEvent The key event data
-	 */
-	dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
-
-	/**
 	 * Focus the browser view
 	 * @param id The browser view identifier
+	 * @param force Whether to force focus even if the view's window is not focused.
 	 */
-	focus(id: string): Promise<void>;
+	focus(id: string, force?: boolean): Promise<void>;
 
 	/**
 	 * Find text in the browser view's page
@@ -234,6 +524,14 @@ export interface IBrowserViewService {
 	stopFindInPage(id: string, keepSelection?: boolean): Promise<void>;
 
 	/**
+	 * Get the currently selected text in the browser view.
+	 * Returns immediately with empty string if the page is still loading.
+	 * @param id The browser view identifier
+	 * @returns The selected text, or empty string if no selection or page is loading
+	 */
+	getSelectedText(id: string): Promise<string>;
+
+	/**
 	 * Clear all storage data for the global browser session
 	 */
 	clearGlobalStorage(): Promise<void>;
@@ -249,4 +547,98 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/** Set the browser zoom index (independent from VS Code zoom). */
+	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/** Set or clear the active device profile for a browser view. */
+	setDeviceEmulation(id: string, device: IBrowserDeviceProfile | undefined): Promise<void>;
+
+	/**
+	 * Trust a certificate for a given host in the browser view's session.
+	 * The page will be automatically reloaded after trusting.
+	 * @param id The browser view identifier
+	 * @param host The hostname that presented the certificate
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to trust
+	 */
+	trustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Revoke trust for a previously trusted certificate.
+	 * The browser view will be automatically closed after revoking.
+	 * @param id The browser view identifier
+	 * @param host The hostname to revoke the certificate for
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
+	 */
+	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Delete entries from this view's session history.
+	 * @param id The browser view identifier
+	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
+	 */
+	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
+
+	/**
+	 * Record permission decisions for an origin in this view's session. This is
+	 * the single write API for permissions: it is used both by the management UI
+	 * and to answer an outstanding {@link onDynamicDidRequestPermission} prompt.
+	 * Recording a decision for a category auto-resolves any pending request for
+	 * that (origin, category). The only values ever stored are `'allow'` and
+	 * `'deny'`; passing a `null` decision clears the saved choice, falling back
+	 * to the category default. Changes are persisted immediately.
+	 *
+	 * @param id The browser view identifier
+	 * @param origin The origin (URL or origin string) to record decisions for
+	 * @param grants The per-category decisions to record
+	 */
+	setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+
+	/**
+	 * Answer an in-progress hardware-device chooser raised via
+	 * {@link onDynamicDidRequestPermission} (its `device` payload). Pass the
+	 * chosen `deviceId`, or `null` to cancel the chooser.
+	 *
+	 * @param id The browser view identifier
+	 * @param requestId The device request to answer
+	 * @param deviceId The selected device id, or `null` to cancel
+	 */
+	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
+
+	/**
+	 * Get captured console logs for a browser view.
+	 * Console messages are automatically captured from the moment the view is created.
+	 * @param id The browser view identifier
+	 * @returns The captured console logs as a single string
+	 */
+	getConsoleLogs(id: string): Promise<string>;
+
+	/**
+	 * Toggle element selection mode in a browser view.
+	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
+
+	/**
+	 * Toggle drag-to-select area picking on the top frame of a browser view.
+	 * The pick result (rectangle, or `undefined` on cancellation) is delivered via
+	 * {@link onDynamicDidPickArea}. UI toggle state is delivered via
+	 * {@link onDynamicDidChangeAreaSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
+
+	/**
+	 * Replace the calling window's configuration for the browser views it owns.
+	 *
+	 * @param windowId The calling window's `vscodeWindowId`.
+	 * @param config The configuration to apply.
+	 */
+	updateWindowConfiguration(windowId: number, config: IBrowserViewWindowConfiguration): Promise<void>;
 }

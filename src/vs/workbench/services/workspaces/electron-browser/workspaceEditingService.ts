@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
-import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
@@ -34,6 +34,7 @@ import { IWorkbenchConfigurationService } from '../../configuration/common/confi
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -60,8 +61,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@ILogService logService: ILogService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
 
 		this.registerListeners();
 	}
@@ -179,6 +181,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return;
 		}
 
+		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
@@ -190,6 +193,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
 				this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
 			}
+
+			// Fire event to allow participants to join
+			await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 		}
 
 		// TODO@aeschli: workaround until restarting works

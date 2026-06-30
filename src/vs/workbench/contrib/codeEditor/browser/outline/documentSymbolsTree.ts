@@ -221,7 +221,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			template.iconClass.classList.add('outline-element-icon', 'inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
+			template.iconClass.classList.add('outline-element-icon', 'inline', 'codicon-colored', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			extraClasses.push(`deprecated`);

@@ -90,25 +90,6 @@ export class ExitAgentSessionProjectionAction extends Action2 {
 
 //#endregion
 
-//#region Toggle Agent Status
-
-export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
-	constructor() {
-		super(
-			ChatConfiguration.AgentStatusEnabled,
-			localize('toggle.agentStatus', 'Agent Status'),
-			localize('toggle.agentStatusDescription', "Toggle visibility of the Agent Status in title bar"), 6,
-			ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
-			)
-		);
-	}
-}
-
-//#endregion
-
 //#region Toggle Agent Quick Input
 
 export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
@@ -120,7 +101,8 @@ export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
+				ChatContextKeys.supported,
+				ContextKeyExpr.has('config.window.commandCenter'),
 			)
 		);
 	}

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktree } from './util';
+import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktreeFolder } from './util';
 import { Repository } from './repository';
-import { Ref, RefType, Worktree } from './api/git';
+import type { Ref, Worktree } from './api/git';
+import { RefType } from './api/git.constants';
 import { OperationKind } from './operation';
 
 /**
@@ -177,7 +178,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					]).join(' \u2022 '),
 					icon: w.main
 						? new ThemeIcon('repo')
-						: isCopilotWorktree(w.path)
+						: isCopilotWorktreeFolder(w.path)
 							? new ThemeIcon('chat-sparkle')
 							: new ThemeIcon('worktree')
 				}));

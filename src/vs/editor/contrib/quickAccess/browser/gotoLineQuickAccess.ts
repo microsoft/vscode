@@ -164,6 +164,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			this.sessionDisableAutoReveal = undefined;
 		}));
 
+		// Set initial ariaLabel for screen readers
+		picker.ariaLabel = localize('gotoLine.ariaLabel', "Go to line. Type a line number, optionally followed by colon and column number.");
+
 		// Goto line once picked
 		disposables.add(picker.onDidAccept(event => {
 			const item = picker.selectedItems[0];
@@ -211,6 +214,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				lineNumber,
 				column,
 				label,
+				ariaLabel: lineNumber
+					? localize('gotoLine.itemAriaLabel', "Go to line {0}, column {1}. Press Enter to navigate.", lineNumber, column || 1)
+					: label,
 			}];
 
 			// Clear decorations for invalid range

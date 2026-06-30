@@ -3,10 +3,87 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Voice Agent Bar — wraps the shared AgentsVoiceWidget inside input container */
+.voice-agent-bar {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	position: relative;
+	overflow: hidden;
+}
+
+@keyframes voiceTextPulse {
+	0%,
+	100% {
+		opacity: 0.9;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+.voice-transcript-overlay-scrollable {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 36px;
+	z-index: 10;
+	/* Let clicks pass through to the input editor unless there is scrollable transcript content */
+	pointer-events: none;
+	background: var(--vscode-input-background, transparent);
+	border-radius: inherit;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.voice-transcript-overlay-scrollable.has-transcript {
+	pointer-events: auto;
+}
+
+.voice-transcript-overlay {
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	font-size: var(--vscode-bodyFontSize);
+	line-height: 1.4;
+	word-break: break-word;
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
+.voice-transcript-overlay .committed {
+	color: var(--vscode-foreground);
+}
+
+.voice-transcript-overlay .partial {
+	color: var(--vscode-foreground);
+	opacity: 0.6;
+	font-style: italic;
+	animation: voiceTextPulse 1.5s ease-in-out infinite;
+}
+
+.voice-transcript-overlay .assistant-text {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
 /* Overall styles */
 .chat-viewpane {
 	display: flex;
 	flex-direction: column;
+
+	/* wrapper that holds sessions + chat controls */
+	> .voice-agent-controls-wrapper {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		overflow: hidden;
+	}
 
 	.chat-controls-container {
 		display: flex;
@@ -17,26 +94,11 @@
 		min-width: 0;
 
 		.interactive-session {
-
-			/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+			flex: 1;
+			/* needed so that the chat input does not overflow and input grows over content above */
 			width: 100%;
 			min-height: 0;
 			min-width: 0;
-		}
-	}
-
-	&:not(.chat-view-welcome-enabled) {
-
-		.interactive-session {
-
-			/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-			.chat-welcome-view .chat-welcome-view-icon,
-			.chat-welcome-view .chat-welcome-view-title,
-			.chat-welcome-view .chat-welcome-view-message,
-			.chat-welcome-view .chat-welcome-view-disclaimer,
-			.chat-welcome-view .chat-welcome-view-tips {
-				visibility: hidden;
-			}
 		}
 	}
 }
@@ -53,7 +115,6 @@
 		font-size: 11px;
 		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.5px;
 
 		.agent-sessions-title {
 			cursor: pointer;
@@ -83,7 +144,10 @@
 .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
 
 	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
+		/* center it above the chat which has this max-width restriction */
+		max-width: 950px;
+		margin: 0 auto;
+		width: 100%;
 	}
 
 	.agent-sessions-new-button-container {
@@ -95,7 +159,7 @@
 /* Sessions control: side by side */
 .chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
-	&.chat-view-position-left {
+	&.chat-view-position-left > .voice-agent-controls-wrapper {
 		flex-direction: row;
 
 		.agent-sessions-container {
@@ -103,7 +167,7 @@
 		}
 	}
 
-	&.chat-view-position-right {
+	&.chat-view-position-right > .voice-agent-controls-wrapper {
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
@@ -112,7 +176,7 @@
 	}
 
 	.agent-sessions-new-button-container {
-		padding: 8px 12px;
+		padding: 8px;
 	}
 }
 
@@ -139,7 +203,15 @@
 	}
 
 	.agent-session-section {
-		padding: 0 12px 0 20px;
+		padding: 0 6px 0 14px;
+	}
+
+	/* Stacked: symmetric padding */
+	&.sessions-control-orientation-stacked {
+
+		.agent-sessions-empty-filter-message {
+			padding-left: 20px;
+		}
 	}
 
 	/* Right position: symmetric padding */
@@ -150,7 +222,7 @@
 		}
 
 		.agent-session-section {
-			padding: 0 12px 0 8px;
+			padding: 0 6px 0 8px;
 		}
 	}
 

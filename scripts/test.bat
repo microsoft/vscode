@@ -6,14 +6,17 @@ set ELECTRON_RUN_AS_NODE=
 pushd %~dp0\..
 
 :: Get Code.exe location
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
+set "NAMESHORT="
+for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do if not defined NAMESHORT set "NAMESHORT=%%~a"
 set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
-call node build\lib\electron.ts
-if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+if "%VSCODE_SKIP_PRELAUNCH%"=="" (
+	call node build\lib\electron.ts
+	if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+)
 
 :: Run tests
 set ELECTRON_ENABLE_LOGGING=1

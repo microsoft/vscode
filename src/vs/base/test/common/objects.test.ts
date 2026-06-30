@@ -141,6 +141,48 @@ suite('Objects', () => {
 		});
 	});
 
+	test('stableStringify', () => {
+		// Stable key order regardless of insertion order
+		const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
+		const b = { c: { x: 2, y: 1 }, a: 2, b: 1 };
+		assert.strictEqual(objects.stableStringify(a), objects.stableStringify(b));
+		assert.strictEqual(objects.stableStringify(a), '{"a":2,"b":1,"c":{"x":2,"y":1}}');
+
+		// Nested keys must be preserved (regression: would be dropped if a
+		// global replacer-array was used).
+		assert.strictEqual(
+			objects.stableStringify({ outer: { inner: 1 } }),
+			'{"outer":{"inner":1}}'
+		);
+
+		// Arrays preserve order; their object elements get sorted keys.
+		assert.strictEqual(
+			objects.stableStringify([{ b: 1, a: 2 }, 'x', null, 3]),
+			'[{"a":2,"b":1},"x",null,3]'
+		);
+
+		// Primitives
+		assert.strictEqual(objects.stableStringify(undefined), 'undefined');
+		assert.strictEqual(objects.stableStringify(null), 'null');
+		assert.strictEqual(objects.stableStringify(0), '0');
+		assert.strictEqual(objects.stableStringify(''), '""');
+		assert.strictEqual(objects.stableStringify(true), 'true');
+
+		// Properties whose value is undefined are omitted (matches JSON.stringify)
+		assert.strictEqual(
+			objects.stableStringify({ a: 1, b: undefined, c: 3 }),
+			'{"a":1,"c":3}'
+		);
+
+		// Circular references do not throw and produce stable output
+		const circular: any = { a: 1 };
+		circular.self = circular;
+		assert.strictEqual(
+			objects.stableStringify(circular),
+			'{"a":1,"self":"[Circular]"}'
+		);
+	});
+
 	test('distinct', () => {
 		const base = {
 			one: 'one',

@@ -8,6 +8,7 @@ import { getProgressAccessibilitySignalScheduler } from './progressAccessibility
 import { RunOnceScheduler } from '../../../common/async.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { isNumber } from '../../../common/types.js';
+import { localize } from '../../../../nls.js';
 import './progressbar.css';
 
 const CSS_DONE = 'done';
@@ -15,8 +16,10 @@ const CSS_ACTIVE = 'active';
 const CSS_INFINITE = 'infinite';
 const CSS_INFINITE_LONG_RUNNING = 'infinite-long-running';
 const CSS_DISCRETE = 'discrete';
+const NLS_PROGRESS_LABEL = localize('progress', "Progress");
 
 export interface IProgressBarOptions extends IProgressBarStyles {
+	ariaLabel?: string;
 }
 
 export interface IProgressBarStyles {
@@ -68,6 +71,7 @@ export class ProgressBar extends Disposable {
 		this.element.classList.add('monaco-progress-container');
 		this.element.setAttribute('role', 'progressbar');
 		this.element.setAttribute('aria-valuemin', '0');
+		this.element.setAttribute('aria-label', options?.ariaLabel && options.ariaLabel.trim() ? options.ariaLabel : NLS_PROGRESS_LABEL);
 		container.appendChild(this.element);
 
 		this.bit = document.createElement('div');

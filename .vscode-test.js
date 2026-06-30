@@ -83,6 +83,11 @@ const extensions = [
 	{
 		label: 'git-base',
 		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'copilot',
+		files: 'extensions/copilot/dist/test-extension.js',
+		mocha: { ui: 'tdd', timeout: 60_000 }
 	}
 ];
 

@@ -23,7 +23,7 @@ export interface IChatInputPickerOptions {
 
 	readonly actionContext?: IChatExecuteActionContext;
 
-	readonly onlyShowIconsForDefaultActions: IObservable<boolean>;
+	readonly compact: IObservable<boolean>;
 }
 
 /**
@@ -50,8 +50,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			this.pickerOptions.onlyShowIconsForDefaultActions.read(reader);
+			const compact = this.pickerOptions.compact.read(reader);
 			if (this.element) {
+				this.element.classList.toggle('compact', compact);
 				this.renderLabel(this.element);
 			}
 		}));
@@ -71,5 +72,12 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-input-picker-item');
+
+		// Apply initial collapsed state now that this.element exists
+		const compact = this.pickerOptions.compact.get();
+		if (this.element) {
+			this.element.classList.toggle('compact', compact);
+			this.renderLabel(this.element);
+		}
 	}
 }

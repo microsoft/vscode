@@ -24,14 +24,7 @@
 
 	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
-
-		const isAgentSessionsWindow = configuration.profiles?.profile?.id === 'agent-sessions';
-		if (isAgentSessionsWindow) {
-			showAgentSessionsSplash(configuration);
-		} else {
-			showDefaultSplash(configuration);
-		}
-
+		showDefaultSplash(configuration);
 		performance.mark('code/didShowPartsSplash');
 	}
 
@@ -276,63 +269,6 @@
 
 			window.document.body.appendChild(splash);
 		}
-	}
-
-	function showAgentSessionsSplash(configuration: INativeWindowConfiguration) {
-
-		// Agent sessions windows render a very opinionated splash:
-		// - Dark theme background (agent sessions use 2026-dark-experimental)
-		// - Title bar only for window controls
-		// - Secondary sidebar takes all remaining space (maximized)
-		// - No status bar, no activity bar, no sidebar
-
-		const baseTheme = 'vs-dark';
-		const shellBackground = '#191A1B'; // 2026-dark-experimental sidebar background
-		const shellForeground = '#CCCCCC';
-
-		// Apply base colors
-		const style = document.createElement('style');
-		style.className = 'initialShellColors';
-		window.document.head.appendChild(style);
-		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
-
-		// Set zoom level from splash data if available
-		if (typeof configuration.partsSplash?.zoomLevel === 'number' && typeof preloadGlobals?.webFrame?.setZoomLevel === 'function') {
-			preloadGlobals.webFrame.setZoomLevel(configuration.partsSplash.zoomLevel);
-		}
-
-		const splash = document.createElement('div');
-		splash.id = 'monaco-parts-splash';
-		splash.className = baseTheme;
-
-		// Title bar height - use stored value or default
-		const titleBarHeight = configuration.partsSplash?.layoutInfo?.titleBarHeight ?? 35;
-
-		// Title bar for window dragging
-		if (titleBarHeight > 0) {
-			const titleDiv = document.createElement('div');
-			titleDiv.style.position = 'absolute';
-			titleDiv.style.width = '100%';
-			titleDiv.style.height = `${titleBarHeight}px`;
-			titleDiv.style.left = '0';
-			titleDiv.style.top = '0';
-			titleDiv.style.backgroundColor = shellBackground;
-			(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
-			splash.appendChild(titleDiv);
-		}
-
-		// Secondary sidebar (maximized, takes all remaining space)
-		// This is the main content area for agent sessions
-		const auxSideDiv = document.createElement('div');
-		auxSideDiv.style.position = 'absolute';
-		auxSideDiv.style.width = '100%';
-		auxSideDiv.style.height = `calc(100% - ${titleBarHeight}px)`;
-		auxSideDiv.style.top = `${titleBarHeight}px`;
-		auxSideDiv.style.left = '0';
-		auxSideDiv.style.backgroundColor = shellBackground;
-		splash.appendChild(auxSideDiv);
-
-		window.document.body.appendChild(splash);
 	}
 
 	//#endregion

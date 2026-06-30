@@ -1,0 +1,722 @@
+[
+	{
+		"Location": "panel",
+		"Request": "Write an explanation for the code above as paragraphs of text.",
+		"Intent": "explain"
+	},
+	{
+		"Location": "panel",
+		"Request": "There is a problem in this code. Rewrite the code to show it with the bug fixed",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "Create a RESTful API server using typescript",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "How do I create a notebook to load data from a csv file?",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "What did the last command do?",
+		"Intent": "terminalExplain"
+	},
+	{
+		"Location": "panel",
+		"Request": "How do I list files in the terminal",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "Write a set of detailed unit test functions for the code above.",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "Add a dog to this comment.",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "What is the command to open the integrated terminal?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "git delete branch",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a notebook called \"covid19 worldwide testing data\" that imports the #file:tested_worldwide.csv  at root level and display the first 5 rows",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a new notebook to create this file and text",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "Add an editor toolbar icon that triggers inline chat",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "newnotebook that creates four  agents based on the microsoft autogen framework. the 4 autogen agents can do different tasks related to supply chain management in the automotive industry",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "create new jupyter notebook",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "make a test for generate_plugin_configs",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "- create a grid of cards. the grid should be 4x4, 6x6, or 8x8.\r\n    - choose number of players. the game can be played by one or two players.\r\n    - add a card to the grid. the card should have a symbol on one side.\r\n    - shuffle the cards on the grid.\r\n    - add a click event to each card. when the player clicks a card, the card flips over.\r\n    - when the player clicks two cards, check if the cards have the same symbol. if the cards have the same symbol, the cards remain face up. otherwise, the cards flip back over.\r\n    - when all pairs of cards are matched, the player wins the game.\r\n    - create me a csproj file and a sln file as well for this",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "nodejs web app that will display weath forecast of major cities in australia. database of the cities would be a local json file. it should call any publicly available weather api. add beautiful css and test cases with at least 50% test coverage",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate a test suite using junit 4 and mockito to simulate database connections",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "what are some best practices for unit testing the `publishdirectemail()` method in the `directsendemailprocessor.cs` file?",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold code for a new winui3 desktop app using c#.",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a test using testng framework",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "vscode extension for chat participants, the extension will be for accessing internal schibsted developer apis and using that information in the chat context",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "#file:race-routes.test.ts generate tests based on existing race route tests",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "using testng framework, write a test that reads two files, one being a sequence diagram and the other being a non sequence diagram. test should expect an error on the non sequence diagram, that is, make use of an \"assert-expect\" construct from testng. test should expect a pass on a sequence diagram. again, using an \"assert-expect\" construct",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold a spring boot app using the maven build and azure openai sdk. the name of the app should be aspireyoutubesummariser.springapp",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "need to test new code in the file directsendemailprocessor.cs method publishdirectemail()",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "explain me this code",
+		"Intent": "explain"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a new java workspace, which will call an api from us national weather service to get the current temperature for a specific zipcode or city. the code should evaluate the temperature and identify the corresponding climate for that region.",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "make a unittest based on this",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "favor ajudar com a troca da tela de fundo do visual studio code.",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit test cases for selected code with auto tear down and test",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "how would i fix the highlighted error base on the #file:simpledateformat.java file that i have",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "what do you call that debug panel that has the continue, step in, step out buttons",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "design a skeleton to satisfy these requirements considering java as the primary technology",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a new jupyter notebook",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "go to next change using keyboard shortcut",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "how do i add env var to a test execution of jest in vscode?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "fix this error: \n\n\n  \u00d7 you're importing a component that needs usestate. it only works in a client component but none of its parents are marked with \"use client\", so they're server components by default.\n  \u2502 learn more: https://nextjs.org/docs/getting-started/react-essentials\n  \u2502 \n  \u2502 \n    \u256d\u2500[<REDACTED FILEPATH>\n 48 \u2502 // }\n 49 \u2502 \n 50 \u2502 import link from \"next/link\";\n 51 \u2502 import { useeffect, usestate } from \"react\";\n    \u00b7                     \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n 52 \u2502 \n 53 \u2502 export default function index({ initialdata }) {\n 54 \u2502   const [data, setdata] = usestate(initialdata);\n    \u2570\u2500\u2500\u2500\u2500\n\n  \u00d7 \"getserversideprops\" is not supported in app/. read more: https://nextjs.org/docs/app/building-your-application/data-fetching\n  \u2502 \n  \u2502 \n    \u256d\u2500[<REDACTED FILEPATH>\n 83 \u2502   );\n 84 \u2502 }\n 85 \u2502 \n 86 \u2502 export async function getserversideprops() {\n    \u00b7                       \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n 87 \u2502   let initialdata = null;\n 88 \u2502   try {\n 89 \u2502     const response = await fetch(\"http://localhost:3000/videos\");\n    \u2570\u2500\u2500\u2500\u2500\n\nimport trace for requested module:\n./src/app/page.js\n get /_next/static/webpack/6e6cf486d002fe77.webpack.hot-update.json 500 in 441ms\n \u26a0 fast refresh had to perform a full reload due to a runtime error.\n get / 500 in 26ms",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "using testng framework, write one test  that reads two files, one being a sequence diagram and the other being a non sequence diagram.",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold a spring boot app with azure openai sdk",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit test for the selected evaluatoraccordion component based on the below pr comment:\r\n\r\n\"let's not use snapshot tests. they are fragile and very easy to break and \"update\" without understanding the consequences\r\n\r\nplease do a \"expect(wrapper.find(foo)).tohavelength(1)\" or other kinds of assertions\"",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "how to add debug configuration for a node js app",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit tests this #file:createteamstab.tsx",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "can you help me create a new notebook to generate prompts against gpt4",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "remove current changes in branch with git?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit test for the selected code",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold a new c# console project",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "i need new project where i need to create an ui like youtube where i need to parse the video to audio ad transcribe using gcp audio to text and the search in the converted text into semantic search also point to the exact segment",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate tests for the covered code",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "gerar testes para #file:fib.py",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "flutter app that is a calculator",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "how to install extension",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "delete branch master",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "do ls include size of the folder in ascending order",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "use the test() syntax instead of it()",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a basic command line tool in javascript that takes a username and queries a sql database for the record.",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit test cases for selected code",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "small and basic project in go",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a terraform project that deploys an app into app service on azure",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a notebook that connect to the microsoft graph api and retrieves direct reports from a user email address",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "add unit tests for selected code",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit tests according to the above recommendations",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "how to change the workspace in debug view",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "vscode extension for chat participants, the extension should be updated to use cats instead of dogs",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit tests for the selected code",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold code for new test project",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "pyhton calculator",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "for the selected evaluatoraccordion component definition, can we have any tests that utilize `shallow` and `expect(wrapper.find(<some main/sub component>)).tohavelength(length);` kinds of validations?",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "project to deploy terrafrom code for 3 virutal mahcines and a vnet",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "open command palette",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "please help me implement tests for this program",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "set typescript spaces to 2",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": ".net 8 web app",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create me a react web app with node js api and a mongo db",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate a notebook which reads csv file, loads into a dataframe, remove the last column and print the data",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold code for fastify api server",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a new react app with a form that accepts firstname lastname and a view to list the users",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "how to change position of explorer in vs code",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "can i turn off the warning about committing to a protected branch",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "#file:race-routes.test.ts using the structure in race-routes.test.ts, create tests for runner-routes",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a node webapp that creates and deletes customers into a sql database.",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "how can i run the unit tests using the `bats` testing framework?",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "make sure we have at least 80% test coverage",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "how can i change the code colours in the screen?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate a notebook which reads csv file from fath <REDACTED FILEPATH>",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "explain please what this piece of code means.",
+		"Intent": "explain"
+	},
+	{
+		"Location": "panel",
+		"Request": "how can i collapse all code sections of a file",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "make a unittest code based on this",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "write tests",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a jupytor notebook to read the json file containing daily sales information. calculate the sales for each week and store the output data to mssql server table",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "using vitest",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "in the test method of testautoclassificationsensitiveinfotypes, i want to test if the actual contains the expected sensitiveinfotypeshint or not",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a react app with a node api and a mongo db",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "how do i see env var to file contents and preserve end of lines",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "#selection generate unit tests for the xunit framework.",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "generate unit test for adding numbers for a calculator application in python",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "run command azure app service: deploy to web app",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "how do i create a notebook to load data from a csv file?",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "multiple cursors by holding ctrl alt and the arrow keys",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "kill processes running on port 8080",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "can you generate unit tests for the order product function",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold .net api app addording to spec in #file:eshop.md",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "shortcut to delete a line",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "make tests",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "powershell json to csv and csv to json example",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "favor sugerir uma estrutura de teste unit\u00e1rio.",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "can you create a new razor project with a page that uses #file:homecontroller.cs",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "scaffold a system in java for me to setup account and customer management - ability to create, update, and delete customer accounts and profiles.",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "this code is splitting my uploaded file chracter by character, i want it to split by function in the code",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "the backgrond image is repeating vertically. fix it so that only 1 image is displayed",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "how can i configure visual studio code to automatically trim trailing whitespace when saving a file?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "How to change colour theme in VS Code?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "What are the benefits of dynamic programming",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "What are the most popular terminals that developers use",
+		"Intent": "github"
+	},
+	{
+		"Location": "panel",
+		"Request": "What is the last error in the terminal",
+		"Intent": "terminalExplain"
+	},
+	{
+		"Location": "panel",
+		"Request": "Can you please write tests for the current file",
+		"Intent": "tests"
+	},
+	{
+		"Location": "panel",
+		"Request": "Create a new dotnet workspace",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "Create a new Python AI project",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "What is a good vscode extensions starting point if I want to contribute to the chat view",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "How about if I want an extension that contributes code lenses",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "Sorting function in python with tests",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "How can I center my layout in the workbench?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "Can you generate a function to find string patterns like '11111111' in powers of a number?",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a new notebook for sentiment analysis; add sample 50 feedbacks about raising the minimum wage; plot the sentiment of the feedback into a chart",
+		"Intent": "newNotebook"
+	},
+	{
+		"Location": "panel",
+		"Request": "git diff --name-only b7a9a95e4fba2b0aecc019739ec98b52523e6708 -- projects/mdmlff\n\n\navoid blocking the output, print it all",
+		"Intent": "terminal"
+	},
+	{
+		"Location": "panel",
+		"Request": "to fix the error, you need to handle the case where selectedrepo is null before calling the createbaselinepipeline function.",
+		"Intent": "fix"
+	},
+	{
+		"Location": "panel",
+		"Request": "add a get all files method",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "write an example of using web crypto to compute a sha256",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "create a venv",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "What is the name of that setting when vscode fake opens a file and how to disable it?",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "provide an overview of this class",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "What is in the #editor",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "console.log `testExampleFile` given #editor",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "What would this mean or do at the top of a dockerfile: # escape=`ARG TAG=xenial",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "Add a method to get all files",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "How do I deploy my app to azure",
+		"Intent": "unknown"
+	},
+	{
+		"Location": "panel",
+		"Request": "Extension project contributing a walkthrough",
+		"Intent": "new"
+	},
+	{
+		"Location": "panel",
+		"Request": "Latest updated features in vscode",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "Keyboard shortcut to toggle chat panel",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "delete git branch from cmd palette",
+		"Intent": "vscode"
+	},
+	{
+		"Location": "panel",
+		"Request": "delete git branch",
+		"Intent": "github"
+	},
+	{
+		"location": "panel",
+		"Request": "inspect keybindings",
+		"Intent": "vscode"
+	},
+	{
+		"location": "panel",
+		"Request": "how do I display git changes in a tree rather than a list?",
+		"Intent": "vscode"
+	}
+]

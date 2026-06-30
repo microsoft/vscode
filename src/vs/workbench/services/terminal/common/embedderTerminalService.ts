@@ -56,7 +56,7 @@ class EmbedderTerminalService implements IEmbedderTerminalService {
 	declare _serviceBrand: undefined;
 
 	private readonly _onDidCreateTerminal = new Emitter<IShellLaunchConfig>();
-	readonly onDidCreateTerminal = Event.buffer(this._onDidCreateTerminal.event);
+	readonly onDidCreateTerminal = Event.buffer(this._onDidCreateTerminal.event, 'onDidCreateTerminal');
 
 	createTerminal(options: IEmbedderTerminalOptions): void {
 		const slc: EmbedderTerminal = {

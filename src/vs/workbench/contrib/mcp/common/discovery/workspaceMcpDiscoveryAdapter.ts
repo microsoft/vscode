@@ -57,9 +57,9 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
 			serverDefinitions: observableValue(this, []),
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+			order: McpCollectionSortOrder.WorkspaceFolder + 1,
 			presentation: {
 				origin: configFile,
-				order: McpCollectionSortOrder.WorkspaceFolder + 1,
 			},
 		};
 

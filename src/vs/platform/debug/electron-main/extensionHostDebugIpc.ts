@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import { Server } from 'http';
+import type { Server } from 'http';
 import { Socket } from 'net';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';

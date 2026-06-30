@@ -198,6 +198,15 @@ export interface IWorkbenchConstructionOptions {
 	readonly tunnelProvider?: ITunnelProvider;
 
 	/**
+	 * A provider for discovering and connecting to dev tunnel agent hosts.
+	 *
+	 * The embedder (e.g. vscode.dev) implements this to handle tunnel listing
+	 * and relay WebSocket proxying. If not provided, the sessions workbench
+	 * will not be able to discover tunnel-based agent hosts.
+	 */
+	readonly tunnelDiscoveryProvider?: ITunnelDiscoveryProvider;
+
+	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
@@ -472,6 +481,75 @@ export interface ITunnelProvider {
 	 * The features that the tunnel provider supports.
 	 */
 	features?: TunnelProviderFeatures;
+}
+
+/**
+ * Enables the embedder to provide tunnel discovery and connection for agent
+ * host sessions.
+ */
+export interface ITunnelDiscoveryProvider {
+
+	/**
+	 * List dev tunnels that have agent hosts available.
+	 *
+	 * The embedder is responsible for acquiring and managing authentication
+	 * tokens internally.
+	 *
+	 * @returns An array of discovered tunnels with their metadata.
+	 */
+	listTunnels(): Promise<IDiscoveredTunnel[]>;
+
+	/**
+	 * Connect to a tunnel's agent host port and return a message-passing
+	 * interface. The embedder handles all connection details including
+	 * authentication (e.g. using the Dev Tunnels SDK browser WebSocket
+	 * relay + SSH port forwarding).
+	 *
+	 * The returned {@link ITunnelConnection} carries JSON text messages
+	 * for the Agent Host Protocol.
+	 *
+	 * @param tunnelId The tunnel to connect to.
+	 * @param clusterId The cluster region of the tunnel.
+	 */
+	connect(tunnelId: string, clusterId: string): Promise<ITunnelConnection>;
+}
+
+/**
+ * A bidirectional message-passing connection to a tunnel's agent host.
+ * Returned by {@link ITunnelDiscoveryProvider.connect}.
+ */
+export interface ITunnelConnection {
+	/**
+	 * Send a text message to the agent host.
+	 */
+	send(data: string): void;
+
+	/**
+	 * Fires when a text message is received from the agent host.
+	 */
+	readonly onMessage: Event<string>;
+
+	/**
+	 * Fires when the connection is closed.
+	 */
+	readonly onClose: Event<void>;
+
+	/**
+	 * Close the connection and release resources.
+	 */
+	close(): void;
+}
+
+/**
+ * A tunnel discovered by {@link ITunnelDiscoveryProvider}.
+ */
+export interface IDiscoveredTunnel {
+	readonly tunnelId: string;
+	readonly clusterId: string;
+	readonly name: string;
+	readonly tags: readonly string[];
+	/** Number of hosts currently accepting connections (0 = offline). */
+	readonly hostConnectionCount: number;
 }
 
 export interface ITunnelFactory {

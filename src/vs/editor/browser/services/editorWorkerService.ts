@@ -37,6 +37,7 @@ import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
 import { StringEdit } from '../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
 import { FileAccess } from '../../../base/common/network.js';
+import { isCompletionsEnabledWithTextResourceConfig } from '../../common/services/completionsEnablement.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -96,9 +97,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, this._languageConfigurationService, this._logService, languageFeaturesService)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public canComputeUnicodeHighlights(uri: URI): boolean {
 		return canSyncModel(this._modelService, uri);
@@ -280,7 +278,9 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 			return undefined;
 		}
 
-		if (config.wordBasedSuggestions === 'offWithInlineSuggestions' && this.languageFeaturesService.inlineCompletionsProvider.has(model)) {
+		if (config.wordBasedSuggestions === 'offWithInlineSuggestions'
+			&& this.languageFeaturesService.inlineCompletionsProvider.has(model)
+			&& isCompletionsEnabledWithTextResourceConfig(this._configurationService, model.uri, model.getLanguageId())) {
 			return undefined;
 		}
 

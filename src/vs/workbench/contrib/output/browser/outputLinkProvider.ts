@@ -34,7 +34,7 @@ export class OutputLinkProvider extends Disposable {
 	) {
 		super();
 
-		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
+		this.disposeWorkerScheduler = this._register(new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME));
 
 		this.registerListeners();
 		this.updateLinkProviderWorker();

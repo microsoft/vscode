@@ -82,7 +82,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		return undefined; // no update provider to ask
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(_explicit: boolean): Promise<void> {
 		// no-op
 	}
 
@@ -98,7 +98,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
 		// noop - not applicable in browser
 	}
 }

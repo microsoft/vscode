@@ -36,7 +36,14 @@ jobs:
         inputs:
           azureSubscription: vscode
           KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+          SecretsFilter: "macos-developer-certificate,macos-developer-certificate-key"
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY build
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -71,7 +78,7 @@ jobs:
           done
         workingDirectory: build
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
 
       - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
@@ -102,6 +109,20 @@ jobs:
           set -e
           APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
           APP_NAME="`ls $APP_ROOT | head -n 1`"
+          APP_PATH="$APP_ROOT/$APP_NAME"
+          EXEC_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+          # Create a symlink from 'Electron' to the actual executable for backward compatibility
+          # This ensures apps that relied on the hardcoded path 'Contents/MacOS/Electron' continue to work
+          # Remove this step once main branch is on 1.112 release.
+          if [ "$EXEC_NAME" != "Electron" ] && [ ! -L "$APP_PATH/Contents/MacOS/Electron" ]; then
+            ln -s "$EXEC_NAME" "$APP_PATH/Contents/MacOS/Electron"
+          fi
+        displayName: Create Electron symlink for backward compatibility
+
+      - script: |
+          set -e
+          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
           APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts universal
         displayName: Verify arch of Mach-O objects
 
@@ -119,8 +140,6 @@ jobs:
 
       - script: |
           set -e
-          # Needed for https://github.com/dmgbuild/dmgbuild/blob/main/src/dmgbuild/badge.py
-          python3 -m pip install pyobjc-framework-Quartz
           DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
           mkdir -p $DMG_OUT
           node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
@@ -138,7 +157,7 @@ jobs:
         inputs:
           version: 6.x
 
-      - task: EsrpCodeSigning@5
+      - task: EsrpCodeSigning@6
         inputs:
           UseMSIAuthentication: true
           ConnectedServiceName: vscode-esrp
@@ -173,7 +192,23 @@ jobs:
           APP_NAME="`ls $APP_ROOT | head -n 1`"
           APP_PATH="$APP_ROOT/$APP_NAME"
           codesign -dv --deep --verbose=4 "$APP_PATH"
-          "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+          BINARY_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+          TIMERS_FILE="$(Build.ArtifactStagingDirectory)/startup-timers.txt"
+          "$APP_PATH/Contents/MacOS/$BINARY_NAME" \
+            --prof-append-timers "$TIMERS_FILE" \
+            --user-data-dir "$(Agent.TempDirectory)/vscode-verify" \
+            --extensions-dir "$(Agent.TempDirectory)/vscode-verify-ext" \
+            --disable-extensions --disable-telemetry --skip-welcome \
+            --skip-release-notes --disable-updates --disable-experiments \
+            --disable-workspace-trust
+          if [ ! -f "$TIMERS_FILE" ]; then
+            echo "ERROR: VS Code failed to start — startup timers were not written."
+            echo "This may indicate a binary was killed by AMFI due to restricted entitlements."
+            exit 1
+          fi
+          echo "Startup timers:"
+          cat "$TIMERS_FILE"
+        timeoutInMinutes: 5
         displayName: Verify signature
 
       - script: |

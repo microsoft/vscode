@@ -8,25 +8,28 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
 	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit,
-	TextDocumentContentRequest
+	TextDocumentContentRequest,
+	TextDocumentContentParams,
+	CancellationToken,
+	TextDocumentContentResult
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
 	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData, FILE_PROTOCOL
-} from './modes/languageModes';
+} from './modes/languageModes.js';
 
-import { format } from './modes/formatting';
-import { pushAll } from './utils/arrays';
-import { getDocumentContext } from './utils/documentContext';
+import { format } from './modes/formatting.js';
+import { pushAll } from './utils/arrays.js';
+import { getDocumentContext } from './utils/documentContext.js';
 import { URI } from 'vscode-uri';
-import { formatError, runSafe } from './utils/runner';
-import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
+import { formatError, runSafe } from './utils/runner.js';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
 
-import { getFoldingRanges } from './modes/htmlFolding';
-import { fetchHTMLDataProviders } from './customData';
-import { getSelectionRanges } from './modes/selectionRanges';
-import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
-import { FileSystemProvider, getFileSystemProvider } from './requests';
+import { getFoldingRanges } from './modes/htmlFolding.js';
+import { fetchHTMLDataProviders } from './customData.js';
+import { getSelectionRanges } from './modes/selectionRanges.js';
+import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens.js';
+import { FileSystemProvider, getFileSystemProvider } from './requests.js';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -52,7 +55,7 @@ interface AutoInsertParams {
 }
 
 namespace AutoInsertRequest {
-	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
+	export const type: RequestType<AutoInsertParams, string | null, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -590,16 +593,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		});
 	});
 
-	connection.onRequest(TextDocumentContentRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
+	connection.onRequest(TextDocumentContentRequest.type, (params: TextDocumentContentParams, token: CancellationToken) => {
+		return runSafe<TextDocumentContentResult>(runtime, async () => {
 			for (const languageMode of languageModes.getAllModes()) {
 				const content = await languageMode.getTextDocumentContent?.(params.uri);
 				if (content) {
 					return { text: content };
 				}
 			}
-			return null;
-		}, null, `Error while computing text document content for ${params.uri}`, token);
+			return { text: '' };
+		}, { text: '' }, `Error while computing text document content for ${params.uri}`, token);
 	});
 
 	// Listen on the connection

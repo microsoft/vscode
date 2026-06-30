@@ -128,6 +128,74 @@ async function copyFileSecure(
 	await setWindowsPermissions(dest, logger);
 }
 
+/**
+ * Updates the modification time of a directory to mark it as recently used.
+ */
+async function updateDirectoryMtime(dirPath: string, logger: LogOutputChannel): Promise<void> {
+	try {
+		const now = new Date();
+		await fs.promises.utimes(dirPath, now, now);
+		logger.trace(`[askpassManager] Updated mtime for ${dirPath}`);
+	} catch (err) {
+		logger.warn(`[askpassManager] Failed to update mtime for ${dirPath}: ${err}`);
+	}
+}
+
+/**
+ * Garbage collects old content-addressed askpass directories that haven't been used in 7 days.
+ * This prevents accumulation of old versions when VS Code updates.
+ */
+async function garbageCollectOldDirectories(
+	askpassBaseDir: string,
+	currentHash: string,
+	logger: LogOutputChannel
+): Promise<void> {
+	try {
+		// Check if the askpass base directory exists
+		try {
+			await fs.promises.access(askpassBaseDir);
+		} catch {
+			// Directory doesn't exist, nothing to clean
+			return;
+		}
+
+		const entries = await fs.promises.readdir(askpassBaseDir);
+		const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+		for (const entry of entries) {
+			// Skip the current content-addressed directory
+			if (entry === currentHash) {
+				continue;
+			}
+
+			const entryPath = path.join(askpassBaseDir, entry);
+
+			try {
+				const stat = await fs.promises.stat(entryPath);
+
+				// Only process directories
+				if (!stat.isDirectory()) {
+					continue;
+				}
+
+				// Check if the directory hasn't been used in 7 days
+				if (stat.mtime.getTime() < sevenDaysAgo) {
+					logger.info(`[askpassManager] Removing old askpass directory: ${entryPath} (last used: ${stat.mtime.toISOString()})`);
+
+					// Remove the directory and all its contents
+					await fs.promises.rm(entryPath, { recursive: true, force: true });
+				} else {
+					logger.trace(`[askpassManager] Keeping askpass directory: ${entryPath} (last used: ${stat.mtime.toISOString()})`);
+				}
+			} catch (err) {
+				logger.warn(`[askpassManager] Failed to process/remove directory ${entryPath}: ${err}`);
+			}
+		}
+	} catch (err) {
+		logger.warn(`[askpassManager] Failed to garbage collect old directories: ${err}`);
+	}
+}
+
 export interface AskpassPaths {
 	readonly askpass: string;
 	readonly askpassMain: string;
@@ -144,7 +212,7 @@ export interface AskpassPaths {
  * @param storageDir The user-controlled storage directory (context.storageUri.fsPath)
  * @param logger Logger for diagnostic output
  */
-async function ensureAskpassScripts(
+export async function ensureAskpassScripts(
 	sourceDir: string,
 	storageDir: string,
 	logger: LogOutputChannel
@@ -162,7 +230,8 @@ async function ensureAskpassScripts(
 	logger.trace(`[askpassManager] Content hash: ${contentHash}`);
 
 	// Create content-addressed directory
-	const askpassDir = path.join(storageDir, 'askpass', contentHash);
+	const askpassBaseDir = path.join(storageDir, 'askpass');
+	const askpassDir = path.join(askpassBaseDir, contentHash);
 
 	const destPaths: AskpassPaths = {
 		askpass: path.join(askpassDir, 'askpass.sh'),
@@ -177,6 +246,10 @@ async function ensureAskpassScripts(
 		const stat = await fs.promises.stat(destPaths.askpass);
 		if (stat.isFile()) {
 			logger.trace(`[askpassManager] Using existing content-addressed askpass at ${askpassDir}`);
+
+			// Update mtime to mark this directory as recently used
+			await updateDirectoryMtime(askpassDir, logger);
+
 			return destPaths;
 		}
 	} catch {
@@ -199,6 +272,12 @@ async function ensureAskpassScripts(
 	]);
 
 	logger.info(`[askpassManager] Successfully created content-addressed askpass scripts`);
+
+	// Update mtime to mark this directory as recently used
+	await updateDirectoryMtime(askpassDir, logger);
+
+	// Garbage collect old directories
+	await garbageCollectOldDirectories(askpassBaseDir, contentHash, logger);
 
 	return destPaths;
 }

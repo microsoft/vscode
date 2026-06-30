@@ -1,0 +1,1470 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { StateType } from '../../../../../../../platform/update/common/update.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+
+function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
+	return {
+		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
+		sentiment: { completed: true } as IChatEntitlementService['sentiment'],
+		isInternal: opts?.isInternal ?? false,
+		anonymous: opts?.anonymous ?? false,
+	} as IChatEntitlementService;
+}
+
+const stubChatEntitlementService = createStubEntitlementService();
+
+function createModel(id: string, name: string, vendor = 'copilot'): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier: `${vendor}-${id}`,
+		metadata: {
+			id,
+			name,
+			vendor,
+			version: id,
+			family: vendor,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+		} as ILanguageModelChatMetadata,
+	};
+}
+
+function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
+	return createModel('auto', 'Auto', 'copilot');
+}
+
+function getActionItems(items: IActionListItem<IActionWidgetDropdownAction>[]): IActionListItem<IActionWidgetDropdownAction>[] {
+	return items.filter(i => i.kind === ActionListItemKind.Action);
+}
+
+function getActionLabels(items: IActionListItem<IActionWidgetDropdownAction>[]): string[] {
+	return getActionItems(items).map(i => i.label!);
+}
+
+function getSeparatorCount(items: IActionListItem<IActionWidgetDropdownAction>[]): number {
+	return items.filter(i => i.kind === ActionListItemKind.Separator).length;
+}
+
+const stubManageModelsAction: IActionWidgetDropdownAction = {
+	id: 'manageModels',
+	enabled: true,
+	checked: false,
+	class: undefined,
+	tooltip: 'Manage Language Models',
+	label: 'Manage Models...',
+	run: () => { }
+};
+
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [], getLanguageModelGroups: () => [] } as unknown as ILanguageModelsService;
+
+/**
+ * Builds a `ILanguageModelsService` stub that simulates BYOK provider
+ * groups: each `vendors` entry advertises one or more user-configured
+ * groups (mapping group name to model identifiers). Used to exercise the
+ * picker's `(vendor, groupName)` bucketing without spinning up the real
+ * service.
+ */
+function createLanguageModelsServiceStub(vendors: { vendor: string; displayName: string; groups: { name: string; modelIdentifiers: string[] }[] }[]): ILanguageModelsService {
+	return {
+		getModelConfigurationActions: () => [],
+		getModelConfiguration: () => undefined,
+		getVendors: () => vendors.map(v => ({ vendor: v.vendor, displayName: v.displayName })),
+		getLanguageModelGroups: (vendor: string) => {
+			const v = vendors.find(x => x.vendor === vendor);
+			if (!v) {
+				return [];
+			}
+			return v.groups.map(g => ({
+				group: { vendor: v.vendor, name: g.name },
+				modelIdentifiers: g.modelIdentifiers,
+			}));
+		},
+	} as unknown as ILanguageModelsService;
+}
+
+function callBuild(
+	models: ILanguageModelChatMetadataAndIdentifier[],
+	opts: {
+		selectedModelId?: string;
+		recentModelIds?: string[];
+		pinnedModelIds?: string[];
+		controlModels?: IStringDictionary<IModelControlEntry>;
+		entitlement?: ChatEntitlement;
+		currentVSCodeVersion?: string;
+		updateStateType?: StateType;
+		manageSettingsUrl?: string;
+		anonymous?: boolean;
+		showUnavailableFeatured?: boolean;
+		showFeatured?: boolean;
+		languageModelsService?: ILanguageModelsService;
+		showAutoModel?: boolean;
+		restrictedMode?: boolean;
+		onRequestTrust?: () => void;
+		setupRequired?: boolean;
+		onRequestSetup?: () => void;
+	} = {},
+): IActionListItem<IActionWidgetDropdownAction>[] {
+	const onSelect = () => { };
+	const entitlementService = createStubEntitlementService({
+		entitlement: opts.entitlement ?? ChatEntitlement.Pro,
+		anonymous: opts.anonymous ?? false,
+	});
+	return buildModelPickerItems(
+		models,
+		opts.selectedModelId,
+		opts.recentModelIds ?? [],
+		opts.pinnedModelIds ?? [],
+		opts.controlModels ?? {},
+		opts.currentVSCodeVersion ?? '1.100.0',
+		opts.updateStateType ?? StateType.Idle,
+		onSelect,
+		undefined,
+		opts.manageSettingsUrl,
+		true,
+		stubManageModelsAction,
+		entitlementService,
+		opts.showUnavailableFeatured ?? true,
+		opts.showFeatured ?? true,
+		opts.languageModelsService ?? stubLanguageModelsService,
+		undefined,
+		opts.showAutoModel ?? true,
+		undefined,
+		opts.restrictedMode ?? false,
+		opts.onRequestTrust,
+		opts.setupRequired ?? false,
+		opts.onRequestSetup,
+	);
+}
+
+function createControlManifest(): IModelsControlManifest {
+	return {
+		free: {
+			'free-model': { label: 'Free Model', featured: true, exists: true },
+		},
+		paid: {
+			'paid-model': { label: 'Paid Model', featured: true, exists: true },
+		},
+	};
+}
+
+suite('buildModelPickerItems', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accessibility provider uses radio semantics for model items', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Action } as IActionListItem<IActionWidgetDropdownAction>), 'menuitemradio');
+		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Separator } as IActionListItem<IActionWidgetDropdownAction>), 'separator');
+		assert.strictEqual(provider.getWidgetRole(), 'menu');
+	});
+
+	test('accessibility provider announces the Restricted Mode Trust action as a plain menuitem (not a radio)', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const trust = getActionItems(callBuild([], { restrictedMode: true, onRequestTrust: () => { } })).find(a => a.item?.id === 'restrictedModeTrust')!;
+		assert.ok(trust, 'expected a Trust Workspace action');
+		assert.strictEqual(provider.getRole(trust), 'menuitem');
+		assert.strictEqual(provider.isChecked(trust), undefined);
+	});
+
+	test('accessibility provider announces the Sign In action as a plain menuitem (not a radio)', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const signIn = getActionItems(callBuild([], { setupRequired: true, onRequestSetup: () => { } })).find(a => a.item?.id === 'setupRequiredSignIn')!;
+		assert.ok(signIn, 'expected a Sign In action');
+		assert.strictEqual(provider.getRole(signIn), 'menuitem');
+		assert.strictEqual(provider.isChecked(signIn), undefined);
+	});
+
+	test('accessibility provider includes inline source and right-aligned multiplier', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Opus 4.7',
+			badge: 'Copilot',
+			description: '15x',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
+	});
+
+	test('accessibility provider prefers ariaDescription over description', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Sonnet 4.6',
+			description: 'Copilot',
+			ariaDescription: 'Medium cost',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
+	});
+
+	test('auto model always appears first', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([modelA, auto]);
+		const actions = getActionItems(items);
+		assert.strictEqual(actions[0].label, 'Auto');
+	});
+
+	test('empty models list produces auto and manage models entries', () => {
+		const items = callBuild([]);
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.length, 2);
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].item?.id, 'manageModels');
+	});
+
+	test('showAutoModel=false shows a disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { showAutoModel: false });
+		const actions = getActionItems(items);
+		// Exactly one entry: the early return must suppress Auto and the
+		// standalone "Manage Models" action (the helper always passes one).
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.strictEqual(actions[0].item?.enabled, false);
+	});
+
+	test('showAutoModel=false attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { showAutoModel: false, entitlement: ChatEntitlement.Free });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.ok(noModels!.description, 'expected an upgrade description for Free users');
+	});
+
+	test('showAutoModel=false omits upgrade link for paid users', () => {
+		const items = callBuild([], { showAutoModel: false, entitlement: ChatEntitlement.Pro });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.strictEqual(noModels!.description, undefined);
+	});
+
+	test('showAutoModel=false with available models shows the models, not the empty state', () => {
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { showAutoModel: false });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
+	});
+
+	test('restrictedMode shows an explanatory header and a Trust Workspace action instead of auto', () => {
+		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { } });
+		const actions = getActionItems(items);
+		// The explanation is a non-interactive header; only Trust is selectable.
+		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models unavailable while in Restricted mode'));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'restrictedModeTrust');
+		assert.strictEqual(actions[0].item?.enabled, true);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+	});
+
+	test('restrictedMode Trust action is disabled without a trust callback', () => {
+		const items = callBuild([], { restrictedMode: true });
+		const trust = getActionItems(items).find(a => a.item?.id === 'restrictedModeTrust');
+		assert.strictEqual(trust?.item?.enabled, false);
+		assert.strictEqual(trust?.disabled, true);
+	});
+
+	test('restrictedMode takes precedence over showAutoModel', () => {
+		const items = callBuild([], { restrictedMode: true, showAutoModel: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'restrictedModeTrust'), true);
+	});
+
+	test('restrictedMode Trust action invokes the trust callback', () => {
+		let trustRequested = 0;
+		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { trustRequested++; } });
+		const trustAction = getActionItems(items).find(a => a.item?.id === 'restrictedModeTrust');
+		assert.ok(trustAction, 'expected a Trust Workspace action');
+		trustAction!.item!.run();
+		assert.strictEqual(trustRequested, 1);
+	});
+
+	test('restrictedMode takes precedence even over cached models', () => {
+		// In Restricted Mode the picker may still receive machine-cached models
+		// from a previous trusted session; the restricted state must suppress
+		// them rather than present stale, unusable models.
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { restrictedMode: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'restrictedModeTrust'), true);
+	});
+
+	test('setupRequired shows an explanatory header and a Sign In action instead of auto', () => {
+		const items = callBuild([], { setupRequired: true, onRequestSetup: () => { } });
+		const actions = getActionItems(items);
+		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Sign in to use Copilot'));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'setupRequiredSignIn');
+		assert.strictEqual(actions[0].item?.enabled, true);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+	});
+
+	test('setupRequired Sign In action is disabled without a setup callback', () => {
+		const items = callBuild([], { setupRequired: true });
+		const signIn = getActionItems(items).find(a => a.item?.id === 'setupRequiredSignIn');
+		assert.strictEqual(signIn?.item?.enabled, false);
+		assert.strictEqual(signIn?.disabled, true);
+	});
+
+	test('setupRequired Sign In action invokes the setup callback', () => {
+		let setupRequested = 0;
+		const items = callBuild([], { setupRequired: true, onRequestSetup: () => { setupRequested++; } });
+		const signIn = getActionItems(items).find(a => a.item?.id === 'setupRequiredSignIn');
+		assert.ok(signIn, 'expected a Sign In action');
+		signIn!.item!.run();
+		assert.strictEqual(setupRequested, 1);
+	});
+
+	test('setupRequired takes precedence even over cached models', () => {
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { setupRequired: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), false);
+		assert.strictEqual(actions.some(a => a.item?.id === 'setupRequiredSignIn'), true);
+	});
+
+	test('restrictedMode takes precedence over setupRequired', () => {
+		const items = callBuild([], { restrictedMode: true, setupRequired: true, onRequestTrust: () => { }, onRequestSetup: () => { } });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.item?.id === 'restrictedModeTrust'), true);
+		assert.strictEqual(actions.some(a => a.item?.id === 'setupRequiredSignIn'), false);
+	});
+
+	test('only auto model produces auto and manage models with separator', () => {
+		const items = callBuild([createAutoModel()]);
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.length, 2);
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].item?.id, 'manageModels');
+		assert.strictEqual(getSeparatorCount(items), 1);
+	});
+
+	test('selected model appears in promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			selectedModelId: modelA.identifier,
+		});
+		const actions = getActionItems(items);
+		// Auto first, then selected model in promoted section, then remaining in other
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'GPT-4o');
+		assert.ok(actions[1].item?.checked);
+	});
+
+	test('selected model with failing minVSCodeVersion shows as unavailable with reason update', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			selectedModelId: modelA.identifier,
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		// The promoted section should contain the unavailable model
+		const promotedItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(promotedItem);
+		assert.strictEqual(promotedItem.disabled, true);
+		assert.strictEqual(promotedItem.item?.enabled, false);
+	});
+
+	test('recently used models appear in promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			recentModelIds: [modelB.identifier],
+		});
+		const actions = getActionItems(items);
+		// Auto, then Claude (recent) in promoted, then others
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'Claude');
+	});
+
+	test('recently used model not in models list but in controlModels shows as unavailable (upgrade for free user)', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: {
+				'missing-model': { label: 'Missing Model', exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'Missing Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('recently used model not in models list shows as unavailable (update for version mismatch)', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: {
+				'missing-model': { label: 'Missing Model', minVSCodeVersion: '2.0.0', exists: false },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'Missing Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('recently used model not in models list shows as unavailable (admin for pro user without version issue)', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: {
+				'missing-model': { label: 'Missing Model', exists: false },
+			},
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'Missing Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('featured control models appear in promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+		});
+		const actions = getActionItems(items);
+		assert.strictEqual(actions[0].label, 'Auto');
+		// GPT-4o should be in promoted due to featured
+		assert.strictEqual(actions[1].label, 'GPT-4o');
+	});
+
+	test('edu entitlement uses free featured control manifest', () => {
+		const manifest = createControlManifest();
+		assert.strictEqual(getControlModelsForEntitlement(manifest, ChatEntitlement.EDU), manifest.free);
+	});
+
+	test('featured model not in models list shows as unavailable for free users (upgrade)', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'premium-model': { label: 'Premium Model', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'Premium Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('featured model not in models list shows as unavailable for pro users (admin)', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'premium-model': { label: 'Premium Model', featured: true, exists: false },
+			},
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'Premium Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('featured model with minVSCodeVersion shows as unavailable (update) when version too low', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const unavailable = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.disabled, true);
+	});
+
+	test('non-featured control models do NOT appear in promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: false, exists: true },
+			},
+		});
+		// With no selected, no recent, and no featured, both models should be in Other
+		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
+		// One separator before Other Models section
+		assert.strictEqual(seps.length, 1);
+		const actions = getActionItems(items);
+		assert.strictEqual(actions[0].label, 'Auto');
+		// Next should be "Other Models" toggle
+		assert.strictEqual(actions[1].isSectionToggle, true);
+	});
+
+	test('available promoted models are sorted alphabetically', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			recentModelIds: [modelA.identifier, modelB.identifier, modelC.identifier],
+		});
+		const actions = getActionItems(items);
+		// Skip Auto, promoted models should be sorted: Claude, Gemini, GPT-4o
+		assert.strictEqual(actions[1].label, 'Claude');
+		assert.strictEqual(actions[2].label, 'Gemini');
+		assert.strictEqual(actions[3].label, 'GPT-4o');
+	});
+
+	test('unavailable promoted models appear after available ones', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			recentModelIds: [modelA.identifier, 'missing-model'],
+			controlModels: {
+				'missing-model': { label: 'Missing Model', exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+		const actions = getActionItems(items);
+		// Auto, then GPT-4o (available), then Missing Model (unavailable)
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'GPT-4o');
+		assert.ok(!actions[1].disabled);
+		assert.strictEqual(actions[2].label, 'Missing Model');
+		assert.strictEqual(actions[2].disabled, true);
+	});
+
+	test('models not in promoted section appear in Other Models section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB]);
+		const actions = getActionItems(items);
+		// Auto, then "Other Models" toggle, then models, then "Manage Models..."
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].isSectionToggle, true);
+		assert.ok(actions[1].label!.includes('Other Models'));
+	});
+
+	test('Other Models section includes section toggle', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const toggles = getActionItems(items).filter(i => i.isSectionToggle);
+		assert.strictEqual(toggles.length, 1);
+		assert.ok(toggles[0].label!.includes('Other Models'));
+	});
+
+	test('Other Models section includes Manage Models in toolbar', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const toggle = getActionItems(items).find(i => i.isSectionToggle);
+		assert.ok(toggle);
+		assert.ok(toggle.toolbarActions);
+		assert.strictEqual(toggle.toolbarActions!.length, 1);
+		assert.strictEqual(toggle.toolbarActions![0].id, 'manageModels');
+	});
+
+	test('Other Models with minVSCodeVersion that fails shows as disabled', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.disabled, true);
+	});
+
+	test('Other Models places unavailable models after available models', () => {
+		const auto = createAutoModel();
+		const availableModel = createModel('zeta', 'Zeta');
+		const unavailableModel = createModel('alpha', 'Alpha');
+		const items = callBuild([auto, availableModel, unavailableModel], {
+			controlModels: {
+				'alpha': { label: 'Alpha', minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));
+		assert.deepStrictEqual(otherModelLabels, ['Zeta', 'Alpha']);
+		assert.strictEqual(actions.find(a => a.label === 'Alpha')?.disabled, true);
+	});
+
+	test('no duplicate models across sections', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			selectedModelId: modelA.identifier,
+			recentModelIds: [modelA.identifier, modelB.identifier],
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+				'claude': { label: 'Claude', featured: true, exists: true },
+			},
+		});
+		const labels = getActionLabels(items).filter(l => l !== 'Other Models' && !l.includes('Manage Models'));
+		const uniqueLabels = new Set(labels);
+		assert.strictEqual(labels.length, uniqueLabels.size, `Duplicate labels found: ${labels.join(', ')}`);
+	});
+
+	test('auto model is excluded from promoted and other sections', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			selectedModelId: auto.identifier,
+			recentModelIds: [auto.identifier],
+			controlModels: {
+				'auto': { label: 'Auto', featured: true, exists: true },
+			},
+		});
+		const autoItems = getActionItems(items).filter(a => a.label === 'Auto');
+		// Auto should appear exactly once (the first item)
+		assert.strictEqual(autoItems.length, 1);
+	});
+
+	test('models with no control manifest entries work fine', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			controlModels: {},
+		});
+		const actions = getActionItems(items);
+		assert.ok(actions.length >= 3); // Auto + 2 models (in other) + toggle + manage
+		assert.strictEqual(actions[0].label, 'Auto');
+	});
+
+	test('Other Models grouped by vendor with separator headers', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('zebra', 'Zebra', 'copilot');
+		const modelB = createModel('alpha', 'Alpha', 'other-vendor');
+		const modelC = createModel('beta', 'Beta', 'copilot');
+		const items = callBuild([auto, modelA, modelB, modelC]);
+		// Vendor separators should be present with correct labels
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 2);
+		// Vendors sorted alphabetically by display name
+		assert.strictEqual(vendorSeparators[0].label, 'Copilot');
+		assert.strictEqual(vendorSeparators[1].label, 'Other-vendor');
+		// Models within each vendor group are sorted alphabetically
+		const actions = getActionItems(items);
+		const otherModelLabels = actions.filter(a => !a.isSectionToggle && a.section === 'other').map(a => a.label!);
+		assert.deepStrictEqual(otherModelLabels, ['Beta', 'Zebra', 'Alpha']);
+	});
+
+	test('single vendor group omits vendor separator header', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB]);
+		// No vendor separators when all models share the same vendor
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 0);
+	});
+
+	test('Other Models splits a single vendor into per-group sections (BYOK)', () => {
+		// Simulates a BYOK setup where one vendor (`customoai`) advertises
+		// two user-configured provider groups. The picker should mirror the
+		// model configuration view and render one section per group rather
+		// than collapsing them under the vendor display name.
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['AWS Bedrock', 'OpenAI Compatible']);
+	});
+
+	test('Other Models keeps a single section when a vendor has only one group (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, gpt41], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted models show provider group name when groups disambiguate a single vendor (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], {
+			recentModelIds: [gpt41.identifier],
+			languageModelsService: lmService,
+		});
+		const promoted = getActionItems(items).find(a => a.label === 'gpt-4.1');
+		assert.ok(promoted);
+		// Badge should carry the user-configured group name, not the vendor displayName.
+		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
+	});
+
+	test('onSelect callback is wired into action items', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
+		const items = buildModelPickerItems(
+			[auto, modelA],
+			undefined,
+			[],
+			[],
+			{},
+			'1.100.0',
+			StateType.Idle,
+			onSelect,
+			undefined,
+			undefined,
+			true,
+			undefined,
+			stubChatEntitlementService,
+			true,
+			true,
+			stubLanguageModelsService,
+		);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem?.item);
+		gptItem.item.run();
+		assert.strictEqual(selectedModel?.identifier, modelA.identifier);
+	});
+
+	test('selected model is checked, others are not', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			selectedModelId: modelA.identifier,
+		});
+		const actions = getActionItems(items);
+		const autoItem = actions.find(a => a.label === 'Auto');
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		const claudeItem = actions.find(a => a.label === 'Claude');
+		assert.ok(!autoItem?.item?.checked);
+		assert.ok(gptItem?.item?.checked);
+		assert.ok(!claudeItem?.item?.checked);
+	});
+
+	test('selected auto model is checked', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			selectedModelId: auto.identifier,
+		});
+		const actions = getActionItems(items);
+		assert.ok(actions[0].item?.checked);
+	});
+
+	test('recently used model resolved by metadata id', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		// Use metadata id rather than identifier
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: ['claude'],
+		});
+		const actions = getActionItems(items);
+		// Claude should be in promoted section (right after Auto)
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'Claude');
+	});
+
+	test('multiple featured and recent models all promoted correctly', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('alpha', 'Alpha');
+		const modelB = createModel('beta', 'Beta');
+		const modelC = createModel('gamma', 'Gamma');
+		const modelD = createModel('delta', 'Delta');
+		const items = callBuild([auto, modelA, modelB, modelC, modelD], {
+			recentModelIds: [modelC.identifier],
+			controlModels: {
+				'alpha': { label: 'Alpha', featured: true, exists: true },
+			},
+		});
+		const actions = getActionItems(items);
+		assert.strictEqual(actions[0].label, 'Auto');
+		// Promoted: Alpha (featured) and Gamma (recent) sorted alphabetically
+		assert.strictEqual(actions[1].label, 'Alpha');
+		assert.strictEqual(actions[2].label, 'Gamma');
+		// Then Other Models toggle
+		assert.ok(actions[3].isSectionToggle);
+	});
+
+	test('admin unavailable model shows manage settings link in description', () => {
+		const auto = createAutoModel();
+		const businessEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Business });
+		const items = buildModelPickerItems(
+			[auto],
+			undefined,
+			['missing-model'],
+			[],
+			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
+			'1.100.0',
+			StateType.Idle,
+			() => { },
+			undefined,
+			'https://aka.ms/github-copilot-settings',
+			true,
+			undefined,
+			businessEntitlementService,
+			true,
+			true,
+			stubLanguageModelsService,
+		);
+
+		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
+		assert.ok(adminItem);
+		assert.strictEqual(adminItem.disabled, true);
+		const description = adminItem.description;
+		assert.ok(description instanceof MarkdownString);
+		assert.ok(description.value.includes('https://aka.ms/github-copilot-settings'));
+	});
+
+	test('unavailable models keep indentation with blank icon', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: {
+				'missing-model': { label: 'Missing Model' } as IModelControlEntry,
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+
+		const unavailable = getActionItems(items).find(a => a.label === 'Missing Model');
+		assert.ok(unavailable);
+		assert.strictEqual(unavailable.hideIcon, false);
+		assert.strictEqual(unavailable.group?.icon?.id, Codicon.blank.id);
+	});
+
+	test('anonymous user sees upgrade description on each unavailable model', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['model-a', 'model-b'],
+			controlModels: {
+				'model-a': { label: 'Model A', featured: true, exists: false },
+				'model-b': { label: 'Model B', featured: true, exists: false },
+			},
+			anonymous: true,
+			entitlement: ChatEntitlement.Unknown,
+		});
+		const actions = getActionItems(items);
+		const disabledItems = actions.filter(a => a.disabled);
+		assert.strictEqual(disabledItems.length, 2);
+		assert.ok(disabledItems[0].description instanceof MarkdownString);
+		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
+	});
+
+	test('free user sees upgrade description on each unavailable model', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['model-a', 'model-b'],
+			controlModels: {
+				'model-a': { label: 'Model A', featured: true, exists: false },
+				'model-b': { label: 'Model B', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+		const actions = getActionItems(items);
+		const disabledItems = actions.filter(a => a.disabled);
+		assert.strictEqual(disabledItems.length, 2);
+		assert.ok(disabledItems[0].description instanceof MarkdownString);
+		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
+	});
+
+	test('anonymous user model selection triggers onSelect normally', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
+		const anonymousEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Unknown, anonymous: true });
+		const items = buildModelPickerItems(
+			[auto, modelA],
+			undefined,
+			[],
+			[],
+			{},
+			'1.100.0',
+			StateType.Idle,
+			onSelect,
+			undefined,
+			undefined,
+			true,
+			undefined,
+			anonymousEntitlementService,
+			true,
+			true,
+			stubLanguageModelsService,
+		);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem?.item);
+		gptItem.item.run();
+		assert.strictEqual(selectedModel?.identifier, modelA.identifier);
+	});
+
+	test('showFeatured=false omits featured models from promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+			showFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Auto first, then Other Models toggle, then models in other section
+		assert.strictEqual(actions[0].label, 'Auto');
+		// GPT-4o should NOT be promoted — it should be in Other Models
+		const promotedLabels = actions.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels').map(a => a.label);
+		assert.ok(!promotedLabels.includes('GPT-4o'), 'GPT-4o should not be in promoted section when showFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false omits unavailable featured models from promoted section', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'premium-model': { label: 'Premium Model', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Premium Model should not appear at all
+		const premiumItem = actions.find(a => a.label === 'Premium Model');
+		assert.strictEqual(premiumItem, undefined, 'Unavailable featured model should not appear when showUnavailableFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false still shows available featured models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// GPT-4o is available and featured, so it should still appear in promoted
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem, 'Available featured model should appear even when showUnavailableFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false with version-gated model allows it in Other Models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, minVSCodeVersion: '2.0.0', exists: true },
+			},
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Version-gated model should not be in promoted section as unavailable
+		const promotedGpt = actions.find(a => a.label === 'GPT-4o' && a.section !== 'other');
+		assert.strictEqual(promotedGpt?.disabled, undefined, 'Version-gated featured model should not appear as unavailable in promoted when showUnavailableFeatured=false');
+		// It should still appear in Other Models since it was not placed
+		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
+		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
+	});
+
+	test('model description includes pricing when set', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, '3x');
+	});
+
+	test('model description combines detail and pricing', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, 'High · 3x');
+	});
+
+	test('model description hides non-multiplier pricing from description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'Provider', pricing: 'In: 2.04 · Out: 4.34 AICs/1M tokens' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Non-multiplier pricing should not appear in description
+		assert.strictEqual(gptItem.item?.description, 'Provider');
+	});
+
+	test('model description shows multiplier pricing in description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('claude', 'Claude');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const claudeItem = getActionItems(items).find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, '15x');
+	});
+
+	test('model with no pricing and no detail has undefined description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+	});
+
+	test('model with priceCategory shows ariaDescription with price label', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Price category is no longer shown as circle indicators in the description
+		assert.strictEqual(gptItem.description, undefined);
+		// ariaDescription should be a readable label for screen readers
+		assert.ok(typeof gptItem.ariaDescription === 'string');
+		assert.ok(!gptItem.ariaDescription.includes('circle'));
+	});
+
+	test('model with unknown priceCategory shows no circle indicators', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'unknown_tier' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Unknown category should fall through to normal description (undefined since no detail)
+		assert.strictEqual(gptItem.item?.description, undefined);
+		assert.strictEqual(gptItem.description, undefined);
+	});
+
+	test('promoted models show inline vendor label when multiple vendors exist across all models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o is promoted (recent) and should show the source inline while keeping multiplier on the right.
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.className, 'chat-model-picker-inline-source');
+		assert.strictEqual(gptItem.badge, 'Copilot');
+		assert.strictEqual(gptItem.description, '15x');
+	});
+
+	test('promoted models omit inline vendor label when only one vendor exists', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// No vendor label since all models are from the same vendor
+		assert.strictEqual(gptItem.className, undefined);
+		assert.strictEqual(gptItem.badge, undefined);
+	});
+
+	test('vendor detail is suppressed in Other Models when multiple vendor groups shown', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, detail: 'GitHub Copilot' } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		modelB.metadata = { ...modelB.metadata, detail: 'Anthropic' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, modelB]);
+		const actions = getActionItems(items);
+		// Detail should be suppressed for models in vendor groups
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+		const claudeItem = actions.find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, undefined);
+	});
+
+	test('pinned models appear in dedicated pinned section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			pinnedModelIds: [modelB.identifier, modelA.identifier],
+		});
+		// Pinned section header exists
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.ok(pinnedSep, 'Pinned separator header should exist');
+		// Pinned models appear in pin order (Claude first, then GPT-4o)
+		const pinnedSepIndex = items.indexOf(pinnedSep!);
+		const afterPinned = items.slice(pinnedSepIndex + 1);
+		const firstPinned = afterPinned.find(i => i.kind === ActionListItemKind.Action);
+		assert.strictEqual(firstPinned?.label, 'Claude');
+	});
+
+	test('pinned models do not appear in MRU/promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			pinnedModelIds: [modelA.identifier],
+			recentModelIds: [modelA.identifier, modelB.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o should only appear once (in pinned, not again in promoted)
+		const gptItems = actions.filter(a => a.label === 'GPT-4o');
+		assert.strictEqual(gptItems.length, 1, 'Pinned model should appear exactly once');
+	});
+
+	test('MRU is capped at 3 after filtering pinned models', () => {
+		const auto = createAutoModel();
+		const models = [
+			auto,
+			createModel('m1', 'Model 1'),
+			createModel('m2', 'Model 2'),
+			createModel('m3', 'Model 3'),
+			createModel('m4', 'Model 4'),
+			createModel('m5', 'Model 5'),
+		];
+		const items = callBuild(models, {
+			recentModelIds: [models[1].identifier, models[2].identifier, models[3].identifier, models[4].identifier, models[5].identifier],
+			pinnedModelIds: [models[1].identifier],
+		});
+		// Model 1 is pinned, MRU should be Model 2, 3, 4 (capped at 3), Model 5 goes to Other
+		const actions = getActionItems(items);
+		const promotedLabels = actions
+			.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels' && a.label !== 'Auto' && a.label !== 'Model 1')
+			.map(a => a.label);
+		assert.ok(promotedLabels.length <= 3, 'MRU should be capped at 3');
+		assert.ok(!promotedLabels.includes('Model 1'), 'Pinned model should not be in MRU');
+	});
+
+	test('no pinned section when pinnedModelIds is empty', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			pinnedModelIds: [],
+			recentModelIds: [modelA.identifier],
+		});
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
+	});
+});
+
+/**
+ * Regression coverage for the chat model picker.
+ *
+ * Guards the end-to-end picker pipeline (`filterModelsForSession` →
+ * `buildModelPickerItems`) against regressions where models contributed by a
+ * `languageModelChatProvider` extension stop appearing in the picker even
+ * though they remain visible in the model configuration view.
+ *
+ * Behavior under test: `metadata.isUserSelectable` defaults to `true`. Only an
+ * explicit `false` hides a model from the picker; both `undefined` and `true`
+ * make the model visible. This rule applies uniformly to the copilot vendor
+ * and to third-party `languageModelChatProvider` vendors, and matches what
+ * the model configuration view surfaces.
+ */
+suite('chat model picker - languageModelChatProvider visibility regression', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createCopilotModel(
+		id: string,
+		name: string,
+		overrides: Partial<ILanguageModelChatMetadata> = {},
+	): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `copilot/${id}`,
+			metadata: {
+				id,
+				name,
+				vendor: 'copilot',
+				version: '1.0.0',
+				family: 'copilot',
+				maxInputTokens: 128_000,
+				maxOutputTokens: 4_096,
+				isDefaultForLocation: {},
+				isUserSelectable: true,
+				capabilities: { toolCalling: true, agentMode: true },
+				...overrides,
+			} as ILanguageModelChatMetadata,
+		};
+	}
+
+	function createThirdPartyModel(
+		id: string,
+		name: string,
+		overrides: Partial<ILanguageModelChatMetadata> = {},
+	): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `my-vendor/${id}`,
+			metadata: {
+				id,
+				name,
+				vendor: 'my-vendor',
+				version: '1.0.0',
+				family: 'my-family',
+				maxInputTokens: 128_000,
+				maxOutputTokens: 4_096,
+				isDefaultForLocation: {},
+				capabilities: { toolCalling: true, agentMode: true },
+				...overrides,
+			} as ILanguageModelChatMetadata,
+		};
+	}
+
+	/**
+	 * Runs the full picker pipeline (`filterModelsForSession` →
+	 * `buildModelPickerItems`) for an Ask-mode/Chat-location session and
+	 * returns the actionable model entries (excluding the auto entry, the
+	 * "Other Models" toggle, separators, and the "Manage Models..." entry).
+	 */
+	function runPickerPipeline(
+		models: ILanguageModelChatMetadataAndIdentifier[],
+		languageModelsService: ILanguageModelsService,
+	): IActionListItem<IActionWidgetDropdownAction>[] {
+		const filtered = filterModelsForSession(
+			models,
+			undefined,
+			ChatModeKind.Ask,
+			ChatAgentLocation.Chat,
+		);
+		const items = callBuild(filtered, { languageModelsService });
+		return items.filter(i =>
+			i.kind === ActionListItemKind.Action &&
+			!i.isSectionToggle &&
+			i.label !== 'Auto' &&
+			i.item?.id !== 'manageModels'
+		);
+	}
+
+	/**
+	 * Builds a one-group-per-vendor `ILanguageModelsService` stub on top of
+	 * the file-level `createLanguageModelsServiceStub` helper.
+	 */
+	function buildLmService(
+		vendors: { vendor: string; displayName: string; modelIdentifiers: string[] }[],
+	): ILanguageModelsService {
+		return createLanguageModelsServiceStub(
+			vendors.map(v => ({
+				vendor: v.vendor,
+				displayName: v.displayName,
+				groups: [{ name: v.displayName, modelIdentifiers: v.modelIdentifiers }],
+			})),
+		);
+	}
+
+	test('regression: third-party model with isUserSelectable omitted is shown in the picker', () => {
+		// Original bug: a `languageModelChatProvider` model that omits
+		// `isUserSelectable` was treated as falsy and dropped from the picker
+		// even though the model configuration view kept showing it.
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: undefined });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			['TP'],
+			'A third-party `languageModelChatProvider` model that omits isUserSelectable must still appear in the picker.',
+		);
+	});
+
+	test('regression: third-party model with isUserSelectable: true is shown in the picker', () => {
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: true });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['TP']);
+	});
+
+	test('regression: third-party model with isUserSelectable: false is hidden from the picker', () => {
+		// The default-to-true rule: only an explicit `false` hides a model.
+		// This applies uniformly to copilot and third-party vendors.
+		const tp = createThirdPartyModel('tp', 'TP', { isUserSelectable: false });
+		const lmService = buildLmService([
+			{ vendor: 'my-vendor', displayName: 'My Vendor', modelIdentifiers: [tp.identifier] },
+		]);
+
+		const labels = runPickerPipeline([tp], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			[],
+			'An explicit `isUserSelectable: false` must hide the model regardless of vendor.',
+		);
+	});
+
+	test('regression: copilot internal model (isUserSelectable: false) is hidden from the picker', () => {
+		const internal = createCopilotModel('internal', 'Internal', { isUserSelectable: false });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [internal.identifier] },
+		]);
+
+		const labels = runPickerPipeline([internal], lmService).map(i => i.label);
+		assert.deepStrictEqual(
+			labels,
+			[],
+			'Internal copilot models marked isUserSelectable: false must remain hidden from the picker.',
+		);
+	});
+
+	test('regression: copilot model with omitted isUserSelectable defaults to visible', () => {
+		// `isUserSelectable` defaults to `true` for every vendor, so a copilot
+		// model that omits the flag is now treated as user-selectable.
+		const model = createCopilotModel('public', 'Public', { isUserSelectable: undefined });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [model.identifier] },
+		]);
+
+		const labels = runPickerPipeline([model], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['Public']);
+	});
+
+	test('regression: copilot public model (isUserSelectable: true) is shown in the picker', () => {
+		const pub = createCopilotModel('gpt-4o', 'GPT-4o', { isUserSelectable: true });
+		const lmService = buildLmService([
+			{ vendor: 'copilot', displayName: 'GitHub Copilot', modelIdentifiers: [pub.identifier] },
+		]);
+
+		const labels = runPickerPipeline([pub], lmService).map(i => i.label);
+		assert.deepStrictEqual(labels, ['GPT-4o']);
+	});
+
+	test('regression: mixed vendors - only explicit isUserSelectable: false models are hidden', () => {
+		const copilotPublic = createCopilotModel('gpt-4o', 'GPT-4o', { isUserSelectable: true });
+		const copilotInternal = createCopilotModel('internal', 'Internal', { isUserSelectable: false });
+		const tpTrue = createThirdPartyModel('tp-true', 'TP True', { isUserSelectable: true });
+		const tpFalse = createThirdPartyModel('tp-false', 'TP False', { isUserSelectable: false });
+		const tpUndefined = createThirdPartyModel('tp-undef', 'TP Undef', { isUserSelectable: undefined });
+
+		const lmService = buildLmService([
+			{
+				vendor: 'copilot',
+				displayName: 'GitHub Copilot',
+				modelIdentifiers: [copilotPublic.identifier, copilotInternal.identifier],
+			},
+			{
+				vendor: 'my-vendor',
+				displayName: 'My Vendor',
+				modelIdentifiers: [tpTrue.identifier, tpFalse.identifier, tpUndefined.identifier],
+			},
+		]);
+
+		const labels = runPickerPipeline(
+			[copilotPublic, copilotInternal, tpTrue, tpFalse, tpUndefined],
+			lmService,
+		).map(i => i.label).sort();
+
+		assert.deepStrictEqual(
+			labels,
+			['GPT-4o', 'TP True', 'TP Undef'],
+			'Picker must show every model except those with an explicit isUserSelectable: false.',
+		);
+	});
+
+	test('regression: third-party models without explicit opt-out match the configuration view', () => {
+		// What the model configuration view shows: every model from
+		// `getLanguageModelGroups`, regardless of `isUserSelectable`.
+		// What the picker shows: the same set, minus models that the
+		// extension explicitly opted out via `isUserSelectable: false`.
+		const tpTrue = createThirdPartyModel('tp-true', 'TP True', { isUserSelectable: true });
+		const tpUndefined = createThirdPartyModel('tp-undef', 'TP Undef', { isUserSelectable: undefined });
+		const allThirdParty = [tpTrue, tpUndefined];
+
+		const lmService = buildLmService([
+			{
+				vendor: 'my-vendor',
+				displayName: 'My Vendor',
+				modelIdentifiers: allThirdParty.map(m => m.identifier),
+			},
+		]);
+
+		const configurationView = lmService.getLanguageModelGroups('my-vendor')
+			.flatMap(g => g.modelIdentifiers)
+			.sort();
+		const picker = runPickerPipeline(allThirdParty, lmService)
+			.map(i => allThirdParty.find(m => m.metadata.name === i.label)!.identifier)
+			.sort();
+
+		assert.deepStrictEqual(
+			picker,
+			configurationView,
+			'When no third-party model opts out, the picker must show exactly the same models as the configuration view.',
+		);
+	});
+});
+

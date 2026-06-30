@@ -45,7 +45,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _focusedContextKey: IContextKey<boolean>;
-	private _onDidResize = new Emitter<dom.Dimension>();
+	private _onDidResize = this._register(new Emitter<dom.Dimension>());
 	onDidResize = this._onDidResize.event;
 
 	private _commentThreadState: languages.CommentThreadState | undefined;

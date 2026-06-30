@@ -6,7 +6,7 @@
 import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
 import { AuthenticationError, OctokitService } from './auth.js';
-import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.js';
+import type { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.d.ts';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
 

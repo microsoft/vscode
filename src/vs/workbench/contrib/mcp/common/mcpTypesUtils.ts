@@ -75,6 +75,7 @@ export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: 
 			}
 		}));
 	});
+	store.dispose();
 
 	if (ok) {
 		await timeout(0); // let the tools register in the language model contribution

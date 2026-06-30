@@ -277,7 +277,7 @@ export async function collectCompletionItemResult(
 			let itemKind = kind;
 			const lastArgType: string | undefined = parsedArguments?.annotations.at(-1)?.type;
 			if (lastArgType === 'subcommand_arg') {
-				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+				if (typeof item === 'object' && Object.hasOwn(item, 'args') && (asArray((item as Fig.Option).args ?? [])).length > 0) {
 					itemKind = vscode.TerminalCompletionItemKind.Option;
 				}
 			}
@@ -287,8 +287,8 @@ export async function collectCompletionItemResult(
 
 			// Add <argName> for every argument
 			let detail: string | undefined;
-			if (typeof item === 'object' && 'args' in item) {
-				const args = asArray(item.args);
+			if (typeof item === 'object' && Object.hasOwn(item, 'args')) {
+				const args = asArray((item as Fig.Option).args);
 				if (args.every(e => !!e?.name)) {
 					if (args.length > 0) {
 						detail = ' ' + args.map(e => {
@@ -352,7 +352,7 @@ function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariab
 }
 
 export function getFixSuggestionDescription(spec: Fig.Spec): string {
-	if ('description' in spec) {
+	if (typeof spec !== 'function' && Object.hasOwn(spec, 'description')) {
 		return spec.description ?? '';
 	}
 	return '';

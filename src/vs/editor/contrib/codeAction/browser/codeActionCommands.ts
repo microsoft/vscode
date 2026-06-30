@@ -82,7 +82,7 @@ export class QuickFixAction extends EditorAction2 {
 			},
 			menu: {
 				id: MenuId.InlineChatEditorAffordance,
-				group: '0_quickfix',
+				group: '1_quickfix',
 				order: 0,
 				when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
 			}

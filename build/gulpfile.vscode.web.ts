@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, rename, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
+import * as cp from 'child_process';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { readISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
-import rename from 'gulp-rename';
-import filter from 'gulp-filter';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { copyCodiconsTask } from './lib/compilation.ts';
 import * as extensions from './lib/extensions.ts';
-import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
@@ -29,6 +28,38 @@ const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
+
+// esbuild-based bundle for standalone web
+function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, sourceMapBaseUrl?: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const scriptPath = path.join(REPO_ROOT, 'build/next/index.ts');
+		const args = [scriptPath, 'bundle', '--out', outDir, '--target', 'web'];
+		if (minify) {
+			args.push('--minify');
+			args.push('--mangle-privates');
+		}
+		if (nls) {
+			args.push('--nls');
+		}
+		if (sourceMapBaseUrl) {
+			args.push('--source-map-base-url', sourceMapBaseUrl);
+		}
+
+		const proc = cp.spawn(process.execPath, args, {
+			cwd: REPO_ROOT,
+			stdio: 'inherit'
+		});
+
+		proc.on('error', reject);
+		proc.on('close', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`esbuild web bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify}, nls: ${nls})`));
+			}
+		});
+	});
+}
 
 export const vscodeWebResourceIncludes = [
 
@@ -40,6 +71,7 @@ export const vscodeWebResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -81,6 +113,7 @@ const vscodeWebEntryPoints = [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb,
+	buildfile.sessionsWeb,
 ].flat();
 
 /**
@@ -110,7 +143,7 @@ export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product
 	};
 };
 
-const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
+const bundleVSCodeWebTask = task.define('bundle-vscode-web-OLD', task.series(
 	util.rimraf('out-vscode-web'),
 	optimize.bundleTask(
 		{
@@ -125,12 +158,17 @@ const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
 	)
 ));
 
-const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+const minifyVSCodeWebTask = task.define('minify-vscode-web-OLD', task.series(
 	bundleVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
 	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
-gulp.task(minifyVSCodeWebTask);
+task.task(minifyVSCodeWebTask);
+
+// esbuild-based tasks (new)
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true));
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`));
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
@@ -188,7 +226,7 @@ const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build'
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));
-gulp.task(compileWebExtensionsBuildTask);
+task.task(compileWebExtensionsBuildTask);
 
 const dashed = (str: string) => (str ? `-${str}` : ``);
 
@@ -197,16 +235,17 @@ const dashed = (str: string) => (str ? `-${str}` : ``);
 	const destinationFolderName = `vscode-web`;
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
+		copyCodiconsTask,
 		compileWebExtensionsBuildTask,
-		minified ? minifyVSCodeWebTask : bundleVSCodeWebTask,
+		minified ? esbuildBundleVSCodeWebMinTask : esbuildBundleVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
 	));
-	gulp.task(vscodeWebTaskCI);
+	task.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
 		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));
-	gulp.task(vscodeWebTask);
+	task.task(vscodeWebTask);
 });

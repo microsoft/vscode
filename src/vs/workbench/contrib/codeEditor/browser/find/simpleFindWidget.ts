@@ -8,8 +8,9 @@ import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
-import { Delayer } from '../../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
 import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
@@ -27,6 +28,8 @@ import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../.
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import type { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -69,6 +72,14 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	private _foundMatch: boolean = false;
 	private _width: number = 0;
 
+	/**
+	 * Tracks whether the accessibility help hint has been announced in the ARIA label.
+	 * Reset to false when the widget is hidden, allowing the hint to be announced again
+	 * on the next reveal.
+	 */
+	private _accessibilityHelpHintAnnounced: boolean = false;
+	private _labelResetTimeout: IDisposable | undefined;
+
 	readonly state: FindReplaceState;
 
 	constructor(
@@ -77,6 +88,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		contextKeyService: IContextKeyService,
 		hoverService: IHoverService,
 		private readonly _keybindingService: IKeybindingService,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -307,6 +320,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		this._isVisible = true;
+		this._updateFindInputAriaLabel();
 		this.updateResultCount();
 		this.layout();
 
@@ -341,6 +355,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	public hide(animated = true): void {
 		if (this._isVisible) {
+			// Reset the accessibility help hint flag so it can be announced again on next reveal
+			this._accessibilityHelpHintAnnounced = false;
 			this._innerDomNode.classList.toggle('suppress-transition', !animated);
 			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
@@ -434,6 +450,36 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	changeState(state: INewFindReplaceState) {
 		this.state.change(state, false);
+	}
+
+	/**
+	 * Updates the ARIA label of the find input box.
+	 * When a screen reader is active and the accessibility verbosity setting is enabled,
+	 * includes a hint about pressing Alt+F1 for accessibility help on first reveal.
+	 * The hint is only announced once per show/hide cycle to prevent double-speak.
+	 */
+	private _updateFindInputAriaLabel(): void {
+		let findLabel = NLS_FIND_INPUT_LABEL;
+
+		// Include accessibility help hint on first reveal when screen reader is active
+		// Note: Using raw string for setting ID - this setting may not be registered yet
+		if (!this._accessibilityHelpHintAnnounced && this._configurationService.getValue('accessibility.verbosity.find') && this._accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				findLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+
+				// Reset to plain label after delay to avoid repeated announcement on focus changes
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
+					if (this._isVisible) {
+						this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
+					}
+				}, 1000);
+			}
+		}
+
+		this._findInput.inputBox.setAriaLabel(findLabel);
 	}
 
 	private _announceSearchResults(label: string, searchString?: string): string {

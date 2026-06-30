@@ -275,7 +275,11 @@ class LanguageStatus {
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 		for (const status of model.dedicated) {
 			const props = LanguageStatus._asStatusbarEntry(status);
-			let entry = this._dedicatedEntries.get(status.id);
+
+			// First check if we already processed a status with this id in the current update
+			// (can happen when duplicate status ids exist momentarily during status updates).
+			// Also check the previous entries map for an existing accessor to reuse.
+			let entry = newDedicatedEntries.get(status.id) ?? this._dedicatedEntries.get(status.id);
 			if (!entry) {
 				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {

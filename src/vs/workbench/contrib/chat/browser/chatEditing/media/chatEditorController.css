@@ -7,7 +7,7 @@
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	display: flex;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-md);
 	border-radius: 6px;
 	overflow: hidden;
 }
@@ -21,7 +21,7 @@
 	border-radius: 6px;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
-	border: 1px solid var(--vscode-contrastBorder);
+	border: 1px solid var(--vscode-editorWidget-border);
 	overflow: hidden;
 }
 

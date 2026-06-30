@@ -66,6 +66,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -208,6 +210,12 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		promptedEmitter = disposableStore.add(new Emitter<void>());
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+		instantiationService.stub(IExtensionGalleryManifestService, {
+			onDidChangeExtensionGalleryManifest: Event.None,
+			onDidChangeExtensionGalleryManifestStatus: Event.None,
+			extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+			async getExtensionGalleryManifest() { return null; }
+		});
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
 		testConfigurationService = new TestConfigurationService();
@@ -288,6 +296,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
+		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		instantiationService.stub(IExtensionTipsService, disposableStore.add(instantiationService.createInstance(TestExtensionTipsService)));
 

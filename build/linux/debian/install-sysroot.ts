@@ -78,7 +78,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-		const version = '20250407-330404';
+		const version = '20260212-405735';
 		try {
 			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
@@ -229,7 +229,7 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	}
 	const sha = getSha(tarball);
 	if (sha !== tarballSha) {
-		throw new Error(`Tarball sha1sum is wrong. Expected ${tarballSha}, actual ${sha}`);
+		throw new Error(`Tarball checksum is wrong. Expected ${tarballSha}, actual ${sha}`);
 	}
 
 	const proc = spawnSync('tar', ['xf', tarball, '-C', sysroot]);

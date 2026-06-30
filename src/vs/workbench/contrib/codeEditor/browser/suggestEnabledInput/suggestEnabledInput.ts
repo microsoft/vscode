@@ -116,10 +116,10 @@ export interface ISuggestEnabledInputStyleOverrides {
 
 export class SuggestEnabledInput extends Widget {
 
-	private readonly _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = this._register(new Emitter<void>());
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private readonly _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = this._register(new Emitter<string | undefined>());
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -291,6 +291,10 @@ export class SuggestEnabledInput extends Widget {
 		this.inputWidget.updateOptions({ ariaLabel: label });
 	}
 
+	public setPlaceHolder(placeholder: string): void {
+		this.placeholderText.textContent = placeholder;
+	}
+
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
 		const fullRange = this.inputModel.getFullModelRange();
@@ -374,6 +378,15 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	/**
+	 * Whether the input is currently showing a value from the history (as opposed to a freshly
+	 * typed query). While navigating, {@link showNextValue} advances toward more recent entries and,
+	 * once past the most recent one, clears the input back to an empty value.
+	 */
+	public isNavigatingHistory(): boolean {
+		return !this.history.isNowhere();
 	}
 
 	public showNextValue(): void {

@@ -51,7 +51,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 
 	protected _worker: IWebWorkerClient<ILocalFileSearchWorker> | null;
 
-	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	private readonly _onDidReceiveTextSearchMatch = this._register(new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>());
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
 	private cache: { key: string; cache: ISearchComplete } | undefined;

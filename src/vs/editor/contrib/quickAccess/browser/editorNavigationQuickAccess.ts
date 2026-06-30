@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { getCodeEditor, isDiffEditor } from '../../../browser/editorBrowser.js';
 import { IRange } from '../../../common/core/range.js';
 import { IDiffEditor, IEditor, ScrollType } from '../../../common/editorCommon.js';
@@ -150,7 +151,8 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 		const model = this.getModel(editor);
 		if (model) {
-			status(`${model.getLineContent(options.range.startLineNumber)}`);
+			const lineContent = model.getLineContent(options.range.startLineNumber);
+			status(localize('gotoLocation.status', "Line {0}, column {1}: {2}", options.range.startLineNumber, options.range.startColumn, lineContent));
 		}
 	}
 

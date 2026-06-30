@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IDialogsModel, IDialogViewItem } from '../../../common/dialogs.js';
@@ -16,9 +12,7 @@ import { DialogService } from '../../../services/dialogs/common/dialogService.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { createBrowserAboutDialogDetails } from '../../../../platform/dialogs/browser/dialog.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { createBrowserAboutDialogDetails } from './dialog.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,18 +25,12 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@IDialogService private dialogService: IDialogService,
-		@ILogService logService: ILogService,
-		@ILayoutService layoutService: ILayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private productService: IProductService,
-		@IClipboardService clipboardService: IClipboardService,
-		@IOpenerService openerService: IOpenerService,
-		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
-		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, clipboardService, openerService, markdownRendererService));
+		this.impl = new Lazy(() => instantiationService.createInstance(BrowserDialogHandler));
 		this.model = (this.dialogService as DialogService).model;
 
 		this._register(this.model.onWillShowDialog(() => {
