@@ -15,6 +15,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
@@ -180,6 +181,15 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
  */
 function lastTurnModelSelection(state: ISessionWithDefaultChat | undefined): ModelSelection | undefined {
 	return lastTurnMessage(state)?.model;
+}
+
+/**
+ * Whether a progress emission counts as the turn's first visible progress
+ * for time-to-first-progress telemetry. Mirrors the agent host's own
+ * definition (text delta, response part, tool call start, or reasoning).
+ */
+function isFirstVisibleProgressPart(part: IChatProgress): boolean {
+	return part.kind === 'markdownContent' || part.kind === 'thinking' || part.kind === 'toolInvocation';
 }
 
 function lastTurnMessage(state: ISessionWithDefaultChat | undefined): Message | undefined {
@@ -1124,11 +1134,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
+		// Measure turn timings on the workbench side so the core
+		// `interactiveSessionProviderInvoked` telemetry event is populated for
+		// agent-host providers. `firstProgress` mirrors the agent host's own
+		// "first visible progress" definition (text delta, response part, tool
+		// call start, or reasoning), which maps to `markdownContent`, `thinking`,
+		// and `toolInvocation` parts on this side.
+		const stopWatch = StopWatch.create(false);
+		let firstProgress: number | undefined;
+		const measuredProgress = (parts: IChatProgress[]) => {
+			if (firstProgress === undefined && parts.some(isFirstVisibleProgressPart)) {
+				firstProgress = stopWatch.elapsed();
+			}
+			progress(parts);
+		};
+
+		const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken);
 		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 		const errorDetails = this._getTurnErrorDetails(completedTurn);
 
 		return {
+			timings: { firstProgress, totalElapsed: stopWatch.elapsed() },
 			...(details ? { details } : {}),
 			...(errorDetails ? { errorDetails } : {}),
 		};
